@@ -1,0 +1,288 @@
+{
+  "kind": "milk",
+  "total": 1000,
+  "buckets": {
+    "pass": 945,
+    "black": 36,
+    "compile-fail": 0,
+    "gpu-error": 0,
+    "parse-fail": 19
+  },
+  "failures": [
+    {
+      "file": "! Transition\\Fast transition to black - levels effect === Goody's Lightning (ps 2-0) --- Isosceles edit.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Dancer\\Blobby Mirror\\suksma - churlish egronomy steward supress terra preta.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Dancer\\Lasers\\martin - neon space ps2.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Dancer\\Lasers\\martin - time machine - too bad you'll be phaged genius roam3.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Dancer\\Lasers\\rce-ordinary - microscopic things (crosslinking mix) - splice leg stain.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Dancer\\Murky\\EVET - Ball Lightning 1 --- Isosceles edit2.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Dancer\\Swarm\\martin - sphery tales slow version nz+.milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Drawing\\Explosions Mirror\\chris grease organiq stymied parchment phlossidite logos holographeme poach legsce.milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Drawing\\Explosions Mirror\\fiShbRaiN - witchcraft (metropolish remix) - test - tillex  - waqx xtrong en la ngoadzchple.milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Drawing\\Explosions\\fiShbRaiN - witchcraft (metropolish remix) - test - tillex  - expert at pretending to survive gentle unseen incausitive.milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Drawing\\Growth\\red and white2 blowhorde ws2.milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Drawing\\Growth\\shifter + Flexi - liquid circuitry from the neon grafitti hive nz+ whoever fucked with my nephew's life gets really horrible right now2.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Drawing\\Growth\\shifter + Flexi - liquid circuitry from the oblivion hive nz+ the only art in the omniverse is turing machine translation2.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Drawing\\Liquid\\fiShbRaiN + Flexi - witchcraft unleashed [00 the template] + shifter - turing tape - zit gist.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Drawing\\Liquid\\fishbrain and flexi - lovecraft [mr understatement] [shifter's esc shader] - choheerh.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Drawing\\Liquid\\loin bowel - cutting right through to the pointlessness nz+.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Drawing\\Trails Mirror\\414 bowel rebranding pr skinned to the teeth loadus morons who don't think things are going to collapse.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Drawing\\Trails\\craving 'spinach man' action figures suppositoric nutrition - cryingkey.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Fractal\\Core Tunnel\\LuxXx - Dead Planet I.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Fractal\\Mandelbox\\3D function draw template [flexi's learning by doing session 04].milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Fractal\\Mandelbox\\martin - frosty caves.milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Fractal\\Mandelbox\\martin - mandelbox explorer - wreck diver nz+ kgnumbrephul qonqoars ov aengel.milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Fractal\\Mandelbox\\martin - mandelbox stepper.milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Fractal\\Nested Dancer\\PieturP - caleidos_sick.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Geometric\\Cathedral\\xtramartin (201).milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Geometric\\City\\martin - city lights v2 c.milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Geometric\\Cube\\amandio c - dynacube (shifter wave) - don't cry or feel too down.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Geometric\\Sphere Wild\\amandio c - typhoon season - mess.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Geometric\\Sphere Wild\\suksma - 3125 legislative pig's orbitael minimass - lard orifi.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Geometric\\Sphere Wild\\suksma - dumb - zhuGan nz+.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Geometric\\Sphere Wild\\suksma - selectron validumb blegula auralsect qripple baron.milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Geometric\\Tunnel Fans\\amandio c - feeling well 4.milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Geometric\\Tunnel Spheres\\Ft AdamFX Preset Pack - martin - glassball dance in the basal ganglion - cranial bitch.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Geometric\\Wire Spiral\\Stahlregen - Squared^2 (Rainbow colored spiral Solarized).milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Hypnotic\\Illusion Radiate\\Flexi + Rovastar - Fractopia [blame hexcollie].milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Hypnotic\\Illusion Radiate\\flexi - blame moebius.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Hypnotic\\Illusion\\amandio c, flexi, martin - Op illusions - curved1.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Hypnotic\\Illusion\\amandio c, flexi, martin - Planet escher - sticks1.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Hypnotic\\Polar Closeup\\goody + flexi - emotive dissonance - integral anomaly - dissonant rift3.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Hypnotic\\Polar Static\\xtramartin (1).milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Particles\\Grid\\suksma - justifying horrible acts by far worse acts, though only drempt.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Particles\\Spaz\\Martin - Pixies Party (Hakan mash-up) 6-11.milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Particles\\Spaz\\Martin - Pixies Party (Hakan mash-up) 6-9.milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Particles\\Spaz\\martin - pixies party.milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Particles\\Swarm\\$$$ Royal - Mashup (489).milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Reaction\\Liquid Closeup\\shifter - phasm candystripe.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Reaction\\Liquid Ripples\\ORB - Quicksand Lab.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Reaction\\Liquid Ripples\\Rovastar + Che - Asylum Animations seo a2313312314.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Reaction\\Liquid Ripples\\flexi - target practice-5-liquid-2.milk",
+      "bucket": "parse-fail",
+      "detail": "TypeError: o is not a function"
+    },
+    {
+      "file": "Reaction\\Liquid Windy\\ech0 - liquid firesticks I --- Isosceles edit.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Reaction\\Liquid Windy\\greazed up humility - cable knit sveat.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Reaction\\Liquid Windy\\lemuel - the search for god is absurdit is if everyone dies alone gigo.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Sparkle\\Explosions\\Goody + martin - crystal palace - Schizotoxin - The Wild Iris Bloom - mess2 nz+ mechanize de-caged.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Sparkle\\Explosions\\Goody + martin - crystal palace - Schizotoxin - The Wild Iris Bloom - mess2 nz+.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Sparkle\\Jewel\\Goody + martin - crystal palace - Taken - nsgs.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    }
+  ]
+}

@@ -12,6 +12,7 @@ export default ts.config(
         setTimeout: "readonly",
         // page.evaluate callbacks run in the browser via puppeteer
         navigator: "readonly",
+        window: "readonly",
       },
     },
   },

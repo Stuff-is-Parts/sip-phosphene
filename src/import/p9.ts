@@ -71,6 +71,8 @@ export interface TranspileResult {
 
 function extractSections(glsl: string): { helpers: string; body: string } {
   let src = glsl.replace(/\r\n/g, "\n");
+  // strip block comments first: commented-out code otherwise leaks through
+  src = src.replace(/\/\*[\s\S]*?\*\//g, "");
   // strip VERTEXOUTPUT { ... }
   src = src.replace(/VERTEXOUTPUT\s*\{[^}]*\}/, "");
   // strip vertex block
@@ -86,16 +88,61 @@ function extractSections(glsl: string): { helpers: string; body: string } {
   return { helpers, body: mm[1] };
 }
 
+/** Replace two-arg calls `name(a, b)` with a template, paren-aware. */
+function replaceTwoArgCall(src: string, name: string, tmpl: (a: string, b: string) => string): string {
+  const re = new RegExp("\\b" + name + "\\s*\\(", "g");
+  let out = src;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(out))) {
+    const start = m.index + m[0].length;
+    let depth = 1;
+    let comma = -1;
+    let i = start;
+    for (; i < out.length && depth > 0; i++) {
+      const ch = out[i];
+      if (ch === "(") depth++;
+      else if (ch === ")") depth--;
+      else if (ch === "," && depth === 1 && comma < 0) comma = i;
+    }
+    if (depth !== 0 || comma < 0) break; // not a two-arg call; leave as-is
+    const a = out.slice(start, comma).trim();
+    const b = out.slice(comma + 1, i - 1).trim();
+    out = out.slice(0, m.index) + tmpl(a, b) + out.slice(i);
+    re.lastIndex = m.index;
+  }
+  return out;
+}
+
+/** Names the assembled WGSL already owns; user code gets a p9_ prefix. */
+const RESERVED = new Set([
+  "c", "render", "vmain", "fmain", "makeCtx", "noise", "hash", "fbm", "ridge",
+  "pal", "hue3", "img", "spec", "wav", "custSlot", "smin", "rot2", "camRay",
+  "warpUV", "waveLine", "sdSphere", "sdBox", "sdTorus", "sdCylinder", "opRep", "sdNgon",
+]);
+
 function convertCommon(code: string, warnings: string[]): string {
   let s = code;
+  // preprocessor: simple defines become consts, other directives drop
+  s = s.replace(/^[ \t]*#define[ \t]+(\w+)[ \t]+([^\s/]+)[ \t]*$/gm, "const $1 = $2;");
+  s = s.replace(/^[ \t]*#.*$/gm, "");
   // constants and Plane9 stdlib
   s = s.replace(/\bPI2\b/g, "6.2831853");
   s = s.replace(/\bPI\b/g, "3.14159265");
   s = s.replace(/\b_noise\s*\(/g, "noise(");
+  s = s.replace(/\b_fbm\s*\(/g, "fbm(");
+  s = s.replace(/\b_hsv2rgb\s*\(/g, "p9hsv2rgb(");
+  s = s.replace(/\b_tonemapACES\s*\(/g, "p9aces(");
+  s = s.replace(/\b_turbulence(fast)?\s*\(/g, "ridge(");
+  s = s.replace(/\b_luminance\s*\(/g, "p9luma(");
+  s = s.replace(/\b_saturate\s*\(/g, "p9sat3(");
   s = s.replace(/\b_tolinear\s*\(([^;]*?)\)/g, "pow($1, vec3f(2.2))");
+  // GLSL mod() has floor semantics; WGSL % truncates — inline the math
+  s = replaceTwoArgCall(s, "mod", (a, b) => `((${a}) - (${b}) * floor((${a}) / (${b})))`);
   // engine inputs
   s = s.replace(/\bsi\.tex\b/g, "p9uv");
   s = s.replace(/\bsi\.diffuse\b/g, "vec4f(1.0)");
+  s = s.replace(/\bsi\.\w+\b/g, "vec4f(1.0)"); // remaining varyings: flat default
+  s = s.replace(/\bgResolution\b/g, "c.res");
   s = s.replace(/\bgTime\b/g, "p9time");
   s = s.replace(/\bgColor1\b/g, "vec4f(1.0)");
   s = s.replace(/\bgColor2\b/g, "vec4f(1.0)");
@@ -114,37 +161,94 @@ function convertCommon(code: string, warnings: string[]): string {
   s = s.replace(/img\(([^;]*?),\s*[\d.]+\s*\)/g, "img($1)");
   // atan(y,x) -> atan2
   s = s.replace(/\batan\s*\(([^,()]+(?:\([^()]*\))?[^,()]*),/g, "atan2($1,");
-  // vector constructors
+  // literals and casts
+  s = s.replace(/\b(\d+\.?\d*)f\b/g, "$1");           // 1.0f -> 1.0
+  s = s.replace(/\bfloat\s*\(/g, "f32(");
+  s = s.replace(/\bint\s*\(/g, "i32(");
+  s = s.replace(/\bgl_FragCoord\.xy\b/g, "(c.uv * c.res)");
+  s = s.replace(/\bgl_FragCoord\.x\b/g, "(c.uv.x * c.res.x)");
+  s = s.replace(/\bgl_FragCoord\.y\b/g, "(c.uv.y * c.res.y)");
+  // C-style for loops with inline declarations
+  s = s.replace(/\bfor\s*\(\s*int\s+(\w+)\s*=/g, "for (var $1 : i32 =");
+  s = s.replace(/\bfor\s*\(\s*float\s+(\w+)\s*=/g, "for (var $1 : f32 =");
+  // vector constructors and integer vectors
+  s = s.replace(/\bivec([234])\s*\(/g, "vec$1i(");
+  s = s.replace(/\bivec([234])\s+(\w+)\s*=/g, "var $2 : vec$1i =");
   s = s.replace(/\bvec([234])\s*\(/g, "vec$1f(");
   s = s.replace(/\bmat2\s*\(/g, "mat2x2f(").replace(/\bmat3\s*\(/g, "mat3x3f(").replace(/\bmat4\s*\(/g, "mat4x4f(");
+  s = s.replace(/(^|[;{]|\n)(\s*)mat([234])\s+(\w+)\s*=/g, "$1$2var $4 : mat$3x$3f =");
   // swizzle l-values (illegal in WGSL): x.rgb op= expr;  /  x.rgb = expr;
   s = s.replace(/(\w+)\.(rgb|xyz)\s*\*=\s*([^;]+);/g, "$1 = vec4f($1.$2 * ($3), $1.w);");
   s = s.replace(/(\w+)\.(rgb|xyz)\s*\+=\s*([^;]+);/g, "$1 = vec4f($1.$2 + ($3), $1.w);");
   s = s.replace(/(\w+)\.(rgb|xyz)\s*=\s*([^;]+);/g, "$1 = vec4f(($3), $1.w);");
-  // declarations at statement starts
+  // declarations at statement starts (with and without initializer)
   s = s.replace(/(^|[;{]|\n)(\s*)float\s+(\w+)\s*=/g, "$1$2var $3 : f32 =");
   s = s.replace(/(^|[;{]|\n)(\s*)vec([234])\s+(\w+)\s*=/g, "$1$2var $4 : vec$3f =");
   s = s.replace(/(^|[;{]|\n)(\s*)int\s+(\w+)\s*=/g, "$1$2var $3 : i32 =");
+  s = s.replace(/(^|[;{]|\n)(\s*)float\s+(\w+)\s*;/g, "$1$2var $3 : f32;");
+  s = s.replace(/(^|[;{]|\n)(\s*)vec([234])\s+(\w+)\s*;/g, "$1$2var $4 : vec$3f;");
+  s = s.replace(/(^|[;{]|\n)(\s*)int\s+(\w+)\s*;/g, "$1$2var $3 : i32;");
+  s = s.replace(/(^|[;{]|\n)(\s*)bool\s+(\w+)\s*=/g, "$1$2var $3 : bool =");
+  // braceless if/else bodies (WGSL requires compound statements)
+  s = s.replace(/\bif\s*(\([^()]*(?:\([^()]*\)[^()]*)*\))\s*(?!\{)([^;{}]*;)/g, "if $1 { $2 }");
+  s = s.replace(/\belse\s+(?!if\b)(?!\{)([^;{}]*;)/g, "else { $1 }");
+  // simple non-nested ternaries -> select(false, true, cond)
+  let guard = 0;
+  while (s.includes("?") && guard++ < 32) {
+    const next = s.replace(
+      /([=(,]\s*)([^?;=(){}]+)\?([^:;?{}]+):([^;,)}]+)/,
+      (_m, pre: string, cond: string, a: string, b: string) =>
+        `${pre}select((${b.trim()}), (${a.trim()}), (${cond.trim()}))`);
+    if (next === s) break;
+    s = next;
+  }
+  if (s.includes("?")) warnings.push("nested ternary present — review the marked lines");
+  // user identifiers that collide with the assembled WGSL's names
+  for (const name of RESERVED) {
+    const decl = new RegExp("\\bvar " + name + " :|\\bfn " + name + "\\(");
+    if (decl.test(s)) {
+      s = s.replace(new RegExp("\\b" + name + "\\b(?!\\s*:\\s*Ctx)", "g"), "p9_" + name);
+    }
+  }
   // output
   s = s.replace(/\boColor\b/g, "p9out");
-  if (s.includes("?")) warnings.push("ternary operator present — WGSL needs select(); review the marked lines");
   return s;
 }
+
+/** WGSL implementations of the Plane9 stdlib helpers user shaders call. */
+const P9LIB: [string, string][] = [
+  ["p9hsv2rgb", `fn p9hsv2rgb(h : f32, s : f32, v : f32) -> vec3f {
+  return v * mix(vec3f(1.0), clamp(abs(fract(vec3f(h) + vec3f(0.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0) - 1.0, vec3f(0.0), vec3f(1.0)), s);
+}`],
+  ["p9aces", `fn p9aces(x : vec3f) -> vec3f {
+  return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), vec3f(0.0), vec3f(1.0));
+}`],
+  ["p9luma", `fn p9luma(x : vec3f) -> f32 { return dot(x, vec3f(0.299, 0.587, 0.114)); }`],
+  ["p9sat3", `fn p9sat3(x : vec3f) -> vec3f { return clamp(x, vec3f(0.0), vec3f(1.0)); }`],
+];
 
 function convertHelpers(helpers: string, warnings: string[]): string {
   let s = convertCommon(helpers, warnings);
   // function signatures: float name(vec2 p, float a) { -> fn name(p : vec2f, a : f32) -> f32 {
   s = s.replace(
-    /\b(float|vec2|vec3|vec4)\s+(\w+)\s*\(([^)]*)\)\s*\{/g,
+    /\b(float|vec2|vec3|vec4|void)\s+(\w+)\s*\(([^)]*)\)\s*\{/g,
     (_m, ret: string, name: string, args: string) => {
-      const retT = ret === "float" ? "f32" : "vec" + ret.slice(3) + "f";
+      const retT = ret === "void" ? "" :
+        " -> " + (ret === "float" ? "f32" : "vec" + ret.slice(3) + "f");
       const argList = args.trim() === "" ? "" : args.split(",").map((a) => {
         const parts = a.trim().split(/\s+/);
+        if (parts[0] === "in" || parts[0] === "out" || parts[0] === "inout") {
+          warnings.push(`helper '${name}' uses ${parts[0]} parameters — WGSL passes by value; review`);
+          parts.shift();
+        }
         const t = parts[0] === "float" ? "f32" : parts[0] === "int" ? "i32" : "vec" + parts[0].slice(3) + "f";
         return parts[1] + " : " + t;
       }).join(", ");
-      return `fn ${name}(${argList}) -> ${retT} {`;
+      return `fn ${name}(${argList})${retT} {`;
     });
+  // module-scope globals need an address space in WGSL; initialized ones
+  // translate cleanly to const
+  s = s.replace(/^var (\w+ : (?:f32|i32|vec[234]f) =)/gm, "const $1");
   return s;
 }
 
@@ -157,7 +261,12 @@ export function translateP9Glsl(glsl: string): TranspileResult {
     .filter((g) => b.includes("p9" + g) || h.includes("p9" + g))
     .map((g) => `  let p9${g} : vec3f = vec3f(0.4, 0.0, 0.3); // was node-animated in Plane9`)
     .join("\n");
+  const lib = P9LIB
+    .filter(([name]) => h.includes(name + "(") || b.includes(name + "("))
+    .map(([, impl]) => impl)
+    .join("\n");
   const wgsl =
+    (lib ? lib + "\n" : "") +
     (h.trim() ? h.trim() + "\n\n" : "") +
     `fn render(c : Ctx) -> vec3f {
   let p9uv = c.uv;

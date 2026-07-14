@@ -11,6 +11,7 @@ export default defineConfig({
       input: {
         index: resolve(__dirname, "index.html"),
         studio: resolve(__dirname, "studio.html"),
+        verify: resolve(__dirname, "verify.html"),
       },
     },
   },
