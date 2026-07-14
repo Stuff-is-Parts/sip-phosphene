@@ -1,11 +1,13 @@
 import { packUniforms, parseParams, UNIFORM_BYTES, type EffectiveParams } from "../core/params";
 import { MESH_W, MESH_H } from "../core/meshwarp";
 import type {
-  AudioFeatures, CompileDiagnostic, CompileResult, CustomParam, StageId,
+  AudioFeatures, CompileDiagnostic, CompileResult, CustomParam, SceneMesh,
+  ScenePass, StageId,
 } from "../core/types";
 import {
   assemble, PRESENT_WGSL, BLOOM_BRIGHT_WGSL, BLOOM_BLUR_WGSL, BLOOM_COMPOSITE_WGSL,
 } from "./wgsl";
+import { assembleMesh, makeGeometry, PARTICLE_WGSL } from "./mesh";
 
 /** IEEE 754 float32 -> float16 bits (for rgba16float texture uploads). */
 function toHalf(v: number): number {
@@ -26,6 +28,21 @@ interface StageState {
   params: CustomParam[];
 }
 
+interface PassState {
+  pipeline: GPURenderPipeline;
+  params: CustomParam[];
+  ping: GPUTexture;
+  pong: GPUTexture;
+}
+
+interface MeshState {
+  pipeline: GPURenderPipeline;
+  vbuf: GPUBuffer;
+  ibuf: GPUBuffer;
+  indexCount: number;
+  instances: number;
+}
+
 const TARGET_FORMAT: GPUTextureFormat = "rgba16float";
 
 /** One renderable scene: its stage pipelines, feedback chain, and image. */
@@ -44,6 +61,10 @@ class Slot {
   image: GPUTexture | null = null;
   imageAspect = 1;
   warpMesh: GPUTexture | null = null;
+  passes: PassState[] = [];
+  mesh: MeshState | null = null;
+  particleBuf: GPUBuffer | null = null;
+  particleCount = 0;
   ubo!: GPUBuffer;
   uboGroup!: GPUBindGroup;
   uniformData = new Float32Array(UNIFORM_BYTES / 4);
@@ -69,6 +90,8 @@ export class Renderer {
   private bloomBlurH!: GPURenderPipeline;
   private bloomBlurV!: GPURenderPipeline;
   private bloomComposite!: GPURenderPipeline;
+  private depthTex!: GPUTexture;
+  private particlePipeline!: GPURenderPipeline;
 
   /** Transition state: progress 0..1 mixing slot0 -> slot1, then swap. */
   transitionProgress = 0;
@@ -174,7 +197,142 @@ export class Renderer {
     this.bloomBlurV = fixed(BLOOM_BLUR_WGSL, this.singleTexLayout, "fmainV");
     this.bloomComposite = fixed(BLOOM_COMPOSITE_WGSL, this.presentLayout, "fmain");
 
+    const particleModule = this.device.createShaderModule({ code: PARTICLE_WGSL });
+    this.particlePipeline = this.device.createRenderPipeline({
+      layout: this.device.createPipelineLayout({ bindGroupLayouts: [this.uboLayout] }),
+      vertex: {
+        module: particleModule, entryPoint: "vmain",
+        buffers: [{
+          arrayStride: 16, stepMode: "instance",
+          attributes: [{ shaderLocation: 0, offset: 0, format: "float32x4" }],
+        }],
+      },
+      fragment: {
+        module: particleModule, entryPoint: "fmain",
+        targets: [{
+          format: TARGET_FORMAT,
+          blend: {
+            color: { srcFactor: "one", dstFactor: "one", operation: "add" },
+            alpha: { srcFactor: "one", dstFactor: "one", operation: "add" },
+          },
+        }],
+      },
+      primitive: { topology: "triangle-strip" },
+    });
+
     this.resize(canvas.width, canvas.height);
+  }
+
+  /** Compile the extra render-pass chain for a slot (replaces the previous one). */
+  async setPasses(slot: 0 | 1, passes: ScenePass[]): Promise<CompileResult[]> {
+    const s = this.slots[slot];
+    for (const p of s.passes) { p.ping.destroy(); p.pong.destroy(); }
+    s.passes = [];
+    const results: CompileResult[] = [];
+    for (const def of passes) {
+      const params = parseParams(def.code);
+      const { code, bodyLineOffset } = assemble("post", def.code, params);
+      this.device.pushErrorScope("validation");
+      const module = this.device.createShaderModule({ code });
+      const info = await module.getCompilationInfo();
+      const diagnostics: CompileDiagnostic[] = info.messages.map((m) => ({
+        line: Math.max(1, (m.lineNum || 1) - bodyLineOffset),
+        message: m.message,
+        severity: m.type === "error" ? "error" : m.type === "warning" ? "warning" : "info",
+      }));
+      if (diagnostics.some((d) => d.severity === "error")) {
+        await this.device.popErrorScope();
+        results.push({ ok: false, diagnostics, params });
+        continue;
+      }
+      const pipeline = await this.device.createRenderPipelineAsync({
+        layout: this.device.createPipelineLayout({ bindGroupLayouts: [this.uboLayout, this.texLayout] }),
+        vertex: { module, entryPoint: "vmain" },
+        fragment: { module, entryPoint: "fmain", targets: [{ format: TARGET_FORMAT }] },
+        primitive: { topology: "triangle-list" },
+      });
+      const scopeErr = await this.device.popErrorScope();
+      if (scopeErr) {
+        results.push({ ok: false, params, diagnostics: [{ line: 1, message: scopeErr.message, severity: "error" }] });
+        continue;
+      }
+      const make = () => this.device.createTexture({
+        size: [this.width, this.height], format: TARGET_FORMAT,
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+      });
+      s.passes.push({ pipeline, params, ping: make(), pong: make() });
+      results.push({ ok: true, diagnostics, params });
+    }
+    return results;
+  }
+
+  /** Compile (or clear) the rasterized mesh layer for a slot. */
+  async setMesh(slot: 0 | 1, mesh: SceneMesh | null): Promise<CompileResult | null> {
+    const s = this.slots[slot];
+    if (s.mesh) { s.mesh.vbuf.destroy(); s.mesh.ibuf.destroy(); s.mesh = null; }
+    if (!mesh) return null;
+    const params: CustomParam[] = parseParams(mesh.code);
+    const code = assembleMesh(mesh.code);
+    this.device.pushErrorScope("validation");
+    const module = this.device.createShaderModule({ code });
+    const info = await module.getCompilationInfo();
+    const diagnostics: CompileDiagnostic[] = info.messages.map((m) => ({
+      line: Math.max(1, m.lineNum || 1), message: m.message,
+      severity: m.type === "error" ? "error" : m.type === "warning" ? "warning" : "info",
+    }));
+    if (diagnostics.some((d) => d.severity === "error")) {
+      await this.device.popErrorScope();
+      return { ok: false, diagnostics, params };
+    }
+    const pipeline = await this.device.createRenderPipelineAsync({
+      layout: this.device.createPipelineLayout({ bindGroupLayouts: [this.uboLayout] }),
+      vertex: {
+        module, entryPoint: "vmain",
+        buffers: [{
+          arrayStride: 24,
+          attributes: [
+            { shaderLocation: 0, offset: 0, format: "float32x3" },
+            { shaderLocation: 1, offset: 12, format: "float32x3" },
+          ],
+        }],
+      },
+      fragment: { module, entryPoint: "fmain", targets: [{ format: TARGET_FORMAT }] },
+      primitive: { topology: "triangle-list", cullMode: "back" },
+      depthStencil: { format: "depth24plus", depthWriteEnabled: true, depthCompare: "less" },
+    });
+    const scopeErr = await this.device.popErrorScope();
+    if (scopeErr) {
+      return { ok: false, params, diagnostics: [{ line: 1, message: scopeErr.message, severity: "error" }] };
+    }
+    const geo = makeGeometry(mesh.primitive);
+    const vbuf = this.device.createBuffer({
+      size: geo.vertices.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+    this.device.queue.writeBuffer(vbuf, 0, geo.vertices);
+    const ibuf = this.device.createBuffer({
+      size: geo.indices.byteLength, usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+    });
+    this.device.queue.writeBuffer(ibuf, 0, geo.indices);
+    s.mesh = { pipeline, vbuf, ibuf, indexCount: geo.indices.length, instances: mesh.count };
+    return { ok: true, diagnostics, params };
+  }
+
+  /** Size (or clear) the particle instance buffer for a slot. */
+  setParticles(slot: 0 | 1, count: number): void {
+    const s = this.slots[slot];
+    s.particleBuf?.destroy();
+    s.particleBuf = null;
+    s.particleCount = count;
+    if (count > 0) {
+      s.particleBuf = this.device.createBuffer({
+        size: count * 16, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+      });
+    }
+  }
+
+  writeParticles(slot: 0 | 1, data: Float32Array<ArrayBuffer>): void {
+    const s = this.slots[slot];
+    if (s.particleBuf) this.device.queue.writeBuffer(s.particleBuf, 0, data);
   }
 
   /** Upload (or clear) the per-vertex warp mesh: MESH_W×MESH_H UV offsets. */
@@ -217,7 +375,16 @@ export class Renderer {
       for (const t of [s.sceneTex, s.ping, s.pong, s.bloomA, s.bloomB, s.bloomOut]) t?.destroy();
       s.sceneTex = make(); s.ping = make(); s.pong = make();
       s.bloomA = makeHalf(); s.bloomB = makeHalf(); s.bloomOut = make();
+      for (const p of s.passes) {
+        p.ping.destroy(); p.pong.destroy();
+        p.ping = make(); p.pong = make();
+      }
     }
+    this.depthTex?.destroy();
+    this.depthTex = this.device.createTexture({
+      size: [this.width, this.height], format: "depth24plus",
+      usage: GPUTextureUsage.RENDER_ATTACHMENT,
+    });
   }
 
   async setImage(slot: 0 | 1, bitmap: ImageBitmap | null): Promise<void> {
@@ -284,9 +451,13 @@ export class Renderer {
     }
   }
 
-  stageParams(slot: 0 | 1 = 0): Record<StageId, CustomParam[]> {
-    const s = this.slots[slot].stages;
-    return { bg: s.bg.params, fg: s.fg.params, post: s.post.params };
+  stageParams(slot: 0 | 1 = 0): Record<string, CustomParam[]> {
+    const s = this.slots[slot];
+    const out: Record<string, CustomParam[]> = {
+      bg: s.stages.bg.params, fg: s.stages.fg.params, post: s.stages.post.params,
+    };
+    s.passes.forEach((p, i) => { out[`pass${i}`] = p.params; });
+    return out;
   }
 
   beginTransition(mode: number): void {
@@ -326,7 +497,7 @@ export class Renderer {
         { binding: 4, resource: (s.warpMesh ?? this.zero).createView() },
       ],
     });
-    // bg + fg -> sceneTex  (src/prev bound to white: can't sample the attachment)
+    // bg -> sceneTex  (src/prev bound to white: can't sample the attachment)
     {
       const pass = enc.beginRenderPass({
         colorAttachments: [{
@@ -337,7 +508,40 @@ export class Renderer {
       pass.setBindGroup(0, s.uboGroup);
       pass.setBindGroup(1, groupFor(this.white, this.white));
       if (s.stages.bg.pipeline) { pass.setPipeline(s.stages.bg.pipeline); pass.draw(3); }
-      if (s.stages.fg.pipeline) { pass.setPipeline(s.stages.fg.pipeline); pass.draw(3); }
+      pass.end();
+    }
+    // mesh layer: depth-tested over bg
+    if (s.mesh) {
+      const pass = enc.beginRenderPass({
+        colorAttachments: [{ view: s.sceneTex.createView(), loadOp: "load", storeOp: "store" }],
+        depthStencilAttachment: {
+          view: this.depthTex.createView(),
+          depthClearValue: 1, depthLoadOp: "clear", depthStoreOp: "discard",
+        },
+      });
+      pass.setBindGroup(0, s.uboGroup);
+      pass.setPipeline(s.mesh.pipeline);
+      pass.setVertexBuffer(0, s.mesh.vbuf);
+      pass.setIndexBuffer(s.mesh.ibuf, "uint32");
+      pass.drawIndexed(s.mesh.indexCount, s.mesh.instances);
+      pass.end();
+    }
+    // fg + particles: additive over the composite
+    {
+      const pass = enc.beginRenderPass({
+        colorAttachments: [{ view: s.sceneTex.createView(), loadOp: "load", storeOp: "store" }],
+      });
+      pass.setBindGroup(0, s.uboGroup);
+      if (s.stages.fg.pipeline) {
+        pass.setBindGroup(1, groupFor(this.white, this.white));
+        pass.setPipeline(s.stages.fg.pipeline);
+        pass.draw(3);
+      }
+      if (s.particleBuf && s.particleCount > 0) {
+        pass.setPipeline(this.particlePipeline);
+        pass.setVertexBuffer(0, s.particleBuf);
+        pass.draw(4, s.particleCount);
+      }
       pass.end();
     }
     // post(sceneTex, pong) -> ping
@@ -356,8 +560,26 @@ export class Renderer {
       }
       pass.end();
     }
-    const out = s.stages.post.pipeline ? s.ping : s.sceneTex;
+    let out = s.stages.post.pipeline ? s.ping : s.sceneTex;
     const tmp = s.ping; s.ping = s.pong; s.pong = tmp;
+
+    // extra render passes: chained, each with its own feedback pair
+    for (const p of s.passes) {
+      const pass = enc.beginRenderPass({
+        colorAttachments: [{
+          view: p.ping.createView(),
+          loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 },
+        }],
+      });
+      pass.setBindGroup(0, s.uboGroup);
+      pass.setBindGroup(1, groupFor(out, p.pong));
+      pass.setPipeline(p.pipeline);
+      pass.draw(3);
+      pass.end();
+      out = p.ping;
+      const t = p.ping; p.ping = p.pong; p.pong = t;
+    }
+
     if (bloom <= 0) return out;
 
     // bloom chain: bright/downsample -> blur H -> blur V -> composite

@@ -4,6 +4,8 @@ import { Renderer } from "./gpu/renderer";
 import { AudioEngine } from "./audio/sources";
 import { ModEngine } from "./core/mods";
 import { meshWarpFor } from "./core/meshwarp";
+import { particlesFor } from "./core/particles";
+import { renderTextImage } from "./core/text";
 import { isScene, normalizeScene, STAGES, type Scene } from "./core/types";
 import { builtinScenes } from "./shaders/library";
 import { CanvasRecorder } from "./core/record";
@@ -70,6 +72,10 @@ async function loadCommunity(): Promise<void> {
 
 /* ------------------------------ scenes ------------------------------- */
 async function loadSceneImage(scene: Scene, slot: 0 | 1): Promise<void> {
+  if (scene.text && !scene.assets?.image) {
+    const textImage = renderTextImage(scene);
+    if (textImage) scene.assets = { ...scene.assets, image: textImage };
+  }
   const data = scene.assets?.image;
   if (!data) { await renderer.setImage(slot, null); return; }
   try {
@@ -83,6 +89,9 @@ async function compileInto(i: number, slot: 0 | 1): Promise<void> {
     await renderer.compileStage(s, e.scene.layers[s].code, slot);
   }
   await loadSceneImage(e.scene, slot);
+  await renderer.setPasses(slot, e.scene.passes ?? []);
+  await renderer.setMesh(slot, e.scene.mesh ?? null);
+  renderer.setParticles(slot, e.scene.particles?.count ?? 0);
 }
 async function applyScene(i: number): Promise<void> {
   idx = ((i % entries.length) + entries.length) % entries.length;
@@ -134,6 +143,8 @@ function frame(): void {
   const p = mods.evaluate(entries[idx].scene, renderer.stageParams(0), audio.analysis, now);
   const mw = meshWarpFor(entries[idx].scene);
   renderer.setWarpMesh(0, mw ? mw.evaluate(mods.exprSnapshot(), now) : null);
+  const ps = particlesFor(entries[idx].scene);
+  if (ps) renderer.writeParticles(0, ps.update(audio.analysis, now));
   let pIn = null;
   if (incomingIdx !== null && renderer.transitionActive) {
     pIn = modsIncoming.evaluate(entries[incomingIdx].scene, renderer.stageParams(1), audio.analysis, now);

@@ -4,9 +4,14 @@
 // that static WGSL validation and unit tests cannot see.
 // Usage: node scripts/gpu-smoke.mjs   (requires `npm run build` output in dist/)
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { cpSync, existsSync, readFileSync } from "node:fs";
 import puppeteer from "puppeteer-core";
 import { PNG } from "pngjs";
+
+// preview serves dist/ only; stage the scene library next to it and force
+// the player onto the local fallback so THIS tree's scenes get exercised
+cpSync("scenes", "dist/scenes", { recursive: true, filter: (src) => !src.includes("plane9") && !src.includes("projectM") });
+const SCENE_COUNT = JSON.parse(readFileSync("scenes/manifest.json", "utf8")).length;
 
 const EDGE_PATHS = [
   "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
@@ -22,9 +27,9 @@ if (!browserPath) {
   process.exit(1);
 }
 
-const preview = spawn("npx", ["vite", "preview", "--port", "4183", "--strictPort"], {
-  shell: true, stdio: "pipe",
-});
+const preview = spawn(process.execPath, [
+  "node_modules/vite/bin/vite.js", "preview", "--port", "4183", "--strictPort",
+], { stdio: "pipe" });
 await new Promise((resolve, reject) => {
   preview.stdout.on("data", (d) => { if (String(d).includes("4183")) resolve(); });
   preview.on("exit", () => reject(new Error("vite preview exited early")));
@@ -56,6 +61,16 @@ try {
   await page.setViewport({ width: 800, height: 600 });
   const pageErrors = [];
   page.on("pageerror", (e) => pageErrors.push(String(e)));
+  // resource-load noise (our own raw.githubusercontent block, favicons) is
+  // not an app failure; script exceptions and GPU validation errors are
+  page.on("console", (m) => {
+    if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) pageErrors.push(m.text());
+  });
+  await page.setRequestInterception(true);
+  page.on("request", (req) => {
+    if (req.url().includes("raw.githubusercontent.com")) void req.abort();
+    else void req.continue();
+  });
 
   await page.goto("http://localhost:4183/", { waitUntil: "networkidle2", timeout: 20000 });
   const hasGpu = await page.evaluate(() => !!navigator.gpu);
@@ -70,6 +85,19 @@ try {
     console.log(`player lit-pixel ratio: ${(ratio * 100).toFixed(2)}%`);
     if (ratio < 0.005) { console.error("SMOKE FAIL: player canvas is black"); failures++; }
     else console.log("player renders: PASS");
+
+    // walk the whole scene rotation so every scene's pipelines (mesh,
+    // particles, extra passes) actually build and draw at least one frame
+    const sceneCount = SCENE_COUNT;
+    for (let i = 0; i < sceneCount + 2; i++) {
+      await page.click("#cNext");
+      await new Promise((r) => setTimeout(r, 1400));
+    }
+    const walkShot = await page.screenshot({ type: "png" });
+    const walkRatio = litRatio(walkShot);
+    console.log(`scene-walk (${sceneCount} scenes) final lit ratio: ${(walkRatio * 100).toFixed(2)}%`);
+    if (walkRatio < 0.005) { console.error("SMOKE FAIL: canvas black after scene walk"); failures++; }
+    else console.log("scene walk renders: PASS");
   }
   if (pageErrors.length) {
     console.error("SMOKE FAIL: page errors:\n" + pageErrors.join("\n"));
@@ -94,7 +122,6 @@ try {
 } finally {
   await browser.close();
   preview.kill("SIGKILL");
-  spawn("taskkill", ["/F", "/T", "/PID", String(preview.pid)], { shell: true });
 }
 console.log(failures === 0 ? "GPU SMOKE: ALL PASS" : `GPU SMOKE: ${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

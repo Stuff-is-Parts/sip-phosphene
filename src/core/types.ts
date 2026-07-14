@@ -66,6 +66,48 @@ export interface Scene {
   warpMesh?: string;
   /** Built-in bloom pass strength 0..1 (0/absent = off). */
   bloom?: number;
+  /** Extra render passes, run in order after POST. Each is a post-contract
+   *  WGSL body: srcTex = previous output in the chain, prevTex = this pass's
+   *  own last frame (per-pass feedback). Covers render-to-texture graphs. */
+  passes?: ScenePass[];
+  /** Rasterized 3D layer: instanced primitive drawn depth-tested between
+   *  BG and FG. `code` implements the mesh contract (see MESH_CONTRACT). */
+  mesh?: SceneMesh;
+  /** Stateful CPU particle system rendered as additive billboards. `code`
+   *  is a per-particle EEL update program (x/y/z, vx/vy/vz, idx in scope). */
+  particles?: SceneParticles;
+  /** Text rendered into the scene image slot at load (img(uv) samples it). */
+  text?: SceneText;
+}
+
+export interface ScenePass {
+  id: string;
+  code: string;
+}
+
+export type MeshPrimitive = "cube" | "sphere" | "plane" | "cylinder" | "torus";
+
+export interface SceneMesh {
+  primitive: MeshPrimitive;
+  /** Instance count (1..1024). */
+  count: number;
+  /** WGSL body: fn instancePos(idx : f32, t : f32) -> vec4f (xyz + scale)
+   *  and fn meshColor(idx : f32, n : vec3f, wp : vec3f, t : f32) -> vec3f. */
+  code: string;
+}
+
+export interface SceneParticles {
+  /** Particle count (1..4096). */
+  count: number;
+  /** Per-particle EEL update, run each frame: reads/writes x y z vx vy vz
+   *  size, reads idx/count/time/dt plus audio vars; respawn by setting them. */
+  code: string;
+}
+
+export interface SceneText {
+  value: string;
+  /** Font size in px at 1024-wide canvas (default 160). */
+  size?: number;
 }
 
 export interface CustomParam {
@@ -137,5 +179,21 @@ export function normalizeScene(x: Partial<Scene>): Scene {
     ...(x.license ? { license: x.license } : {}),
     ...(x.warpMesh ? { warpMesh: x.warpMesh } : {}),
     ...(typeof x.bloom === "number" && x.bloom > 0 ? { bloom: x.bloom } : {}),
+    ...(Array.isArray(x.passes) && x.passes.length
+      ? { passes: x.passes.map((p) => ({ id: String(p.id), code: String(p.code) })) } : {}),
+    ...(x.mesh ? {
+      mesh: {
+        primitive: x.mesh.primitive,
+        count: Math.max(1, Math.min(1024, Math.trunc(x.mesh.count) || 1)),
+        code: String(x.mesh.code),
+      },
+    } : {}),
+    ...(x.particles ? {
+      particles: {
+        count: Math.max(1, Math.min(4096, Math.trunc(x.particles.count) || 256)),
+        code: String(x.particles.code),
+      },
+    } : {}),
+    ...(x.text?.value ? { text: { value: String(x.text.value), ...(x.text.size ? { size: x.text.size } : {}) } } : {}),
   };
 }

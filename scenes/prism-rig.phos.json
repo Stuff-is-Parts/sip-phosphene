@@ -1,0 +1,40 @@
+{
+  "version": 3,
+  "name": "PRISM RIG",
+  "layers": {
+    "bg": {
+      "code": "fn render(c : Ctx) -> vec3f {\n  var col = pal(0.6 + fbm(c.q * 2.0 + c.t * 0.05) * 0.3) * fbm(c.q * 3.0 + c.t * 0.02) * 0.25;\n  col += vec3f(1.0) * img(c.uv).r * 0.12;\n  return col * c.intensity;\n}"
+    },
+    "fg": {
+      "code": "fn render(c : Ctx) -> vec3f { return vec3f(0.0); }"
+    },
+    "post": {
+      "code": "fn render(c : Ctx) -> vec3f {\n  var col = srcTex(c.uv);\n  col = max(col, prevTex(c.uv) * c.fb);\n  return col;\n}"
+    }
+  },
+  "params": { "hue": 0.55, "speed": 1, "int": 1.1, "fb": 0.55 },
+  "custom": {},
+  "mods": [
+    { "target": "hue", "source": "bpmPhase", "gain": 0.25, "base": 0 }
+  ],
+  "thumb": null,
+  "assets": { "image": null },
+  "text": { "value": "PHOSPHENE", "size": 170 },
+  "mesh": {
+    "primitive": "torus",
+    "count": 12,
+    "code": "fn instancePos(idx : f32, t : f32) -> vec4f {\n  let a = idx / 12.0 * 6.2831 + t * 0.4;\n  return vec4f(cos(a) * 1.9, sin(t * 0.7 + idx) * 0.4, sin(a) * 1.9 - 0.5, 0.5 + spec((i32(idx) * 5) % 64) * 0.4);\n}\nfn meshColor(idx : f32, n : vec3f, wp : vec3f, t : f32) -> vec3f {\n  let l = max(dot(n, normalize(vec3f(0.4, 0.8, 0.3))), 0.1);\n  return pal(idx * 0.08 + t * 0.05) * l * (0.5 + U.bands.x);\n}"
+  },
+  "particles": {
+    "count": 700,
+    "code": "ang = atan2(z, x) + dt * (0.6 + bass * 2.0); r = sqrt(x*x + z*z); r = r + (1.6 - r) * dt * 0.5; x = r * cos(ang); z = r * sin(ang); y = y + (beat * 0.9 - y * 0.5) * dt * 6; size = 0.015 + treb * 0.03;"
+  },
+  "passes": [
+    {
+      "id": "echo",
+      "code": "fn render(c : Ctx) -> vec3f {\n  let q = (c.uv - vec2f(0.5)) * 0.985 + vec2f(0.5);\n  var col = srcTex(c.uv);\n  col = max(col, prevTex(q) * 0.93);\n  return col;\n}"
+    }
+  ],
+  "bloom": 0.4,
+  "credit": "PHOSPHENE built-in: exercises mesh, particles, passes, text, bloom"
+}

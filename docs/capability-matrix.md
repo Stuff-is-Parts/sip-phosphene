@@ -11,17 +11,17 @@ column from the format documented in its BSD-released source.
 | Capability (Plane9 nodes) | Scenes | PHOSPHENE answer |
 |---|---|---|
 | Fullscreen shader draw (Shader, RenderRect) | 247/252 | ✅ WGSL stages, superset (audio uniforms, //@param) |
-| 3D geometry (RenderObject, MeshObject, Cube/Sphere/Plane/…) | 161/252 | 🟡 raymarched SDF (sdSphere/sdBox/sdTorus/sdCylinder, opRep, camRay) — no rasterized mesh pipeline |
-| Render-to-texture graphs (RenderToTexture, PreviousLayer, Store/CopyTexture) | 138/252 | 🟡 fixed bg→fg→post + ping-pong feedback covers the dominant feedback use; arbitrary pass graphs are spec'd (see scene spec, Future) |
+| 3D geometry (RenderObject, MeshObject, Cube/Sphere/Plane/…) | 161/252 | ✅ rasterized depth-tested instanced primitives (cube/sphere/plane/cylinder/torus, scene `mesh` field) plus raymarched SDF stdlib |
+| Render-to-texture graphs (RenderToTexture, PreviousLayer, Store/CopyTexture) | 138/252 | ✅ scene `passes` chain: ordered extra passes, each with its own feedback pair (srcTex/prevTex) |
 | Bloom | 103/252 | ✅ built-in separable pass (bright/blur/composite chain), per-scene `bloom` field 0..1 |
 | CPU expression dataflow (Expression, Vector, MinMax, HSLAToColor…) | 93/252 | ✅ expression mod source (`expr` routes, per-frame programs, persistent vars) |
-| Instancing with per-clone math (CloneExpression, MeshInstancer) | 59/252 | 🟡 in-shader loops; no instance-buffer primitive |
+| Instancing with per-clone math (CloneExpression, MeshInstancer) | 59/252 | ✅ mesh instancing (up to 1024, `instancePos(idx, t)` in WGSL) |
 | Transitions between scenes | 40/252 | ✅ crossfade/liquid/iris/warp-slide morphs |
 | File textures / images | 42/252 | ✅ scene-embedded image, `img(uv)` |
-| Particles / fluid (Particles, Fluid2d, LinearSolver) | 21/252 | 🟡 shader-side fields; no stateful particle system |
+| Particles / fluid (Particles, Fluid2d, LinearSolver) | 21/252 | ✅ stateful particles: per-particle EEL update on CPU, additive billboards (scene `particles`, up to 4096); fluid solvers remain shader-side |
 | Audio analysis (Beat, SoundTexture, Spectrum, Oscilloscope, Waveform, Bars) | 17–12/252 | ✅ superset: bands, flux beat, median BPM, 64-bin spectrum + waveform, `spec()/wav()` |
-| Text (TextWriter, Clock) | 7/252 | ❌ none |
-| VR output | tagged subset | ❌ none |
+| Text (TextWriter, Clock) | 7/252 | ✅ scene `text` field rendered to the image slot, sampled via `img(uv)` |
+| VR output | tagged subset | ❌ external constraint: immersive WebXR sessions do not yet interoperate with WebGPU rendering in shipped browsers |
 
 ## MilkDrop, from the documented preset format
 

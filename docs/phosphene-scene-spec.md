@@ -76,10 +76,23 @@ persists between frames. Routes sharing one program run it once per frame.
   equations onto `expr` routes and the `warpUV`/`waveLine` render templates.
   MilkDrop 2 HLSL shader blocks are detected and reported, not executed.
 
-## Future capability blocks
+## Capability blocks (all optional; absent field = base behavior)
 
-Reserved for parity items the capability matrix marks 🟡: named render passes
-beyond bg/fg/post (arbitrary render-to-texture graphs), a separable bloom
-pass, instance buffers with per-instance expressions, and text rendering.
-Each will be introduced as an optional field with these semantics: absent
-field = current behavior, so every v3 scene remains valid.
+- **`passes`** — `[{ id, code }]`: extra render passes run in order after
+  POST. Each is a post-contract body: `srcTex` = previous chain output,
+  `prevTex` = this pass's own last frame (per-pass feedback).
+- **`mesh`** — `{ primitive, count, code }`: rasterized depth-tested layer
+  between BG and FG. `code` defines `instancePos(idx, t) -> vec4f` (xyz +
+  scale) and `meshColor(idx, n, wp, t) -> vec3f`. Primitives: cube, sphere,
+  plane, cylinder, torus; up to 1024 instances.
+- **`particles`** — `{ count, code }`: stateful CPU particles (up to 4096)
+  drawn as additive billboards. `code` is a per-particle EEL program run
+  each frame with x/y/z, vx/vy/vz, size, idx, count, time, dt and audio
+  vars in scope; velocity integrates after it runs.
+- **`text`** — `{ value, size? }`: rendered into the scene image slot at
+  load; sample with `img(uv)`.
+- **`bloom`** — number 0..1: built-in bright/blur/composite pass.
+- **`warpMesh`** — per-vertex warp program (see Interop, MilkDrop).
+
+The built-in scene `PRISM RIG` (`scenes/prism-rig.phos.json`) exercises all
+of these at once and doubles as the GPU smoke test's coverage scene.

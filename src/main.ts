@@ -15,6 +15,8 @@ import { CanvasRecorder } from "./core/record";
 import { parseP9c, p9ToScene } from "./import/p9";
 import { parseMilk, milkToScene } from "./import/milk";
 import { meshWarpFor } from "./core/meshwarp";
+import { particlesFor } from "./core/particles";
+import { renderTextImage } from "./core/text";
 import { $, log } from "./ui/dom";
 import { wireAudioButtons, wireAudioDrop } from "./ui/audio-common";
 import {
@@ -86,13 +88,29 @@ async function compileAll(report: boolean): Promise<void> {
 
 /* --------------------------- scene lifecycle -------------------------- */
 async function applySceneImage(): Promise<void> {
+  if (cur.text && !cur.assets?.image) {
+    const textImage = renderTextImage(cur);
+    if (textImage) cur.assets = { ...cur.assets, image: textImage };
+  }
   const data = cur.assets?.image;
   $("imgLabel").textContent = data ? "embedded (" + Math.round(data.length / 1024) + " KB)" : "none";
-  if (!data) { await renderer.setImage(0, null); return; }
-  try {
-    const blob = await (await fetch(data)).blob();
-    await renderer.setImage(0, await createImageBitmap(blob));
-  } catch { await renderer.setImage(0, null); }
+  if (!data) { await renderer.setImage(0, null); }
+  else {
+    try {
+      const blob = await (await fetch(data)).blob();
+      await renderer.setImage(0, await createImageBitmap(blob));
+    } catch { await renderer.setImage(0, null); }
+  }
+  // extra capability layers travel with the scene JSON
+  const passResults = await renderer.setPasses(0, cur.passes ?? []);
+  passResults.forEach((r, i) => {
+    if (!r.ok) log(`pass ${cur.passes?.[i].id ?? i}: ` + r.diagnostics[0]?.message, "err");
+  });
+  const meshRes = await renderer.setMesh(0, cur.mesh ?? null);
+  if (meshRes && !meshRes.ok) log("mesh: " + meshRes.diagnostics[0]?.message, "err");
+  renderer.setParticles(0, cur.particles?.count ?? 0);
+  const ps = particlesFor(cur);
+  if (ps?.error) log("particles: " + ps.error, "err");
 }
 
 async function loadScene(i: number): Promise<void> {
@@ -172,6 +190,8 @@ function frame(): void {
   const p = mods.evaluate(cur, renderer.stageParams(), audio.analysis, now);
   const mw = meshWarpFor(cur);
   renderer.setWarpMesh(0, mw ? mw.evaluate(mods.exprSnapshot(), now) : null);
+  const ps = particlesFor(cur);
+  if (ps) renderer.writeParticles(0, ps.update(audio.analysis, now));
   $("beatLamp").style.opacity = String(0.15 + audio.analysis.beat * 0.85);
   $("bpmTag").textContent = (audio.analysis.bpm || "—") + " BPM";
   drawScopes();
