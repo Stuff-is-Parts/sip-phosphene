@@ -40,7 +40,7 @@ system synthesizes with no image coming in. That is what this does with sound.
   <sub>DEEP FIELD — the built-in nebula + spectrum-ring scene, rendered offline with the same fbm/palette math the WGSL runs live.</sub>
 </p>
 
-## Why
+## Phosphene origin story
 
 The 3D music-visualizer/screensaver niche froze around 2016: Plane9 stopped
 shipping, MilkDrop's heirs maintain engines rather than products, and nothing
@@ -49,7 +49,7 @@ WGSL instead of a dead proprietary shader format, scenes as open JSON instead
 of an opaque database, real compiler diagnostics instead of guesswork, and AI
 generation built in — because content volume is no longer the barrier it was.
 
-## The pipeline
+## The guts
 
 <p align="center">
   <img src="assets/pipeline.svg" alt="render pipeline" width="900">
@@ -61,7 +61,7 @@ into any parameter — then three WGSL stages render through ping-pong feedback.
 Layer combinations multiply: a handful of stages per slot yields hundreds of
 distinct scenes.
 
-## Authoring
+## Visualization authoring
 
 A stage is one function:
 
@@ -85,21 +85,35 @@ fn render(c : Ctx) -> vec3f {
   reinitialize, recompile, resume. The crash that killed the old tools is a
   log line here.
 
-## Quick start (Windows)
+## Run it yourself
+
+Despite the name, Node.js is a program that runs JavaScript (`.js`) script files —
+not a `.js` script itself. Install it once: download the installer from
+[nodejs.org](https://nodejs.org) and run it.
+
+Once Node.js is installed, you can run `npm install` in any folder with a
+`package.json` — the project's list of what it needs. That downloads those tools
+into a `node_modules/` folder there.
+
+To do that here: open this folder in File Explorer and type `cmd` in the address
+bar (or right-click → "Open in Terminal"), then:
 
 ```
 npm install
-npm run dev        # Vite dev server — open in Chrome or Edge (WebGPU)
+npm run dev
 ```
+
+`npm run dev` starts a local server and prints a web address (like
+`http://localhost:5173`) — open it in Chrome or Edge and the app is running.
+Those two browsers specifically: PHOSPHENE draws with WebGPU, which Firefox and
+Safari don't fully support yet.
 
 | command | what |
 |---|---|
-| `npm run dev` | dev server with HMR |
+| `npm run dev` | local dev server with live reload |
 | `npm test` | 22 tests: parser, packing, mod matrix, static WGSL validation of every shipped shader |
-| `npm run build` | typecheck + bundle → `dist\index.html`, a single self-contained file |
-
-The one-file `dist\index.html` is a **build target**, not the architecture —
-copy it anywhere, double-click, it runs.
+| `npm run build` | typecheck + bundle the site (player + studio) → `dist/` |
+| `npm run build:portable` | single self-contained `studio.html` you can copy anywhere and double-click |
 
 ## Layout
 
