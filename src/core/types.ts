@@ -47,6 +47,10 @@ export interface Scene {
   thumb: string | null;
   /** Optional embedded assets (kept small — scenes stay portable JSON). */
   assets?: { image?: string | null };
+  /** Attribution for ported/derived scenes. */
+  credit?: string;
+  /** License of THIS scene file (e.g. ported CC BY-NC-SA content). */
+  license?: string;
 }
 
 export interface CustomParam {
@@ -114,5 +118,7 @@ export function normalizeScene(x: Partial<Scene>): Scene {
     mods: Array.isArray(x.mods) ? x.mods.map((m) => ({ ...m })) : [],
     thumb: x.thumb ?? null,
     assets: { image: x.assets?.image ?? null },
+    ...(x.credit ? { credit: x.credit } : {}),
+    ...(x.license ? { license: x.license } : {}),
   };
 }

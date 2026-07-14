@@ -1,0 +1,33 @@
+{
+  "version": 3,
+  "name": "LASER LIGHT",
+  "layers": {
+    "bg": {
+      "code": "// Laser Light \u2014 ported from Plane9 (Joakim Dahl, CC BY-NC-SA 3.0),\n// based on a shader by paulofalcao. Field math preserved; the original's\n// gIn1 drift/gain inputs are driven by audio here.\n//@param gain 0.05 0.6 0.22\nfn makePoint(p : vec2f, fx : f32, fy : f32, t : f32) -> f32 {\n  let xx = p.x * cos(t / fx);\n  let yy = p.y * sin(t / fy);\n  return 1.0 / (sqrt(length(vec2f(xx + yy)) + length(vec2f(xx * yy))));\n}\n\nfn render(c : Ctx) -> vec3f {\n  var p = c.q * 2.0;\n  // original: p -= gIn1.xy (slow drift input) \u2014 drive it from the waveform\n  p -= vec2f(wav(8), wav(40)) * 0.3;\n  let t = c.t;\n\n  var a = makePoint(p, 3.3, 2.9, t);\n  a += makePoint(p, 1.9, 2.0, t);\n  a += makePoint(p, 0.8, 0.7, t);\n  a += makePoint(p, 0.8, 1.7, t);\n  a += makePoint(p, 0.3, 1.0, t);\n  a += makePoint(p, 1.4, 1.7, t);\n  a += makePoint(p, 1.8, 1.7, t);\n\n  var b = makePoint(p, 1.2, 1.9, t);\n  b += makePoint(p, 0.7, 2.7, t);\n  b += makePoint(p, 1.4, 0.6, t);\n  b += makePoint(p, 0.7, 1.4, t);\n  b += makePoint(p, 0.8, 0.5, t);\n  b += makePoint(p, 1.4, 0.7, t);\n  b += makePoint(p, 0.7, 1.3, t);\n\n  var d = makePoint(p, 3.7, 0.3, t);\n  d += makePoint(p, 1.9, 1.3, t);\n  d += makePoint(p, 0.8, 0.9, t);\n  d += makePoint(p, 0.3, 0.6, t);\n  d += makePoint(p, 0.3, 0.3, t);\n  d += makePoint(p, 1.4, 0.8, t);\n  d += makePoint(p, 0.2, 0.6, t);\n  d += makePoint(p, 1.3, 0.5, t);\n\n  // original gain gIn1.z \u2014 audio-driven here, hue-rotatable via pal()\n  let raw = vec3f(a, b, d) * gain() * (0.7 + c.bass * 1.2 + c.beat * 0.5);\n  let col = raw.x * pal(0.0) + raw.y * pal(0.33) + raw.z * pal(0.66);\n  return col * c.intensity;\n}"
+    },
+    "fg": {
+      "code": "fn render(c : Ctx) -> vec3f { return vec3f(0.0); }"
+    },
+    "post": {
+      "code": "fn render(c : Ctx) -> vec3f {\n  var col = srcTex(c.uv);\n  col = max(col, prevTex(c.uv) * c.fb);\n  return col;\n}"
+    }
+  },
+  "params": {
+    "hue": 0.0,
+    "speed": 1.0,
+    "int": 1.0,
+    "fb": 0.35
+  },
+  "custom": {},
+  "mods": [
+    {
+      "target": "hue",
+      "source": "beatRand",
+      "gain": 0.5,
+      "base": 0
+    }
+  ],
+  "thumb": null,
+  "credit": "Ported from Plane9 'Laser Light' by Joakim Dahl (based on a shader by paulofalcao)",
+  "license": "CC BY-NC-SA 3.0 \u2014 https://creativecommons.org/licenses/by-nc-sa/3.0/"
+}

@@ -16,3 +16,11 @@ Ground rules: original work, nothing hateful, no attempts to fingerprint or
 exfiltrate (scenes are pure WGSL + JSON — there's nowhere to hide code, and the
 sandbox wouldn't run it anyway). Give your scene a unique name; names are the
 dedupe key in the player.
+
+## Ported scenes
+
+Some scenes in `scenes/` are ports of Plane9 scenes by Joakim Dahl, released
+under Creative Commons BY-NC-SA. Each such scene file carries `credit` and
+`license` fields; those files remain under their original CC BY-NC-SA terms
+(attribution, non-commercial, share-alike) independent of anything else in
+this repository.
