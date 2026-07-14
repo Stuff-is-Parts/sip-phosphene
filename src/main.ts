@@ -12,6 +12,8 @@ import { exportJson, importScenes, loadScenes, saveScenes } from "./core/store";
 import { ShaderEditor } from "./ui/editor";
 import { generateWithRepair } from "./ai/generate";
 import { CanvasRecorder } from "./core/record";
+import { parseP9c, p9ToScene, translateP9Glsl } from "./import/p9";
+import { callClaude, stripFences } from "./ai/generate";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T =>
   document.getElementById(id) as T;
@@ -296,6 +298,54 @@ function wire(): void {
       log("import failed: " + (err as Error).message, "err");
     }
   });
+
+  // Plane9 import
+  $("bImportP9").addEventListener("click", () => $<HTMLInputElement>("fileP9").click());
+  $<HTMLInputElement>("fileP9").addEventListener("change", async (e) => {
+    const input = e.target as HTMLInputElement;
+    const files = [...(input.files ?? [])];
+    input.value = "";
+    for (const f of files) {
+      try {
+        const p9 = parseP9c(await f.arrayBuffer(), f.name);
+        log(`p9c: ${p9.name} by ${p9.author} [${p9.licenseType}] — nodes: ${p9.nodeTypes.join(", ")}`);
+        const { scene, report } = p9ToScene(p9);
+        report.forEach((r) => log("p9c: " + r, "ai"));
+        cur = scene;
+        curIdx = -1;
+        $<HTMLInputElement>("sceneTitle").value = cur.name;
+        editor.setCode(cur.layers.bg.code);
+        renderBaseParams();
+        renderMods();
+        let res = await compileStage("bg", true);
+        for (const s of ["fg", "post"] as const) await compileStage(s, false);
+        if (!res.ok && p9.glsl) {
+          // deterministic transpile missed a dialect corner — AI repair with the original as reference
+          log("p9c: deterministic translation failed to compile — trying AI repair with the original GLSL…", "ai");
+          try {
+            const errs = res.diagnostics.filter((d) => d.severity === "error")
+              .map((d) => `line ${d.line}: ${d.message}`).join("; ");
+            const fixed = stripFences(await callClaude([{
+              role: "user",
+              content: `Fix this WGSL music-visualizer stage body so it compiles. It must define fn render(c : Ctx) -> vec3f (Ctx and helpers spec/wav/pal/hash/noise/fbm/img etc. are already in scope; do not redeclare). It is a translation of the ORIGINAL GLSL below — preserve the visual math exactly.\n\nWGSL errors: ${errs}\n\nCurrent WGSL:\n${cur.layers.bg.code}\n\nORIGINAL GLSL (reference):\n${p9.glsl}\n\nOutput only the corrected WGSL body.`,
+            }]));
+            cur.layers.bg.code = fixed;
+            editor.setCode(fixed);
+            res = await compileStage("bg", true);
+          } catch (err) {
+            log("p9c: AI repair unavailable: " + (err as Error).message, "err");
+          }
+        }
+        await sceneImageHook?.();
+        setDirty(true);
+        renderLibrary();
+        log(res.ok ? `p9c: ${cur.name} imported and compiled — SAVE to keep it` : `p9c: imported with errors — see gutter`, res.ok ? "ok" : "err");
+      } catch (err) {
+        log(`p9c: ${f.name}: ${(err as Error).message}`, "err");
+      }
+    }
+  });
+  void translateP9Glsl; // (exported for tests/tooling)
 
   // audio / transport
   $("aDemo").addEventListener("click", () => { audio.startDemo(); $("trackLabel").textContent = audio.label; log("audio: demo track"); });
