@@ -1,0 +1,107 @@
+/** PHOSPHENE scene format v3 — WGSL-native, portable JSON. */
+
+export type StageId = "bg" | "fg" | "post";
+export const STAGES: StageId[] = ["bg", "fg", "post"];
+
+export interface LayerDef {
+  /** WGSL body implementing `fn render(c: Ctx) -> vec3f` (+ optional //@param lines). */
+  code: string;
+}
+
+export interface ModRoute {
+  /** Parameter name: built-in (hue/speed/int/fb) or a //@param name. */
+  target: string;
+  source: ModSource;
+  gain: number;
+  base: number;
+}
+
+export type ModSource =
+  | "bass" | "mid" | "treble" | "beat" | "energy"
+  | "bpmPhase" | "specLow" | "specHigh";
+
+export const MOD_SOURCES: ModSource[] = [
+  "bass", "mid", "treble", "beat", "energy", "bpmPhase", "specLow", "specHigh",
+];
+
+export interface BaseParams {
+  hue: number;
+  speed: number;
+  int: number;
+  fb: number;
+}
+
+export interface Scene {
+  version: 3;
+  name: string;
+  layers: Record<StageId, LayerDef>;
+  params: BaseParams;
+  /** Values for //@param-declared custom uniforms, by name. */
+  custom: Record<string, number>;
+  mods: ModRoute[];
+  /** JPEG data-URL thumbnail, captured from the preview. */
+  thumb: string | null;
+}
+
+export interface CustomParam {
+  name: string;
+  min: number;
+  max: number;
+  def: number;
+  /** Slot index into the packed custom-uniform array (0..15). */
+  slot: number;
+}
+
+export interface AudioFeatures {
+  bass: number;
+  mid: number;
+  treble: number;
+  beat: number;
+  energy: number;
+  bpm: number;
+  spec: Float32Array; // 64
+  wave: Float32Array; // 64
+}
+
+export interface CompileDiagnostic {
+  /** 1-based line in the USER body (header offset already removed). */
+  line: number;
+  message: string;
+  severity: "error" | "warning" | "info";
+}
+
+export interface CompileResult {
+  ok: boolean;
+  diagnostics: CompileDiagnostic[];
+  params: CustomParam[];
+}
+
+export function defaultParams(): BaseParams {
+  return { hue: 0, speed: 1, int: 1, fb: 0.3 };
+}
+
+export function isScene(x: unknown): x is Scene {
+  const s = x as Scene;
+  return (
+    !!s && typeof s === "object" &&
+    !!s.layers && !!s.layers.bg && !!s.layers.fg && !!s.layers.post &&
+    typeof s.layers.bg.code === "string"
+  );
+}
+
+/** Migrate/patch an imported scene to a complete v3 object. */
+export function normalizeScene(x: Partial<Scene>): Scene {
+  return {
+    version: 3,
+    name: x.name ?? "UNTITLED",
+    layers: {
+      bg: { code: x.layers?.bg?.code ?? "" },
+      fg: { code: x.layers?.fg?.code ?? "" },
+      post: { code: x.layers?.post?.code ?? "" },
+    },
+    params: { ...defaultParams(), ...(x.params ?? {}) },
+    custom: { ...(x.custom ?? {}) },
+    mods: Array.isArray(x.mods) ? x.mods.map((m) => ({ ...m })) : [],
+    thumb: x.thumb ?? null,
+  };
+}
