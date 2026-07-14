@@ -19,6 +19,7 @@
       <button id="bExportAll">EXPORT ALL</button>
       <button id="bImport">IMPORT</button>
       <button id="bImportP9" title="import a Plane9 .p9c scene">FROM PLANE9…</button>
+      <button id="bImportMilk" title="import a MilkDrop .milk preset">FROM MILKDROP…</button>
     </header>
 
     <aside id="left">
@@ -110,6 +111,7 @@
   <input type="file" id="fileJson" accept="application/json" hidden>
   <input type="file" id="fileImg" accept="image/*" hidden>
   <input type="file" id="fileP9" accept=".p9c,.p9d" hidden multiple>
+  <input type="file" id="fileMilk" accept=".milk" hidden multiple>
 
   <dialog id="aiDialog">
     <div class="eyebrow">GENERATE SHADER — <span id="aiStage">BACKGROUND</span> STAGE</div>

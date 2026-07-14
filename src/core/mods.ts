@@ -1,5 +1,6 @@
 import { clamp } from "./params";
 import { midiLevels } from "./midi";
+import { compile, type Program } from "./expr";
 import type {
   AudioFeatures, BaseParams, CustomParam, ModRoute, ModSource, Scene,
 } from "./types";
@@ -31,6 +32,8 @@ export function sourceValue(
     case "midi2": return midiLevels[1];
     case "midi3": return midiLevels[2];
     case "midi4": return midiLevels[3];
+    // expr routes are evaluated by ModEngine against the shared env
+    case "expr": return 0;
   }
 }
 
@@ -42,6 +45,58 @@ export class ModEngine {
   private beatRandValue = Math.random();
   private beatRandCount = -1;
   private readonly scratch = new Float32Array(16); // reused per frame
+  /** Shared per-frame expression state: persists across frames (q-vars etc.). */
+  private exprEnv: Record<string, number> = {};
+  private exprCache = new Map<string, Program | null>();
+  private exprInitDone = new Set<string>();
+  private frame = 0;
+  /** Compile failures by program source, for the studio log. */
+  readonly exprErrors = new Map<string, string>();
+
+  private program(src: string): Program | null {
+    const hit = this.exprCache.get(src);
+    if (hit !== undefined) return hit;
+    let prog: Program | null;
+    try {
+      prog = compile(src);
+    } catch (err) {
+      prog = null;
+      this.exprErrors.set(src, (err as Error).message);
+    }
+    this.exprCache.set(src, prog);
+    return prog;
+  }
+
+  private runExprPrograms(scene: Scene, audio: AudioFeatures, nowSec: number): void {
+    const exprRoutes = scene.mods.filter((m) => m.source === "expr" && m.expr);
+    if (!exprRoutes.length) return;
+    const e = this.exprEnv;
+    this.frame++;
+    e.time = nowSec;
+    e.frame = this.frame;
+    e.fps = 60;
+    e.bass = audio.bass; e.mid = audio.mid; e.treb = audio.treble;
+    e.bass_att = (e.bass_att ?? audio.bass) * 0.9 + audio.bass * 0.1;
+    e.mid_att = (e.mid_att ?? audio.mid) * 0.9 + audio.mid * 0.1;
+    e.treb_att = (e.treb_att ?? audio.treble) * 0.9 + audio.treble * 0.1;
+    e.beat = audio.beat; e.energy = audio.energy; e.bpm = audio.bpm;
+    const ranOnce = new Set<string>();
+    for (const m of exprRoutes) {
+      if (m.init && !this.exprInitDone.has(m.init)) {
+        this.exprInitDone.add(m.init);
+        this.program(m.init)?.run(e);
+      }
+      const src = m.expr as string;
+      if (ranOnce.has(src)) continue;
+      ranOnce.add(src);
+      this.program(src)?.run(e);
+    }
+  }
+
+  private exprValue(m: ModRoute): number {
+    const v = this.exprEnv[m.readVar ?? m.target] ?? this.exprEnv.out ?? 0;
+    return Number.isFinite(v) ? v : 0;
+  }
 
   evaluate(
     scene: Scene,
@@ -66,10 +121,15 @@ export class ModEngine {
       }
     }
 
+    this.runExprPrograms(scene, audio, nowSec);
+
     scene.mods.forEach((m: ModRoute, i: number) => {
-      const raw = m.base + sourceValue(m.source, audio, nowSec, this.beatRandValue) * m.gain;
+      const isExpr = m.source === "expr";
+      const raw = m.base +
+        (isExpr ? this.exprValue(m) : sourceValue(m.source, audio, nowSec, this.beatRandValue)) * m.gain;
+      // equations are exact per-frame values; audio sources get smoothing
       const prev = this.smooth[i] ?? raw;
-      const val = prev * 0.7 + raw * 0.3;
+      const val = isExpr ? raw : prev * 0.7 + raw * 0.3;
       this.smooth[i] = val;
 
       if (BUILTIN.has(m.target)) {
@@ -94,5 +154,8 @@ export class ModEngine {
   reset(): void {
     this.smooth = [];
     this.beatRandCount = -1;
+    this.exprEnv = {};
+    this.exprInitDone.clear();
+    this.frame = 0;
   }
 }

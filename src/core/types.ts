@@ -14,13 +14,20 @@ export interface ModRoute {
   source: ModSource;
   gain: number;
   base: number;
+  /** source "expr": per-frame program evaluated in the shared expression env. */
+  expr?: string;
+  /** source "expr": env variable read as the route value (default: target, then `out`). */
+  readVar?: string;
+  /** source "expr": program run once (per engine reset) before the first frame. */
+  init?: string;
 }
 
 export type ModSource =
   | "bass" | "mid" | "treble" | "beat" | "energy"
   | "bpmPhase" | "specLow" | "specHigh"
   | "lfoSlow" | "lfoFast" | "beatRamp" | "beatRand"
-  | "midi1" | "midi2" | "midi3" | "midi4";
+  | "midi1" | "midi2" | "midi3" | "midi4"
+  | "expr";
 
 export const MOD_SOURCES: ModSource[] = [
   "bass", "mid", "treble", "beat", "energy", "bpmPhase", "specLow", "specHigh",

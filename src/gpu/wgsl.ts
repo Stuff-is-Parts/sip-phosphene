@@ -97,6 +97,40 @@ fn camRay(q : vec2f, ro : vec3f, ta : vec3f) -> vec3f {
   let up = cross(fw, rt);
   return normalize(q.x * rt + q.y * up + 1.4 * fw);
 }
+fn sdCylinder(p : vec3f, h : f32, r : f32) -> f32 {
+  let d = abs(vec2f(length(p.xz), p.y)) - vec2f(r, h);
+  return min(max(d.x, d.y), 0.0) + length(max(d, vec2f(0.0)));
+}
+fn opRep(p : vec3f, c : vec3f) -> vec3f { return p - c * round(p / c); }
+
+// MilkDrop-style feedback warp: zoom toward/away from center, rotate,
+// translate, plus the classic sinusoidal warp wobble scaled by amt.
+fn warpUV(uv : vec2f, zoom : f32, rot : f32, d : vec2f, amt : f32, t : f32) -> vec2f {
+  var p = uv - vec2f(0.5);
+  p = rot2(rot) * p;
+  p = p / max(zoom, 0.01);
+  let w = amt * 0.035;
+  p += vec2f(sin(p.y * 7.0 + t * 1.7) + sin(p.x * 11.0 - t * 1.3),
+             cos(p.x * 7.0 + t * 1.9) + cos(p.y * 11.0 - t * 1.1)) * w * 0.5;
+  return p + vec2f(0.5) - d;
+}
+
+// 64-sample waveform drawn as a polyline over q-space x in [x0,x1]:
+// returns 0..1 line intensity with the given half-thickness.
+fn waveLine(q : vec2f, x0 : f32, x1 : f32, yScale : f32, yOff : f32, thick : f32) -> f32 {
+  var d = 1e9;
+  for (var k = 0; k < 63; k++) {
+    let fa = f32(k) / 63.0;
+    let fb = f32(k + 1) / 63.0;
+    let a = vec2f(mix(x0, x1, fa), yOff + wav(k) * yScale);
+    let b = vec2f(mix(x0, x1, fb), yOff + wav(k + 1) * yScale);
+    let pa = q - a;
+    let ba = b - a;
+    let h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+    d = min(d, length(pa - ba * h));
+  }
+  return smoothstep(thick, 0.0, d);
+}
 
 @group(1) @binding(0) var uSamp : sampler;
 @group(1) @binding(1) var uImg : texture_2d<f32>;

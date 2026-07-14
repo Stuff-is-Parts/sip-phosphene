@@ -13,6 +13,7 @@ import { ShaderEditor } from "./ui/editor";
 import { generateWithRepair, callClaude, stripFences } from "./ai/generate";
 import { CanvasRecorder } from "./core/record";
 import { parseP9c, p9ToScene } from "./import/p9";
+import { parseMilk, milkToScene } from "./import/milk";
 import { $, log } from "./ui/dom";
 import { wireAudioButtons, wireAudioDrop } from "./ui/audio-common";
 import {
@@ -291,6 +292,36 @@ function wireP9Import(): void {
   });
 }
 
+/* ------------------------ wiring: MilkDrop import ---------------------- */
+function wireMilkImport(): void {
+  $("bImportMilk").addEventListener("click", () => $<HTMLInputElement>("fileMilk").click());
+  $<HTMLInputElement>("fileMilk").addEventListener("change", async (e) => {
+    const input = e.target as HTMLInputElement;
+    const files = [...(input.files ?? [])];
+    input.value = "";
+    for (const f of files) {
+      try {
+        const preset = parseMilk(await f.text(), f.name);
+        const { scene, report } = milkToScene(preset);
+        log(`milk: ${scene.name} — ${scene.mods.length} equation route(s)`);
+        report.forEach((r) => log("milk: " + r, "ai"));
+        cur = scene;
+        curIdx = -1;
+        $<HTMLInputElement>("sceneTitle").value = cur.name;
+        editor.setCode(cur.layers.bg.code);
+        const res = await compileStage("bg", true);
+        for (const s of ["fg", "post"] as const) await compileStage(s, false);
+        await applySceneImage();
+        setDirty(true);
+        refreshPanels();
+        log(res.ok ? `milk: ${cur.name} imported — SAVE to keep it` : "milk: imported with errors — see gutter", res.ok ? "ok" : "err");
+      } catch (err) {
+        log(`milk: ${f.name}: ${(err as Error).message}`, "err");
+      }
+    }
+  });
+}
+
 /* -------------------- wiring: transport, mods, AI ---------------------- */
 function wireTransport(): void {
   wireAudioButtons(audio,
@@ -429,6 +460,7 @@ async function boot(): Promise<void> {
   wireEditorChrome();
   wireSceneIO();
   wireP9Import();
+  wireMilkImport();
   wireTransport();
   wireAI();
   wireSplitters();
