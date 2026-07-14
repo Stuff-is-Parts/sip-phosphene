@@ -7,6 +7,6 @@ for (const f of files) {
   const p9 = parseP9c(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength), f);
   if (!p9.glsl) continue;
   const { wgsl } = translateP9Glsl(p9.glsl);
-  console.log("====", f.split(/[\/]/).pop());
+  console.log("====", f.split("/").pop());
   console.log(wgsl.slice(0, 1600));
 }
