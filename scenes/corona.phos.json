@@ -1,0 +1,24 @@
+{
+  "version": 3,
+  "name": "CORONA",
+  "layers": {
+    "bg": {
+      "code": "// ridged magma veins\nfn render(c : Ctx) -> vec3f {\n  let t = c.rawT * 0.08 * c.speed;\n  let n = ridge(c.q * 2.2 + vec2f(t, -t * 0.6) + fbm(c.q * 3.0 + t) * 0.8);\n  let veins = pow(clamp(n, 0.0, 1.0), 3.2 - c.bass * 1.4);\n  var col = pal(0.02 + n * 0.12) * veins * (0.6 + c.bass * 1.8);\n  col += pal(0.09) * pow(clamp(n, 0.0, 1.0), 8.0) * (1.0 + c.beat * 3.0);\n  col += pal(0.55) * fbm(c.q * 1.2 - t) * 0.05;\n  return col * c.intensity;\n}"
+    },
+    "fg": {
+      "code": "// beat-triggered radial starburst\nfn render(c : Ctx) -> vec3f {\n  let a = atan2(c.q.y, c.q.x);\n  let r = length(c.q);\n  var col = vec3f(0.0);\n  for (var k = 0; k < 24; k++) {\n    let fk = f32(k);\n    let h = hash(vec2f(fk, floor(c.rawT * 0.5)));\n    let ang = h * 6.2831 + c.rawT * 0.1 * c.speed;\n    let d = abs(sin(a - ang)) * r;\n    let len = c.beat * (0.3 + h * 0.5) + c.bass * 0.15;\n    let ray = smoothstep(0.006 + h * 0.004, 0.0, d) * smoothstep(len, len * 0.2, r) * step(0.03, r);\n    col += pal(0.1 + h * 0.5) * ray * (1.5 + c.beat * 2.0);\n  }\n  col += pal(0.15) * exp(-r * 14.0) * c.beat * 3.0;\n  return col * c.intensity;\n}"
+    },
+    "post": {
+      "code": "// fbm-displaced drift\nfn render(c : Ctx) -> vec3f {\n  let t = c.rawT * c.speed;\n  let q = c.uv + vec2f(fbm(c.uv * 3.0 + t * 0.3) - 0.5, fbm(c.uv * 3.0 - t * 0.25) - 0.5)\n              * (0.02 + c.bass * 0.05 + c.beat * 0.03);\n  var col = srcTex(q);\n  col = max(col, prevTex(q + vec2f(0.0, 0.002)) * c.fb);\n  return col;\n}"
+    }
+  },
+  "params": {
+    "hue": 0,
+    "speed": 1,
+    "int": 1.1,
+    "fb": 0.5
+  },
+  "custom": {},
+  "mods": [],
+  "thumb": null
+}

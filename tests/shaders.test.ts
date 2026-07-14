@@ -8,6 +8,9 @@ import {
   FG_RING, FG_ORBS, FG_BARS,
   POST_CLEAN, POST_CHROMA, POST_ECHO, POST_KALEIDO,
   TEMPLATE_BLANK,
+  BG_STARFIELD, BG_MAGMA, BG_CELLS, BG_AURORA, BG_OBSIDIAN, BG_QUICKSILVER,
+  FG_WEAVE, FG_SCOPE, FG_BURST, FG_COMETS,
+  POST_CRT, POST_DRIFT, POST_RADIAL, POST_LIQUID,
 } from "../src/shaders/library";
 import type { StageId } from "../src/core/types";
 
@@ -23,6 +26,20 @@ const CASES: [string, StageId, string][] = [
   ["POST_ECHO", "post", POST_ECHO],
   ["POST_KALEIDO", "post", POST_KALEIDO],
   ["TEMPLATE_BLANK", "bg", TEMPLATE_BLANK],
+  ["BG_STARFIELD", "bg", BG_STARFIELD],
+  ["BG_MAGMA", "bg", BG_MAGMA],
+  ["BG_CELLS", "bg", BG_CELLS],
+  ["BG_AURORA", "bg", BG_AURORA],
+  ["BG_OBSIDIAN", "bg", BG_OBSIDIAN],
+  ["BG_QUICKSILVER", "bg", BG_QUICKSILVER],
+  ["FG_WEAVE", "fg", FG_WEAVE],
+  ["FG_SCOPE", "fg", FG_SCOPE],
+  ["FG_BURST", "fg", FG_BURST],
+  ["FG_COMETS", "fg", FG_COMETS],
+  ["POST_CRT", "post", POST_CRT],
+  ["POST_DRIFT", "post", POST_DRIFT],
+  ["POST_RADIAL", "post", POST_RADIAL],
+  ["POST_LIQUID", "post", POST_LIQUID],
 ];
 
 describe("library shaders parse as valid WGSL through the real assembly path", () => {

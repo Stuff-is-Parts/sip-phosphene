@@ -5,6 +5,7 @@ import { AudioEngine } from "./audio/sources";
 import { ModEngine } from "./core/mods";
 import { isScene, normalizeScene, STAGES, type Scene } from "./core/types";
 import { builtinScenes } from "./shaders/library";
+import { CanvasRecorder } from "./core/record";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T =>
   document.getElementById(id) as T;
@@ -164,6 +165,20 @@ function wire(): void {
     (e.currentTarget as HTMLElement).classList.toggle("on", autoCycle);
   });
   $("cFull").addEventListener("click", fullscreen);
+
+  const recorder = new CanvasRecorder();
+  $("cRec").addEventListener("click", (e) => {
+    const b = e.currentTarget as HTMLElement;
+    if (recorder.active) {
+      recorder.stop("phosphene-" + entries[idx].scene.name.toLowerCase().replace(/\s+/g, "-") + ".webm");
+      b.classList.remove("on");
+      b.textContent = "● REC";
+    } else {
+      recorder.start($<HTMLCanvasElement>("stage"));
+      b.classList.add("on");
+      b.textContent = "■ STOP";
+    }
+  });
 
   addEventListener("keydown", (e) => {
     if (e.code === "Space") { e.preventDefault(); randomScene(); }

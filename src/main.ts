@@ -11,6 +11,7 @@ import { builtinScenes, TEMPLATE_BLANK } from "./shaders/library";
 import { exportJson, importScenes, loadScenes, saveScenes } from "./core/store";
 import { ShaderEditor } from "./ui/editor";
 import { generateWithRepair } from "./ai/generate";
+import { CanvasRecorder } from "./core/record";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T =>
   document.getElementById(id) as T;
@@ -310,6 +311,21 @@ function wire(): void {
     catch (err) { log("couldn't decode audio: " + (err as Error).message, "err"); }
   });
   $("aBeat").addEventListener("click", () => audio.analysis.inject(nowT()));
+  const recorder = new CanvasRecorder();
+  $("sRec").addEventListener("click", (e) => {
+    const b = e.currentTarget as HTMLElement;
+    if (recorder.active) {
+      recorder.stop((cur.name || "scene").toLowerCase().replace(/\s+/g, "-") + ".webm");
+      b.classList.remove("on");
+      b.textContent = "● REC";
+      log("recording saved", "ok");
+    } else {
+      recorder.start($<HTMLCanvasElement>("preview"));
+      b.classList.add("on");
+      b.textContent = "■ STOP";
+      log("recording preview canvas…");
+    }
+  });
   $("tFreeze").addEventListener("click", (e) => {
     frozen = !frozen;
     if (frozen) freezeT = nowT();

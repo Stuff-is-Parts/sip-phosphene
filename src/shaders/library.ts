@@ -1,4 +1,11 @@
 import { defaultParams, type Scene } from "../core/types";
+import {
+  BG_STARFIELD, BG_MAGMA, BG_CELLS, BG_AURORA, BG_OBSIDIAN, BG_QUICKSILVER,
+  FG_WEAVE, FG_SCOPE, FG_BURST, FG_COMETS,
+  POST_CRT, POST_DRIFT, POST_RADIAL, POST_LIQUID,
+} from "./library2";
+export * from "./library2";
+
 
 /** Stage bodies implement `fn render(c: Ctx) -> vec3f`. */
 
@@ -191,12 +198,52 @@ export function builtinScenes(): Scene[] {
     mk("EVENT HORIZON", BG_TUNNEL, FG_ORBS, POST_ECHO, {
       params: { hue: 0.05, speed: 1.1, int: 1, fb: 0.7 },
     }),
-    mk("NEON MERIDIAN", BG_GRID, FG_BARS, POST_CHROMA, {
+    mk("NEON MERIDIAN", BG_GRID, FG_BARS, POST_CRT, {
       params: { hue: 0.9, speed: 1.2, int: 1.2, fb: 0.2 },
       mods: [{ target: "int", source: "beat", gain: 0.4, base: 0 }],
     }),
     mk("CATHEDRAL", BG_NEBULA, FG_ORBS, POST_KALEIDO, {
       params: { hue: 0.15, speed: 0.8, int: 1.1, fb: 0.45 },
+    }),
+    mk("OBSIDIAN HALL", BG_OBSIDIAN, FG_RING, POST_ECHO, {
+      params: { hue: 0.5, speed: 0.9, int: 1.1, fb: 0.6 },
+    }),
+    mk("QUICKSILVER", BG_QUICKSILVER, FG_COMETS, POST_CHROMA, {
+      params: { hue: 0.55, speed: 0.9, int: 1, fb: 0.35 },
+      mods: [{ target: "hue", source: "bpmPhase", gain: 0.25, base: 0 }],
+    }),
+    mk("AURORA GATE", BG_AURORA, FG_WEAVE, POST_CLEAN, {
+      params: { hue: 0.35, speed: 0.7, int: 1.1, fb: 0.4 },
+    }),
+    mk("ION WAKE", BG_STARFIELD, FG_BURST, POST_RADIAL, {
+      params: { hue: 0.6, speed: 1.2, int: 1, fb: 0.3 },
+      mods: [{ target: "streak", source: "beat", gain: 0.06, base: 0 }],
+    }),
+    mk("CORONA", BG_MAGMA, FG_BURST, POST_DRIFT, {
+      params: { hue: 0.0, speed: 1.0, int: 1.1, fb: 0.5 },
+    }),
+    mk("MITOSIS", BG_CELLS, FG_SCOPE, POST_CHROMA, {
+      params: { hue: 0.35, speed: 0.9, int: 1, fb: 0.35 },
+    }),
+    mk("UNDERTOW", BG_AURORA, FG_SCOPE, POST_LIQUID, {
+      params: { hue: 0.48, speed: 0.6, int: 1, fb: 0.85 },
+      mods: [{ target: "churn", source: "bass", gain: 0.03, base: 0.01 }],
+    }),
+    mk("REDSHIFT", BG_TUNNEL, FG_BURST, POST_RADIAL, {
+      params: { hue: 0.95, speed: 1.4, int: 1, fb: 0.25 },
+    }),
+    mk("VESPERS", BG_NEBULA, FG_WEAVE, POST_DRIFT, {
+      params: { hue: 0.75, speed: 0.5, int: 0.9, fb: 0.55 },
+    }),
+    mk("LATTICE", BG_CELLS, FG_BARS, POST_KALEIDO, {
+      params: { hue: 0.2, speed: 1.0, int: 1, fb: 0.3 },
+    }),
+    mk("PHASE GATE", BG_OBSIDIAN, FG_ORBS, POST_LIQUID, {
+      params: { hue: 0.12, speed: 1.1, int: 1.1, fb: 0.8 },
+    }),
+    mk("SIGNAL WEAVE", BG_STARFIELD, FG_WEAVE, POST_CRT, {
+      params: { hue: 0.42, speed: 1.0, int: 1.1, fb: 0.25 },
+      mods: [{ target: "int", source: "energy", gain: 0.5, base: 0 }],
     }),
   ];
 }

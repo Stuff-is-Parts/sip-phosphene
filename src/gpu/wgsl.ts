@@ -70,6 +70,33 @@ fn hue3(h : f32) -> vec3f {
 }
 fn pal(t : f32) -> vec3f { return hue3(t + U.parms.x); }
 
+
+// ---- 3D / raymarching helpers ----
+fn sdSphere(p : vec3f, r : f32) -> f32 { return length(p) - r; }
+fn sdBox(p : vec3f, b : vec3f) -> f32 {
+  let d = abs(p) - b;
+  return length(max(d, vec3f(0.0))) + min(max(d.x, max(d.y, d.z)), 0.0);
+}
+fn sdTorus(p : vec3f, t : vec2f) -> f32 {
+  let q = vec2f(length(p.xz) - t.x, p.y);
+  return length(q) - t.y;
+}
+fn smin(a : f32, b : f32, k : f32) -> f32 {
+  let h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+fn rot2(a : f32) -> mat2x2f {
+  let c = cos(a); let s = sin(a);
+  return mat2x2f(c, -s, s, c);
+}
+// camera ray: origin ro looking at ta, fragment coord q (aspect-corrected)
+fn camRay(q : vec2f, ro : vec3f, ta : vec3f) -> vec3f {
+  let fw = normalize(ta - ro);
+  let rt = normalize(cross(vec3f(0.0, 1.0, 0.0), fw));
+  let up = cross(fw, rt);
+  return normalize(q.x * rt + q.y * up + 1.4 * fw);
+}
+
 struct VOut {
   @builtin(position) pos : vec4f,
   @location(0) uv : vec2f,

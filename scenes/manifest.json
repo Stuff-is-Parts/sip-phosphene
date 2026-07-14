@@ -1,6 +1,18 @@
 [
+  "aurora-gate.phos.json",
   "cathedral.phos.json",
+  "corona.phos.json",
   "deep-field.phos.json",
   "event-horizon.phos.json",
-  "neon-meridian.phos.json"
+  "ion-wake.phos.json",
+  "lattice.phos.json",
+  "mitosis.phos.json",
+  "neon-meridian.phos.json",
+  "obsidian-hall.phos.json",
+  "phase-gate.phos.json",
+  "quicksilver.phos.json",
+  "redshift.phos.json",
+  "signal-weave.phos.json",
+  "undertow.phos.json",
+  "vespers.phos.json"
 ]
