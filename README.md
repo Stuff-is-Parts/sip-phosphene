@@ -10,6 +10,14 @@
   <img src="https://img.shields.io/badge/dist-one%20file-f2d97d?style=flat-square&labelColor=0f0e18">
 </p>
 
+<p align="center">
+  <a href="https://stuff-is-parts.github.io/sip-phosphene/"><b>▶ &nbsp;RUN PHOSPHENE</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://stuff-is-parts.github.io/sip-phosphene/studio.html">open the Studio</a>
+</p>
+
+<p align="center"><sub>Nothing to install — it runs in Chrome or Edge. Click START and watch it react.</sub></p>
+
 ```
 ██████╗ ██╗  ██╗ ██████╗ ███████╗██████╗ ██╗  ██╗███████╗███╗   ██╗███████╗
 ██╔══██╗██║  ██║██╔═══██╗██╔════╝██╔══██╗██║  ██║██╔════╝████╗  ██║██╔════╝
@@ -107,11 +115,17 @@ tests/
 assets/
 ```
 
+## Community scenes
+
+Scenes are portable `.phos.json` files. Merged PRs to [`scenes/`](scenes/) appear
+in the hosted player **without a rebuild** — the player fetches the manifest from
+`main` at runtime. CI validates every submitted scene's WGSL before a human ever
+looks at it. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Roadmap
 
 - [ ] Native shell (Tauri, same codebase): system-audio loopback, OS screensaver
 - [ ] Multi-monitor output
-- [ ] Scene sharing / community library
 
 ---
 

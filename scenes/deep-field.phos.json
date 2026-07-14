@@ -1,0 +1,31 @@
+{
+  "version": 3,
+  "name": "DEEP FIELD",
+  "layers": {
+    "bg": {
+      "code": "// nebula — layered fbm plasma\n//@param scale 0.5 5.0 2.4\nfn render(c : Ctx) -> vec3f {\n  let t = c.rawT * 0.05 * c.speed;\n  let w = c.q * scale() + vec2f(fbm(c.q * 1.8 + t), fbm(c.q * 1.8 - t)) * 1.6;\n  let n = fbm(w + fbm(w * 1.7 + t) * 1.2);\n  let glow = pow(n, 2.4 - c.bass * 1.1);\n  var col = pal(0.62 + n * 0.25 + c.rawT * 0.008) * glow * (0.65 + c.bass * 1.4);\n  col += pal(0.9 + n * 0.2) * pow(fbm(c.q * 5.0 + t * 2.0), 5.0) * c.treble * 2.2;\n  col *= smoothstep(1.5, 0.35, length(c.q));\n  return col * c.intensity;\n}"
+    },
+    "fg": {
+      "code": "// spectrum ring\n//@param radius 0.1 0.45 0.26\nfn render(c : Ctx) -> vec3f {\n  let a = atan2(c.q.y, c.q.x);\n  let r = length(c.q);\n  let fi = (a / 6.2831 + 0.5) * 64.0;\n  let i = i32(fi);\n  let v = mix(spec(i), spec(i + 1), fract(fi));\n  let base = radius() + c.beat * 0.03;\n  let bar = base + v * 0.22;\n  let inR = step(r, bar) * step(base - 0.012, r);\n  let edge = smoothstep(0.006, 0.0, abs(r - bar));\n  var col = pal(0.45 + v * 0.5 + c.rawT * 0.02) * (inR * 0.7 + edge * 1.6);\n  col += pal(0.5) * smoothstep(0.004, 0.0, abs(r - base)) * 0.8;\n  return col * (0.6 + c.energy * 1.2) * c.intensity;\n}"
+    },
+    "post": {
+      "code": "// pass-through + trails\nfn render(c : Ctx) -> vec3f {\n  var col = srcTex(c.uv);\n  col = max(col, prevTex(c.uv) * c.fb);\n  return col;\n}"
+    }
+  },
+  "params": {
+    "hue": 0,
+    "speed": 1,
+    "int": 1,
+    "fb": 0.3
+  },
+  "custom": {},
+  "mods": [
+    {
+      "target": "hue",
+      "source": "energy",
+      "gain": 0.15,
+      "base": 0
+    }
+  ],
+  "thumb": null
+}

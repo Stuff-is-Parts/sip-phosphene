@@ -1,12 +1,17 @@
 import { defineConfig } from "vite";
-import { viteSingleFile } from "vite-plugin-singlefile";
+import { resolve } from "path";
 
-// The single portable HTML file is a BUILD OUTPUT of a properly
-// structured project — not the project's architecture.
+// Multi-page build: player (index) + studio. GitHub Pages serves dist/.
+// For a portable one-file studio, use vite.onefile.config.ts (build:portable).
 export default defineConfig({
-  plugins: [viteSingleFile()],
+  base: "./",
   build: {
     target: "es2022",
-    assetsInlineLimit: 100_000_000,
+    rollupOptions: {
+      input: {
+        index: resolve(__dirname, "index.html"),
+        studio: resolve(__dirname, "studio.html"),
+      },
+    },
   },
 });

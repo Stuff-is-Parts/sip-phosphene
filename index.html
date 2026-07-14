@@ -3,112 +3,61 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PHOSPHENE STUDIO — WebGPU scene authoring</title>
+  <title>PHOSPHENE — audio-reactive light</title>
+  <meta name="description" content="PHOSPHENE: the light you see with your eyes closed. WebGPU audio-reactive visualization.">
 </head>
-<body>
-  <div id="app">
-    <header id="topbar">
-      <div class="logo">PHOS<span>PH</span>ENE <small>STUDIO</small></div>
-      <input type="text" id="sceneTitle" value="UNTITLED" aria-label="scene name">
-      <span id="dirtyMark" class="dirty" style="visibility:hidden">●</span>
-      <div class="grow"></div>
-      <button id="bNew">NEW</button>
-      <button id="bSave">SAVE</button>
-      <button id="bThumb" title="capture thumbnail">THUMB</button>
-      <button id="bExportOne">EXPORT SCENE</button>
-      <button id="bExportAll">EXPORT ALL</button>
-      <button id="bImport">IMPORT</button>
-    </header>
+<body class="player">
+  <canvas id="stage"></canvas>
 
-    <aside id="left">
-      <div class="sec"><div class="eyebrow">SCENE LIBRARY</div></div>
-      <div id="sceneLibrary"></div>
-      <div class="sec">
-        <div class="eyebrow">TEMPLATE</div>
-        <button id="bTemplate">INSERT BLANK STAGE TEMPLATE</button>
-        <div class="hint">Contract: <b>fn render(c: Ctx) -&gt; vec3f</b>. Declare sliders with
-          <b>//@param name min max default</b>, read them as <b>name()</b>.</div>
-      </div>
-    </aside>
-    <div class="splitter" id="splitL" role="separator" aria-orientation="vertical"></div>
+  <div id="splash">
+    <h1>PHOS<span>PH</span>ENE</h1>
+    <p class="tag">THE LIGHT YOU SEE WITH YOUR EYES CLOSED</p>
+    <div class="row">
+      <button id="sDemo" class="big">▶ START — DEMO TRACK</button>
+    </div>
+    <div class="row">
+      <button id="sFile">OPEN AUDIO FILE…</button>
+      <button id="sMic">USE MICROPHONE</button>
+    </div>
+    <p class="hint"><kbd>SPACE</kbd> next scene · <kbd>F</kbd> fullscreen · <kbd>H</kbd> hide interface · drop an audio file anytime</p>
+    <div id="splashErr" class="err"></div>
+  </div>
 
-    <main id="center">
-      <nav id="stageTabs">
-        <button data-stage="bg" class="on">BACKGROUND</button>
-        <button data-stage="fg">FOREGROUND</button>
-        <button data-stage="post">POST</button>
-        <div class="grow"></div>
-        <button id="bCompile" title="Ctrl+Enter">COMPILE ▸</button>
-        <button id="bAI" class="gold">✦ GENERATE WITH AI</button>
-      </nav>
-      <div id="editorHost"></div>
-      <div id="console" role="log" aria-live="polite"></div>
-    </main>
-    <div class="splitter" id="splitR" role="separator" aria-orientation="vertical"></div>
-
-    <aside id="right">
-      <div id="previewBox">
-        <canvas id="preview"></canvas>
-        <canvas id="scopes" width="150" height="54"></canvas>
-        <div id="beatLamp"></div><div id="bpmTag">— BPM</div>
+  <div id="hud" class="hidden">
+    <div class="stack">
+      <div class="eyebrow" id="sceneOrigin">SCENE</div>
+      <div id="sceneName">—</div>
+      <div id="trackLabel" class="hint"></div>
+    </div>
+    <div class="stack right">
+      <div class="row">
+        <button id="cPrev" aria-label="previous scene">◀</button>
+        <button id="cRand">RANDOM</button>
+        <button id="cNext" aria-label="next scene">▶</button>
+        <button id="cAuto">AUTO</button>
+        <button id="cFull">FULLSCREEN</button>
+        <a id="cStudio" class="btnlink" href="./studio.html">OPEN STUDIO →</a>
       </div>
-      <div id="rightScroll">
-        <section class="rsec">
-          <div class="eyebrow">AUDIO / TRANSPORT</div>
-          <div class="rowFlex">
-            <button id="aDemo">DEMO</button>
-            <button id="aFile">FILE…</button>
-            <button id="aMic">MIC</button>
-            <button id="aBeat">TAP BEAT</button>
-          </div>
-          <div class="rowFlex">
-            <button id="tFreeze">❚❚ FREEZE</button>
-            <span class="hint grow">time scrub</span>
-          </div>
-          <input type="range" id="tScrub" min="-30" max="30" step="0.05" value="0" aria-label="time scrub">
-          <div class="hint" id="trackLabel">no source — idle signal (drop an audio file anywhere)</div>
-        </section>
-        <section class="rsec">
-          <div class="eyebrow">SCENE PARAMETERS</div>
-          <div id="baseParams"></div>
-        </section>
-        <section class="rsec">
-          <div class="eyebrow">CUSTOM PARAMETERS <span class="hint">(//@param, this stage)</span></div>
-          <div id="customParams"></div>
-        </section>
-        <section class="rsec">
-          <div class="eyebrow">MODULATION MATRIX</div>
-          <div id="modRows"></div>
-          <div class="rowFlex"><button id="bAddMod">+ ADD ROUTE</button></div>
-          <div class="hint">value = base + source × gain, smoothed — an inspectable
-            replacement for per-frame preset equations.</div>
-        </section>
+      <div class="row">
+        <button id="cDemo">DEMO</button>
+        <button id="cFile">FILE…</button>
+        <button id="cMic">MIC</button>
+        <span id="bpm" class="hint">— BPM</span>
+        <span id="beatDot"></span>
       </div>
-    </aside>
+    </div>
   </div>
 
   <div id="unsupported" hidden>
     <div>
-      <h1>PHOS<span>PH</span>ENE STUDIO</h1>
-      <p>This build targets <b>WebGPU</b> (the current graphics standard for the web).
-      Your browser doesn't expose it. Chrome, Edge, and recent Firefox/Safari support it —
-      on some platforms it must be enabled in browser flags/settings.</p>
+      <h1>PHOS<span>PH</span>ENE</h1>
+      <p>This runs on <b>WebGPU</b>. Chrome and Edge support it out of the box;
+      recent Firefox and Safari do on most platforms. Please try one of those browsers.</p>
     </div>
   </div>
   <div id="dropOverlay">DROP AUDIO FILE TO PLAY</div>
   <input type="file" id="fileAudio" accept="audio/*" hidden>
-  <input type="file" id="fileJson" accept="application/json" hidden>
 
-  <dialog id="aiDialog">
-    <div class="eyebrow">GENERATE SHADER — <span id="aiStage">BACKGROUND</span> STAGE</div>
-    <textarea id="aiPrompt"
-      placeholder="Describe the visual. e.g. 'bioluminescent jellyfish drifting upward, tentacles ripple with the bass, beats emit rings of light'"></textarea>
-    <div class="rowFlex" style="justify-content:flex-end">
-      <button id="aiCancel">CANCEL</button>
-      <button id="aiGo" class="gold">✦ GENERATE</button>
-    </div>
-  </dialog>
-
-  <script type="module" src="/src/main.ts"></script>
+  <script type="module" src="/src/player.ts"></script>
 </body>
 </html>

@@ -8,7 +8,10 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:portable": "vite build -c vite.onefile.config.ts",
+    "scenes": "vite-node scripts/gen-scenes.mjs",
+    "validate:scenes": "vite-node scripts/validate-scenes.mjs"
   },
   "dependencies": {
     "@codemirror/language": "^6.10.0",

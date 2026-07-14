@@ -1,0 +1,24 @@
+{
+  "version": 3,
+  "name": "EVENT HORIZON",
+  "layers": {
+    "bg": {
+      "code": "// warp tunnel\n//@param rings 2.0 10.0 4.0\nfn render(c : Ctx) -> vec3f {\n  let a = atan2(c.q.y, c.q.x);\n  let r = length(c.q) + 1e-4;\n  let z = 0.35 / r + c.rawT * c.speed * (1.2 + c.mid * 2.5);\n  let seg = floor(z * rings());\n  let ring = smoothstep(0.42, 0.0, abs(fract(z * rings()) - 0.5)) * (0.4 + 0.6 * hash(vec2f(seg, 0.0)));\n  let spokes = smoothstep(0.35, 0.0, abs(fract(a / 6.2831 * 12.0 + z * 0.3) - 0.5)) * 0.5;\n  var col = pal(0.5 + seg * 0.03 + c.beat * 0.15) * (ring + spokes);\n  col *= smoothstep(0.02, 0.15, r) * (0.5 + c.bass * 1.6 + c.beat * 1.2) * exp(-r * 1.1);\n  return col * c.intensity;\n}"
+    },
+    "fg": {
+      "code": "// orbiting glow orbs\nfn render(c : Ctx) -> vec3f {\n  var col = vec3f(0.0);\n  for (var k = 0; k < 14; k++) {\n    let fk = f32(k);\n    let h = hash(vec2f(fk * 3.1, 7.7));\n    var band = c.treble;\n    if (fk < 5.0) { band = c.bass; } else if (fk < 10.0) { band = c.mid; }\n    let rad = 0.12 + h * 0.34 + c.beat * 0.03;\n    let sp = ((h - 0.5) * 2.2 + 0.4) * c.speed;\n    let ctr = vec2f(cos(c.rawT * sp + h * 40.0), sin(c.rawT * sp * 0.8 + h * 20.0)) * rad;\n    let d = length(c.q - ctr);\n    let s = 0.015 + band * 0.05;\n    col += pal(fk * 0.07 + c.rawT * 0.02) * (s * s) / (d * d + s * s * 0.5) * (0.25 + band * 1.4);\n  }\n  return col * 0.6 * c.intensity;\n}"
+    },
+    "post": {
+      "code": "// zoom-rotate echo trails\n//@param rot -0.03 0.03 0.004\nfn render(c : Ctx) -> vec3f {\n  let q = c.uv - vec2f(0.5);\n  let zoom = 1.0 - (0.012 + c.bass * 0.02);\n  let rr = rot() + c.beat * 0.01;\n  let rp = vec2f(q.x * cos(rr) - q.y * sin(rr), q.x * sin(rr) + q.y * cos(rr)) * zoom + vec2f(0.5);\n  let prev = prevTex(rp) * 0.985;\n  var col = srcTex(c.uv);\n  col = max(col, prev * max(c.fb, 0.5));\n  return col;\n}"
+    }
+  },
+  "params": {
+    "hue": 0.05,
+    "speed": 1.1,
+    "int": 1,
+    "fb": 0.7
+  },
+  "custom": {},
+  "mods": [],
+  "thumb": null
+}
