@@ -88,8 +88,14 @@ fn render(c : Ctx) -> vec3f {
 ## Run it yourself
 
 Despite the name, Node.js is a program that runs JavaScript (`.js`) script files —
-not a `.js` script itself. Install it once: download the installer from
-[nodejs.org](https://nodejs.org) and run it.
+not a `.js` script itself. Install it once. On Windows, open a terminal and run:
+
+```
+winget install OpenJS.NodeJS.LTS
+```
+
+(or download the installer from [nodejs.org](https://nodejs.org) and run it).
+Then close and reopen your terminal so the `npm` command is recognized.
 
 Once Node.js is installed, you can run `npm install` in any folder with a
 `package.json` — the project's list of what it needs. That downloads those tools
