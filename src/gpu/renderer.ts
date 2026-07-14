@@ -1,8 +1,25 @@
 import { packUniforms, parseParams, UNIFORM_BYTES, type EffectiveParams } from "../core/params";
+import { MESH_W, MESH_H } from "../core/meshwarp";
 import type {
   AudioFeatures, CompileDiagnostic, CompileResult, CustomParam, StageId,
 } from "../core/types";
-import { assemble, PRESENT_WGSL } from "./wgsl";
+import {
+  assemble, PRESENT_WGSL, BLOOM_BRIGHT_WGSL, BLOOM_BLUR_WGSL, BLOOM_COMPOSITE_WGSL,
+} from "./wgsl";
+
+/** IEEE 754 float32 -> float16 bits (for rgba16float texture uploads). */
+function toHalf(v: number): number {
+  const f = new Float32Array(1);
+  const u = new Uint32Array(f.buffer);
+  f[0] = v;
+  const x = u[0];
+  const sign = (x >> 16) & 0x8000;
+  let exp = ((x >> 23) & 0xff) - 127 + 15;
+  let mant = (x >> 13) & 0x3ff;
+  if (exp <= 0) { exp = 0; mant = 0; }
+  else if (exp >= 31) { exp = 31; mant = 0; }
+  return sign | (exp << 10) | mant;
+}
 
 interface StageState {
   pipeline: GPURenderPipeline | null;
@@ -21,8 +38,12 @@ class Slot {
   sceneTex!: GPUTexture;
   ping!: GPUTexture;
   pong!: GPUTexture;
+  bloomA!: GPUTexture;   // half-res
+  bloomB!: GPUTexture;   // half-res
+  bloomOut!: GPUTexture; // full-res composite target
   image: GPUTexture | null = null;
   imageAspect = 1;
+  warpMesh: GPUTexture | null = null;
   ubo!: GPUBuffer;
   uboGroup!: GPUBindGroup;
   uniformData = new Float32Array(UNIFORM_BYTES / 4);
@@ -40,8 +61,14 @@ export class Renderer {
   private slots: [Slot, Slot] = [new Slot(), new Slot()];
   private presentPipeline!: GPURenderPipeline;
   private uboLayout!: GPUBindGroupLayout;
-  private texLayout!: GPUBindGroupLayout;     // sampler, img, src, prev
-  private presentLayout!: GPUBindGroupLayout; // sampler, outA, outB
+  private texLayout!: GPUBindGroupLayout;      // sampler, img, src, prev, warpMesh
+  private presentLayout!: GPUBindGroupLayout;  // sampler, outA, outB
+  private singleTexLayout!: GPUBindGroupLayout; // sampler, tex
+  private zero!: GPUTexture;
+  private bloomBright!: GPURenderPipeline;
+  private bloomBlurH!: GPURenderPipeline;
+  private bloomBlurV!: GPURenderPipeline;
+  private bloomComposite!: GPURenderPipeline;
 
   /** Transition state: progress 0..1 mixing slot0 -> slot1, then swap. */
   transitionProgress = 0;
@@ -89,7 +116,7 @@ export class Renderer {
     this.texLayout = this.device.createBindGroupLayout({
       entries: [
         { binding: 0, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
-        tex(1), tex(2), tex(3),
+        tex(1), tex(2), tex(3), tex(4),
       ],
     });
     this.presentLayout = this.device.createBindGroupLayout({
@@ -98,6 +125,19 @@ export class Renderer {
         tex(1), tex(2),
       ],
     });
+    this.singleTexLayout = this.device.createBindGroupLayout({
+      entries: [
+        { binding: 0, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
+        tex(1),
+      ],
+    });
+
+    this.zero = this.device.createTexture({
+      size: [1, 1], format: "rgba16float",
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+    });
+    this.device.queue.writeTexture(
+      { texture: this.zero }, new Uint16Array([0, 0, 0, 0]), { bytesPerRow: 8 }, [1, 1]);
 
     for (const s of this.slots) {
       s.ubo = this.device.createBuffer({
@@ -120,7 +160,44 @@ export class Renderer {
       primitive: { topology: "triangle-list" },
     });
 
+    const fixed = (code: string, layout: GPUBindGroupLayout, entry: string) => {
+      const module = this.device.createShaderModule({ code });
+      return this.device.createRenderPipeline({
+        layout: this.device.createPipelineLayout({ bindGroupLayouts: [this.uboLayout, layout] }),
+        vertex: { module, entryPoint: "vmain" },
+        fragment: { module, entryPoint: entry, targets: [{ format: TARGET_FORMAT }] },
+        primitive: { topology: "triangle-list" },
+      });
+    };
+    this.bloomBright = fixed(BLOOM_BRIGHT_WGSL, this.singleTexLayout, "fmain");
+    this.bloomBlurH = fixed(BLOOM_BLUR_WGSL, this.singleTexLayout, "fmainH");
+    this.bloomBlurV = fixed(BLOOM_BLUR_WGSL, this.singleTexLayout, "fmainV");
+    this.bloomComposite = fixed(BLOOM_COMPOSITE_WGSL, this.presentLayout, "fmain");
+
     this.resize(canvas.width, canvas.height);
+  }
+
+  /** Upload (or clear) the per-vertex warp mesh: MESH_W×MESH_H UV offsets. */
+  setWarpMesh(slot: 0 | 1, offsets: Float32Array | null): void {
+    const s = this.slots[slot];
+    if (!offsets) {
+      s.warpMesh?.destroy();
+      s.warpMesh = null;
+      return;
+    }
+    if (!s.warpMesh) {
+      s.warpMesh = this.device.createTexture({
+        size: [MESH_W, MESH_H], format: "rgba16float",
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+      });
+    }
+    const half = new Uint16Array(MESH_W * MESH_H * 4);
+    for (let i = 0; i < MESH_W * MESH_H; i++) {
+      half[i * 4] = toHalf(offsets[i * 2]);
+      half[i * 4 + 1] = toHalf(offsets[i * 2 + 1]);
+    }
+    this.device.queue.writeTexture(
+      { texture: s.warpMesh }, half, { bytesPerRow: MESH_W * 8 }, [MESH_W, MESH_H]);
   }
 
   resize(w: number, h: number): void {
@@ -131,9 +208,15 @@ export class Renderer {
       format: TARGET_FORMAT,
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
+    const makeHalf = () => this.device.createTexture({
+      size: [Math.max(2, this.width >> 1), Math.max(2, this.height >> 1)],
+      format: TARGET_FORMAT,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    });
     for (const s of this.slots) {
-      for (const t of [s.sceneTex, s.ping, s.pong]) t?.destroy();
+      for (const t of [s.sceneTex, s.ping, s.pong, s.bloomA, s.bloomB, s.bloomOut]) t?.destroy();
       s.sceneTex = make(); s.ping = make(); s.pong = make();
+      s.bloomA = makeHalf(); s.bloomB = makeHalf(); s.bloomOut = make();
     }
   }
 
@@ -232,7 +315,7 @@ export class Renderer {
     this.transitionProgress = 0;
   }
 
-  private renderSlot(enc: GPUCommandEncoder, s: Slot): GPUTexture {
+  private renderSlot(enc: GPUCommandEncoder, s: Slot, bloom = 0): GPUTexture {
     const groupFor = (src: GPUTexture, prev: GPUTexture) => this.device.createBindGroup({
       layout: this.texLayout,
       entries: [
@@ -240,6 +323,7 @@ export class Renderer {
         { binding: 1, resource: (s.image ?? this.white).createView() },
         { binding: 2, resource: src.createView() },
         { binding: 3, resource: prev.createView() },
+        { binding: 4, resource: (s.warpMesh ?? this.zero).createView() },
       ],
     });
     // bg + fg -> sceneTex  (src/prev bound to white: can't sample the attachment)
@@ -274,7 +358,42 @@ export class Renderer {
     }
     const out = s.stages.post.pipeline ? s.ping : s.sceneTex;
     const tmp = s.ping; s.ping = s.pong; s.pong = tmp;
-    return out;
+    if (bloom <= 0) return out;
+
+    // bloom chain: bright/downsample -> blur H -> blur V -> composite
+    const single = (src: GPUTexture) => this.device.createBindGroup({
+      layout: this.singleTexLayout,
+      entries: [
+        { binding: 0, resource: this.sampler },
+        { binding: 1, resource: src.createView() },
+      ],
+    });
+    const step = (pipeline: GPURenderPipeline, group: GPUBindGroup, target: GPUTexture) => {
+      const pass = enc.beginRenderPass({
+        colorAttachments: [{
+          view: target.createView(),
+          loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 },
+        }],
+      });
+      pass.setBindGroup(0, s.uboGroup);
+      pass.setBindGroup(1, group);
+      pass.setPipeline(pipeline);
+      pass.draw(3);
+      pass.end();
+    };
+    step(this.bloomBright, single(out), s.bloomA);
+    step(this.bloomBlurH, single(s.bloomA), s.bloomB);
+    step(this.bloomBlurV, single(s.bloomB), s.bloomA);
+    const compositeGroup = this.device.createBindGroup({
+      layout: this.presentLayout,
+      entries: [
+        { binding: 0, resource: this.sampler },
+        { binding: 1, resource: out.createView() },
+        { binding: 2, resource: s.bloomA.createView() },
+      ],
+    });
+    step(this.bloomComposite, compositeGroup, s.bloomOut);
+    return s.bloomOut;
   }
 
   frame(
@@ -296,8 +415,9 @@ export class Renderer {
     }
 
     const enc = this.device.createCommandEncoder();
-    const outA = this.renderSlot(enc, A);
-    const outB = (this.transitionActive && pIncoming) ? this.renderSlot(enc, B) : outA;
+    const outA = this.renderSlot(enc, A, pActive.bloom ?? 0);
+    const outB = (this.transitionActive && pIncoming)
+      ? this.renderSlot(enc, B, pIncoming.bloom ?? 0) : outA;
 
     const presentGroup = this.device.createBindGroup({
       layout: this.presentLayout,

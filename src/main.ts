@@ -14,6 +14,7 @@ import { generateWithRepair, callClaude, stripFences } from "./ai/generate";
 import { CanvasRecorder } from "./core/record";
 import { parseP9c, p9ToScene } from "./import/p9";
 import { parseMilk, milkToScene } from "./import/milk";
+import { meshWarpFor } from "./core/meshwarp";
 import { $, log } from "./ui/dom";
 import { wireAudioButtons, wireAudioDrop } from "./ui/audio-common";
 import {
@@ -169,6 +170,8 @@ function frame(): void {
   const now = nowT();
   audio.analysis.update(now);
   const p = mods.evaluate(cur, renderer.stageParams(), audio.analysis, now);
+  const mw = meshWarpFor(cur);
+  renderer.setWarpMesh(0, mw ? mw.evaluate(mods.exprSnapshot(), now) : null);
   $("beatLamp").style.opacity = String(0.15 + audio.analysis.beat * 0.85);
   $("bpmTag").textContent = (audio.analysis.bpm || "—") + " BPM";
   drawScopes();
@@ -311,6 +314,26 @@ function wireMilkImport(): void {
         editor.setCode(cur.layers.bg.code);
         const res = await compileStage("bg", true);
         for (const s of ["fg", "post"] as const) await compileStage(s, false);
+        if (preset.warpShader) {
+          log("milk: translating MilkDrop 2 warp HLSL via AI…", "ai");
+          try {
+            const translated = stripFences(await callClaude([{
+              role: "user",
+              content: "Translate this MilkDrop 2 warp HLSL into a WGSL POST stage body for a music visualizer. It must define fn render(c : Ctx) -> vec3f (Ctx, spec/wav/pal/hash/noise/fbm, srcTex(uv), prevTex(uv), meshOff(uv), warpUV are in scope; do not redeclare). Preserve the visual math. Keep the //@param lines from the current body so equation routing still works.\n\nCurrent WGSL POST body:\n" + cur.layers.post.code + "\n\nHLSL warp shader:\n" + preset.warpShader + "\n\nOutput only the WGSL body.",
+            }]));
+            const prev = cur.layers.post.code;
+            cur.layers.post.code = translated;
+            const postRes = await compileStage("post", false);
+            if (postRes.ok) log("milk: warp HLSL translated and compiled", "ok");
+            else {
+              cur.layers.post.code = prev;
+              await compileStage("post", false);
+              log("milk: HLSL translation did not compile — parametric warp kept", "err");
+            }
+          } catch (err) {
+            log("milk: AI translation unavailable: " + (err as Error).message, "err");
+          }
+        }
         await applySceneImage();
         setDirty(true);
         refreshPanels();

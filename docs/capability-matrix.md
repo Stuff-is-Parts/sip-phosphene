@@ -13,7 +13,7 @@ column from the format documented in its BSD-released source.
 | Fullscreen shader draw (Shader, RenderRect) | 247/252 | ✅ WGSL stages, superset (audio uniforms, //@param) |
 | 3D geometry (RenderObject, MeshObject, Cube/Sphere/Plane/…) | 161/252 | 🟡 raymarched SDF (sdSphere/sdBox/sdTorus/sdCylinder, opRep, camRay) — no rasterized mesh pipeline |
 | Render-to-texture graphs (RenderToTexture, PreviousLayer, Store/CopyTexture) | 138/252 | 🟡 fixed bg→fg→post + ping-pong feedback covers the dominant feedback use; arbitrary pass graphs are spec'd (see scene spec, Future) |
-| Bloom | 103/252 | 🟡 per-scene in-shader glow; no separable built-in pass |
+| Bloom | 103/252 | ✅ built-in separable pass (bright/blur/composite chain), per-scene `bloom` field 0..1 |
 | CPU expression dataflow (Expression, Vector, MinMax, HSLAToColor…) | 93/252 | ✅ expression mod source (`expr` routes, per-frame programs, persistent vars) |
 | Instancing with per-clone math (CloneExpression, MeshInstancer) | 59/252 | 🟡 in-shader loops; no instance-buffer primitive |
 | Transitions between scenes | 40/252 | ✅ crossfade/liquid/iris/warp-slide morphs |
@@ -30,15 +30,21 @@ column from the format documented in its BSD-released source.
 | Per-frame equations (EEL: q-vars, audio vars, math funcs, loop/megabuf/compound assignment, lazy if-blocks) | ✅ `expr` mod routes — corpus-verified: 9,666 of 9,669 equation-bearing Cream of the Crop presets compile (99.97%, [`milk-corpus-report.json`](milk-corpus-report.json)); the 3 failures are malformed files real MilkDrop also drops |
 | Feedback warp (zoom/rot/dx/dy/warp per frame) | ✅ `warpUV()` stdlib + expression-driven params |
 | Frame decay | ✅ `mdDecay` route on `prevTex` |
-| Waveform drawing (nWaveMode, wave_r/g/b/a/x/y) | ✅ `waveLine()` stdlib polyline; modes collapse to the main draw |
-| Custom waves (wavecode_N) | 🟡 mapped onto the main waveform draw; per-wave equations not executed |
-| Custom shapes (shapecode_N) | ❌ reported, not represented |
-| Per-pixel (per-vertex mesh) equations | 🟡 approximated by the parametric warp wobble |
-| MilkDrop 2 warp/comp HLSL shaders | 🟡 detected and reported; parametric warp/composite used instead |
+| Waveform drawing (nWaveMode, wave_r/g/b/a/x/y) | ✅ `waveLine()` stdlib polyline; mode families map to angle/thickness variants |
+| Custom waves (wavecode_N) | ✅ up to 2 rendered with their own per-frame equations in namespaced envs; per-point equations not executed |
+| Custom shapes (shapecode_N) | ✅ up to 2 rendered as `sdNgon` polygons with their per-frame equations (x/y/rad/ang/rgba) |
+| Per-pixel (per-vertex mesh) equations | ✅ warp mesh: equations run per grid vertex each frame (`src/core/meshwarp.ts`), sampled by POST via `meshOff(uv)` |
+| MilkDrop 2 warp HLSL shaders | 🟡 AI translation to WGSL attempted on import (needs API access); parametric warp fallback |
+| MilkDrop 2 comp HLSL shaders | 🟡 detected and reported; direct composite used instead |
 | Preset blending / transitions | ✅ scene morphs |
 | `.milk` import | ✅ FROM MILKDROP… in the studio (`src/import/milk.ts`) |
 
 Legend: ✅ met or exceeded · 🟡 partially covered, path known · ❌ not present.
+
+Renderer changes are verified per commit by the GPU smoke harness
+(`npm run smoke`): headless Edge renders the built player and studio on this
+machine's real GPU and fails on black frames or page errors — the runtime
+failure class that static WGSL validation and unit tests cannot see.
 
 projectM tracks the MilkDrop rows: it is an LGPL reimplementation of the same
 preset format, so its capability set is the MilkDrop column (its source is

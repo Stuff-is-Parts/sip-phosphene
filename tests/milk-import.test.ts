@@ -46,15 +46,24 @@ describe("milk preset parsing", () => {
     expect(m.perFrame).toBe("a = 1; b = 2;");
   });
 
-  it("collects base values, equations, and wave count", () => {
+  it("collects base values, equations, and enabled waves", () => {
     const m = parseMilk(FIXTURE, "Author - Nice Preset.milk");
     expect(m.name).toBe("Author - Nice Preset");
     expect(m.values.zoom).toBeCloseTo(1.02);
     expect(m.values.fdecay).toBeCloseTo(0.95);
     expect(m.perFrame).toContain("q1*0.03");
     expect(m.perFrameInit).toBe("q1 = 0.5;");
-    expect(m.waveCount).toBe(1);
-    expect(m.shapeCount).toBe(0);
+    expect(m.waves.length).toBe(1);
+    expect(m.shapes.length).toBe(0);
+  });
+
+  it("collects per-shape values and equations", () => {
+    const m = parseMilk(FIXTURE +
+      "shapecode_1_enabled=1\nshapecode_1_sides=6\nshapecode_1_rad=0.3\n" +
+      "shape_1_per_frame1=rad = rad + 0.1*sin(time);\n", "s.milk");
+    expect(m.shapes.length).toBe(1);
+    expect(m.shapes[0].values.sides).toBe(6);
+    expect(m.shapes[0].perFrame).toContain("0.1*sin(time)");
   });
 
   it("collects MilkDrop 2 shader blocks without treating them as equations", () => {
@@ -75,8 +84,18 @@ describe("milk preset to scene mapping", () => {
     expect(zoomRoute?.init).toBe("q1 = 0.5;");
   });
 
-  it("reports the wave mapping", () => {
-    expect(report.join(" ")).toContain("custom wave");
+  it("routes custom-wave equations through a namespaced env", () => {
+    const waveRoutes = scene.mods.filter((r) => r.ns === "cw0");
+    expect(waveRoutes.length).toBe(4); // r/g/b/a
+    expect(waveRoutes[0].expr).toContain("r = ");
+    expect(report.length).toBe(0); // clean import: nothing skipped or dropped
+  });
+
+  it("emits a warp-mesh program for per-pixel presets", () => {
+    const { scene: s2, report: r2 } = milkToScene(parseMilk(
+      FIXTURE + "per_pixel_1=zoom = zoom + rad*0.05;\n", "pp.milk"));
+    expect(s2.warpMesh).toContain("rad*0.05");
+    expect(r2.join(" ")).toContain("warp mesh");
   });
 
   it("all three stage bodies compile as valid WGSL through the real assembly path", () => {

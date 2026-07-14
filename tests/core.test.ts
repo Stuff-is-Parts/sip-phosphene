@@ -21,10 +21,10 @@ describe("//@param parser", () => {
       { name: "bar", min: -1.5, max: 1.5, def: 0.25, slot: 1 },
     ]);
   });
-  it("dedupes names and caps at 16", () => {
-    const lines = Array.from({ length: 20 }, (_, i) => `//@param p${i % 18} 0 1 0.5`).join("\n");
+  it("dedupes names and caps at 48", () => {
+    const lines = Array.from({ length: 60 }, (_, i) => `//@param p${i % 52} 0 1 0.5`).join("\n");
     const p = parseParams(lines);
-    expect(p.length).toBeLessThanOrEqual(16);
+    expect(p.length).toBeLessThanOrEqual(48);
     expect(new Set(p.map((x) => x.name)).size).toBe(p.length);
   });
   it("ignores malformed annotations", () => {
@@ -35,7 +35,7 @@ describe("//@param parser", () => {
 describe("uniform packing", () => {
   it("matches the WGSL struct layout exactly", () => {
     const out = new Float32Array(UNIFORM_FLOATS);
-    const custom = new Float32Array(16); custom[2] = 7;
+    const custom = new Float32Array(48); custom[2] = 7;
     packUniforms(out, 800, 600, 12.5, audio(), {
       hue: 0.1, speed: 1.5, int: 0.9, fb: 0.4, custom,
     });
@@ -51,7 +51,7 @@ describe("uniform packing", () => {
     expect(out[16 + 63]).toBeCloseTo(0.3); // spec[63]
     expect(out[16 + 64]).toBeCloseTo(-0.2); // wave[0]
     expect(out[16 + 128 + 2]).toBe(7); // custom slot 2
-    expect(UNIFORM_FLOATS).toBe(160);
+    expect(UNIFORM_FLOATS).toBe(192);
   });
 });
 

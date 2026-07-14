@@ -6,7 +6,14 @@ export default ts.config(
   ...ts.configs.recommended,
   {
     files: ["scripts/**/*.mjs"],
-    languageOptions: { globals: { console: "readonly", process: "readonly", URL: "readonly" } },
+    languageOptions: {
+      globals: {
+        console: "readonly", process: "readonly", URL: "readonly",
+        setTimeout: "readonly",
+        // page.evaluate callbacks run in the browser via puppeteer
+        navigator: "readonly",
+      },
+    },
   },
   {
     files: ["src/**/*.ts", "tests/**/*.ts", "scripts/**/*.mjs"],

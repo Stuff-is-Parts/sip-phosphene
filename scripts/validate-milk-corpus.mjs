@@ -39,17 +39,23 @@ for (const f of files) {
   if (m.perPixel) stats.features.perPixel++;
   if (m.warpShader) stats.features.warpShader++;
   if (m.compShader) stats.features.compShader++;
-  if (m.waveCount) stats.features.waves++;
-  if (m.shapeCount) stats.features.shapes++;
+  if (m.waves.length) stats.features.waves++;
+  if (m.shapes.length) stats.features.shapes++;
   if (m.perFrameInit) stats.features.perFrameInit++;
   if (!m.perFrame) continue;
   stats.withEquations++;
   const { report } = milkToScene(m);
-  const skip = report.find((r) => r.includes("skipped"));
-  if (skip) {
-    bucket(skip.replace(/at \d+/g, "at N"), f);
+  // core skip = the preset's main equations failed; unit skips (a wave or
+  // shape falling back to base values) degrade gracefully and are bucketed
+  // separately without failing the preset
+  const coreSkip = report.find((r) => r.startsWith("per-frame equations skipped"));
+  if (coreSkip) {
+    bucket(coreSkip.replace(/at \d+/g, "at N"), f);
   } else {
     stats.equationsCompile++;
+    for (const r of report) {
+      if (r.includes("skipped")) bucket("UNIT: " + r.replace(/at \d+/g, "at N"), f);
+    }
   }
   if (m.perFrameInit) {
     try { compile(m.perFrameInit); } catch { stats.initCompileFail++; }

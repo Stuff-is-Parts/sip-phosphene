@@ -8,16 +8,68 @@
     "warpShader": 7922,
     "compShader": 7969,
     "waves": 4670,
-    "shapes": 6233,
+    "shapes": 6232,
     "perFrameInit": 3704
   },
   "initCompileFail": 2,
   "errorBuckets": [
     {
+      "message": "UNIT: custom wave 0 equations skipped (unknown function 'assign' at N)",
+      "count": 5,
+      "samples": [
+        "Fractal\\Lattice\\redi jedi - How could she.milk",
+        "Hypnotic\\Polar Mirror\\redi jedi - How could she(because she's a box of tricks).milk",
+        "Hypnotic\\Polar Mirror\\redi jedi - How could she(because she's an alien from patternton).milk"
+      ]
+    },
+    {
+      "message": "UNIT: shape 0 equations skipped (expected ')' at N)",
+      "count": 3,
+      "samples": [
+        "Dancer\\Comet\\EoS_Phat_PeterP_Sentinel_Aware_6 EoS edit slice into your beautiful love.milk",
+        "Dancer\\Comet Mirror\\EoS_Phat_PeterP_Sentinel_Aware_6 EoS edit C.milk",
+        "Dancer\\Comet Mirror\\EoS_Phat_PeterP_Sentinel_Aware_6 EoS edit C_b.milk"
+      ]
+    },
+    {
+      "message": "UNIT: per-pixel equations skipped (bad number at N)",
+      "count": 3,
+      "samples": [
+        "Geometric\\Wire Spiral Flower\\Stahlregen - funky Blur (lotus mix) the genius in me lies right at the heart of the flacc nz+.milk",
+        "Geometric\\Wire Spiral Flower\\Stahlregen - funky Blur (lotus mix) the genius in me lies right at the heart of the flacc.milk",
+        "Reaction\\Liquid Blobby\\pheremones is spelled pheromones asshole.milk"
+      ]
+    },
+    {
+      "message": "UNIT: shape 0 equations skipped (unknown function '_aboeq' at N)",
+      "count": 3,
+      "samples": [
+        "Sparkle\\Mass Circles\\Stahlregen + Flexi - dots (layered - wavepool).milk",
+        "Sparkle\\Mass Circles\\Stahlregen + Flexi - dots (layered) xfr.milk",
+        "Sparkle\\Mass Circles\\stahlregen - dots (layered).milk"
+      ]
+    },
+    {
+      "message": "UNIT: shape 1 equations skipped (unknown function '_aboeq' at N)",
+      "count": 3,
+      "samples": [
+        "Sparkle\\Mass Circles\\Stahlregen + Flexi - dots (layered - wavepool).milk",
+        "Sparkle\\Mass Circles\\Stahlregen + Flexi - dots (layered) xfr.milk",
+        "Sparkle\\Mass Circles\\stahlregen - dots (layered).milk"
+      ]
+    },
+    {
       "message": "per-frame equations skipped (expected ')' at N)",
       "count": 1,
       "samples": [
         "Fractal\\Nested Circle\\Nivush - Crazy Diamonds.milk"
+      ]
+    },
+    {
+      "message": "UNIT: per-pixel equations skipped (unexpected character '\\' at N)",
+      "count": 1,
+      "samples": [
+        "Fractal\\Nested Square\\Goody's Datura Bloom.milk"
       ]
     },
     {

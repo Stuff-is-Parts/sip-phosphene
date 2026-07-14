@@ -20,6 +20,9 @@ export interface ModRoute {
   readVar?: string;
   /** source "expr": program run once (per engine reset) before the first frame. */
   init?: string;
+  /** source "expr": namespace — routes sharing one ns run in a scoped env
+   *  (MilkDrop wave/shape equations reuse var names like x/y/r/g across units). */
+  ns?: string;
 }
 
 export type ModSource =
@@ -58,6 +61,11 @@ export interface Scene {
   credit?: string;
   /** License of THIS scene file (e.g. ported CC BY-NC-SA content). */
   license?: string;
+  /** Per-vertex warp-mesh program (MilkDrop per-pixel equations): evaluated
+   *  on a coarse grid each frame, sampled by POST via meshOff(uv). */
+  warpMesh?: string;
+  /** Built-in bloom pass strength 0..1 (0/absent = off). */
+  bloom?: number;
 }
 
 export interface CustomParam {
@@ -127,5 +135,7 @@ export function normalizeScene(x: Partial<Scene>): Scene {
     assets: { image: x.assets?.image ?? null },
     ...(x.credit ? { credit: x.credit } : {}),
     ...(x.license ? { license: x.license } : {}),
+    ...(x.warpMesh ? { warpMesh: x.warpMesh } : {}),
+    ...(typeof x.bloom === "number" && x.bloom > 0 ? { bloom: x.bloom } : {}),
   };
 }

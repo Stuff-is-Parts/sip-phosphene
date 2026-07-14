@@ -3,6 +3,7 @@ import "./player.css";
 import { Renderer } from "./gpu/renderer";
 import { AudioEngine } from "./audio/sources";
 import { ModEngine } from "./core/mods";
+import { meshWarpFor } from "./core/meshwarp";
 import { isScene, normalizeScene, STAGES, type Scene } from "./core/types";
 import { builtinScenes } from "./shaders/library";
 import { CanvasRecorder } from "./core/record";
@@ -131,9 +132,13 @@ function frame(): void {
   }
 
   const p = mods.evaluate(entries[idx].scene, renderer.stageParams(0), audio.analysis, now);
+  const mw = meshWarpFor(entries[idx].scene);
+  renderer.setWarpMesh(0, mw ? mw.evaluate(mods.exprSnapshot(), now) : null);
   let pIn = null;
   if (incomingIdx !== null && renderer.transitionActive) {
     pIn = modsIncoming.evaluate(entries[incomingIdx].scene, renderer.stageParams(1), audio.analysis, now);
+    const mwIn = meshWarpFor(entries[incomingIdx].scene);
+    renderer.setWarpMesh(1, mwIn ? mwIn.evaluate(modsIncoming.exprSnapshot(), now) : null);
     if (renderer.advanceTransition(1 / (60 * 1.8))) {
       idx = incomingIdx;
       incomingIdx = null;

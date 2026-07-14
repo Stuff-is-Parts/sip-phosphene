@@ -17,7 +17,7 @@ struct Uniforms {
   xtra    : vec4f,            // transition progress, transition mode, image aspect, reserved
   spec    : array<vec4f, 16>, // 64-bin log spectrum, 0..1
   wave    : array<vec4f, 16>, // 64-sample waveform, -1..1
-  cust    : array<vec4f, 4>,  // custom //@param slots
+  cust    : array<vec4f, 12>, // custom //@param slots
 };
 @group(0) @binding(0) var<uniform> U : Uniforms;
 
@@ -40,7 +40,7 @@ fn wav(i : i32) -> f32 {
   return U.wave[j / 4][j % 4];
 }
 fn custSlot(i : i32) -> f32 {
-  let j = clamp(i, 0, 15);
+  let j = clamp(i, 0, 47);
   return U.cust[j / 4][j % 4];
 }
 fn hash(p : vec2f) -> f32 {
@@ -100,6 +100,14 @@ fn camRay(q : vec2f, ro : vec3f, ta : vec3f) -> vec3f {
 fn sdCylinder(p : vec3f, h : f32, r : f32) -> f32 {
   let d = abs(vec2f(length(p.xz), p.y)) - vec2f(r, h);
   return min(max(d.x, d.y), 0.0) + length(max(d, vec2f(0.0)));
+}
+// signed distance to a regular n-gon at the origin, radius r, rotated ang
+fn sdNgon(p0 : vec2f, r : f32, n : f32, ang : f32) -> f32 {
+  let p = rot2(-ang) * p0;
+  let seg = 6.2831853 / max(n, 3.0);
+  let a = atan2(p.y, p.x);
+  let b = seg * floor(a / seg + 0.5);
+  return length(p) * cos(a - b) - r * cos(seg * 0.5);
 }
 fn opRep(p : vec3f, c : vec3f) -> vec3f { return p - c * round(p / c); }
 
@@ -168,8 +176,11 @@ fn makeCtx(uv : vec2f) -> Ctx {
 export const POST_COMMON = /* wgsl */ `
 @group(1) @binding(2) var uTex : texture_2d<f32>;
 @group(1) @binding(3) var uPrev : texture_2d<f32>;
+@group(1) @binding(4) var uWarpMesh : texture_2d<f32>;
 fn srcTex(uv : vec2f) -> vec3f { return textureSampleLevel(uTex, uSamp, uv, 0.0).rgb; }
 fn prevTex(uv : vec2f) -> vec3f { return textureSampleLevel(uPrev, uSamp, uv, 0.0).rgb; }
+// per-vertex warp displacement (MilkDrop per-pixel mesh), zero when unused
+fn meshOff(uv : vec2f) -> vec2f { return textureSampleLevel(uWarpMesh, uSamp, uv, 0.0).rg; }
 `;
 
 const FRAG_ENTRY = /* wgsl */ `
@@ -214,6 +225,61 @@ fn fmain(in : VOut) -> @location(0) vec4f {
   col *= 1.0 - dot(q, q) * 0.95;
   col = pow(col, vec3f(0.9));
   return vec4f(col, 1.0);
+}
+`;
+
+/** Self-contained bloom modules (bright/downsample, blur H+V, composite). */
+const BLOOM_HEAD = /* wgsl */ `
+struct Uniforms {
+  resTime : vec4f, bands : vec4f, parms : vec4f, xtra : vec4f,
+  spec : array<vec4f, 16>, wave : array<vec4f, 16>, cust : array<vec4f, 12>,
+};
+@group(0) @binding(0) var<uniform> U : Uniforms;
+@group(1) @binding(0) var uSamp : sampler;
+@group(1) @binding(1) var uA : texture_2d<f32>;
+struct VOut { @builtin(position) pos : vec4f, @location(0) uv : vec2f };
+@vertex
+fn vmain(@builtin(vertex_index) vi : u32) -> VOut {
+  var out : VOut;
+  let p = vec2f(f32(i32(vi & 1u) * 4 - 1), f32(i32(vi >> 1u) * 4 - 1));
+  out.pos = vec4f(p, 0.0, 1.0);
+  out.uv = vec2f(p.x * 0.5 + 0.5, 0.5 - p.y * 0.5);
+  return out;
+}
+`;
+
+export const BLOOM_BRIGHT_WGSL = BLOOM_HEAD + /* wgsl */ `
+@fragment
+fn fmain(in : VOut) -> @location(0) vec4f {
+  let c = textureSampleLevel(uA, uSamp, in.uv, 0.0).rgb;
+  let bright = max(c - vec3f(0.6), vec3f(0.0));
+  return vec4f(bright * U.xtra.w, 1.0);
+}
+`;
+
+export const BLOOM_BLUR_WGSL = BLOOM_HEAD + /* wgsl */ `
+fn blur(uv : vec2f, dir : vec2f) -> vec3f {
+  let px = dir / max(U.resTime.xy * 0.5, vec2f(1.0));
+  var s = textureSampleLevel(uA, uSamp, uv, 0.0).rgb * 0.227;
+  s += textureSampleLevel(uA, uSamp, uv + px * 1.38, 0.0).rgb * 0.316;
+  s += textureSampleLevel(uA, uSamp, uv - px * 1.38, 0.0).rgb * 0.316;
+  s += textureSampleLevel(uA, uSamp, uv + px * 3.23, 0.0).rgb * 0.070;
+  s += textureSampleLevel(uA, uSamp, uv - px * 3.23, 0.0).rgb * 0.070;
+  return s;
+}
+@fragment
+fn fmainH(in : VOut) -> @location(0) vec4f { return vec4f(blur(in.uv, vec2f(1.0, 0.0)), 1.0); }
+@fragment
+fn fmainV(in : VOut) -> @location(0) vec4f { return vec4f(blur(in.uv, vec2f(0.0, 1.0)), 1.0); }
+`;
+
+export const BLOOM_COMPOSITE_WGSL = BLOOM_HEAD + /* wgsl */ `
+@group(1) @binding(2) var uB : texture_2d<f32>;
+@fragment
+fn fmain(in : VOut) -> @location(0) vec4f {
+  let base = textureSampleLevel(uA, uSamp, in.uv, 0.0).rgb;
+  let glow = textureSampleLevel(uB, uSamp, in.uv, 0.0).rgb;
+  return vec4f(base + glow, 1.0);
 }
 `;
 
