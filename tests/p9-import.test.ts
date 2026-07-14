@@ -27,6 +27,13 @@ describe("Plane9 GLSL -> WGSL transpiler (real corpus fixtures)", () => {
     });
   }
 
+  it("never emits reserved identifiers (leading double underscore)", () => {
+    for (const glsl of Object.values(fixtures)) {
+      const { wgsl } = translateP9Glsl(glsl);
+      expect(wgsl).not.toMatch(/\b__/);
+    }
+  });
+
   it("rewrites swizzle l-values (illegal in WGSL)", () => {
     const { wgsl } = translateP9Glsl(fixtures.StarBurst);
     expect(wgsl).not.toMatch(/\.rgb\s*\*=/);

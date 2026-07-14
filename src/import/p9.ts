@@ -94,18 +94,18 @@ function convertCommon(code: string, warnings: string[]): string {
   s = s.replace(/\b_noise\s*\(/g, "noise(");
   s = s.replace(/\b_tolinear\s*\(([^;]*?)\)/g, "pow($1, vec3f(2.2))");
   // engine inputs
-  s = s.replace(/\bsi\.tex\b/g, "__uv");
+  s = s.replace(/\bsi\.tex\b/g, "p9uv");
   s = s.replace(/\bsi\.diffuse\b/g, "vec4f(1.0)");
-  s = s.replace(/\bgTime\b/g, "__t");
+  s = s.replace(/\bgTime\b/g, "p9time");
   s = s.replace(/\bgColor1\b/g, "vec4f(1.0)");
   s = s.replace(/\bgColor2\b/g, "vec4f(1.0)");
   s = s.replace(/\bgColor\b/g, "vec4f(1.0)");
-  s = s.replace(/\bgFrameNr\b/g, "(__t * 60.0)");
+  s = s.replace(/\bgFrameNr\b/g, "(p9time * 60.0)");
   // gIn1..3: Plane9 animates these from the node graph; fixed defaults + note
   for (const g of ["gIn1", "gIn2", "gIn3"]) {
     if (new RegExp("\\b" + g + "\\b").test(s)) {
       warnings.push(g + " was animated by the node graph — imported as a constant; tune or route via the mod matrix");
-      s = s.replace(new RegExp("\\b" + g + "\\b", "g"), "__" + g);
+      s = s.replace(new RegExp("\\b" + g + "\\b", "g"), "p9" + g);
     }
   }
   // texture sampling -> scene image
@@ -126,7 +126,7 @@ function convertCommon(code: string, warnings: string[]): string {
   s = s.replace(/(^|[;{]|\n)(\s*)vec([234])\s+(\w+)\s*=/g, "$1$2var $4 : vec$3f =");
   s = s.replace(/(^|[;{]|\n)(\s*)int\s+(\w+)\s*=/g, "$1$2var $3 : i32 =");
   // output
-  s = s.replace(/\boColor\b/g, "__out");
+  s = s.replace(/\boColor\b/g, "p9out");
   if (s.includes("?")) warnings.push("ternary operator present — WGSL needs select(); review the marked lines");
   return s;
 }
@@ -154,17 +154,17 @@ export function translateP9Glsl(glsl: string): TranspileResult {
   const h = convertHelpers(helpers, warnings);
   const b = convertCommon(body, warnings);
   const gInDecls = ["gIn1", "gIn2", "gIn3"]
-    .filter((g) => b.includes("__" + g) || h.includes("__" + g))
-    .map((g) => `  let __${g} : vec3f = vec3f(0.4, 0.0, 0.3); // was node-animated in Plane9`)
+    .filter((g) => b.includes("p9" + g) || h.includes("p9" + g))
+    .map((g) => `  let p9${g} : vec3f = vec3f(0.4, 0.0, 0.3); // was node-animated in Plane9`)
     .join("\n");
   const wgsl =
     (h.trim() ? h.trim() + "\n\n" : "") +
     `fn render(c : Ctx) -> vec3f {
-  let __uv = c.uv;
-  let __t = c.t;
-${gInDecls ? gInDecls + "\n" : ""}  var __out : vec4f = vec4f(0.0);
+  let p9uv = c.uv;
+  let p9time = c.t;
+${gInDecls ? gInDecls + "\n" : ""}  var p9out : vec4f = vec4f(0.0);
 ${b.trimEnd()}
-  return __out.rgb * c.intensity;
+  return p9out.rgb * c.intensity;
 }`;
   return { wgsl, warnings };
 }
