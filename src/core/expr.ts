@@ -1,7 +1,8 @@
 /**
  * Per-frame expression language: the MilkDrop/EEL dialect of C-like math.
- * Programs are `name = expr;` statements. Compile once, run per frame against
- * a persistent variable environment; unknown identifiers read as 0.
+ * Programs are statement lists (`name = expr;`, `megabuf(i) = expr;`,
+ * `loop(n, …)`, or bare expressions). Compile once, run per frame against a
+ * persistent variable environment; unknown identifiers read as 0.
  */
 
 export interface Program {
@@ -11,6 +12,8 @@ export interface Program {
 }
 
 type Node = (env: Record<string, number>) => number;
+
+const LOOP_CAP = 65536;
 
 const FUNCS: Record<string, (...a: number[]) => number> = {
   sin: Math.sin, cos: Math.cos, tan: Math.tan,
@@ -34,7 +37,12 @@ const FUNCS: Record<string, (...a: number[]) => number> = {
   bor: (a, b) => (a !== 0 || b !== 0 ? 1 : 0),
   bnot: (a) => (a === 0 ? 1 : 0),
   if: (c, t, f) => (c !== 0 ? t : f),
+  exec2: (_a, b) => b,
+  exec3: (_a, _b, c) => c,
 };
+
+/** megabuf/gmegabuf cells live in the env under a store prefix. */
+const BUF_PREFIX: Record<string, string> = { megabuf: "@mb", gmegabuf: "@gmb" };
 
 interface Token { kind: "num" | "ident" | "op"; text: string; pos: number }
 
@@ -45,9 +53,17 @@ function tokenize(src: string): Token[] {
     const ch = src[i];
     if (ch === " " || ch === "\t" || ch === "\r" || ch === "\n") { i++; continue; }
     if (ch === "/" && src[i + 1] === "/") { while (i < src.length && src[i] !== "\n") i++; continue; }
+    if (ch === "$") {
+      const m = /^\$(pi|e|phi)/i.exec(src.slice(i));
+      if (!m) throw new Error(`unexpected character '$' at ${i}`);
+      const v = { pi: Math.PI, e: Math.E, phi: (1 + Math.sqrt(5)) / 2 }[m[1].toLowerCase()] as number;
+      out.push({ kind: "num", text: String(v), pos: i });
+      i += m[0].length;
+      continue;
+    }
     if (/[0-9.]/.test(ch)) {
-      const m = /^[0-9]*\.?[0-9]+(e[+-]?[0-9]+)?/i.exec(src.slice(i));
-      if (!m) throw new Error(`bad number at ${i}`);
+      const m = /^([0-9]+\.[0-9]*|[0-9]*\.[0-9]+|[0-9]+)(e[+-]?[0-9]+)?/i.exec(src.slice(i));
+      if (!m || m[0] === ".") throw new Error(`bad number at ${i}`);
       out.push({ kind: "num", text: m[0], pos: i });
       i += m[0].length;
       continue;
@@ -60,7 +76,7 @@ function tokenize(src: string): Token[] {
       continue;
     }
     const two = src.slice(i, i + 2);
-    if (["<=", ">=", "==", "!=", "&&", "||"].includes(two)) {
+    if (["<=", ">=", "==", "!=", "&&", "||", "+=", "-=", "*=", "/=", "%="].includes(two)) {
       out.push({ kind: "op", text: two, pos: i });
       i += 2;
       continue;
@@ -77,9 +93,10 @@ function tokenize(src: string): Token[] {
 
 class Parser {
   private p = 0;
+  readonly assigns = new Set<string>();
   constructor(private toks: Token[]) {}
 
-  private peek(): Token | undefined { return this.toks[this.p]; }
+  private peek(o = 0): Token | undefined { return this.toks[this.p + o]; }
   private takeOp(text: string): boolean {
     const t = this.peek();
     if (t && t.kind === "op" && t.text === text) { this.p++; return true; }
@@ -91,20 +108,31 @@ class Parser {
       throw new Error(`expected '${text}' at ${t ? t.pos : "end"}`);
     }
   }
+  atEnd(): boolean { return this.p >= this.toks.length; }
 
-  parseProgram(): { stmts: { name: string; value: Node }[] } {
-    const stmts: { name: string; value: Node }[] = [];
-    while (this.peek()) {
-      if (this.takeOp(";")) continue;
+  /** Statements until end of input or a closing paren (loop bodies). */
+  parseStmts(stopAtParen: boolean): Node[] {
+    const stmts: Node[] = [];
+    for (;;) {
+      while (this.takeOp(";")) { /* empty statements */ }
       const t = this.peek();
-      if (!t || t.kind !== "ident") throw new Error(`expected assignment at ${t ? t.pos : "end"}`);
-      this.p++;
-      this.expectOp("=");
-      const value = this.parseExpr();
-      stmts.push({ name: t.text, value });
-      if (this.peek()) this.expectOp(";");
+      if (!t || (stopAtParen && t.kind === "op" && t.text === ")")) return stmts;
+      stmts.push(this.parseStmt());
+      const nxt = this.peek();
+      if (nxt && !(stopAtParen && nxt.kind === "op" && nxt.text === ")")) this.expectOp(";");
     }
-    return { stmts };
+  }
+
+  private static readonly COMPOUND: Record<string, (a: number, b: number) => number> = {
+    "+=": (a, b) => a + b, "-=": (a, b) => a - b, "*=": (a, b) => a * b,
+    "/=": (a, b) => (b === 0 ? 0 : a / b),
+    "%=": (a, b) => (Math.trunc(b) === 0 ? 0 : Math.trunc(a) % Math.trunc(b)),
+  };
+
+  private parseStmt(): Node {
+    // every statement form — assignments (simple and compound), buffer
+    // stores, bare expressions — parses as an expression in EEL
+    return this.parseExpr();
   }
 
   parseExpr(): Node { return this.parseOr(); }
@@ -184,13 +212,54 @@ class Parser {
     if (t.kind === "num") { this.p++; const v = parseFloat(t.text); return () => v; }
     if (t.kind === "ident") {
       this.p++;
+      // assignment as expression: `a = expr` / `a += expr` yields the
+      // assigned value, so it composes inside if()/exec2() arguments
+      const opTok = this.peek();
+      const compound = opTok?.kind === "op" ? Parser.COMPOUND[opTok.text] : undefined;
+      if (compound || (opTok?.kind === "op" && opTok.text === "=")) {
+        this.p++;
+        const value = this.parseExpr();
+        const name = t.text;
+        this.assigns.add(name);
+        return (e) => {
+          const v = compound ? compound(e[name] ?? 0, value(e)) : value(e);
+          e[name] = Number.isFinite(v) ? v : 0;
+          return e[name];
+        };
+      }
       if (this.takeOp("(")) {
+        if (t.text === "loop") return this.parseLoop();
+        if (t.text === "while") return this.parseWhile();
+        if (BUF_PREFIX[t.text]) {
+          const prefix = BUF_PREFIX[t.text];
+          const idx = this.parseExpr();
+          this.expectOp(")");
+          // store form composes inside if()/exec2() args like any assignment
+          const opTok = this.peek();
+          const compound = opTok && Parser.COMPOUND[opTok.text];
+          if (compound || (opTok?.kind === "op" && opTok.text === "=")) {
+            this.p++;
+            const value = this.parseExpr();
+            return (e) => {
+              const key = prefix + Math.trunc(idx(e));
+              const v = compound ? compound(e[key] ?? 0, value(e)) : value(e);
+              e[key] = Number.isFinite(v) ? v : 0;
+              return e[key];
+            };
+          }
+          return (e) => e[prefix + Math.trunc(idx(e))] ?? 0;
+        }
         const fn = FUNCS[t.text];
         if (!fn) throw new Error(`unknown function '${t.text}' at ${t.pos}`);
         const args: Node[] = [];
         if (!this.takeOp(")")) {
-          do { args.push(this.parseExpr()); } while (this.takeOp(","));
+          do { args.push(this.parseArgBlock()); } while (this.takeOp(","));
           this.expectOp(")");
+        }
+        // EEL if() executes only the taken branch (branches carry assignments)
+        if (t.text === "if") {
+          const [c, th, el] = [args[0], args[1], args[2]];
+          return (e) => (c(e) !== 0 ? (th ? th(e) : 0) : (el ? el(e) : 0));
         }
         return (e) => fn(...args.map((a) => a(e)));
       }
@@ -204,19 +273,61 @@ class Parser {
     }
     throw new Error(`unexpected '${t.text}' at ${t.pos}`);
   }
+
+  /** Argument = statement block: expr (';' expr)* with optional trailing ';';
+   *  the block's value is its last expression (EEL allows blocks as args). */
+  private parseArgBlock(): Node {
+    const stmts: Node[] = [this.parseExpr()];
+    while (this.takeOp(";")) {
+      while (this.takeOp(";")) { /* tolerate doubled semicolons */ }
+      const nxt = this.peek();
+      if (!nxt || (nxt.kind === "op" && (nxt.text === "," || nxt.text === ")"))) break;
+      stmts.push(this.parseExpr());
+    }
+    if (stmts.length === 1) return stmts[0];
+    return (e) => {
+      let last = 0;
+      for (const s of stmts) last = s(e);
+      return last;
+    };
+  }
+
+  /** loop(count, stmt; stmt; …) — runs the body floor(count) times, capped. */
+  private parseLoop(): Node {
+    const count = this.parseExpr();
+    this.expectOp(",");
+    const body = this.parseStmts(true);
+    this.expectOp(")");
+    return (e) => {
+      const n = Math.min(LOOP_CAP, Math.max(0, Math.trunc(count(e))));
+      for (let k = 0; k < n; k++) for (const s of body) s(e);
+      return 0;
+    };
+  }
+
+  /** while(stmt; stmt; …) — runs until the last statement evaluates 0, capped. */
+  private parseWhile(): Node {
+    const body = this.parseStmts(true);
+    this.expectOp(")");
+    return (e) => {
+      for (let k = 0; k < LOOP_CAP; k++) {
+        let last = 0;
+        for (const s of body) last = s(e);
+        if (last === 0) break;
+      }
+      return 0;
+    };
+  }
 }
 
 /** Compile a statement program. Throws Error with position info on bad syntax. */
 export function compile(src: string): Program {
   const parser = new Parser(tokenize(src));
-  const { stmts } = parser.parseProgram();
+  const stmts = parser.parseStmts(false);
   return {
-    assigns: [...new Set(stmts.map((s) => s.name))],
+    assigns: [...parser.assigns],
     run(env) {
-      for (const s of stmts) {
-        const v = s.value(env);
-        env[s.name] = Number.isFinite(v) ? v : 0;
-      }
+      for (const s of stmts) s(env);
     },
   };
 }

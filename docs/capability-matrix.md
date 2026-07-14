@@ -27,7 +27,7 @@ column from the format documented in its BSD-released source.
 
 | Capability | PHOSPHENE answer |
 |---|---|
-| Per-frame equations (EEL: q-vars, audio vars, math funcs) | ✅ `expr` mod routes: same dialect, persistent env, init programs |
+| Per-frame equations (EEL: q-vars, audio vars, math funcs, loop/megabuf/compound assignment, lazy if-blocks) | ✅ `expr` mod routes — corpus-verified: 9,666 of 9,669 equation-bearing Cream of the Crop presets compile (99.97%, [`milk-corpus-report.json`](milk-corpus-report.json)); the 3 failures are malformed files real MilkDrop also drops |
 | Feedback warp (zoom/rot/dx/dy/warp per frame) | ✅ `warpUV()` stdlib + expression-driven params |
 | Frame decay | ✅ `mdDecay` route on `prevTex` |
 | Waveform drawing (nWaveMode, wave_r/g/b/a/x/y) | ✅ `waveLine()` stdlib polyline; modes collapse to the main draw |

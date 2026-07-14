@@ -36,6 +36,16 @@ function audio(bass: number): AudioFeatures {
 }
 
 describe("milk preset parsing", () => {
+  it("concatenates equation lines with no separator, like MilkDrop", () => {
+    const m = parseMilk("[preset00]\nper_frame_1=k1 = is_\nper_frame_2=beat + 1;\n", "s.milk");
+    expect(m.perFrame).toBe("k1 = is_beat + 1;");
+  });
+
+  it("strips per-line comments before concatenating", () => {
+    const m = parseMilk("[preset00]\nper_frame_1=a = 1; // set a\nper_frame_2=b = 2;\n", "s.milk");
+    expect(m.perFrame).toBe("a = 1; b = 2;");
+  });
+
   it("collects base values, equations, and wave count", () => {
     const m = parseMilk(FIXTURE, "Author - Nice Preset.milk");
     expect(m.name).toBe("Author - Nice Preset");

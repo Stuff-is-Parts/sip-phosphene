@@ -60,8 +60,15 @@ export function parseMilk(text: string, filename: string): MilkPreset {
     if (Number.isFinite(num)) values[key.toLowerCase()] = num;
   }
 
+  // MilkDrop strips per-line comments then concatenates equation lines with
+  // no separator: identifiers may split across lines, and ';' is the only
+  // statement boundary. Matching that keeps authentic presets compiling and
+  // fails the same programs real MilkDrop silently drops.
   const joined = (k: string): string =>
-    (numbered.get(k) ?? []).filter((s) => s !== undefined).join("\n");
+    (numbered.get(k) ?? [])
+      .filter((s) => s !== undefined)
+      .map((s) => s.replace(/\/\/.*$/, ""))
+      .join("");
   return {
     name,
     values,

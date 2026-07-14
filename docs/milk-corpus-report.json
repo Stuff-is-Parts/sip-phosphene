@@ -1,0 +1,38 @@
+{
+  "total": 9793,
+  "parsed": 9793,
+  "withEquations": 9669,
+  "equationsCompile": 9666,
+  "features": {
+    "perPixel": 5717,
+    "warpShader": 7922,
+    "compShader": 7969,
+    "waves": 4670,
+    "shapes": 6233,
+    "perFrameInit": 3704
+  },
+  "initCompileFail": 2,
+  "errorBuckets": [
+    {
+      "message": "per-frame equations skipped (expected ')' at N)",
+      "count": 1,
+      "samples": [
+        "Fractal\\Nested Circle\\Nivush - Crazy Diamonds.milk"
+      ]
+    },
+    {
+      "message": "per-frame equations skipped (unexpected '*' at N)",
+      "count": 1,
+      "samples": [
+        "Geometric\\Stripes Dance\\martin - beamer code 22h - lines - rhythmic and fast.milk"
+      ]
+    },
+    {
+      "message": "per-frame equations skipped (unknown function 'assign' at N)",
+      "count": 1,
+      "samples": [
+        "Reaction\\Contagion\\random mash-up round 48.milk"
+      ]
+    }
+  ]
+}

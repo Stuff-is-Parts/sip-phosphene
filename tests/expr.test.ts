@@ -67,4 +67,37 @@ describe("expression compiler", () => {
   it("clamps non-finite results to 0", () => {
     expect(run("out = log(0) * 0 + exp(9999);").out).toBe(0);
   });
+
+  it("runs loop() bodies with statement lists", () => {
+    const env = run("i = 0; s = 0; loop(10, s = s + i; i = i + 1);");
+    expect(env.s).toBe(45);
+    expect(env.i).toBe(10);
+  });
+
+  it("reads and writes megabuf/gmegabuf cells, including compound stores", () => {
+    const env = run("megabuf(5) = 7; megabuf(5) += 3; out = megabuf(5) + gmegabuf(9);");
+    expect(env.out).toBe(10);
+  });
+
+  it("supports compound assignment as expression and statement", () => {
+    const env = run("a = 10; a *= 2; b = if(above(a, 5), a += 1, a -= 1);");
+    expect(env.a).toBe(21);
+    expect(env.b).toBe(21);
+  });
+
+  it("executes only the taken if() branch", () => {
+    const env = run("x = 0; y = 0; if(1, x = 5, y = 5);");
+    expect(env.x).toBe(5);
+    expect(env.y).toBe(0);
+  });
+
+  it("accepts statement blocks with doubled semicolons as arguments", () => {
+    const env = run("if(1, a = 1; b = 2;; , 0); out = a + b;");
+    expect(env.out).toBe(3);
+  });
+
+  it("accepts $PI constants and trailing-dot numbers", () => {
+    expect(run("out = sin($PI);").out).toBeCloseTo(0, 10);
+    expect(run("out = 2. + .5;").out).toBe(2.5);
+  });
 });
