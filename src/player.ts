@@ -6,6 +6,7 @@ import { ModEngine } from "./core/mods";
 import { isScene, normalizeScene, STAGES, type Scene } from "./core/types";
 import { builtinScenes } from "./shaders/library";
 import { CanvasRecorder } from "./core/record";
+import { startMidi } from "./core/midi";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T =>
   document.getElementById(id) as T;
@@ -19,15 +20,17 @@ interface Entry { scene: Scene; origin: "BUILT-IN" | "COMMUNITY" }
 
 let entries: Entry[] = builtinScenes().map((scene) => ({ scene, origin: "BUILT-IN" }));
 let idx = 0;
-let fade = 1;
-let fadeTarget = 1;
-let pending: number | null = null;
+let incomingIdx: number | null = null;
+let queued: number | null = null;
 let autoCycle = false;
 let autoTimer = 0;
+let cycleEvery = 16;
 let hudHidden = false;
+let silenceSince: number | null = null;
 
 const audio = new AudioEngine();
 const mods = new ModEngine();
+const modsIncoming = new ModEngine();
 const renderer = new Renderer();
 const t0 = performance.now();
 const nowT = () => (performance.now() - t0) / 1000;
@@ -66,19 +69,38 @@ async function loadCommunity(): Promise<void> {
 }
 
 /* ------------------------------ scenes ------------------------------- */
+async function loadSceneImage(scene: Scene, slot: 0 | 1): Promise<void> {
+  const data = scene.assets?.image;
+  if (!data) { await renderer.setImage(slot, null); return; }
+  try {
+    const blob = await (await fetch(data)).blob();
+    await renderer.setImage(slot, await createImageBitmap(blob));
+  } catch { await renderer.setImage(slot, null); }
+}
+async function compileInto(i: number, slot: 0 | 1): Promise<void> {
+  const e = entries[((i % entries.length) + entries.length) % entries.length];
+  for (const s of STAGES) {
+    await renderer.compileStage(s, e.scene.layers[s].code, slot);
+  }
+  await loadSceneImage(e.scene, slot);
+}
 async function applyScene(i: number): Promise<void> {
   idx = ((i % entries.length) + entries.length) % entries.length;
-  const e = entries[idx];
   mods.reset();
-  for (const s of STAGES) {
-    await renderer.compileStage(s, e.scene.layers[s].code);
-  }
+  await compileInto(idx, 0);
+  const e = entries[idx];
   $("sceneName").textContent = e.scene.name;
   $("sceneOrigin").textContent = e.origin + " SCENE";
 }
 function requestScene(i: number): void {
-  pending = i;
-  fadeTarget = 0;
+  const target = ((i % entries.length) + entries.length) % entries.length;
+  if (target === idx && incomingIdx === null) return;
+  if (incomingIdx !== null) { queued = target; return; } // finish current morph first
+  incomingIdx = target;
+  modsIncoming.reset();
+  void compileInto(target, 1).then(() => {
+    renderer.beginTransition(Math.floor(Math.random() * 4));
+  });
 }
 function randomScene(): void {
   if (entries.length < 2) return;
@@ -93,25 +115,44 @@ function frame(): void {
   const now = nowT();
   audio.analysis.update(now);
 
-  fade += (fadeTarget - fade) * 0.1;
-  if (pending !== null && fade < 0.04) {
-    const p = pending;
-    pending = null;
-    void applyScene(p).then(() => { fadeTarget = 1; });
+  // playlist intelligence: on sustained silence, advance once (Plane9 behavior)
+  if (audio.source !== "none") {
+    if (audio.analysis.energy < 0.035) {
+      if (silenceSince === null) silenceSince = now;
+      else if (now - silenceSince > 5 && incomingIdx === null) { silenceSince = null; randomScene(); }
+    } else silenceSince = null;
   }
-  if (autoCycle) {
+  if (autoCycle && incomingIdx === null) {
     autoTimer += 1 / 60;
-    if (autoTimer > 14) { autoTimer = 0; randomScene(); }
+    if (autoTimer > cycleEvery) {
+      autoTimer = 0;
+      cycleEvery = 12 + Math.random() * 10;
+      randomScene();
+    }
   }
 
-  const e = entries[idx];
-  const p = mods.evaluate(e.scene, renderer.stageParams(), audio.analysis, now);
-  p.int *= fade; // crossfade through black on scene change
+  const p = mods.evaluate(entries[idx].scene, renderer.stageParams(0), audio.analysis, now);
+  let pIn = null;
+  if (incomingIdx !== null && renderer.transitionActive) {
+    pIn = modsIncoming.evaluate(entries[incomingIdx].scene, renderer.stageParams(1), audio.analysis, now);
+    renderer.transitionProgress = Math.min(1, renderer.transitionProgress + 1 / (60 * 1.8));
+    if (renderer.transitionProgress >= 1) {
+      renderer.finishTransition();
+      idx = incomingIdx;
+      incomingIdx = null;
+      const tmp = mods.constructor; void tmp; // (engines swap by re-evaluating next frame)
+      mods.reset();
+      const e = entries[idx];
+      $("sceneName").textContent = e.scene.name;
+      $("sceneOrigin").textContent = e.origin + " SCENE";
+      if (queued !== null) { const q = queued; queued = null; requestScene(q); }
+    }
+  }
 
   $("bpm").textContent = (audio.analysis.bpm || "—") + " BPM";
   $("beatDot").style.opacity = String(0.15 + audio.analysis.beat * 0.85);
 
-  renderer.frame(now, audio.analysis, p);
+  renderer.frame(now, audio.analysis, p, pIn);
 }
 
 /* -------------------------------- ui --------------------------------- */
@@ -187,6 +228,11 @@ function wire(): void {
     else if (e.key === "a" || e.key === "A") { autoCycle = !autoCycle; autoTimer = 0; $("cAuto").classList.toggle("on", autoCycle); }
     else if (e.key === "h" || e.key === "H") setHidden(!hudHidden);
     else if (e.key === "f" || e.key === "F") fullscreen();
+    else if (e.key === "m" || e.key === "M") {
+      void startMidi((cc, slot) => {
+        $("trackLabel").textContent = "MIDI CC" + cc + " -> midi" + (slot + 1);
+      }).then((ok) => { if (!ok) $("trackLabel").textContent = "WebMIDI unavailable in this browser"; });
+    }
   });
 
   let dragDepth = 0;

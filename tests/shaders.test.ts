@@ -54,6 +54,12 @@ describe("library shaders parse as valid WGSL through the real assembly path", (
       expect(entries.fragment.length).toBe(1);
     });
   }
+  it("img() scene-image helper compiles in a bg stage", () => {
+    const body = "fn render(c : Ctx) -> vec3f { return img(c.uv).rgb * c.bass; }";
+    const { code } = assemble("bg", body, []);
+    const reflect = new WgslReflect(code);
+    expect(reflect.entry.fragment.length).toBe(1);
+  });
   it("present pass parses", () => {
     const reflect = new WgslReflect(PRESENT_WGSL);
     expect(reflect.entry.fragment.length).toBe(1);

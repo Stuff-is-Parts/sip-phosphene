@@ -36,6 +36,7 @@ const audio = new AudioEngine();
 const mods = new ModEngine();
 const renderer = new Renderer();
 let editor: ShaderEditor;
+let sceneImageHook: (() => Promise<void>) | null = null;
 
 let frozen = false;
 let freezeT = 0;
@@ -187,6 +188,7 @@ async function loadScene(i: number): Promise<void> {
   editor.setCode(cur.layers[activeStage].code);
   renderBaseParams();
   await compileAll(false);
+  await sceneImageHook?.();
   setDirty(false);
   renderLibrary();
   log("loaded: " + cur.name);
@@ -311,6 +313,39 @@ function wire(): void {
     catch (err) { log("couldn't decode audio: " + (err as Error).message, "err"); }
   });
   $("aBeat").addEventListener("click", () => audio.analysis.inject(nowT()));
+
+  // scene image
+  const applyImage = async () => {
+    const data = cur.assets?.image;
+    $("imgLabel").textContent = data ? "embedded (" + Math.round(data.length / 1024) + " KB)" : "none";
+    if (!data) { await renderer.setImage(0, null); return; }
+    try {
+      const blob = await (await fetch(data)).blob();
+      await renderer.setImage(0, await createImageBitmap(blob));
+    } catch { await renderer.setImage(0, null); }
+  };
+  sceneImageHook = applyImage;
+  $("bImg").addEventListener("click", () => $<HTMLInputElement>("fileImg").click());
+  $("bImgClear").addEventListener("click", () => {
+    cur.assets = { image: null };
+    void applyImage();
+    setDirty(true);
+  });
+  $<HTMLInputElement>("fileImg").addEventListener("change", (e) => {
+    const input = e.target as HTMLInputElement;
+    const f = input.files?.[0];
+    input.value = "";
+    if (!f) return;
+    if (f.size > 1_500_000) { log("image too large: keep under ~1.5 MB so scenes stay portable", "err"); return; }
+    const r = new FileReader();
+    r.onload = () => {
+      cur.assets = { image: String(r.result) };
+      void applyImage();
+      setDirty(true);
+      log("image embedded: sample it with img(c.uv)", "ok");
+    };
+    r.readAsDataURL(f);
+  });
   const recorder = new CanvasRecorder();
   $("sRec").addEventListener("click", (e) => {
     const b = e.currentTarget as HTMLElement;

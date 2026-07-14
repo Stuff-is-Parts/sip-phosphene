@@ -18,10 +18,14 @@ export interface ModRoute {
 
 export type ModSource =
   | "bass" | "mid" | "treble" | "beat" | "energy"
-  | "bpmPhase" | "specLow" | "specHigh";
+  | "bpmPhase" | "specLow" | "specHigh"
+  | "lfoSlow" | "lfoFast" | "beatRamp" | "beatRand"
+  | "midi1" | "midi2" | "midi3" | "midi4";
 
 export const MOD_SOURCES: ModSource[] = [
   "bass", "mid", "treble", "beat", "energy", "bpmPhase", "specLow", "specHigh",
+  "lfoSlow", "lfoFast", "beatRamp", "beatRand",
+  "midi1", "midi2", "midi3", "midi4",
 ];
 
 export interface BaseParams {
@@ -41,6 +45,8 @@ export interface Scene {
   mods: ModRoute[];
   /** JPEG data-URL thumbnail, captured from the preview. */
   thumb: string | null;
+  /** Optional embedded assets (kept small — scenes stay portable JSON). */
+  assets?: { image?: string | null };
 }
 
 export interface CustomParam {
@@ -53,6 +59,10 @@ export interface CustomParam {
 }
 
 export interface AudioFeatures {
+  /** Monotonic count of detected beats (for beat-held sources). */
+  beatCount: number;
+  /** Time (sec, caller clock) of the most recent beat. */
+  lastBeat: number;
   bass: number;
   mid: number;
   treble: number;
@@ -103,5 +113,6 @@ export function normalizeScene(x: Partial<Scene>): Scene {
     custom: { ...(x.custom ?? {}) },
     mods: Array.isArray(x.mods) ? x.mods.map((m) => ({ ...m })) : [],
     thumb: x.thumb ?? null,
+    assets: { image: x.assets?.image ?? null },
   };
 }

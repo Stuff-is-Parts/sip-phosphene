@@ -6,6 +6,7 @@ import { assemble, countLines } from "../src/gpu/wgsl";
 import type { AudioFeatures } from "../src/core/types";
 
 const audio = (over: Partial<AudioFeatures> = {}): AudioFeatures => ({
+  beatCount: 3, lastBeat: 0,
   bass: 0.5, mid: 0.25, treble: 0.1, beat: 1, energy: 0.4, bpm: 120,
   spec: new Float32Array(64).fill(0.3),
   wave: new Float32Array(64).fill(-0.2),
@@ -45,11 +46,12 @@ describe("uniform packing", () => {
     expect(out[7]).toBeCloseTo(0.4); // energy
     expect(out[8]).toBeCloseTo(0.1); // hue
     expect(out[11]).toBeCloseTo(0.4); // fb
-    expect(out[12]).toBeCloseTo(0.3); // spec[0]
-    expect(out[12 + 63]).toBeCloseTo(0.3); // spec[63]
-    expect(out[12 + 64]).toBeCloseTo(-0.2); // wave[0]
-    expect(out[12 + 128 + 2]).toBe(7); // custom slot 2
-    expect(UNIFORM_FLOATS).toBe(156);
+    expect(out[14]).toBe(1); // image aspect default
+    expect(out[16]).toBeCloseTo(0.3); // spec[0]
+    expect(out[16 + 63]).toBeCloseTo(0.3); // spec[63]
+    expect(out[16 + 64]).toBeCloseTo(-0.2); // wave[0]
+    expect(out[16 + 128 + 2]).toBe(7); // custom slot 2
+    expect(UNIFORM_FLOATS).toBe(160);
   });
 });
 
@@ -94,6 +96,29 @@ describe("mod matrix", () => {
     for (let i = 0; i < 50; i++) p = eng.evaluate(scene, stageParams, audio(), i * 0.016);
     expect(p.custom[0]).toBeLessThanOrEqual(1);
     expect(p.custom[0]).toBeGreaterThan(0.2);
+  });
+});
+
+describe("beatRand source", () => {
+  it("holds a value between beats and resamples on a new beat", () => {
+    const scene = normalizeScene({
+      name: "t",
+      layers: { bg: { code: "" }, fg: { code: "" }, post: { code: "" } },
+      mods: [{ target: "hue", source: "beatRand", gain: 1, base: 0 }],
+    });
+    const eng = new ModEngine();
+    const a1 = audio({ beatCount: 1 });
+    // converge smoothing on the held value
+    let p = eng.evaluate(scene, { bg: [], fg: [], post: [] }, a1, 0);
+    for (let i = 0; i < 60; i++) p = eng.evaluate(scene, { bg: [], fg: [], post: [] }, a1, i * 0.016);
+    const held1 = p.hue;
+    // same beatCount -> unchanged
+    p = eng.evaluate(scene, { bg: [], fg: [], post: [] }, a1, 2);
+    expect(p.hue).toBeCloseTo(held1, 5);
+    // new beat -> converges to a (almost surely) different held value
+    const a2 = audio({ beatCount: 2 });
+    for (let i = 0; i < 60; i++) p = eng.evaluate(scene, { bg: [], fg: [], post: [] }, a2, 3 + i * 0.016);
+    expect(Math.abs(p.hue - held1)).toBeGreaterThan(1e-6);
   });
 });
 

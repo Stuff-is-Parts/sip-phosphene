@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/WebGPU-native-7df2c8?style=flat-square&labelColor=0f0e18">
   <img src="https://img.shields.io/badge/shaders-WGSL-c87df2?style=flat-square&labelColor=0f0e18">
   <img src="https://img.shields.io/badge/TypeScript-strict-7dbdf2?style=flat-square&labelColor=0f0e18">
-  <img src="https://img.shields.io/badge/tests-36%20passing-7df2c8?style=flat-square&labelColor=0f0e18">
+  <img src="https://img.shields.io/badge/tests-38%20passing-7df2c8?style=flat-square&labelColor=0f0e18">
   <img src="https://img.shields.io/badge/dist-one%20file-f2d97d?style=flat-square&labelColor=0f0e18">
 </p>
 
@@ -138,8 +138,10 @@ looks at it. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Roadmap
 
-- [ ] Native shell (Tauri, same codebase): system-audio loopback, OS screensaver
-- [ ] Multi-monitor output
+- [ ] Non-coder scene builder (visual composition, no WGSL required)
+- [ ] Timeline choreography and offline render
+- [ ] Blur chain and scene-declared extra passes
+- [ ] Native shell (Tauri, same codebase): system-audio loopback, OS screensaver, multi-monitor
 
 ---
 

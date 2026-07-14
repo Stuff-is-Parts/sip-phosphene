@@ -70,6 +70,14 @@
           <div class="hint" id="trackLabel">no source — idle signal (drop an audio file anywhere)</div>
         </section>
         <section class="rsec">
+          <div class="eyebrow">SCENE IMAGE <span class="hint">(sample with img(uv))</span></div>
+          <div class="rowFlex">
+            <button id="bImg">IMAGE…</button>
+            <button id="bImgClear">CLEAR</button>
+            <span id="imgLabel" class="hint">none</span>
+          </div>
+        </section>
+        <section class="rsec">
           <div class="eyebrow">SCENE PARAMETERS</div>
           <div id="baseParams"></div>
         </section>
@@ -99,6 +107,7 @@
   <div id="dropOverlay">DROP AUDIO FILE TO PLAY</div>
   <input type="file" id="fileAudio" accept="audio/*" hidden>
   <input type="file" id="fileJson" accept="application/json" hidden>
+  <input type="file" id="fileImg" accept="image/*" hidden>
 
   <dialog id="aiDialog">
     <div class="eyebrow">GENERATE SHADER — <span id="aiStage">BACKGROUND</span> STAGE</div>

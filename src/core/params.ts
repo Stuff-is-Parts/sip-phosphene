@@ -25,12 +25,13 @@ export function parseParams(code: string): CustomParam[] {
  *   resTime : vec4f  (res.x, res.y, time, bass)
  *   bands   : vec4f  (mid, treble, beat, energy)
  *   parms   : vec4f  (hue, speed, intensity, fb)
+ *   xtra    : vec4f  (transition progress, transition mode, image aspect, reserved)
  *   spec    : array<vec4f,16>   (64 floats)
  *   wave    : array<vec4f,16>   (64 floats)
  *   cust    : array<vec4f,4>    (16 floats)
- * Total: (3 + 16 + 16 + 4) * 4 = 156 floats = 624 bytes.
+ * Total: (4 + 16 + 16 + 4) * 4 = 160 floats = 640 bytes.
  */
-export const UNIFORM_FLOATS = 156;
+export const UNIFORM_FLOATS = 160;
 export const UNIFORM_BYTES = UNIFORM_FLOATS * 4;
 
 export interface EffectiveParams extends BaseParams {
@@ -44,13 +45,17 @@ export function packUniforms(
   time: number,
   a: AudioFeatures,
   p: EffectiveParams,
+  xtra0 = 0, // transition progress
+  xtra1 = 0, // transition mode
+  xtra2 = 1, // image aspect
 ): Float32Array {
   out[0] = width; out[1] = height; out[2] = time; out[3] = a.bass;
   out[4] = a.mid; out[5] = a.treble; out[6] = a.beat; out[7] = a.energy;
   out[8] = p.hue; out[9] = p.speed; out[10] = p.int; out[11] = p.fb;
-  out.set(a.spec, 12);
-  out.set(a.wave, 12 + 64);
-  out.set(p.custom, 12 + 128);
+  out[12] = xtra0; out[13] = xtra1; out[14] = xtra2; out[15] = 0;
+  out.set(a.spec, 16);
+  out.set(a.wave, 16 + 64);
+  out.set(p.custom, 16 + 128);
   return out;
 }
 

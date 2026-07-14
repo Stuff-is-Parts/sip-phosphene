@@ -14,6 +14,7 @@ struct Uniforms {
   resTime : vec4f,            // res.x, res.y, time, bass
   bands   : vec4f,            // mid, treble, beat, energy
   parms   : vec4f,            // hue, speed, intensity, fb
+  xtra    : vec4f,            // transition progress, transition mode, image aspect, reserved
   spec    : array<vec4f, 16>, // 64-bin log spectrum, 0..1
   wave    : array<vec4f, 16>, // 64-sample waveform, -1..1
   cust    : array<vec4f, 4>,  // custom //@param slots
@@ -97,6 +98,11 @@ fn camRay(q : vec2f, ro : vec3f, ta : vec3f) -> vec3f {
   return normalize(q.x * rt + q.y * up + 1.4 * fw);
 }
 
+@group(1) @binding(0) var uSamp : sampler;
+@group(1) @binding(1) var uImg : texture_2d<f32>;
+// user image attached to the scene (1x1 white when none); aspect in U.xtra.z
+fn img(uv : vec2f) -> vec4f { return textureSampleLevel(uImg, uSamp, uv, 0.0); }
+
 struct VOut {
   @builtin(position) pos : vec4f,
   @location(0) uv : vec2f,
@@ -126,9 +132,8 @@ fn makeCtx(uv : vec2f) -> Ctx {
 `;
 
 export const POST_COMMON = /* wgsl */ `
-@group(1) @binding(0) var uSamp : sampler;
-@group(1) @binding(1) var uTex : texture_2d<f32>;
-@group(1) @binding(2) var uPrev : texture_2d<f32>;
+@group(1) @binding(2) var uTex : texture_2d<f32>;
+@group(1) @binding(3) var uPrev : texture_2d<f32>;
 fn srcTex(uv : vec2f) -> vec3f { return textureSampleLevel(uTex, uSamp, uv, 0.0).rgb; }
 fn prevTex(uv : vec2f) -> vec3f { return textureSampleLevel(uPrev, uSamp, uv, 0.0).rgb; }
 `;
@@ -141,11 +146,37 @@ fn fmain(in : VOut) -> @location(0) vec4f {
 }
 `;
 
-export const PRESENT_WGSL = COMMON + POST_COMMON + /* wgsl */ `
+export const PRESENT_WGSL = COMMON + /* wgsl */ `
+@group(1) @binding(2) var uTexB : texture_2d<f32>;
+fn outA(uv : vec2f) -> vec3f { return textureSampleLevel(uImg, uSamp, uv, 0.0).rgb; }
+fn outB(uv : vec2f) -> vec3f { return textureSampleLevel(uTexB, uSamp, uv, 0.0).rgb; }
+
 @fragment
 fn fmain(in : VOut) -> @location(0) vec4f {
-  var col = srcTex(in.uv);
+  let p = U.xtra.x;          // transition progress 0..1
+  let mode = i32(U.xtra.y);  // 0 cross, 1 liquid dissolve, 2 iris, 3 warp slide
   let q = in.uv - vec2f(0.5);
+  var col : vec3f;
+  if (p <= 0.0001) {
+    col = outA(in.uv);
+  } else if (p >= 0.9999) {
+    col = outB(in.uv);
+  } else if (mode == 1) {
+    let n = fbm(in.uv * 5.0 + U.resTime.z * 0.1);
+    let m = smoothstep(p + 0.12, p - 0.12, n);
+    let warp = (n - 0.5) * 0.05 * sin(p * 3.1415);
+    col = mix(outB(in.uv + warp), outA(in.uv - warp), m);
+  } else if (mode == 2) {
+    let r = length(q) * 1.35;
+    let m = smoothstep(p + 0.03, p - 0.03, r); // B grows from center
+    col = mix(outA(in.uv), outB(in.uv), m);
+  } else if (mode == 3) {
+    let wob = (fbm(vec2f(in.uv.y * 3.0, U.resTime.z * 0.3)) - 0.5) * 0.15 * sin(p * 3.1415);
+    let x = in.uv.x + (1.0 - p) + wob;
+    col = select(outB(vec2f(x - 1.0 + wob, in.uv.y)), outA(vec2f(in.uv.x + p * 0.3 + wob, in.uv.y)), x < 1.0);
+  } else {
+    col = mix(outA(in.uv), outB(in.uv), smoothstep(0.0, 1.0, p));
+  }
   col *= 1.0 - dot(q, q) * 0.95;
   col = pow(col, vec3f(0.9));
   return vec4f(col, 1.0);

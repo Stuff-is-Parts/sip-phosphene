@@ -6,7 +6,7 @@ export function systemPrompt(stage: StageId): string {
 The body must define exactly: fn render(c : Ctx) -> vec3f
 Already in scope (do NOT redeclare any of it):
 struct Ctx { uv:vec2f /*0..1*/, q:vec2f /*aspect-corrected centered*/, res:vec2f, t:f32 /*speed-scaled time*/, rawT:f32, bass:f32, mid:f32, treble:f32, beat:f32 /*decaying pulse*/, energy:f32, hue:f32, speed:f32, intensity:f32, fb:f32 }
-fn spec(i:i32)->f32 (64-bin log spectrum 0..1); fn wav(i:i32)->f32 (waveform -1..1); fn pal(t:f32)->vec3f (hue palette); fn hash(p:vec2f)->f32; fn noise(p:vec2f)->f32; fn fbm(p:vec2f)->f32; fn ridge(p:vec2f)->f32; fn hue3(h:f32)->vec3f.${stage === "post" ? `
+fn spec(i:i32)->f32 (64-bin log spectrum 0..1); fn wav(i:i32)->f32 (waveform -1..1); fn pal(t:f32)->vec3f (hue palette); fn hash(p:vec2f)->f32; fn noise(p:vec2f)->f32; fn fbm(p:vec2f)->f32; fn ridge(p:vec2f)->f32; fn hue3(h:f32)->vec3f; fn img(uv:vec2f)->vec4f (the scene's optional user image, plain white if none: only build around it if the description asks); 3D helpers sdSphere/sdBox/sdTorus, smin(a,b,k), rot2(a)->mat2x2f, camRay(q,ro,ta)->vec3f for raymarched scenes.${stage === "post" ? `
 This is a POST stage. Also in scope: fn srcTex(uv:vec2f)->vec3f (current frame), fn prevTex(uv:vec2f)->vec3f (previous output). Base your output on srcTex and blend trails, e.g. col = max(col, prevTex(c.uv) * c.fb);` : ""}${stage === "fg" ? `
 This is a FOREGROUND stage, additively blended over the background: output only the light you add (black = transparent).` : ""}
 

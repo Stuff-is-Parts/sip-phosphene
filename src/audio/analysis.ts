@@ -1,6 +1,8 @@
 import type { AudioFeatures } from "../core/types";
 
 export class Analysis implements AudioFeatures {
+  beatCount = 0;
+  lastBeat = -10;
   bass = 0; mid = 0; treble = 0; beat = 0; energy = 0; bpm = 0;
   spec = new Float32Array(64);
   wave = new Float32Array(64);
@@ -25,6 +27,8 @@ export class Analysis implements AudioFeatures {
   }
 
   private pushBeat(nowSec: number): void {
+    this.beatCount++;
+    this.lastBeat = nowSec;
     this.beatTimes.push(nowSec);
     if (this.beatTimes.length > 9) this.beatTimes.shift();
     if (this.beatTimes.length >= 4) {
