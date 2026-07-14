@@ -7,9 +7,8 @@ import { isScene, normalizeScene, STAGES, type Scene } from "./core/types";
 import { builtinScenes } from "./shaders/library";
 import { CanvasRecorder } from "./core/record";
 import { startMidi } from "./core/midi";
-
-const $ = <T extends HTMLElement = HTMLElement>(id: string): T =>
-  document.getElementById(id) as T;
+import { $ } from "./ui/dom";
+import { wireAudioButtons, wireAudioDrop } from "./ui/audio-common";
 
 const COMMUNITY_MANIFEST =
   "https://raw.githubusercontent.com/Stuff-is-Parts/sip-phosphene/main/scenes/manifest.json";
@@ -18,7 +17,7 @@ const COMMUNITY_BASE =
 
 interface Entry { scene: Scene; origin: "BUILT-IN" | "COMMUNITY" }
 
-let entries: Entry[] = builtinScenes().map((scene) => ({ scene, origin: "BUILT-IN" }));
+const entries: Entry[] = builtinScenes().map((scene) => ({ scene, origin: "BUILT-IN" }));
 let idx = 0;
 let incomingIdx: number | null = null;
 let queued: number | null = null;
@@ -135,9 +134,7 @@ function frame(): void {
   let pIn = null;
   if (incomingIdx !== null && renderer.transitionActive) {
     pIn = modsIncoming.evaluate(entries[incomingIdx].scene, renderer.stageParams(1), audio.analysis, now);
-    renderer.transitionProgress = Math.min(1, renderer.transitionProgress + 1 / (60 * 1.8));
-    if (renderer.transitionProgress >= 1) {
-      renderer.finishTransition();
+    if (renderer.advanceTransition(1 / (60 * 1.8))) {
       idx = incomingIdx;
       incomingIdx = null;
       mods.reset();
@@ -168,34 +165,19 @@ function fullscreen(): void {
 }
 
 function wire(): void {
-  const startDemo = () => { audio.startDemo(); $("trackLabel").textContent = audio.label; };
-  const startMic = async () => {
-    try { await audio.startMic(); $("trackLabel").textContent = audio.label; return true; }
-    catch (e) {
-      $("splashErr").textContent =
-        "Microphone unavailable (" + (e as Error).name + ") — demo and file playback still work.";
-      return false;
-    }
-  };
-  const pickFile = () => $<HTMLInputElement>("fileAudio").click();
-
-  $("sDemo").addEventListener("click", () => { startDemo(); dismissSplash(); autoCycle = true; $("cAuto").classList.add("on"); });
-  $("sMic").addEventListener("click", async () => { if (await startMic()) dismissSplash(); });
-  $("sFile").addEventListener("click", pickFile);
-  $("cDemo").addEventListener("click", startDemo);
-  $("cMic").addEventListener("click", () => void startMic());
-  $("cFile").addEventListener("click", pickFile);
-  $<HTMLInputElement>("fileAudio").addEventListener("change", async (ev) => {
-    const input = ev.target as HTMLInputElement;
-    const f = input.files?.[0];
-    input.value = "";
-    if (!f) return;
-    try {
-      await audio.playFile(f);
-      $("trackLabel").textContent = audio.label;
-      dismissSplash();
-    } catch { $("splashErr").textContent = "Couldn't decode that audio file."; }
+  const onSource = (label: string) => { $("trackLabel").textContent = label; dismissSplash(); };
+  wireAudioButtons(audio,
+    { demo: "cDemo", file: "cFile", mic: "cMic", input: "fileAudio" },
+    onSource,
+    (msg) => { $("splashErr").textContent = msg + " — demo and file playback still work."; });
+  $("sDemo").addEventListener("click", () => {
+    audio.startDemo();
+    onSource(audio.label);
+    autoCycle = true;
+    $("cAuto").classList.add("on");
   });
+  $("sMic").addEventListener("click", () => $("cMic").click());
+  $("sFile").addEventListener("click", () => $("cFile").click());
 
   $("cPrev").addEventListener("click", () => requestScene(idx - 1));
   $("cNext").addEventListener("click", () => requestScene(idx + 1));
@@ -234,18 +216,7 @@ function wire(): void {
     }
   });
 
-  let dragDepth = 0;
-  addEventListener("dragenter", (e) => { e.preventDefault(); dragDepth++; $("dropOverlay").style.display = "flex"; });
-  addEventListener("dragleave", (e) => { e.preventDefault(); if (--dragDepth <= 0) { dragDepth = 0; $("dropOverlay").style.display = "none"; } });
-  addEventListener("dragover", (e) => e.preventDefault());
-  addEventListener("drop", (e) => {
-    e.preventDefault();
-    dragDepth = 0;
-    $("dropOverlay").style.display = "none";
-    const f = [...(e.dataTransfer?.files ?? [])].find(
-      (f) => f.type.startsWith("audio") || /\.(mp3|wav|ogg|m4a|flac)$/i.test(f.name));
-    if (f) void audio.playFile(f).then(() => { $("trackLabel").textContent = audio.label; dismissSplash(); });
-  });
+  wireAudioDrop(audio, "dropOverlay", onSource);
 }
 
 /* -------------------------------- boot -------------------------------- */

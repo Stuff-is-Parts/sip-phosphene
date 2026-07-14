@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "build:portable": "vite build -c vite.onefile.config.ts",
     "scenes": "vite-node scripts/gen-scenes.mjs",
-    "validate:scenes": "vite-node scripts/validate-scenes.mjs"
+    "validate:scenes": "vite-node scripts/validate-scenes.mjs",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@codemirror/language": "^6.10.0",
@@ -26,9 +27,12 @@
     "idb-keyval": "^6.2.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^26.1.1",
     "@webgpu/types": "^0.1.44",
+    "eslint": "^10.7.0",
     "typescript": "^5.5.0",
+    "typescript-eslint": "^8.64.0",
     "vite": "^5.4.0",
     "vite-plugin-singlefile": "^2.0.0",
     "vitest": "^2.1.0",

@@ -4,33 +4,20 @@ import { AudioEngine } from "./audio/sources";
 import { ModEngine } from "./core/mods";
 import { clamp } from "./core/params";
 import {
-  MOD_SOURCES, STAGES, normalizeScene,
+  normalizeScene, STAGES,
   type CompileResult, type Scene, type StageId,
 } from "./core/types";
 import { builtinScenes, TEMPLATE_BLANK } from "./shaders/library";
 import { exportJson, importScenes, loadScenes, saveScenes } from "./core/store";
 import { ShaderEditor } from "./ui/editor";
-import { generateWithRepair } from "./ai/generate";
+import { generateWithRepair, callClaude, stripFences } from "./ai/generate";
 import { CanvasRecorder } from "./core/record";
 import { parseP9c, p9ToScene } from "./import/p9";
-import { callClaude, stripFences } from "./ai/generate";
-
-const $ = <T extends HTMLElement = HTMLElement>(id: string): T =>
-  document.getElementById(id) as T;
-
-function esc(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-
-function log(msg: string, cls: "info" | "ok" | "err" | "ai" = "info"): void {
-  const c = $("console");
-  const d = document.createElement("div");
-  d.className = cls;
-  d.textContent = msg;
-  c.appendChild(d);
-  while (c.children.length > 80) c.removeChild(c.firstChild!);
-  c.scrollTop = c.scrollHeight;
-}
+import { $, log } from "./ui/dom";
+import { wireAudioButtons, wireAudioDrop } from "./ui/audio-common";
+import {
+  allModTargets, renderBaseParams, renderCustomParams, renderLibrary, renderMods,
+} from "./ui/panels";
 
 /* ------------------------------- state ------------------------------- */
 let scenes: Scene[] = builtinScenes();
@@ -41,8 +28,8 @@ let activeStage: StageId = "bg";
 const audio = new AudioEngine();
 const mods = new ModEngine();
 const renderer = new Renderer();
+const recorder = new CanvasRecorder();
 let editor: ShaderEditor;
-let sceneImageHook: (() => Promise<void>) | null = null;
 
 let frozen = false;
 let freezeT = 0;
@@ -54,8 +41,26 @@ const renderT = () => (frozen ? freezeT : nowT()) + scrub;
 function setDirty(d: boolean): void {
   $("dirtyMark").style.visibility = d ? "visible" : "hidden";
 }
+const markDirty = () => setDirty(true);
 
-/* ------------------------------ compile ------------------------------ */
+/* ---------------------------- panel refresh --------------------------- */
+function refreshPanels(): void {
+  renderBaseParams(cur, markDirty);
+  renderCustomParams(cur, renderer.stageParams()[activeStage], markDirty);
+  renderMods(cur, allModTargets(renderer.stageParams()), markDirty);
+  renderLibrary(scenes, curIdx, {
+    onPick: (i) => void loadScene(i),
+    onDelete: (i) => {
+      if (scenes.length <= 1) return;
+      scenes.splice(i, 1);
+      if (curIdx >= scenes.length) curIdx = scenes.length - 1;
+      void saveScenes(scenes);
+      refreshPanels();
+    },
+  });
+}
+
+/* ------------------------------ compile ------------------------------- */
 async function compileStage(stage: StageId, report = true): Promise<CompileResult> {
   const res = await renderer.compileStage(stage, cur.layers[stage].code);
   for (const p of res.params) {
@@ -70,135 +75,37 @@ async function compileStage(stage: StageId, report = true): Promise<CompileResul
       log(`✕ ${stage.toUpperCase()}: line ${first?.line}: ${first?.message}`, "err");
     }
   }
-  renderCustomParams();
-  renderMods();
+  refreshPanels();
   return res;
 }
 async function compileAll(report: boolean): Promise<void> {
   for (const s of STAGES) await compileStage(s, report);
 }
 
-/* ------------------------------ panels ------------------------------- */
-const BASE_DEFS = [
-  { key: "hue" as const, min: 0, max: 1, step: 0.01 },
-  { key: "speed" as const, min: 0.2, max: 2.5, step: 0.05 },
-  { key: "int" as const, min: 0.3, max: 2, step: 0.05 },
-  { key: "fb" as const, min: 0, max: 0.95, step: 0.02 },
-];
-function renderBaseParams(): void {
-  const box = $("baseParams");
-  box.innerHTML = "";
-  for (const def of BASE_DEFS) {
-    const row = document.createElement("div");
-    row.className = "slider";
-    row.innerHTML = `<span>${def.key === "int" ? "intensity" : def.key === "fb" ? "trails" : def.key}</span>
-      <input type="range" min="${def.min}" max="${def.max}" step="${def.step}" value="${cur.params[def.key]}">
-      <output>${cur.params[def.key].toFixed(2)}</output>`;
-    const inp = row.querySelector("input")!;
-    inp.addEventListener("input", () => {
-      cur.params[def.key] = +inp.value;
-      row.querySelector("output")!.textContent = (+inp.value).toFixed(2);
-      setDirty(true);
-    });
-    box.appendChild(row);
-  }
-}
-function renderCustomParams(): void {
-  const box = $("customParams");
-  box.innerHTML = "";
-  const params = renderer.stageParams()[activeStage];
-  if (!params.length) {
-    box.innerHTML = '<div class="hint">none declared in this stage</div>';
-    return;
-  }
-  for (const p of params) {
-    const val = cur.custom[p.name] ?? p.def;
-    const row = document.createElement("div");
-    row.className = "slider";
-    row.innerHTML = `<span>${p.name}</span>
-      <input type="range" min="${p.min}" max="${p.max}" step="${(p.max - p.min) / 200}" value="${val}">
-      <output>${val.toFixed(2)}</output>`;
-    const inp = row.querySelector("input")!;
-    inp.addEventListener("input", () => {
-      cur.custom[p.name] = +inp.value;
-      row.querySelector("output")!.textContent = (+inp.value).toFixed(2);
-      setDirty(true);
-    });
-    box.appendChild(row);
-  }
-}
-function allModTargets(): string[] {
-  const t = ["hue", "speed", "int", "fb"];
-  const sp = renderer.stageParams();
-  for (const s of STAGES) for (const p of sp[s]) if (!t.includes(p.name)) t.push(p.name);
-  return t;
-}
-function renderMods(): void {
-  const box = $("modRows");
-  box.innerHTML = "";
-  const targets = allModTargets();
-  cur.mods.forEach((m, i) => {
-    const row = document.createElement("div");
-    row.className = "modRow";
-    row.innerHTML = `
-      <select aria-label="target">${targets.map((t) => `<option ${t === m.target ? "selected" : ""}>${t}</option>`).join("")}</select>
-      <select aria-label="source">${MOD_SOURCES.map((s) => `<option ${s === m.source ? "selected" : ""}>${s}</option>`).join("")}</select>
-      <input type="number" step="0.05" value="${m.gain}" title="gain">
-      <input type="number" step="0.05" value="${m.base}" title="base">
-      <button class="rm" title="remove">✕</button>`;
-    const [selT, selS] = row.querySelectorAll("select");
-    const [inG, inB] = row.querySelectorAll("input");
-    selT.addEventListener("change", () => { m.target = selT.value; setDirty(true); });
-    selS.addEventListener("change", () => { m.source = selS.value as typeof m.source; setDirty(true); });
-    inG.addEventListener("change", () => { m.gain = +inG.value; setDirty(true); });
-    inB.addEventListener("change", () => { m.base = +inB.value; setDirty(true); });
-    row.querySelector<HTMLButtonElement>(".rm")!.addEventListener("click", () => {
-      cur.mods.splice(i, 1); renderMods(); setDirty(true);
-    });
-    box.appendChild(row);
-  });
-  if (!cur.mods.length) {
-    box.innerHTML = '<div class="hint">no routes — parameters stay at their slider values</div>';
-  }
-}
-function renderLibrary(): void {
-  const el = $("sceneLibrary");
-  el.innerHTML = "";
-  scenes.forEach((s, i) => {
-    const div = document.createElement("div");
-    div.className = "libItem" + (i === curIdx ? " active" : "");
-    div.innerHTML =
-      (s.thumb ? `<img src="${s.thumb}" alt="">` : `<div class="noThumb">no<br>thumb</div>`) +
-      `<div class="nm">${esc(s.name)}</div><button class="rm" title="delete">✕</button>`;
-    div.addEventListener("click", (e) => {
-      if ((e.target as HTMLElement).classList.contains("rm")) return;
-      void loadScene(i);
-    });
-    div.querySelector<HTMLButtonElement>(".rm")!.addEventListener("click", () => {
-      if (scenes.length <= 1) return;
-      scenes.splice(i, 1);
-      if (curIdx >= scenes.length) curIdx = scenes.length - 1;
-      void saveScenes(scenes);
-      renderLibrary();
-    });
-    el.appendChild(div);
-  });
+/* --------------------------- scene lifecycle -------------------------- */
+async function applySceneImage(): Promise<void> {
+  const data = cur.assets?.image;
+  $("imgLabel").textContent = data ? "embedded (" + Math.round(data.length / 1024) + " KB)" : "none";
+  if (!data) { await renderer.setImage(0, null); return; }
+  try {
+    const blob = await (await fetch(data)).blob();
+    await renderer.setImage(0, await createImageBitmap(blob));
+  } catch { await renderer.setImage(0, null); }
 }
 
-/* --------------------------- scene lifecycle -------------------------- */
 async function loadScene(i: number): Promise<void> {
   curIdx = i;
   cur = structuredClone(scenes[i]);
   mods.reset();
   $<HTMLInputElement>("sceneTitle").value = cur.name;
   editor.setCode(cur.layers[activeStage].code);
-  renderBaseParams();
   await compileAll(false);
-  await sceneImageHook?.();
+  await applySceneImage();
   setDirty(false);
-  renderLibrary();
+  refreshPanels();
   log("loaded: " + cur.name);
 }
+
 function captureThumb(): void {
   const preview = $<HTMLCanvasElement>("preview");
   const off = document.createElement("canvas");
@@ -206,6 +113,7 @@ function captureThumb(): void {
   off.getContext("2d")!.drawImage(preview, 0, 0, 104, 60);
   cur.thumb = off.toDataURL("image/jpeg", 0.7);
 }
+
 function saveScene(): void {
   cur.name = $<HTMLInputElement>("sceneTitle").value.trim() || "UNTITLED";
   captureThumb();
@@ -214,8 +122,23 @@ function saveScene(): void {
   if (i >= 0) { scenes[i] = copy; curIdx = i; } else { scenes.push(copy); curIdx = scenes.length - 1; }
   void saveScenes(scenes);
   setDirty(false);
-  renderLibrary();
+  refreshPanels();
   log("saved: " + cur.name, "ok");
+}
+
+function newScene(): void {
+  cur = normalizeScene({ name: "UNTITLED" });
+  cur.layers.bg.code = TEMPLATE_BLANK;
+  cur.layers.fg.code = "fn render(c : Ctx) -> vec3f { return vec3f(0.0); }";
+  cur.layers.post.code =
+    "fn render(c : Ctx) -> vec3f {\n  var col = srcTex(c.uv);\n  col = max(col, prevTex(c.uv) * c.fb);\n  return col;\n}";
+  curIdx = -1;
+  $<HTMLInputElement>("sceneTitle").value = cur.name;
+  editor.setCode(cur.layers[activeStage].code);
+  void compileAll(false);
+  void applySceneImage();
+  setDirty(true);
+  refreshPanels();
 }
 
 /* ------------------------------ render loop --------------------------- */
@@ -239,6 +162,7 @@ function drawScopes(): void {
   }
   scopeCtx.stroke();
 }
+
 function frame(): void {
   requestAnimationFrame(frame);
   const now = nowT();
@@ -250,37 +174,31 @@ function frame(): void {
   renderer.frame(renderT(), audio.analysis, p);
 }
 
-/* -------------------------------- wiring ------------------------------ */
-function wire(): void {
+/* ---------------------------- wiring: editor --------------------------- */
+function wireEditorChrome(): void {
   document.querySelectorAll<HTMLButtonElement>("#stageTabs [data-stage]").forEach((b) => {
     b.addEventListener("click", () => {
       document.querySelectorAll("#stageTabs [data-stage]").forEach((x) => x.classList.remove("on"));
       b.classList.add("on");
       activeStage = b.dataset.stage as StageId;
       editor.setCode(cur.layers[activeStage].code);
-      renderCustomParams();
+      refreshPanels();
     });
   });
   $("bCompile").addEventListener("click", () => void compileStage(activeStage));
-  $("bTemplate").addEventListener("click", () => {
-    editor.setCode(TEMPLATE_BLANK);
+  $("bTemplate").addEventListener("click", () => editor.setCode(TEMPLATE_BLANK));
+  addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); void compileStage(activeStage); }
+    if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); saveScene(); }
   });
-  $("bNew").addEventListener("click", () => {
-    cur = normalizeScene({ name: "UNTITLED" });
-    cur.layers.bg.code = TEMPLATE_BLANK;
-    cur.layers.fg.code = "fn render(c : Ctx) -> vec3f { return vec3f(0.0); }";
-    cur.layers.post.code = "fn render(c : Ctx) -> vec3f {\n  var col = srcTex(c.uv);\n  col = max(col, prevTex(c.uv) * c.fb);\n  return col;\n}";
-    curIdx = -1;
-    $<HTMLInputElement>("sceneTitle").value = cur.name;
-    editor.setCode(cur.layers[activeStage].code);
-    renderBaseParams();
-    void compileAll(false);
-    setDirty(true);
-    renderLibrary();
-  });
+}
+
+/* -------------------------- wiring: scene I/O -------------------------- */
+function wireSceneIO(): void {
+  $("bNew").addEventListener("click", newScene);
   $("bSave").addEventListener("click", saveScene);
-  $("bThumb").addEventListener("click", () => { captureThumb(); renderLibrary(); log("thumbnail captured", "ok"); });
-  $("sceneTitle").addEventListener("input", () => setDirty(true));
+  $("bThumb").addEventListener("click", () => { captureThumb(); refreshPanels(); log("thumbnail captured", "ok"); });
+  $("sceneTitle").addEventListener("input", markDirty);
 
   $("bExportOne").addEventListener("click", () =>
     void exportJson((cur.name || "scene").toLowerCase().replace(/\s+/g, "-") + ".phos.json", cur));
@@ -296,14 +214,39 @@ function wire(): void {
       const imported = importScenes(await f.text());
       scenes.push(...imported);
       void saveScenes(scenes);
-      renderLibrary();
+      refreshPanels();
       log(`imported ${imported.length} scene${imported.length === 1 ? "" : "s"}`, "ok");
     } catch (err) {
       log("import failed: " + (err as Error).message, "err");
     }
   });
 
-  // Plane9 import
+  // scene image
+  $("bImg").addEventListener("click", () => $<HTMLInputElement>("fileImg").click());
+  $("bImgClear").addEventListener("click", () => {
+    cur.assets = { image: null };
+    void applySceneImage();
+    setDirty(true);
+  });
+  $<HTMLInputElement>("fileImg").addEventListener("change", (e) => {
+    const input = e.target as HTMLInputElement;
+    const f = input.files?.[0];
+    input.value = "";
+    if (!f) return;
+    if (f.size > 1_500_000) { log("image too large: keep under ~1.5 MB so scenes stay portable", "err"); return; }
+    const r = new FileReader();
+    r.onload = () => {
+      cur.assets = { image: String(r.result) };
+      void applySceneImage();
+      setDirty(true);
+      log("image embedded: sample it with img(c.uv)", "ok");
+    };
+    r.readAsDataURL(f);
+  });
+}
+
+/* ------------------------- wiring: Plane9 import ----------------------- */
+function wireP9Import(): void {
   $("bImportP9").addEventListener("click", () => $<HTMLInputElement>("fileP9").click());
   $<HTMLInputElement>("fileP9").addEventListener("change", async (e) => {
     const input = e.target as HTMLInputElement;
@@ -319,19 +262,16 @@ function wire(): void {
         curIdx = -1;
         $<HTMLInputElement>("sceneTitle").value = cur.name;
         editor.setCode(cur.layers.bg.code);
-        renderBaseParams();
-        renderMods();
         let res = await compileStage("bg", true);
         for (const s of ["fg", "post"] as const) await compileStage(s, false);
         if (!res.ok && p9.glsl) {
-          // deterministic transpile missed a dialect corner — AI repair with the original as reference
           log("p9c: deterministic translation failed to compile — trying AI repair with the original GLSL…", "ai");
           try {
             const errs = res.diagnostics.filter((d) => d.severity === "error")
               .map((d) => `line ${d.line}: ${d.message}`).join("; ");
             const fixed = stripFences(await callClaude([{
               role: "user",
-              content: `Fix this WGSL music-visualizer stage body so it compiles. It must define fn render(c : Ctx) -> vec3f (Ctx and helpers spec/wav/pal/hash/noise/fbm/img etc. are already in scope; do not redeclare). It is a translation of the ORIGINAL GLSL below — preserve the visual math exactly.\n\nWGSL errors: ${errs}\n\nCurrent WGSL:\n${cur.layers.bg.code}\n\nORIGINAL GLSL (reference):\n${p9.glsl}\n\nOutput only the corrected WGSL body.`,
+              content: "Fix this WGSL music-visualizer stage body so it compiles. It must define fn render(c : Ctx) -> vec3f (Ctx and helpers spec/wav/pal/hash/noise/fbm/img etc. are already in scope; do not redeclare). It is a translation of the ORIGINAL GLSL below — preserve the visual math exactly.\n\nWGSL errors: " + errs + "\n\nCurrent WGSL:\n" + cur.layers.bg.code + "\n\nORIGINAL GLSL (reference):\n" + p9.glsl + "\n\nOutput only the corrected WGSL body.",
             }]));
             cur.layers.bg.code = fixed;
             editor.setCode(fixed);
@@ -340,65 +280,34 @@ function wire(): void {
             log("p9c: AI repair unavailable: " + (err as Error).message, "err");
           }
         }
-        await sceneImageHook?.();
+        await applySceneImage();
         setDirty(true);
-        renderLibrary();
-        log(res.ok ? `p9c: ${cur.name} imported and compiled — SAVE to keep it` : `p9c: imported with errors — see gutter`, res.ok ? "ok" : "err");
+        refreshPanels();
+        log(res.ok ? `p9c: ${cur.name} imported and compiled — SAVE to keep it` : "p9c: imported with errors — see gutter", res.ok ? "ok" : "err");
       } catch (err) {
         log(`p9c: ${f.name}: ${(err as Error).message}`, "err");
       }
     }
   });
-  // audio / transport
-  $("aDemo").addEventListener("click", () => { audio.startDemo(); $("trackLabel").textContent = audio.label; log("audio: demo track"); });
-  $("aMic").addEventListener("click", async () => {
-    try { await audio.startMic(); $("trackLabel").textContent = audio.label; log("audio: microphone"); }
-    catch (e) { log("mic unavailable (" + (e as Error).name + ")", "err"); }
-  });
-  $("aFile").addEventListener("click", () => $<HTMLInputElement>("fileAudio").click());
-  $<HTMLInputElement>("fileAudio").addEventListener("change", async (e) => {
-    const input = e.target as HTMLInputElement;
-    const f = input.files?.[0];
-    input.value = "";
-    if (!f) return;
-    try { await audio.playFile(f); $("trackLabel").textContent = audio.label; log("audio: " + f.name); }
-    catch (err) { log("couldn't decode audio: " + (err as Error).message, "err"); }
-  });
-  $("aBeat").addEventListener("click", () => audio.analysis.inject(nowT()));
+}
 
-  // scene image
-  const applyImage = async () => {
-    const data = cur.assets?.image;
-    $("imgLabel").textContent = data ? "embedded (" + Math.round(data.length / 1024) + " KB)" : "none";
-    if (!data) { await renderer.setImage(0, null); return; }
-    try {
-      const blob = await (await fetch(data)).blob();
-      await renderer.setImage(0, await createImageBitmap(blob));
-    } catch { await renderer.setImage(0, null); }
-  };
-  sceneImageHook = applyImage;
-  $("bImg").addEventListener("click", () => $<HTMLInputElement>("fileImg").click());
-  $("bImgClear").addEventListener("click", () => {
-    cur.assets = { image: null };
-    void applyImage();
-    setDirty(true);
+/* -------------------- wiring: transport, mods, AI ---------------------- */
+function wireTransport(): void {
+  wireAudioButtons(audio,
+    { demo: "aDemo", file: "aFile", mic: "aMic", input: "fileAudio" },
+    (label) => { $("trackLabel").textContent = label; log("audio: " + label); },
+    (msg) => log(msg, "err"));
+  wireAudioDrop(audio, "dropOverlay", (label) => { $("trackLabel").textContent = label; });
+
+  $("aBeat").addEventListener("click", () => audio.analysis.inject(nowT()));
+  $("tFreeze").addEventListener("click", (e) => {
+    frozen = !frozen;
+    if (frozen) freezeT = nowT();
+    (e.currentTarget as HTMLElement).classList.toggle("on", frozen);
   });
-  $<HTMLInputElement>("fileImg").addEventListener("change", (e) => {
-    const input = e.target as HTMLInputElement;
-    const f = input.files?.[0];
-    input.value = "";
-    if (!f) return;
-    if (f.size > 1_500_000) { log("image too large: keep under ~1.5 MB so scenes stay portable", "err"); return; }
-    const r = new FileReader();
-    r.onload = () => {
-      cur.assets = { image: String(r.result) };
-      void applyImage();
-      setDirty(true);
-      log("image embedded: sample it with img(c.uv)", "ok");
-    };
-    r.readAsDataURL(f);
+  $<HTMLInputElement>("tScrub").addEventListener("input", (e) => {
+    scrub = +(e.target as HTMLInputElement).value;
   });
-  const recorder = new CanvasRecorder();
   $("sRec").addEventListener("click", (e) => {
     const b = e.currentTarget as HTMLElement;
     if (recorder.active) {
@@ -413,57 +322,14 @@ function wire(): void {
       log("recording preview canvas…");
     }
   });
-  $("tFreeze").addEventListener("click", (e) => {
-    frozen = !frozen;
-    if (frozen) freezeT = nowT();
-    (e.currentTarget as HTMLElement).classList.toggle("on", frozen);
+  $("bAddMod").addEventListener("click", () => {
+    cur.mods.push({ target: "hue", source: "bass", gain: 0.3, base: 0 });
+    refreshPanels();
+    setDirty(true);
   });
-  $<HTMLInputElement>("tScrub").addEventListener("input", (e) =>
-    { scrub = +(e.target as HTMLInputElement).value; });
+}
 
-  // drag & drop audio
-  let dragDepth = 0;
-  addEventListener("dragenter", (e) => { e.preventDefault(); dragDepth++; $("dropOverlay").style.display = "flex"; });
-  addEventListener("dragleave", (e) => { e.preventDefault(); if (--dragDepth <= 0) { dragDepth = 0; $("dropOverlay").style.display = "none"; } });
-  addEventListener("dragover", (e) => e.preventDefault());
-  addEventListener("drop", (e) => {
-    e.preventDefault();
-    dragDepth = 0;
-    $("dropOverlay").style.display = "none";
-    const f = [...(e.dataTransfer?.files ?? [])].find(
-      (f) => f.type.startsWith("audio") || /\.(mp3|wav|ogg|m4a|flac)$/i.test(f.name));
-    if (f) void audio.playFile(f).then(() => { $("trackLabel").textContent = audio.label; });
-  });
-
-  // keyboard
-  addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); void compileStage(activeStage); }
-    if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); saveScene(); }
-  });
-
-  // splitters
-  const app = $("app");
-  const makeSplitter = (el: HTMLElement, side: "L" | "R") => {
-    let drag = false;
-    el.addEventListener("pointerdown", (e) => { drag = true; el.setPointerCapture(e.pointerId); });
-    el.addEventListener("pointerup", () => { drag = false; });
-    el.addEventListener("pointermove", (e) => {
-      if (!drag) return;
-      const r = app.getBoundingClientRect();
-      const cols = getComputedStyle(app).gridTemplateColumns.split(" ");
-      if (side === "L") {
-        const w = clamp(e.clientX - r.left, 140, 420);
-        app.style.gridTemplateColumns = `${w}px 5px 1fr 5px ${cols[4]}`;
-      } else {
-        const w = clamp(r.right - e.clientX, 260, 640);
-        app.style.gridTemplateColumns = `${cols[0]} 5px 1fr 5px ${w}px`;
-      }
-    });
-  };
-  makeSplitter($("splitL"), "L");
-  makeSplitter($("splitR"), "R");
-
-  // AI
+function wireAI(): void {
   $("bAI").addEventListener("click", () => {
     $("aiStage").textContent = activeStage.toUpperCase();
     $<HTMLDialogElement>("aiDialog").showModal();
@@ -482,18 +348,45 @@ function wire(): void {
           cur.layers[activeStage].code = body;
           return renderer.compileStage(activeStage, body);
         },
-        (m) => log("✦ " + m, "ai"),
-      );
+        (m) => log("✦ " + m, "ai"));
       cur.layers[activeStage].code = code;
       editor.setCode(code);
       editor.showDiagnostics(result.ok ? [] : result.diagnostics);
-      if (result.ok) { log("✦ generated and compiled", "ok"); setDirty(true); renderCustomParams(); renderMods(); }
-      else log("✦ still failing after repair — code left in editor", "err");
+      if (result.ok) {
+        log("✦ generated and compiled", "ok");
+        setDirty(true);
+        refreshPanels();
+      } else {
+        log("✦ still failing after repair — code left in editor", "err");
+      }
     } catch (e) {
       log("✦ AI generation unavailable: " + (e as Error).message, "err");
     }
     btn.disabled = false;
   });
+}
+
+function wireSplitters(): void {
+  const app = $("app");
+  const make = (el: HTMLElement, side: "L" | "R") => {
+    let drag = false;
+    el.addEventListener("pointerdown", (e) => { drag = true; el.setPointerCapture(e.pointerId); });
+    el.addEventListener("pointerup", () => { drag = false; });
+    el.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      const r = app.getBoundingClientRect();
+      const cols = getComputedStyle(app).gridTemplateColumns.split(" ");
+      if (side === "L") {
+        const w = clamp(e.clientX - r.left, 140, 420);
+        app.style.gridTemplateColumns = `${w}px 5px 1fr 5px ${cols[4]}`;
+      } else {
+        const w = clamp(r.right - e.clientX, 260, 640);
+        app.style.gridTemplateColumns = `${cols[0]} 5px 1fr 5px ${w}px`;
+      }
+    });
+  };
+  make($("splitL"), "L");
+  make($("splitR"), "R");
 }
 
 /* -------------------------------- boot -------------------------------- */
@@ -509,8 +402,7 @@ async function boot(): Promise<void> {
     log("GPU device lost (" + reason + ") — reinitializing…", "err");
     void renderer.init(preview).then(() => compileAll(false)).then(
       () => log("GPU device recovered; scene state preserved", "ok"),
-      () => { $("unsupported").hidden = false; },
-    );
+      () => { $("unsupported").hidden = false; });
   };
 
   const sizePreview = () => {
@@ -526,15 +418,21 @@ async function boot(): Promise<void> {
   const persisted = await loadScenes();
   if (persisted) scenes = persisted;
 
+  let debounceId: ReturnType<typeof setTimeout>;
   editor = new ShaderEditor($("editorHost"), scenes[0].layers.bg.code, (code) => {
     cur.layers[activeStage].code = code;
     setDirty(true);
     clearTimeout(debounceId);
     debounceId = setTimeout(() => void compileStage(activeStage), 500);
   });
-  let debounceId: ReturnType<typeof setTimeout>;
 
-  wire();
+  wireEditorChrome();
+  wireSceneIO();
+  wireP9Import();
+  wireTransport();
+  wireAI();
+  wireSplitters();
+
   await loadScene(0);
   log("PHOSPHENE STUDIO ready — Ctrl+Enter compiles, Ctrl+S saves. Start DEMO for reactivity.");
   frame();

@@ -212,6 +212,17 @@ export class Renderer {
     this.transitionActive = true;
   }
 
+  /** Steps the transition; returns true (and swaps slots) on completion. */
+  advanceTransition(step: number): boolean {
+    if (!this.transitionActive) return false;
+    this.transitionProgress = Math.min(1, this.transitionProgress + step);
+    if (this.transitionProgress >= 1) {
+      this.finishTransition();
+      return true;
+    }
+    return false;
+  }
+
   /** Completes a transition: incoming slot becomes active. */
   finishTransition(): void {
     if (!this.transitionActive) return;

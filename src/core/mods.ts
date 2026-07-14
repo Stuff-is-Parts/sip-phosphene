@@ -41,6 +41,7 @@ export class ModEngine {
   private smooth: number[] = [];
   private beatRandValue = Math.random();
   private beatRandCount = -1;
+  private readonly scratch = new Float32Array(16); // reused per frame
 
   evaluate(
     scene: Scene,
@@ -53,7 +54,8 @@ export class ModEngine {
       this.beatRandValue = Math.random();
     }
     const base: BaseParams = { ...scene.params };
-    const custom = new Float32Array(16);
+    const custom = this.scratch;
+    custom.fill(0);
     // Map custom names -> slots across all stages (later stages may reuse names;
     // first declaration wins, matching renderer slot assignment per stage).
     const slotOf = new Map<string, { slot: number; min: number; max: number }>();
@@ -85,7 +87,7 @@ export class ModEngine {
     base.fb = clamp(base.fb, 0, 0.97);
     base.int = clamp(base.int, 0, 3);
     base.speed = clamp(base.speed, 0, 4);
-    base.hue = base.hue; // free-running; palette wraps
+    // hue is left free-running; the palette wraps
     return { ...base, custom };
   }
 
