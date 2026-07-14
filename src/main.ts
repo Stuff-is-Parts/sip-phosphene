@@ -12,11 +12,15 @@ import { exportJson, importScenes, loadScenes, saveScenes } from "./core/store";
 import { ShaderEditor } from "./ui/editor";
 import { generateWithRepair } from "./ai/generate";
 import { CanvasRecorder } from "./core/record";
-import { parseP9c, p9ToScene, translateP9Glsl } from "./import/p9";
+import { parseP9c, p9ToScene } from "./import/p9";
 import { callClaude, stripFences } from "./ai/generate";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T =>
   document.getElementById(id) as T;
+
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
 
 function log(msg: string, cls: "info" | "ok" | "err" | "ai" = "info"): void {
   const c = $("console");
@@ -165,7 +169,7 @@ function renderLibrary(): void {
     div.className = "libItem" + (i === curIdx ? " active" : "");
     div.innerHTML =
       (s.thumb ? `<img src="${s.thumb}" alt="">` : `<div class="noThumb">no<br>thumb</div>`) +
-      `<div class="nm">${s.name}</div><button class="rm" title="delete">✕</button>`;
+      `<div class="nm">${esc(s.name)}</div><button class="rm" title="delete">✕</button>`;
     div.addEventListener("click", (e) => {
       if ((e.target as HTMLElement).classList.contains("rm")) return;
       void loadScene(i);
@@ -345,8 +349,6 @@ function wire(): void {
       }
     }
   });
-  void translateP9Glsl; // (exported for tests/tooling)
-
   // audio / transport
   $("aDemo").addEventListener("click", () => { audio.startDemo(); $("trackLabel").textContent = audio.label; log("audio: demo track"); });
   $("aMic").addEventListener("click", async () => {

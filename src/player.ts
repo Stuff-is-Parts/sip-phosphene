@@ -140,7 +140,6 @@ function frame(): void {
       renderer.finishTransition();
       idx = incomingIdx;
       incomingIdx = null;
-      const tmp = mods.constructor; void tmp; // (engines swap by re-evaluating next frame)
       mods.reset();
       const e = entries[idx];
       $("sceneName").textContent = e.scene.name;
