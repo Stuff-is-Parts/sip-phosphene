@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="240" viewBox="0 0 900 240" role="img" aria-label="PHOSPHENE render pipeline">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8886a0"/>
+    </marker>
+    <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c87df2"/>
+    </marker>
+  </defs>
+  <rect width="900" height="240" fill="#050508"/>
+  <g font-family="Consolas, 'SF Mono', Menlo, monospace">
+
+    <!-- audio column -->
+    <rect x="24" y="34" width="150" height="52" rx="3" fill="#0f0e18" stroke="#262438"/>
+    <text x="99" y="56" font-size="12" fill="#e8e6f0" text-anchor="middle">AUDIO</text>
+    <text x="99" y="74" font-size="10" fill="#8886a0" text-anchor="middle">demo · mic · file</text>
+
+    <rect x="24" y="120" width="150" height="66" rx="3" fill="#0f0e18" stroke="#262438"/>
+    <text x="99" y="142" font-size="12" fill="#e8e6f0" text-anchor="middle">ANALYSIS</text>
+    <text x="99" y="159" font-size="10" fill="#8886a0" text-anchor="middle">bands · beat · bpm</text>
+    <text x="99" y="174" font-size="10" fill="#8886a0" text-anchor="middle">spec[64] · wave[64]</text>
+
+    <line x1="99" y1="86" x2="99" y2="118" stroke="#8886a0" marker-end="url(#arr)"/>
+
+    <!-- mod matrix -->
+    <rect x="214" y="120" width="140" height="66" rx="3" fill="#0f0e18" stroke="#4a4020"/>
+    <text x="284" y="147" font-size="12" fill="#f2d97d" text-anchor="middle">MOD MATRIX</text>
+    <text x="284" y="166" font-size="10" fill="#8886a0" text-anchor="middle">base + src × gain</text>
+    <line x1="176" y1="153" x2="212" y2="153" stroke="#8886a0" marker-end="url(#arr)"/>
+    <path d="M284 118 Q284 60 380 60" fill="none" stroke="#c87df2" stroke-dasharray="4 4" marker-end="url(#arrA)"/>
+    <text x="300" y="96" font-size="9" fill="#c87df2">uniforms every frame</text>
+
+    <!-- render stages -->
+    <rect x="382" y="34" width="108" height="52" rx="3" fill="#0f0e18" stroke="#7df2c8"/>
+    <text x="436" y="56" font-size="12" fill="#7df2c8" text-anchor="middle">BG</text>
+    <text x="436" y="74" font-size="10" fill="#8886a0" text-anchor="middle">WGSL scene</text>
+
+    <rect x="522" y="34" width="108" height="52" rx="3" fill="#0f0e18" stroke="#7df2c8"/>
+    <text x="576" y="56" font-size="12" fill="#7df2c8" text-anchor="middle">FG  ⊕</text>
+    <text x="576" y="74" font-size="10" fill="#8886a0" text-anchor="middle">additive blend</text>
+
+    <rect x="662" y="34" width="108" height="52" rx="3" fill="#0f0e18" stroke="#7df2c8"/>
+    <text x="716" y="56" font-size="12" fill="#7df2c8" text-anchor="middle">POST</text>
+    <text x="716" y="74" font-size="10" fill="#8886a0" text-anchor="middle">reads prev frame</text>
+
+    <line x1="490" y1="60" x2="520" y2="60" stroke="#8886a0" marker-end="url(#arr)"/>
+    <line x1="630" y1="60" x2="660" y2="60" stroke="#8886a0" marker-end="url(#arr)"/>
+
+    <!-- feedback loop -->
+    <rect x="662" y="130" width="108" height="44" rx="3" fill="#0f0e18" stroke="#262438"/>
+    <text x="716" y="149" font-size="11" fill="#e8e6f0" text-anchor="middle">PING ⇄ PONG</text>
+    <text x="716" y="165" font-size="10" fill="#8886a0" text-anchor="middle">feedback trails</text>
+    <path d="M716 86 L716 128" stroke="#8886a0" marker-end="url(#arr)"/>
+    <path d="M770 152 Q828 152 828 60 Q828 24 770 40" fill="none" stroke="#c87df2" stroke-dasharray="4 4" marker-end="url(#arrA)"/>
+    <text x="836" y="110" font-size="9" fill="#c87df2">prev</text>
+
+    <!-- present -->
+    <rect x="382" y="130" width="248" height="44" rx="3" fill="#0f0e18" stroke="#262438"/>
+    <text x="506" y="149" font-size="11" fill="#e8e6f0" text-anchor="middle">PRESENT → canvas</text>
+    <text x="506" y="165" font-size="10" fill="#8886a0" text-anchor="middle">vignette · gamma</text>
+    <line x1="660" y1="152" x2="632" y2="152" stroke="#8886a0" marker-end="url(#arr)"/>
+
+    <text x="450" y="220" font-size="10" fill="#8886a0" text-anchor="middle">scenes are data: layers + //@param sliders + mod routes, one portable .phos.json</text>
+  </g>
+</svg>
