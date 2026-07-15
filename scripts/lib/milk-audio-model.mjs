@@ -92,12 +92,11 @@ export class MilkAudioModel {
     const treble = this.bands[2].relative;
     const bassAtt = this.bands[0].relativeAtt;
     // Beat: bass_att crossing 1.3 upward — the documented preset idiom.
-    let beat = 0;
     if (bassAtt > 1.3 && this.prevBassAtt <= 1.3) {
       this.beatCount++;
       this.lastBeat = t;
     }
-    beat = Math.max(0, 1 - (t - this.lastBeat) * 3);
+    const beat = Math.max(0, 1 - (t - this.lastBeat) * 3);
     this.prevBassAtt = bassAtt;
 
     // 64-bin log-ish downsample for PHOSPHENE spec()/wav().

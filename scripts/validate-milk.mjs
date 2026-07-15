@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import puppeteer from "puppeteer-core";
 import { PNG } from "pngjs";
-import { audioFrame, CAPTURE_FRAMES, TOTAL_FRAMES, FPS } from "./lib/ref-audio.mjs";
+import { CAPTURE_FRAMES, TOTAL_FRAMES, FPS } from "./lib/ref-audio.mjs";
 import { MilkAudioModel } from "./lib/milk-audio-model.mjs";
 import { ssim, meanAbsError } from "./lib/ssim.mjs";
 
