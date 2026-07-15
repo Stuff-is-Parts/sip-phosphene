@@ -1,0 +1,2224 @@
+{
+  "measures": "structural import completeness only — NOT fidelity; see COMPATIBILITY-GOAL.md",
+  "corpus": "scenes/plane9/scenes",
+  "total": 252,
+  "fullyMappedStructures": 46,
+  "scenesWithUnsupportedFeatures": 206,
+  "importFailures": 0,
+  "unsupportedFeatureCounts": {
+    "Plane9:Bloom": 104,
+    "Plane9:texture-chain(Bloom)": 98,
+    "Plane9:Transition": 40,
+    "Plane9:object-chain(CloneExpression)": 39,
+    "Plane9:texture-chain(Transition)": 38,
+    "Plane9:Particles": 28,
+    "Plane9:StoreTexture": 27,
+    "Plane9:RenderObject(object-chain=Particles)": 21,
+    "Plane9:CopyTexture": 18,
+    "Plane9:Blur": 18,
+    "Plane9:texture-chain(Blur)": 17,
+    "Plane9:RenderObject(object-chain=MeshInstancer)": 16,
+    "Plane9:RenderObject(object-chain=Transform)": 12,
+    "Plane9:RenderObject(object-chain=CloneExpression)": 10,
+    "Plane9:RenderObject(object-chain=Planestate)": 9,
+    "Plane9:Planestate": 9,
+    "Plane9:Gradient": 9,
+    "Plane9:InvertMesh": 8,
+    "Plane9:SelectMesh": 8,
+    "Plane9:Subdivide": 7,
+    "Plane9:TextWriter": 6,
+    "Plane9:mesh-chain(InvertMesh)": 5,
+    "Plane9:Extrude": 5,
+    "Plane9:Oscilloscope": 5,
+    "Plane9:Ribbons": 4,
+    "Plane9:texture-chain(Bloom+Streak)": 4,
+    "Plane9:Streak": 4,
+    "Plane9:Bars": 4,
+    "Plane9:Randomize": 4,
+    "Plane9:Shatter": 4,
+    "Plane9:RenderObject(object-chain=Clock)": 3,
+    "Plane9:Clock": 3,
+    "Plane9:LinearSolver": 3,
+    "Plane9:RenderObject(object-chain=CloneExpression+Particles)": 3,
+    "Plane9:Fluid2d": 3,
+    "Plane9:RenderObject(object-chain=Shatter)": 3,
+    "Plane9:mesh-chain(TransformMesh)": 3,
+    "Plane9:Facette": 3,
+    "Plane9:RenderObject(object-chain=Voronoi)": 2,
+    "Plane9:Voronoi": 2,
+    "Plane9:DeleteFaces": 2,
+    "Plane9:Lightning": 2,
+    "Plane9:NoiseTexture": 2,
+    "Plane9:RenderObject(object-chain=CloneExpression+Transform)": 2,
+    "Plane9:RenderObject(object-chain=Fluid2d)": 2,
+    "Plane9:RenderObject(object-chain=TextWriter)": 2,
+    "Plane9:NoiseMesh": 2,
+    "Plane9:RenderObject(object-chain=Clone+CloneExpression)": 1,
+    "Plane9:RenderObject(object-chain=CloneExpression+CloneExpression+CloneExpression)": 1,
+    "Plane9:texture-chain(Bloom+Blur)": 1,
+    "Plane9:RenderObject(object-chain=Clone+Ribbons)": 1,
+    "Plane9:mesh-chain(CloneMeshExpression)": 1,
+    "Plane9:RenderObject(object-chain=Metaballs)": 1,
+    "Plane9:Metaballs": 1,
+    "Plane9:RenderObject(object-chain=Asteroids)": 1,
+    "Plane9:Asteroids": 1,
+    "Plane9:RenderObject(object-chain=PingPong)": 1,
+    "Plane9:PingPong": 1,
+    "Plane9:Roller": 1,
+    "Plane9:RenderObject(object-chain=LineBounce)": 1,
+    "Plane9:LineBounce": 1,
+    "Plane9:object-chain(Clone)": 1,
+    "Plane9:RenderObject(object-chain=Oscilloscope)": 1,
+    "Plane9:RenderObject(object-chain=Clone+Transform)": 1,
+    "Plane9:RenderObject(object-chain=Galaxy)": 1,
+    "Plane9:Galaxy": 1,
+    "Plane9:RenderObject(object-chain=CloneExpression+Grass)": 1,
+    "Plane9:Grass": 1,
+    "Plane9:TuringPattern": 1,
+    "Plane9:RenderObject(object-chain=MatrixTrails)": 1,
+    "Plane9:MatrixTrails": 1,
+    "Plane9:RenderObject(object-chain=Ribbons)": 1,
+    "Plane9:object-chain(Clone+CloneExpression)": 1,
+    "Plane9:mesh-chain(Extrude)": 1,
+    "Plane9:RenderObject(object-chain=Clone+Particles)": 1,
+    "Plane9:RenderObject(object-chain=DelayedTransform+Particles)": 1,
+    "Plane9:RenderObject(object-chain=Starfield)": 1,
+    "Plane9:Starfield": 1,
+    "Plane9:RenderObject(object-chain=none)": 1,
+    "Plane9:mesh-chain(Facette+Extrude+SelectMesh+NoiseMesh+Subdivide)": 1,
+    "Plane9:mesh-chain(Randomize+Facette+Extrude+SelectMesh)": 1,
+    "Plane9:RenderObject(object-chain=CloneExpression+Shatter)": 1,
+    "Plane9:mesh-chain(TransformEx+Subdivide+Randomize+Extrude+SelectMesh+Subdivide)": 1,
+    "Plane9:mesh-chain(Facette+InvertMesh+TransformMesh)": 1,
+    "Plane9:object-chain(DelayedTransform)": 1
+  },
+  "scenes": [
+    {
+      "scene": "Abstract\\Beyond The Stars.p9c",
+      "nodes": 19,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Planestate)",
+        "Plane9:Planestate"
+      ]
+    },
+    {
+      "scene": "Abstract\\Blue Particles.p9c",
+      "nodes": 13,
+      "unsupported": [
+        "Plane9:Gradient",
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:Particles",
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:Particles"
+      ]
+    },
+    {
+      "scene": "Abstract\\Color Beams.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Abstract\\Color Storm.p9c",
+      "nodes": 33,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Planestate)",
+        "Plane9:Planestate",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Abstract\\Colors.p9c",
+      "nodes": 4,
+      "unsupported": []
+    },
+    {
+      "scene": "Abstract\\Electro.p9c",
+      "nodes": 24,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Planestate)",
+        "Plane9:Planestate"
+      ]
+    },
+    {
+      "scene": "Abstract\\Entity.p9c",
+      "nodes": 25,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Planestate)",
+        "Plane9:Planestate",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Abstract\\Fog lights.p9c",
+      "nodes": 6,
+      "unsupported": [
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Abstract\\Gradient.p9c",
+      "nodes": 4,
+      "unsupported": []
+    },
+    {
+      "scene": "Abstract\\Information Flow.p9c",
+      "nodes": 8,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Clone+CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Abstract\\Jello.p9c",
+      "nodes": 12,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=CloneExpression+CloneExpression+CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Abstract\\Lifeform.p9c",
+      "nodes": 12,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Abstract\\Light Worms.p9c",
+      "nodes": 14,
+      "unsupported": [
+        "Plane9:CopyTexture",
+        "Plane9:RenderObject(object-chain=MeshInstancer)",
+        "Plane9:texture-chain(Bloom+Blur)",
+        "Plane9:Bloom",
+        "Plane9:Blur"
+      ]
+    },
+    {
+      "scene": "Abstract\\Line Of Color.p9c",
+      "nodes": 25,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Planestate)",
+        "Plane9:Planestate",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Abstract\\Mirror Tunnel.p9c",
+      "nodes": 13,
+      "unsupported": [
+        "Plane9:StoreTexture"
+      ]
+    },
+    {
+      "scene": "Abstract\\Noise Warp.p9c",
+      "nodes": 7,
+      "unsupported": []
+    },
+    {
+      "scene": "Abstract\\Planestate.p9c",
+      "nodes": 23,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Planestate)",
+        "Plane9:Planestate",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Abstract\\Ribbon Dance.p9c",
+      "nodes": 10,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Clone+Ribbons)",
+        "Plane9:Ribbons",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Abstract\\Rorschach.p9c",
+      "nodes": 7,
+      "unsupported": []
+    },
+    {
+      "scene": "Abstract\\Tentacles.p9c",
+      "nodes": 9,
+      "unsupported": [
+        "Plane9:CopyTexture",
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Blur)",
+        "Plane9:Blur"
+      ]
+    },
+    {
+      "scene": "Abstract\\Trinity.p9c",
+      "nodes": 27,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Planestate)",
+        "Plane9:Planestate",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Abstract\\Uncertain Warp.p9c",
+      "nodes": 16,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Planestate)",
+        "Plane9:Planestate"
+      ]
+    },
+    {
+      "scene": "Abstract\\Watercolor.p9c",
+      "nodes": 23,
+      "unsupported": [
+        "Plane9:StoreTexture",
+        "Plane9:RenderObject(object-chain=Transform)",
+        "Plane9:texture-chain(Blur)",
+        "Plane9:Particles",
+        "Plane9:Blur",
+        "Plane9:Particles"
+      ]
+    },
+    {
+      "scene": "Abstract\\Wild Color.p9c",
+      "nodes": 25,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Planestate)",
+        "Plane9:Planestate",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Cell\\Abstract Clouds.p9c",
+      "nodes": 8,
+      "unsupported": [
+        "Plane9:StoreTexture"
+      ]
+    },
+    {
+      "scene": "Cell\\Around And Around.p9c",
+      "nodes": 10,
+      "unsupported": [
+        "Plane9:mesh-chain(InvertMesh)",
+        "Plane9:InvertMesh"
+      ]
+    },
+    {
+      "scene": "Cell\\Cell Culture.p9c",
+      "nodes": 8,
+      "unsupported": [
+        "Plane9:StoreTexture"
+      ]
+    },
+    {
+      "scene": "Cell\\Magic Smoke Box.p9c",
+      "nodes": 8,
+      "unsupported": [
+        "Plane9:StoreTexture"
+      ]
+    },
+    {
+      "scene": "Cell\\Mellow.p9c",
+      "nodes": 8,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Voronoi)",
+        "Plane9:Voronoi"
+      ]
+    },
+    {
+      "scene": "Clock\\Analog Clock.p9c",
+      "nodes": 10,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Transform)"
+      ]
+    },
+    {
+      "scene": "Clock\\Clock.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Clock)",
+        "Plane9:Clock",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Clock\\Color Clock.p9c",
+      "nodes": 13,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Clock)",
+        "Plane9:Clock",
+        "Plane9:RenderObject(object-chain=CloneExpression)"
+      ]
+    },
+    {
+      "scene": "Clock\\Shadow Clock.p9c",
+      "nodes": 10,
+      "unsupported": [
+        "Plane9:CopyTexture",
+        "Plane9:RenderObject(object-chain=Clock)",
+        "Plane9:Clock",
+        "Plane9:texture-chain(Blur)",
+        "Plane9:Blur"
+      ]
+    },
+    {
+      "scene": "Cube\\Box sketch.p9c",
+      "nodes": 8,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)"
+      ]
+    },
+    {
+      "scene": "Cube\\Color Cube.p9c",
+      "nodes": 15,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Cube\\Cube Driver.p9c",
+      "nodes": 14,
+      "unsupported": [
+        "Plane9:mesh-chain(CloneMeshExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Cube\\Cube Floor.p9c",
+      "nodes": 26,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Bloom+Streak)",
+        "Plane9:Bloom",
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:Particles",
+        "Plane9:Particles",
+        "Plane9:Streak"
+      ]
+    },
+    {
+      "scene": "Cube\\Cube waves.p9c",
+      "nodes": 8,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=MeshInstancer)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Cube\\Cuber.p9c",
+      "nodes": 10,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Cube\\Evil Box.p9c",
+      "nodes": 14,
+      "unsupported": [
+        "Plane9:CopyTexture",
+        "Plane9:StoreTexture",
+        "Plane9:texture-chain(Blur)",
+        "Plane9:Blur"
+      ]
+    },
+    {
+      "scene": "Cube\\Flip Flop.p9c",
+      "nodes": 9,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Cube\\Glow Cubes.p9c",
+      "nodes": 10,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Cube\\Hollow Cube.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=MeshInstancer)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Cube\\Inside Cube.p9c",
+      "nodes": 12,
+      "unsupported": [
+        "Plane9:mesh-chain(InvertMesh)",
+        "Plane9:InvertMesh",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Cube\\Mirror Cube.p9c",
+      "nodes": 13,
+      "unsupported": [
+        "Plane9:StoreTexture"
+      ]
+    },
+    {
+      "scene": "Cube\\Sound Cube.p9c",
+      "nodes": 15,
+      "unsupported": [
+        "Plane9:StoreTexture",
+        "Plane9:texture-chain(Blur)",
+        "Plane9:Blur"
+      ]
+    },
+    {
+      "scene": "DemoScene\\Metaballs.p9c",
+      "nodes": 12,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Metaballs)",
+        "Plane9:Metaballs",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "DemoScene\\Plasma.p9c",
+      "nodes": 4,
+      "unsupported": []
+    },
+    {
+      "scene": "DemoScene\\ToonKnot.p9c",
+      "nodes": 7,
+      "unsupported": []
+    },
+    {
+      "scene": "DemoScene\\Xor.p9c",
+      "nodes": 4,
+      "unsupported": []
+    },
+    {
+      "scene": "Fire\\Line of fire.p9c",
+      "nodes": 15,
+      "unsupported": [
+        "Plane9:StoreTexture",
+        "Plane9:StoreTexture",
+        "Plane9:LinearSolver",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Fire\\Ring of fire.p9c",
+      "nodes": 18,
+      "unsupported": [
+        "Plane9:StoreTexture",
+        "Plane9:StoreTexture",
+        "Plane9:LinearSolver",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Fractals\\FractalSponge.p9c",
+      "nodes": 4,
+      "unsupported": []
+    },
+    {
+      "scene": "Fractals\\Truchet Tentacles.p9c",
+      "nodes": 6,
+      "unsupported": [
+        "Plane9:StoreTexture"
+      ]
+    },
+    {
+      "scene": "Game\\Asteroids.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Asteroids)",
+        "Plane9:Asteroids",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Game\\PingPong.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=PingPong)",
+        "Plane9:PingPong",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Game\\Roller.p9c",
+      "nodes": 9,
+      "unsupported": [
+        "Plane9:Roller",
+        "Plane9:Extrude",
+        "Plane9:SelectMesh",
+        "Plane9:Subdivide"
+      ]
+    },
+    {
+      "scene": "Gears\\Gear Rays.p9c",
+      "nodes": 10,
+      "unsupported": [
+        "Plane9:CopyTexture",
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Blur)",
+        "Plane9:Blur"
+      ]
+    },
+    {
+      "scene": "Gears\\Gear Wall.p9c",
+      "nodes": 12,
+      "unsupported": [
+        "Plane9:CopyTexture",
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Blur)",
+        "Plane9:Blur"
+      ]
+    },
+    {
+      "scene": "Gears\\Gears 2d.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Gears\\Gears 3d.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Line\\In a spiders web.p9c",
+      "nodes": 13,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Line\\LineBounce.p9c",
+      "nodes": 16,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=LineBounce)",
+        "Plane9:LineBounce",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Line\\Lines.p9c",
+      "nodes": 9,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Line\\Waves of sin.p9c",
+      "nodes": 10,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=MeshInstancer)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Music\\Block Spectrum.p9c",
+      "nodes": 9,
+      "unsupported": [
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Music\\Face Of Sound.p9c",
+      "nodes": 10,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Transform)",
+        "Plane9:Oscilloscope",
+        "Plane9:Oscilloscope",
+        "Plane9:object-chain(Clone)"
+      ]
+    },
+    {
+      "scene": "Music\\Monster spectrum.p9c",
+      "nodes": 19,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:Particles",
+        "Plane9:RenderObject(object-chain=CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom",
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:Particles"
+      ]
+    },
+    {
+      "scene": "Music\\Music Tunnel.p9c",
+      "nodes": 18,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom",
+        "Plane9:InvertMesh",
+        "Plane9:SelectMesh",
+        "Plane9:DeleteFaces"
+      ]
+    },
+    {
+      "scene": "Music\\Music Waves.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Music\\Music star.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=CloneExpression+Particles)",
+        "Plane9:Particles",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Music\\Oscilloscope.p9c",
+      "nodes": 12,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Transform)",
+        "Plane9:Oscilloscope",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Oscilloscope",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Music\\Rotating Osciloscope.p9c",
+      "nodes": 12,
+      "unsupported": [
+        "Plane9:StoreTexture",
+        "Plane9:RenderObject(object-chain=Oscilloscope)",
+        "Plane9:Oscilloscope",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Music\\Solar Eclipse.p9c",
+      "nodes": 14,
+      "unsupported": [
+        "Plane9:Gradient",
+        "Plane9:StoreTexture",
+        "Plane9:RenderObject(object-chain=Transform)",
+        "Plane9:Bars",
+        "Plane9:Bars",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Music\\Sound Along A Wire.p9c",
+      "nodes": 10,
+      "unsupported": [
+        "Plane9:CopyTexture",
+        "Plane9:texture-chain(Blur)",
+        "Plane9:Blur",
+        "Plane9:object-chain(CloneExpression)"
+      ]
+    },
+    {
+      "scene": "Music\\Spectrum Ocean.p9c",
+      "nodes": 8,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Music\\Spectrum Radar.p9c",
+      "nodes": 10,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Transform)",
+        "Plane9:Ribbons",
+        "Plane9:Ribbons",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Music\\Spectrum sparks.p9c",
+      "nodes": 13,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=CloneExpression)",
+        "Plane9:Particles",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom",
+        "Plane9:RenderObject(object-chain=Particles)"
+      ]
+    },
+    {
+      "scene": "Music\\Spectrum.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Clone+Transform)",
+        "Plane9:Bars",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bars",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Music\\Spider Music.p9c",
+      "nodes": 12,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Voronoi)",
+        "Plane9:Voronoi",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Music\\Turn Table.p9c",
+      "nodes": 15,
+      "unsupported": [
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Nature\\Asteroids In Space.p9c",
+      "nodes": 18,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=MeshInstancer)",
+        "Plane9:Randomize",
+        "Plane9:Subdivide",
+        "Plane9:Randomize",
+        "Plane9:Subdivide",
+        "Plane9:mesh-chain(InvertMesh)",
+        "Plane9:InvertMesh",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Nature\\Cloud Flight.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Nature\\Earth.p9c",
+      "nodes": 22,
+      "unsupported": [
+        "Plane9:mesh-chain(InvertMesh)",
+        "Plane9:InvertMesh",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Nature\\ElectroSphere.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Transform)",
+        "Plane9:Lightning",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Lightning",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Nature\\Explosion.p9c",
+      "nodes": 9,
+      "unsupported": [
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Nature\\Falling Snow.p9c",
+      "nodes": 9,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Nature\\Fire Flies.p9c",
+      "nodes": 14,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:Particles",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Nature\\Fire.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:Gradient",
+        "Plane9:Particles",
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Nature\\Fireball.p9c",
+      "nodes": 15,
+      "unsupported": [
+        "Plane9:NoiseTexture",
+        "Plane9:Gradient",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Nature\\Foggy.p9c",
+      "nodes": 4,
+      "unsupported": []
+    },
+    {
+      "scene": "Nature\\Galaxy.p9c",
+      "nodes": 14,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Galaxy)",
+        "Plane9:Galaxy",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Nature\\Grass.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=CloneExpression+Grass)",
+        "Plane9:Grass"
+      ]
+    },
+    {
+      "scene": "Nature\\NightSpirits.p9c",
+      "nodes": 12,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:Particles",
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:Particles"
+      ]
+    },
+    {
+      "scene": "Nature\\Starfield Lines.p9c",
+      "nodes": 12,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:Particles"
+      ]
+    },
+    {
+      "scene": "Nature\\Starsky.p9c",
+      "nodes": 12,
+      "unsupported": [
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom",
+        "Plane9:mesh-chain(InvertMesh)",
+        "Plane9:InvertMesh"
+      ]
+    },
+    {
+      "scene": "Nature\\Sun.p9c",
+      "nodes": 14,
+      "unsupported": [
+        "Plane9:CopyTexture",
+        "Plane9:CopyTexture",
+        "Plane9:RenderObject(object-chain=Transform)",
+        "Plane9:texture-chain(Blur)",
+        "Plane9:Blur"
+      ]
+    },
+    {
+      "scene": "Nature\\Sunset.p9c",
+      "nodes": 8,
+      "unsupported": []
+    },
+    {
+      "scene": "Nature\\The Cave.p9c",
+      "nodes": 8,
+      "unsupported": [
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Nature\\Turing Pattern.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:TuringPattern"
+      ]
+    },
+    {
+      "scene": "Nature\\Twinkling Night.p9c",
+      "nodes": 12,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:Particles",
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Nature\\Wave Machine.p9c",
+      "nodes": 12,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Transform)",
+        "Plane9:Fluid2d"
+      ]
+    },
+    {
+      "scene": "Nature\\Wave.p9c",
+      "nodes": 4,
+      "unsupported": []
+    },
+    {
+      "scene": "Nature\\Wind Farm.p9c",
+      "nodes": 7,
+      "unsupported": [
+        "Plane9:Gradient",
+        "Plane9:RenderObject(object-chain=CloneExpression+Transform)"
+      ]
+    },
+    {
+      "scene": "Other\\Balls of metal.p9c",
+      "nodes": 16,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:SelectMesh",
+        "Plane9:Subdivide",
+        "Plane9:SelectMesh",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Other\\Black.p9c",
+      "nodes": 3,
+      "unsupported": []
+    },
+    {
+      "scene": "Other\\Blob Fade.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=CloneExpression)"
+      ]
+    },
+    {
+      "scene": "Other\\Color Blob.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:StoreTexture"
+      ]
+    },
+    {
+      "scene": "Other\\Color Cycle.p9c",
+      "nodes": 8,
+      "unsupported": []
+    },
+    {
+      "scene": "Other\\Dance.p9c",
+      "nodes": 8,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Other\\Defense grid.p9c",
+      "nodes": 13,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=MeshInstancer)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom",
+        "Plane9:RenderObject(object-chain=MeshInstancer)"
+      ]
+    },
+    {
+      "scene": "Other\\Fuzzy Target.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:CopyTexture",
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Blur)",
+        "Plane9:Blur"
+      ]
+    },
+    {
+      "scene": "Other\\Glass Field.p9c",
+      "nodes": 7,
+      "unsupported": []
+    },
+    {
+      "scene": "Other\\Love.p9c",
+      "nodes": 15,
+      "unsupported": [
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:Particles",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Other\\Matrix Trails.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=MatrixTrails)",
+        "Plane9:MatrixTrails",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Other\\Runners.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Ribbons)",
+        "Plane9:Ribbons",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Other\\Sea Of Bricks.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Other\\Searchlight.p9c",
+      "nodes": 8,
+      "unsupported": [
+        "Plane9:object-chain(Clone+CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Other\\Shatter Monitor.p9c",
+      "nodes": 10,
+      "unsupported": [
+        "Plane9:Shatter",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:RenderObject(object-chain=Shatter)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Other\\Sphere Mixer.p9c",
+      "nodes": 6,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)"
+      ]
+    },
+    {
+      "scene": "Other\\Spinning Chess.p9c",
+      "nodes": 16,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)"
+      ]
+    },
+    {
+      "scene": "Other\\Stargate Event Horizon.p9c",
+      "nodes": 9,
+      "unsupported": [
+        "Plane9:CopyTexture",
+        "Plane9:texture-chain(Blur)",
+        "Plane9:Blur"
+      ]
+    },
+    {
+      "scene": "Other\\Stone floor.p9c",
+      "nodes": 29,
+      "unsupported": [
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom",
+        "Plane9:mesh-chain(Extrude)",
+        "Plane9:Extrude",
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:Particles",
+        "Plane9:Particles",
+        "Plane9:RenderObject(object-chain=Particles)"
+      ]
+    },
+    {
+      "scene": "Other\\Though The Noise.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Other\\Tv Noise.p9c",
+      "nodes": 4,
+      "unsupported": []
+    },
+    {
+      "scene": "Particle\\Blue Bubbles.p9c",
+      "nodes": 15,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:Particles",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Particle\\Collapsing Star.p9c",
+      "nodes": 14,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Clone+Particles)",
+        "Plane9:Particles",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Particle\\Color waves.p9c",
+      "nodes": 10,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=MeshInstancer)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Particle\\Dot Plasma.p9c",
+      "nodes": 9,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Particle\\Firewalker.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=CloneExpression)"
+      ]
+    },
+    {
+      "scene": "Particle\\Ghost Dots.p9c",
+      "nodes": 15,
+      "unsupported": [
+        "Plane9:CopyTexture",
+        "Plane9:StoreTexture",
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:texture-chain(Blur)",
+        "Plane9:Particles",
+        "Plane9:Blur"
+      ]
+    },
+    {
+      "scene": "Particle\\Glow worms.p9c",
+      "nodes": 9,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=MeshInstancer)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Particle\\Gold dust.p9c",
+      "nodes": 15,
+      "unsupported": [
+        "Plane9:StoreTexture",
+        "Plane9:RenderObject(object-chain=MeshInstancer)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Particle\\It is coming for you.p9c",
+      "nodes": 12,
+      "unsupported": [
+        "Plane9:CopyTexture",
+        "Plane9:StoreTexture",
+        "Plane9:RenderObject(object-chain=MeshInstancer)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom",
+        "Plane9:texture-chain(Blur)",
+        "Plane9:Blur"
+      ]
+    },
+    {
+      "scene": "Particle\\Music particles.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:StoreTexture",
+        "Plane9:RenderObject(object-chain=MeshInstancer)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Particle\\Particle Star.p9c",
+      "nodes": 16,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=CloneExpression+Particles)",
+        "Plane9:Particles",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Particle\\Particle Traveler.p9c",
+      "nodes": 17,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=CloneExpression+Particles)",
+        "Plane9:Particles",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Particle\\Particle Worm.p9c",
+      "nodes": 25,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:Particles",
+        "Plane9:texture-chain(Bloom+Streak)",
+        "Plane9:Bloom",
+        "Plane9:Streak"
+      ]
+    },
+    {
+      "scene": "Particle\\Particle shadow.p9c",
+      "nodes": 21,
+      "unsupported": [
+        "Plane9:CopyTexture",
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:texture-chain(Blur)",
+        "Plane9:Particles",
+        "Plane9:Blur",
+        "Plane9:RenderObject(object-chain=Particles)",
+        "Plane9:Particles"
+      ]
+    },
+    {
+      "scene": "Particle\\ParticleSpray.p9c",
+      "nodes": 22,
+      "unsupported": [
+        "Plane9:Particles",
+        "Plane9:RenderObject(object-chain=DelayedTransform+Particles)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Particle\\Sphere Beat.p9c",
+      "nodes": 22,
+      "unsupported": [
+        "Plane9:StoreTexture",
+        "Plane9:StoreTexture",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom",
+        "Plane9:RenderObject(object-chain=MeshInstancer)"
+      ]
+    },
+    {
+      "scene": "Particle\\Starfield.p9c",
+      "nodes": 14,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Starfield)",
+        "Plane9:Starfield",
+        "Plane9:texture-chain(Bloom+Streak)",
+        "Plane9:Bloom",
+        "Plane9:Streak"
+      ]
+    },
+    {
+      "scene": "Postprocessing\\3d Blocks.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Bathroom Window.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Bayer 8 Matrix Dithering BW.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Bayer Matrix Dithering Color.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\BlackAndWhite.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Blocks.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Color Distort.p9c",
+      "nodes": 6,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Contrast.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Crosshatching.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Crt.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Cubic lens distortion.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Embos Merge.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Embos.p9c",
+      "nodes": 7,
+      "unsupported": [
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Postprocessing\\Film Grain.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Fluid Beat.p9c",
+      "nodes": 16,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Fluid2d)",
+        "Plane9:Fluid2d"
+      ]
+    },
+    {
+      "scene": "Postprocessing\\Fluid Painting.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Fluid2d)",
+        "Plane9:Fluid2d"
+      ]
+    },
+    {
+      "scene": "Postprocessing\\Fluid Warper.p9c",
+      "nodes": 16,
+      "unsupported": [
+        "Plane9:StoreTexture",
+        "Plane9:StoreTexture"
+      ]
+    },
+    {
+      "scene": "Postprocessing\\Fractured.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Fuzzy Pixels.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Gears In Silhouette.p9c",
+      "nodes": 10,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Blur)",
+        "Plane9:Blur"
+      ]
+    },
+    {
+      "scene": "Postprocessing\\Gray stripes.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Gray.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Hexagons.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Invert Gray.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Invert.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Led Display Curved.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:CopyTexture",
+        "Plane9:mesh-chain(TransformMesh)",
+        "Plane9:texture-chain(Bloom+Streak)",
+        "Plane9:Bloom",
+        "Plane9:Streak"
+      ]
+    },
+    {
+      "scene": "Postprocessing\\Led Display.p9c",
+      "nodes": 6,
+      "unsupported": [
+        "Plane9:CopyTexture"
+      ]
+    },
+    {
+      "scene": "Postprocessing\\Limit Hue.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Old Movie.p9c",
+      "nodes": 6,
+      "unsupported": [
+        "Plane9:NoiseTexture"
+      ]
+    },
+    {
+      "scene": "Postprocessing\\Posterization.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Postprocessing\\Rain Drops.p9c",
+      "nodes": 13,
+      "unsupported": [
+        "Plane9:StoreTexture",
+        "Plane9:StoreTexture"
+      ]
+    },
+    {
+      "scene": "Postprocessing\\Shatter Scene.p9c",
+      "nodes": 10,
+      "unsupported": [
+        "Plane9:Shatter",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:RenderObject(object-chain=Shatter)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Psychedelic\\Circle Crossover.p9c",
+      "nodes": 4,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=CloneExpression)"
+      ]
+    },
+    {
+      "scene": "Psychedelic\\HypnoToad.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=CloneExpression)"
+      ]
+    },
+    {
+      "scene": "Psychedelic\\StarBurst.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Smoke\\Colored smoke.p9c",
+      "nodes": 14,
+      "unsupported": [
+        "Plane9:StoreTexture",
+        "Plane9:LinearSolver",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Special\\NewSceneTemplates\\Clear.p9c",
+      "nodes": 3,
+      "unsupported": []
+    },
+    {
+      "scene": "Special\\NewSceneTemplates\\FullscreenShader.p9c",
+      "nodes": 4,
+      "unsupported": []
+    },
+    {
+      "scene": "Special\\NewSceneTemplates\\Postprocessing.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Special\\NewSceneTemplates\\RenderObject.p9c",
+      "nodes": 4,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=none)"
+      ]
+    },
+    {
+      "scene": "Special\\NewSceneTemplates\\SingleCube.p9c",
+      "nodes": 10,
+      "unsupported": [
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Special\\NewSceneTemplates\\Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Special\\PostprocessingBackground.p9c",
+      "nodes": 6,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)"
+      ]
+    },
+    {
+      "scene": "Special\\TransitionFromExample.p9c",
+      "nodes": 9,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Special\\TransitionToExample.p9c",
+      "nodes": 6,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)"
+      ]
+    },
+    {
+      "scene": "Text\\Awesomeness.p9c",
+      "nodes": 7,
+      "unsupported": [
+        "Plane9:TextWriter",
+        "Plane9:TextWriter",
+        "Plane9:RenderObject(object-chain=Transform)",
+        "Plane9:TextWriter"
+      ]
+    },
+    {
+      "scene": "Text\\Computer Malfunction.p9c",
+      "nodes": 9,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=TextWriter)",
+        "Plane9:TextWriter",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Text\\Crime Scene.p9c",
+      "nodes": 9,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Transform)",
+        "Plane9:TextWriter"
+      ]
+    },
+    {
+      "scene": "Text\\Guru Meditation.p9c",
+      "nodes": 6,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=TextWriter)",
+        "Plane9:TextWriter"
+      ]
+    },
+    {
+      "scene": "Things\\Android.p9c",
+      "nodes": 8,
+      "unsupported": [
+        "Plane9:Gradient"
+      ]
+    },
+    {
+      "scene": "Things\\Bit.p9c",
+      "nodes": 25,
+      "unsupported": [
+        "Plane9:mesh-chain(Facette+Extrude+SelectMesh+NoiseMesh+Subdivide)",
+        "Plane9:Subdivide",
+        "Plane9:Facette",
+        "Plane9:NoiseMesh",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom",
+        "Plane9:SelectMesh",
+        "Plane9:Extrude"
+      ]
+    },
+    {
+      "scene": "Things\\Disco Ball.p9c",
+      "nodes": 16,
+      "unsupported": [
+        "Plane9:CopyTexture",
+        "Plane9:mesh-chain(Randomize+Facette+Extrude+SelectMesh)",
+        "Plane9:Facette",
+        "Plane9:SelectMesh",
+        "Plane9:Extrude",
+        "Plane9:texture-chain(Blur)",
+        "Plane9:Blur",
+        "Plane9:Randomize"
+      ]
+    },
+    {
+      "scene": "Things\\Eyes.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=CloneExpression+Transform)"
+      ]
+    },
+    {
+      "scene": "Things\\Flowerbox.p9c",
+      "nodes": 8,
+      "unsupported": []
+    },
+    {
+      "scene": "Things\\Frozen firework.p9c",
+      "nodes": 7,
+      "unsupported": [
+        "Plane9:Gradient",
+        "Plane9:object-chain(CloneExpression)"
+      ]
+    },
+    {
+      "scene": "Things\\Heart.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Things\\In a ball of yarn.p9c",
+      "nodes": 11,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=MeshInstancer)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Things\\Laser Light.p9c",
+      "nodes": 4,
+      "unsupported": []
+    },
+    {
+      "scene": "Things\\Look into my eyes.p9c",
+      "nodes": 6,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)"
+      ]
+    },
+    {
+      "scene": "Things\\No smoking.p9c",
+      "nodes": 4,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Transform)"
+      ]
+    },
+    {
+      "scene": "Things\\Shatter.p9c",
+      "nodes": 14,
+      "unsupported": [
+        "Plane9:CopyTexture",
+        "Plane9:mesh-chain(TransformMesh)",
+        "Plane9:Shatter",
+        "Plane9:texture-chain(Blur)",
+        "Plane9:Blur",
+        "Plane9:RenderObject(object-chain=CloneExpression+Shatter)"
+      ]
+    },
+    {
+      "scene": "Things\\Sphere.p9c",
+      "nodes": 19,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:NoiseMesh",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Things\\Spiky.p9c",
+      "nodes": 17,
+      "unsupported": [
+        "Plane9:mesh-chain(TransformEx+Subdivide+Randomize+Extrude+SelectMesh+Subdivide)",
+        "Plane9:Extrude",
+        "Plane9:SelectMesh",
+        "Plane9:Subdivide",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Subdivide",
+        "Plane9:Randomize",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Things\\Twisted.p9c",
+      "nodes": 12,
+      "unsupported": [
+        "Plane9:Gradient",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Transition\\Banded Swirl Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Bars Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Blinds Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Block Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Burn Transition.p9c",
+      "nodes": 8,
+      "unsupported": [
+        "Plane9:Gradient",
+        "Plane9:Transition",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Transition\\Circle Reveal Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Circle Stretch Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Clock Swipe Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Close Horizontal Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Column Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Crossfade Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Crumble Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Cube Switch Transition.p9c",
+      "nodes": 8,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Cube Transition.p9c",
+      "nodes": 7,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Cylinder Transition.p9c",
+      "nodes": 12,
+      "unsupported": [
+        "Plane9:Transition",
+        "Plane9:mesh-chain(Facette+InvertMesh+TransformMesh)",
+        "Plane9:InvertMesh",
+        "Plane9:Facette",
+        "Plane9:texture-chain(Transition)",
+        "Plane9:texture-chain(Transition)"
+      ]
+    },
+    {
+      "scene": "Transition\\Disolve Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Dropfade Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Erode Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Explode Transition.p9c",
+      "nodes": 6,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:Transition",
+        "Plane9:texture-chain(Transition)"
+      ]
+    },
+    {
+      "scene": "Transition\\Line Reveal Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Lines Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Pixelate Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Pour Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Radial Blur Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Random Circle Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Ripple Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Rotate Transition.p9c",
+      "nodes": 9,
+      "unsupported": [
+        "Plane9:Transition",
+        "Plane9:texture-chain(Transition)"
+      ]
+    },
+    {
+      "scene": "Transition\\Shatter Transition.p9c",
+      "nodes": 6,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=Shatter)",
+        "Plane9:Transition",
+        "Plane9:Shatter"
+      ]
+    },
+    {
+      "scene": "Transition\\Shockwave Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Shrink Transition.p9c",
+      "nodes": 6,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\SlideIn Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Smooth Swirl Grid Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Swirl Grid Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Swirl Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Thrown Shard Transition.p9c",
+      "nodes": 6,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition",
+        "Plane9:object-chain(CloneExpression)"
+      ]
+    },
+    {
+      "scene": "Transition\\Turn Transition.p9c",
+      "nodes": 6,
+      "unsupported": [
+        "Plane9:Transition",
+        "Plane9:object-chain(CloneExpression)",
+        "Plane9:texture-chain(Transition)"
+      ]
+    },
+    {
+      "scene": "Transition\\Tv Off Transition.p9c",
+      "nodes": 6,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition",
+        "Plane9:texture-chain(Transition)"
+      ]
+    },
+    {
+      "scene": "Transition\\Water Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Transition\\Wave Transition.p9c",
+      "nodes": 5,
+      "unsupported": [
+        "Plane9:texture-chain(Transition)",
+        "Plane9:Transition"
+      ]
+    },
+    {
+      "scene": "Tunnel\\Boxy.p9c",
+      "nodes": 10,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=MeshInstancer)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Tunnel\\Gateway.p9c",
+      "nodes": 18,
+      "unsupported": [
+        "Plane9:object-chain(DelayedTransform)",
+        "Plane9:SelectMesh",
+        "Plane9:DeleteFaces",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Tunnel\\Light Tunnel.p9c",
+      "nodes": 6,
+      "unsupported": [
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Tunnel\\ReliefTunnel.p9c",
+      "nodes": 10,
+      "unsupported": [
+        "Plane9:mesh-chain(TransformMesh)",
+        "Plane9:InvertMesh",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    },
+    {
+      "scene": "Tunnel\\SquareTunnel.p9c",
+      "nodes": 5,
+      "unsupported": []
+    },
+    {
+      "scene": "Tunnel\\TopAndBottom.p9c",
+      "nodes": 6,
+      "unsupported": [
+        "Plane9:object-chain(CloneExpression)"
+      ]
+    },
+    {
+      "scene": "Tunnel\\Wormhole.p9c",
+      "nodes": 9,
+      "unsupported": [
+        "Plane9:RenderObject(object-chain=MeshInstancer)",
+        "Plane9:texture-chain(Bloom)",
+        "Plane9:Bloom"
+      ]
+    }
+  ]
+}
