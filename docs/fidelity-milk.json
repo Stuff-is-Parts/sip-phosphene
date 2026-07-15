@@ -1,7 +1,7 @@
 {
   "measures": "reference-validated fidelity of the GRAPH MILK PATH (MilkPipeline on WebGPU) vs the seeded Butterchurn oracle: identical corpus source file (sha256-verified), oracle per-frame globals, oracle audio chain; gate = SSIM >= tolerance on EVERY RGB channel at every capture frame",
   "path": "graph milk path (milkToGraph -> MilkPipeline); presets refusing at load carry their exact feature list",
-  "commitSha": "8fd47644258769bc4b2fadd988a693e915c20a98",
+  "commitSha": "367d2a2144fefdbddf1664c7f1e9d55d845d1364",
   "tolerance": {
     "ssim": 0.8,
     "metric": "min per-channel color SSIM",
@@ -15,25 +15,19 @@
   ],
   "counts": {
     "totalCorpusPresets": 100,
+    "fixtureConvertFailures": 3,
     "presetsTested": 97,
-    "executable": 13,
+    "refused": 81,
+    "loadFailed": 0,
+    "executable": 16,
     "validatedExecutable": 10,
     "divergedExecutable": 6,
     "unsupportedByFeature": {
       "milk-warp:warpShader": 80,
       "milk-composite:compShader": 79,
-      "milk-blur": 66,
-      "gmegabuf": 4
-    },
-    "fixtureConvertFailures": 3,
-    "loadFailed": 0
+      "milk-blur": 66
+    }
   },
-  "presetsTested": 97,
-  "validated": 10,
-  "diverged": 6,
-  "loadFailed": 0,
-  "unsupportedShaderPresets": 81,
-  "fixtureConvertFailures": 3,
   "results": [
     {
       "preset": "! Transition\\Fast transition to black - levels effect === Goody's Lightning (ps 2-0) --- Isosceles edit.milk",
@@ -545,8 +539,7 @@
       "features": [
         "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
         "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
-        "milk-blur (blur cascade consumed only by unimplemented shaders)",
-        "gmegabuf (cross-context shared 1M-cell buffer not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)"
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
       ]
     },
     {
@@ -564,8 +557,7 @@
       "features": [
         "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
         "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
-        "milk-blur (blur cascade consumed only by unimplemented shaders)",
-        "gmegabuf (cross-context shared 1M-cell buffer not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)"
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
       ]
     },
     {
@@ -782,8 +774,7 @@
       "features": [
         "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
         "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
-        "milk-blur (blur cascade consumed only by unimplemented shaders)",
-        "gmegabuf (cross-context shared 1M-cell buffer not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)"
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
       ]
     },
     {
@@ -1188,8 +1179,7 @@
       "features": [
         "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
         "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
-        "milk-blur (blur cascade consumed only by unimplemented shaders)",
-        "gmegabuf (cross-context shared 1M-cell buffer not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)"
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
       ]
     },
     {

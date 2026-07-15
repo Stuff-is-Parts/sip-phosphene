@@ -1,10 +1,18 @@
 {
-  "measures": "END-TO-END MilkDrop fidelity: PHOSPHENE derives its own audio levels + frame globals + EEL evaluations + rendering from only the .milk source + PCM + committed seed. Compared per RGB channel against the oracle's screenshots.",
+  "measures": "END-TO-END MilkDrop fidelity: PHOSPHENE derives its own audio levels + frame globals + EEL evaluations + rendering from only the .milk source + PCM + committed seed. Two independent gates per executable preset — visual (SSIM per capture frame) and equation state (per-key relative error per frame). Overall status = both gates pass.",
   "path": "graph milk path (milkToGraph -> MilkPipeline dispatched per-node from graph.order); no oracle values injected.",
-  "commitSha": "e2809b7bd7559ff2bce981a68f2e486a2ab3f189",
-  "tolerance": {
-    "ssim": 0.8,
-    "metric": "min per-channel color SSIM"
+  "commitSha": "367d2a2144fefdbddf1664c7f1e9d55d845d1364",
+  "gates": {
+    "visual": {
+      "metric": "min per-channel color SSIM",
+      "tolerance": 0.8,
+      "rule": "every capture frame, every channel"
+    },
+    "equationState": {
+      "metric": "relative error per oracle key per frame",
+      "tolerance": 0.000001,
+      "rule": "every executable preset, every frame, every oracle key must be present, finite where oracle is finite, and within tolerance"
+    }
   },
   "captureFrames": [
     30,
@@ -14,25 +22,21 @@
   ],
   "counts": {
     "totalCorpusPresets": 100,
+    "fixtureConvertFailures": 3,
     "presetsTested": 97,
-    "executable": 13,
-    "validatedExecutable": 10,
-    "divergedExecutable": 6,
+    "refused": 81,
+    "loadFailed": 0,
+    "executable": 16,
+    "validatedExecutable": 0,
+    "divergedExecutable": 16,
+    "visualGatePassExecutable": 10,
+    "equationStateGatePassExecutable": 0,
     "unsupportedByFeature": {
       "milk-warp:warpShader": 80,
       "milk-composite:compShader": 79,
-      "milk-blur": 66,
-      "gmegabuf": 4
-    },
-    "fixtureConvertFailures": 3,
-    "loadFailed": 0
+      "milk-blur": 66
+    }
   },
-  "presetsTested": 97,
-  "validated": 10,
-  "diverged": 6,
-  "loadFailed": 0,
-  "unsupportedShaderPresets": 81,
-  "fixtureConvertFailures": 3,
   "results": [
     {
       "preset": "! Transition\\Fast transition to black - levels effect === Goody's Lightning (ps 2-0) --- Isosceles edit.milk",
@@ -82,6 +86,10 @@
     {
       "preset": "Dancer\\Glowsticks Mirror\\EoS - glowsticks v2 05 and proton lights (+Krash's beat code) _Phat_remix08.milk",
       "status": "diverged",
+      "gates": {
+        "visual": "FAIL",
+        "equationState": "FAIL"
+      },
       "frames": [
         {
           "frame": 30,
@@ -108,6 +116,72 @@
           "meanAbsError": 9.46
         }
       ],
+      "equationState": {
+        "comparedFrames": 302,
+        "comparedKeys": 39562,
+        "failsCount": 1812,
+        "missingKeys": [
+          "mdVSFrame.old_wave_mode",
+          "mdVSFrame.var",
+          "mdVSFrame.zm",
+          "mdVSFrame.rd",
+          "mdVSFrame.att",
+          "mdVSFrame.tm"
+        ],
+        "extraKeys": [],
+        "nonfiniteKeys": [],
+        "failSample": [
+          {
+            "frame": 0,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.var",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.zm",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.rd",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.att",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.tm",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 1,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 1,
+            "key": "mdVSFrame.var",
+            "reason": "missing",
+            "oracle": 0
+          }
+        ],
+        "tolerance": 0.000001
+      },
       "worstEquationDrift": {
         "key": "globals.fps",
         "frame": 250,
@@ -118,7 +192,11 @@
     },
     {
       "preset": "Dancer\\Glowsticks\\EoS - angleform 2_Phat_Decay_Edit_v2Throw_water music response 2way bumper.milk",
-      "status": "VALIDATED",
+      "status": "diverged",
+      "gates": {
+        "visual": "PASS",
+        "equationState": "FAIL"
+      },
       "frames": [
         {
           "frame": 30,
@@ -145,6 +223,73 @@
           "meanAbsError": 0
         }
       ],
+      "equationState": {
+        "comparedFrames": 302,
+        "comparedKeys": 37750,
+        "failsCount": 2114,
+        "missingKeys": [
+          "mdVSFrame.old_wave_mode",
+          "mdVSFrame.mo",
+          "mdVSFrame.decay_r",
+          "mdVSFrame.decay_b",
+          "mdVSFrame.att",
+          "mdVSFrame.tm",
+          "mdVSFrame.decay_g"
+        ],
+        "extraKeys": [],
+        "nonfiniteKeys": [],
+        "failSample": [
+          {
+            "frame": 0,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.mo",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.decay_r",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.decay_b",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.att",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.tm",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.decay_g",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 1,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          }
+        ],
+        "tolerance": 0.000001
+      },
       "worstEquationDrift": {
         "key": "globals.fps",
         "frame": 250,
@@ -341,6 +486,10 @@
     {
       "preset": "Fractal\\Lattice\\Geiss - Swirlie 5.milk",
       "status": "diverged",
+      "gates": {
+        "visual": "FAIL",
+        "equationState": "FAIL"
+      },
       "frames": [
         {
           "frame": 30,
@@ -367,12 +516,73 @@
           "meanAbsError": 33.67
         }
       ],
+      "equationState": {
+        "comparedFrames": 302,
+        "comparedKeys": 30502,
+        "failsCount": 302,
+        "missingKeys": [
+          "mdVSFrame.old_wave_mode"
+        ],
+        "extraKeys": [],
+        "nonfiniteKeys": [],
+        "failSample": [
+          {
+            "frame": 0,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 1,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 2,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 3,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 4,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 5,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 6,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 7,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          }
+        ],
+        "tolerance": 0.000001
+      },
       "worstEquationDrift": {
-        "key": "mdVSFrame.wave_g",
-        "frame": 300,
-        "err": 6.324e-15,
-        "ours": 0.6846866994495254,
-        "oracle": 0.6846866994495211
+        "key": "mdVSFrame.ib_g",
+        "frame": 286,
+        "err": 6.639e-15,
+        "ours": 0.2926388195694912,
+        "oracle": 0.29263881956949317
       }
     },
     {
@@ -384,7 +594,11 @@
     },
     {
       "preset": "Fractal\\Nested Circle\\EoS - Apocalypse D_ImFuckedUP_2.milk",
-      "status": "VALIDATED",
+      "status": "diverged",
+      "gates": {
+        "visual": "PASS",
+        "equationState": "FAIL"
+      },
       "frames": [
         {
           "frame": 30,
@@ -411,6 +625,77 @@
           "meanAbsError": 2.45
         }
       ],
+      "equationState": {
+        "comparedFrames": 302,
+        "comparedKeys": 39260,
+        "failsCount": 3322,
+        "missingKeys": [
+          "mdVSFrame.old_wave_mode",
+          "mdVSFrame.wpy2sgn",
+          "mdVSFrame.ring",
+          "mdVSFrame.zmb",
+          "mdVSFrame.wpx",
+          "mdVSFrame.wpx2sgn",
+          "mdVSFrame.tm",
+          "mdVSFrame.zma",
+          "mdVSFrame.wpy2",
+          "mdVSFrame.wpx2",
+          "mdVSFrame.wpy"
+        ],
+        "extraKeys": [],
+        "nonfiniteKeys": [],
+        "failSample": [
+          {
+            "frame": 0,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.wpy2sgn",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.ring",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.zmb",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.wpx",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.wpx2sgn",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.tm",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.zma",
+            "reason": "missing",
+            "oracle": 0
+          }
+        ],
+        "tolerance": 0.000001
+      },
       "worstEquationDrift": {
         "key": "globals.fps",
         "frame": 250,
@@ -422,6 +707,10 @@
     {
       "preset": "Fractal\\Nested Circle\\PieturP - sides_betterSeries2_absurd.milk",
       "status": "diverged",
+      "gates": {
+        "visual": "FAIL",
+        "equationState": "FAIL"
+      },
       "frames": [
         {
           "frame": 30,
@@ -448,6 +737,67 @@
           "meanAbsError": 12.99
         }
       ],
+      "equationState": {
+        "comparedFrames": 302,
+        "comparedKeys": 32012,
+        "failsCount": 302,
+        "missingKeys": [
+          "mdVSFrame.old_wave_mode"
+        ],
+        "extraKeys": [],
+        "nonfiniteKeys": [],
+        "failSample": [
+          {
+            "frame": 0,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 1,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 2,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 3,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 4,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 5,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 6,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 7,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          }
+        ],
+        "tolerance": 0.000001
+      },
       "worstEquationDrift": {
         "key": "globals.fps",
         "frame": 250,
@@ -458,7 +808,11 @@
     },
     {
       "preset": "Fractal\\Nested Dancer\\EoS - random 06B.milk",
-      "status": "VALIDATED",
+      "status": "diverged",
+      "gates": {
+        "visual": "PASS",
+        "equationState": "FAIL"
+      },
       "frames": [
         {
           "frame": 30,
@@ -485,6 +839,69 @@
           "meanAbsError": 28.89
         }
       ],
+      "equationState": {
+        "comparedFrames": 302,
+        "comparedKeys": 34126,
+        "failsCount": 906,
+        "missingKeys": [
+          "mdVSFrame.old_wave_mode",
+          "mdVSFrame.intensity",
+          "mdVSFrame.delay"
+        ],
+        "extraKeys": [],
+        "nonfiniteKeys": [],
+        "failSample": [
+          {
+            "frame": 0,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.intensity",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.delay",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 1,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 1,
+            "key": "mdVSFrame.intensity",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 1,
+            "key": "mdVSFrame.delay",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 2,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 2,
+            "key": "mdVSFrame.intensity",
+            "reason": "missing",
+            "oracle": 0
+          }
+        ],
+        "tolerance": 0.000001
+      },
       "worstEquationDrift": {
         "key": "globals.fps",
         "frame": 250,
@@ -504,7 +921,11 @@
     },
     {
       "preset": "Fractal\\Nested Spiral\\Phat_Aderrasi - Chromatic Abyss (the other side)_Dope.milk",
-      "status": "VALIDATED",
+      "status": "diverged",
+      "gates": {
+        "visual": "PASS",
+        "equationState": "FAIL"
+      },
       "frames": [
         {
           "frame": 30,
@@ -531,12 +952,74 @@
           "meanAbsError": 1.48
         }
       ],
+      "equationState": {
+        "comparedFrames": 302,
+        "comparedKeys": 30804,
+        "failsCount": 604,
+        "missingKeys": [
+          "mdVSFrame.old_wave_mode",
+          "mdVSFrame.tmm"
+        ],
+        "extraKeys": [],
+        "nonfiniteKeys": [],
+        "failSample": [
+          {
+            "frame": 0,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.tmm",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 1,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 1,
+            "key": "mdVSFrame.tmm",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 2,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 2,
+            "key": "mdVSFrame.tmm",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 3,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 3,
+            "key": "mdVSFrame.tmm",
+            "reason": "missing",
+            "oracle": 0
+          }
+        ],
+        "tolerance": 0.000001
+      },
       "worstEquationDrift": {
-        "key": "mdVSFrame.gamma",
-        "frame": 300,
-        "err": 5.605e-15,
-        "ours": 1.307294448645403,
-        "oracle": 1.3072944486453957
+        "key": "mdVSFrame.wave_g",
+        "frame": 54,
+        "err": 8.395e-14,
+        "ours": -0.0026448638964886584,
+        "oracle": -0.0026448638964884363
       }
     },
     {
@@ -550,7 +1033,11 @@
     },
     {
       "preset": "Fractal\\Nested Square\\ORB - Windmill and Water.milk",
-      "status": "VALIDATED",
+      "status": "diverged",
+      "gates": {
+        "visual": "PASS",
+        "equationState": "FAIL"
+      },
       "frames": [
         {
           "frame": 30,
@@ -577,6 +1064,67 @@
           "meanAbsError": 1.14
         }
       ],
+      "equationState": {
+        "comparedFrames": 302,
+        "comparedKeys": 35334,
+        "failsCount": 302,
+        "missingKeys": [
+          "mdVSFrame.old_wave_mode"
+        ],
+        "extraKeys": [],
+        "nonfiniteKeys": [],
+        "failSample": [
+          {
+            "frame": 0,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 1,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 2,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 3,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 4,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 5,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 6,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 7,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          }
+        ],
+        "tolerance": 0.000001
+      },
       "worstEquationDrift": {
         "key": "globals.fps",
         "frame": 250,
@@ -600,8 +1148,7 @@
       "features": [
         "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
         "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
-        "milk-blur (blur cascade consumed only by unimplemented shaders)",
-        "gmegabuf (cross-context shared 1M-cell buffer not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)"
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
       ]
     },
     {
@@ -619,8 +1166,7 @@
       "features": [
         "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
         "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
-        "milk-blur (blur cascade consumed only by unimplemented shaders)",
-        "gmegabuf (cross-context shared 1M-cell buffer not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)"
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
       ]
     },
     {
@@ -669,7 +1215,11 @@
     },
     {
       "preset": "Geometric\\Wire Morph\\shifter - lazerspecs.milk",
-      "status": "VALIDATED",
+      "status": "diverged",
+      "gates": {
+        "visual": "PASS",
+        "equationState": "FAIL"
+      },
       "frames": [
         {
           "frame": 30,
@@ -696,17 +1246,82 @@
           "meanAbsError": 0.02
         }
       ],
+      "equationState": {
+        "comparedFrames": 302,
+        "comparedKeys": 33522,
+        "failsCount": 302,
+        "missingKeys": [
+          "mdVSFrame.old_wave_mode"
+        ],
+        "extraKeys": [],
+        "nonfiniteKeys": [],
+        "failSample": [
+          {
+            "frame": 0,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 1,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 2,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 3,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 4,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 5,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 6,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 7,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          }
+        ],
+        "tolerance": 0.000001
+      },
       "worstEquationDrift": {
-        "key": "globals.fps",
-        "frame": 250,
-        "err": 3.758e-15,
-        "ours": 30.252103634683735,
-        "oracle": 30.25210363468362
+        "key": "mdVSFrame.tic",
+        "frame": 256,
+        "err": 5.374e-14,
+        "ours": 0.03305555343141009,
+        "oracle": 0.033055553431411866
       }
     },
     {
       "preset": "Geometric\\Wire Spiral\\Zylot - Spiral (Hypnotic)_Phat_Fourish_Spiral_Mix_Beta6 EoS warp edit 3.milk",
       "status": "diverged",
+      "gates": {
+        "visual": "FAIL",
+        "equationState": "FAIL"
+      },
       "frames": [
         {
           "frame": 30,
@@ -733,17 +1348,89 @@
           "meanAbsError": 20.21
         }
       ],
+      "equationState": {
+        "comparedFrames": 302,
+        "comparedKeys": 33824,
+        "failsCount": 2416,
+        "missingKeys": [
+          "mdVSFrame.old_wave_mode",
+          "mdVSFrame.distancetob",
+          "mdVSFrame.dtoa",
+          "mdVSFrame.spot",
+          "mdVSFrame.pxb",
+          "mdVSFrame.pxa",
+          "mdVSFrame.pyb",
+          "mdVSFrame.pya"
+        ],
+        "extraKeys": [],
+        "nonfiniteKeys": [],
+        "failSample": [
+          {
+            "frame": 0,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.distancetob",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.dtoa",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.spot",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.pxb",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.pxa",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.pyb",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 0,
+            "key": "mdVSFrame.pya",
+            "reason": "missing",
+            "oracle": 0
+          }
+        ],
+        "tolerance": 0.000001
+      },
       "worstEquationDrift": {
         "key": "mdVSFrame.q1",
-        "frame": 300,
-        "err": 5.002e-15,
-        "ours": 0.5770822205418389,
-        "oracle": 0.5770822205418418
+        "frame": 287,
+        "err": 5.853e-15,
+        "ours": 0.4931875344804797,
+        "oracle": 0.4931875344804826
       }
     },
     {
       "preset": "Geometric\\Wire Trace\\EoS + Phat - CAT Scan (Nirvana).milk",
-      "status": "VALIDATED",
+      "status": "diverged",
+      "gates": {
+        "visual": "PASS",
+        "equationState": "FAIL"
+      },
       "frames": [
         {
           "frame": 30,
@@ -770,6 +1457,67 @@
           "meanAbsError": 1.71
         }
       ],
+      "equationState": {
+        "comparedFrames": 302,
+        "comparedKeys": 33220,
+        "failsCount": 302,
+        "missingKeys": [
+          "mdVSFrame.old_wave_mode"
+        ],
+        "extraKeys": [],
+        "nonfiniteKeys": [],
+        "failSample": [
+          {
+            "frame": 0,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 1,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 2,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 3,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 4,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 5,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 6,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 7,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          }
+        ],
+        "tolerance": 0.000001
+      },
       "worstEquationDrift": {
         "key": "globals.fps",
         "frame": 250,
@@ -824,7 +1572,11 @@
     },
     {
       "preset": "Particles\\Points\\EoS - pointfield 09 the gases beyond 85b 3d_v2.milk",
-      "status": "VALIDATED",
+      "status": "diverged",
+      "gates": {
+        "visual": "PASS",
+        "equationState": "FAIL"
+      },
       "frames": [
         {
           "frame": 30,
@@ -851,6 +1603,67 @@
           "meanAbsError": 0.06
         }
       ],
+      "equationState": {
+        "comparedFrames": 302,
+        "comparedKeys": 33824,
+        "failsCount": 302,
+        "missingKeys": [
+          "mdVSFrame.old_wave_mode"
+        ],
+        "extraKeys": [],
+        "nonfiniteKeys": [],
+        "failSample": [
+          {
+            "frame": 0,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 1,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 2,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 3,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 4,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 5,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 6,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 7,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          }
+        ],
+        "tolerance": 0.000001
+      },
       "worstEquationDrift": {
         "key": "globals.fps",
         "frame": 250,
@@ -865,8 +1678,7 @@
       "features": [
         "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
         "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
-        "milk-blur (blur cascade consumed only by unimplemented shaders)",
-        "gmegabuf (cross-context shared 1M-cell buffer not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)"
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
       ]
     },
     {
@@ -925,6 +1737,10 @@
     {
       "preset": "Reaction\\Liquid Gradient\\Bmelgren - Acid Iris.milk",
       "status": "diverged",
+      "gates": {
+        "visual": "FAIL",
+        "equationState": "FAIL"
+      },
       "frames": [
         {
           "frame": 30,
@@ -951,6 +1767,67 @@
           "meanAbsError": 68.07
         }
       ],
+      "equationState": {
+        "comparedFrames": 302,
+        "comparedKeys": 30502,
+        "failsCount": 302,
+        "missingKeys": [
+          "mdVSFrame.old_wave_mode"
+        ],
+        "extraKeys": [],
+        "nonfiniteKeys": [],
+        "failSample": [
+          {
+            "frame": 0,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 1,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 2,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 3,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 4,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 5,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 6,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 7,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          }
+        ],
+        "tolerance": 0.000001
+      },
       "worstEquationDrift": {
         "key": "globals.fps",
         "frame": 250,
@@ -1136,7 +2013,11 @@
     },
     {
       "preset": "Supernova\\Radiate\\$$$ Royal - Mashup (20).milk",
-      "status": "VALIDATED",
+      "status": "diverged",
+      "gates": {
+        "visual": "PASS",
+        "equationState": "FAIL"
+      },
       "frames": [
         {
           "frame": 30,
@@ -1163,17 +2044,82 @@
           "meanAbsError": 1.98
         }
       ],
+      "equationState": {
+        "comparedFrames": 302,
+        "comparedKeys": 30200,
+        "failsCount": 302,
+        "missingKeys": [
+          "mdVSFrame.old_wave_mode"
+        ],
+        "extraKeys": [],
+        "nonfiniteKeys": [],
+        "failSample": [
+          {
+            "frame": 0,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 1,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 2,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 3,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 4,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 5,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 6,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 7,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          }
+        ],
+        "tolerance": 0.000001
+      },
       "worstEquationDrift": {
         "key": "mdVSFrame.wave_b",
-        "frame": 90,
-        "err": 2.972e-14,
-        "ours": 0.00747028112878062,
-        "oracle": 0.007470281128780398
+        "frame": 251,
+        "err": 6.092e-12,
+        "ours": 0.000009112769173202917,
+        "oracle": 0.000009112769173258428
       }
     },
     {
       "preset": "Supernova\\Radiate\\amandio c - dark side of the sun 2.milk",
-      "status": "VALIDATED",
+      "status": "diverged",
+      "gates": {
+        "visual": "PASS",
+        "equationState": "FAIL"
+      },
       "frames": [
         {
           "frame": 30,
@@ -1200,6 +2146,67 @@
           "meanAbsError": 0
         }
       ],
+      "equationState": {
+        "comparedFrames": 302,
+        "comparedKeys": 30804,
+        "failsCount": 302,
+        "missingKeys": [
+          "mdVSFrame.old_wave_mode"
+        ],
+        "extraKeys": [],
+        "nonfiniteKeys": [],
+        "failSample": [
+          {
+            "frame": 0,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 1,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 2,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 3,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 4,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 5,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 6,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 7,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          }
+        ],
+        "tolerance": 0.000001
+      },
       "worstEquationDrift": {
         "key": "globals.fps",
         "frame": 250,
@@ -1292,8 +2299,7 @@
       "features": [
         "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
         "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
-        "milk-blur (blur cascade consumed only by unimplemented shaders)",
-        "gmegabuf (cross-context shared 1M-cell buffer not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)"
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
       ]
     },
     {
@@ -1307,6 +2313,10 @@
     {
       "preset": "Waveform\\Wire Tangle\\Rovastar - Hyperspace.milk",
       "status": "diverged",
+      "gates": {
+        "visual": "FAIL",
+        "equationState": "FAIL"
+      },
       "frames": [
         {
           "frame": 30,
@@ -1333,6 +2343,67 @@
           "meanAbsError": 140.03
         }
       ],
+      "equationState": {
+        "comparedFrames": 302,
+        "comparedKeys": 30502,
+        "failsCount": 302,
+        "missingKeys": [
+          "mdVSFrame.old_wave_mode"
+        ],
+        "extraKeys": [],
+        "nonfiniteKeys": [],
+        "failSample": [
+          {
+            "frame": 0,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 1,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 2,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 3,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 4,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 5,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 6,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          },
+          {
+            "frame": 7,
+            "key": "mdVSFrame.old_wave_mode",
+            "reason": "missing",
+            "oracle": 0
+          }
+        ],
+        "tolerance": 0.000001
+      },
       "worstEquationDrift": {
         "key": "mdVSFrame.wave_r",
         "frame": 300,
