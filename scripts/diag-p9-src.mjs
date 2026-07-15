@@ -1,5 +1,6 @@
 // Dump the *bound* GLSL source the parser sees, around a given line.
 import { readFileSync } from "node:fs";
+import { TextDecoder } from "node:util";
 import { unzipSync } from "fflate";
 import { XMLParser } from "fast-xml-parser";
 
