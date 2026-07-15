@@ -20,6 +20,7 @@ import { createRequire } from "node:module";
 import { CAPTURE_FRAMES, TOTAL_FRAMES, FPS } from "./lib/ref-audio.mjs";
 import { MilkAudioModel } from "./lib/milk-audio-model.mjs";
 import { ssimColor, meanAbsError } from "./lib/ssim.mjs";
+import { eelProofTier } from "./lib/eel-compare.mjs";
 
 const out = process.argv[2] ?? "docs/fidelity-milk.json";
 // Tolerance committed at harness creation (SSIM >= 0.80 per capture frame);
@@ -32,13 +33,15 @@ const SSIM_TOLERANCE = 0.80;
 console.log("building current source...");
 execSync("npm run build", { stdio: "inherit" });
 
-// Correspondence proof inputs: butterchurn's converted preset JSON carries
-// the ORIGINAL equation text (frame_eqs_str); a fixture pair is only
-// validated when the corpus file's per_frame text matches it after
-// whitespace/case normalization — proving same-source, not just same name.
+// Correspondence proof: butterchurn's converted preset JSON carries the
+// converter's JavaScript form of the ORIGINAL equations (frame_eqs_str).
+// A pair validates only when the corpus file's per_frame text proves
+// same-source under the tiered comparator (scripts/lib/eel-compare.mjs):
+// tier 1 = per-statement equality under conversion-aware normalization,
+// tier 2 = whole-body token-multiset equality (framing-independent).
+// Name matching alone is never accepted.
 const require2 = createRequire(import.meta.url);
 const butterchurnPresets = require2("butterchurn-presets/lib/butterchurnPresets.min.js").getPresets();
-const normEq = (s) => String(s ?? "").toLowerCase().replace(/\/\/[^\n]*/g, "").replace(/[\s`;]+/g, "");
 const corpusPerFrame = (text) => {
   const lines = [];
   for (const raw of text.split(/\r?\n/)) {
@@ -107,7 +110,8 @@ try {
     // Same-source proof: corpus per_frame text must equal the butterchurn
     // fixture's original equation text after normalization.
     const bcPreset = butterchurnPresets[pair.preset];
-    const proof = normEq(corpusPerFrame(text)) === normEq(bcPreset?.frame_eqs_str);
+    const proofTier = eelProofTier(corpusPerFrame(text), bcPreset?.frame_eqs_str);
+    const proof = proofTier > 0;
     if (!proof) {
       unproven++;
       results.push({ preset: pair.preset, status: "correspondence-unproven",

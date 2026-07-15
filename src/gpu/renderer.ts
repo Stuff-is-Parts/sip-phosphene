@@ -72,6 +72,9 @@ class Slot {
 
 export class Renderer {
   private device!: GPUDevice;
+  /** Device access for sibling GPU subsystems (milk pipeline) that own
+   *  their targets/pipelines but share the device and presentation. */
+  get gpuDevice(): GPUDevice { return this.device; }
   private ctx!: GPUCanvasContext;
   private canvasFormat!: GPUTextureFormat;
   private sampler!: GPUSampler;
