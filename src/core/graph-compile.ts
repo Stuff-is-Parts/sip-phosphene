@@ -1,13 +1,19 @@
 /**
- * Lossless lowering of the native PHOSPHENE scene format (three-layer
- * shorthand + capability blocks) into the unified render graph
- * (COMPATIBILITY-GOAL.md Architecture: existing authoring structures are
- * shorthand over the execution model).
+ * Lossless lowering of the native PHOSPHENE scene format into the unified
+ * render graph (COMPATIBILITY-GOAL.md Architecture: the three-layer format
+ * is authoring shorthand over the execution model).
  *
- * The mapping is TOTAL over the scene format: every field of `Scene`
- * either lowers into graph structure here or raises
- * GraphCompileError — no field is silently dropped, so the compiler
- * cannot misrepresent a scene as simpler than it is.
+ * Behavioral completeness contract: every `Scene` field lowers into graph
+ * structure that the graph executor can run with the SAME behavior as the
+ * legacy renderer — base params and custom values verbatim, every
+ * modulation route verbatim (target, source, gain, base, init, namespace,
+ * readVar — NO source conversion), particles, bloom, text/image assets,
+ * warp-mesh in its true position (CPU offsets consumed by the post
+ * stage), passes with per-pass feedback, mesh, blending, presentation.
+ * Unknown fields raise GraphCompileError so format growth cannot bypass
+ * the graph silently (Complete Representation, sip-code-guidelines §1A).
+ * Equivalence is proven by scripts/equivalence-native.mjs, which renders
+ * shipped scenes through both paths under identical inputs.
  */
 
 import type { Scene } from "./types";
@@ -17,9 +23,6 @@ import {
 
 export class GraphCompileError extends Error {}
 
-/** Scene fields this compiler consumes. Compilation fails on any field
- *  outside this contract, so format growth cannot silently bypass the
- *  graph (Complete Representation, sip-code-guidelines §1A). */
 const CONSUMED_FIELDS = new Set([
   "version", "name", "layers", "params", "custom", "mods", "thumb",
   "assets", "credit", "license", "passes", "mesh", "particles", "text",
@@ -38,9 +41,52 @@ export function compileSceneToGraph(scene: Scene): GraphScene {
   const order: string[] = [];
   const data: DataEdge[] = [];
 
-  // Canvas target carries feedback (post's prevTex reads its own last frame).
+  // Assets first (bindable resources).
+  if (scene.assets?.image) {
+    nodes.push({
+      kind: "texture", id: "sceneImage",
+      source: { kind: "image", slot: "scene-image" },
+      origin: { format: "phosphene", type: "asset:image" },
+    });
+  }
+  if (scene.text) {
+    nodes.push({
+      kind: "texture", id: "sceneText",
+      source: { kind: "text", value: scene.text.value, ...(scene.text.size !== undefined ? { size: scene.text.size } : {}) },
+      origin: { format: "phosphene", type: "capability:text" },
+    });
+  }
+
+  // Modulation routes: verbatim, ordered before all draws (they compute
+  // this frame's parameter values). No source conversion of any kind.
+  (scene.mods ?? []).forEach((m, i) => {
+    const id = `mod${i}`;
+    nodes.push({
+      kind: "mod-route", id,
+      route: {
+        target: m.target, source: m.source, gain: m.gain, base: m.base,
+        ...(m.expr !== undefined ? { expr: m.expr } : {}),
+        ...(m.readVar !== undefined ? { readVar: m.readVar } : {}),
+        ...(m.init !== undefined ? { init: m.init } : {}),
+        ...(m.ns !== undefined ? { ns: m.ns } : {}),
+      },
+      origin: { format: "phosphene", type: `mod:${m.source}` },
+    });
+    order.push(id);
+  });
+
+  // Warp-mesh offsets: CPU program evaluated per frame; its output is
+  // sampled by the POST stage via meshOff(uv) — ordered before post.
+  if (scene.warpMesh) {
+    nodes.push({
+      kind: "warp-mesh", id: "warpMesh", program: scene.warpMesh,
+      origin: { format: "phosphene", type: "capability:warpMesh" },
+    });
+    order.push("warpMesh");
+  }
+
+  // Canvas: bg -> mesh -> fg compose here; post reads it with feedback.
   nodes.push({ kind: "target", id: "tCanvas", feedback: true });
-  // Stage layers lower to fullscreen draws in fixed order.
   nodes.push({ kind: "clear", id: "clear0", target: "tCanvas" });
   order.push("clear0");
   nodes.push({
@@ -66,17 +112,14 @@ export function compileSceneToGraph(scene: Scene): GraphScene {
   });
   order.push("fg");
   if (scene.particles) {
-    // Particle systems are CPU-updated billboards; the graph carries the
-    // program so execution can host it, same contract as the renderer.
     nodes.push({
-      kind: "unsupported", id: "particles",
-      feature: "phosphene:particles-in-graph",
-      reason: "particle execution stays on the legacy path until the graph executor hosts the CPU update loop; scenes with particles run through the existing renderer",
+      kind: "particles", id: "particles", target: "tCanvas",
+      count: scene.particles.count, program: scene.particles.code,
       origin: { format: "phosphene", type: "capability:particles" },
     });
     order.push("particles");
   }
-  // POST reads the canvas + its own feedback into a second target.
+
   nodes.push({ kind: "target", id: "tPost", feedback: true });
   nodes.push({
     kind: "draw-fullscreen", id: "post", target: "tPost", blend: "none",
@@ -86,7 +129,6 @@ export function compileSceneToGraph(scene: Scene): GraphScene {
   });
   order.push("post");
 
-  // Extra passes chain in order; each has its own feedback target.
   let chain = "tPost";
   for (const pass of scene.passes ?? []) {
     const t = `tPass_${pass.id}`;
@@ -103,63 +145,22 @@ export function compileSceneToGraph(scene: Scene): GraphScene {
 
   if (scene.bloom !== undefined && scene.bloom > 0) {
     nodes.push({
-      kind: "unsupported", id: "bloom",
-      feature: "phosphene:bloom-in-graph",
-      reason: "bloom's bright/blur/composite chain lowers once blur-pyramid targets land in the executor; bloom scenes run through the existing renderer",
+      kind: "bloom", id: "bloom", strength: scene.bloom, target: chain,
       origin: { format: "phosphene", type: "capability:bloom" },
     });
     order.push("bloom");
-  }
-  if (scene.warpMesh) {
-    nodes.push({
-      kind: "milk-warp", id: "warpMesh",
-      perPixel: scene.warpMesh, perPixelInit: "",
-      gridX: 64, gridY: 48,
-      source: "tCanvas", target: "tCanvas",
-      origin: { format: "phosphene", type: "capability:warpMesh" },
-    });
-    order.push("warpMesh");
   }
 
   nodes.push({ kind: "present", id: "screen", source: chain });
   order.push("screen");
 
-  // Mod routes lower to cpu-expr / audio nodes with data edges targeting
-  // named shader params. Non-expr sources map to audio nodes.
-  let modIdx = 0;
-  for (const m of scene.mods ?? []) {
-    const id = `mod${modIdx++}`;
-    if (m.source === "expr" && m.expr) {
-      nodes.push({
-        kind: "cpu-expr", id, dialect: "eel", program: m.expr,
-        outputs: [m.readVar ?? m.target],
-        params: m.init ? { __hasInit: 1 } : {},
-        origin: { format: "phosphene", type: "mod:expr" },
-      });
-    } else {
-      nodes.push({
-        kind: "audio", id,
-        feature: (["bass", "mid", "treble", "beat", "energy"].includes(m.source)
-          ? m.source : "energy") as never,
-        origin: { format: "phosphene", type: `mod:${m.source}` },
-      });
-    }
-    order.push(id);
-    data.push({ from: { node: id, port: m.readVar ?? "out" }, to: { node: "post", port: m.target } });
-  }
-
-  if (scene.assets?.image || scene.text) {
-    nodes.push({
-      kind: "texture", id: "sceneImage",
-      source: { kind: "image", slot: "scene-image" },
-      origin: { format: "phosphene", type: scene.text ? "capability:text" : "asset:image" },
-    });
-  }
-
   const g: GraphScene = {
     version: "graph-1",
     name: scene.name,
     nodes, data, order,
+    params: { ...scene.params },
+    custom: { ...scene.custom },
+    imageAsset: scene.assets?.image ?? null,
     credit: scene.credit,
     license: scene.license,
   };

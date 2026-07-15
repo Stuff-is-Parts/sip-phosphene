@@ -105,13 +105,21 @@ const MESH_PRIMS: Record<string, MeshPrimitive["kind"]> = {
   Cone: "cone", Cylinder: "cylinder", Disc: "disc",
 };
 
-/** CPU dataflow node types lowered to cpu-expr/audio graph nodes.
- *  Expression = expreval (identified in plane9.txt credits); audio nodes
- *  are engine features. The executor refuses per-type semantics it cannot
- *  run — the import never invents values. */
-const CPU_TYPES = new Set([
-  "Expression", "Vector", "MinMax", "Beat", "Spectrum", "Waveform",
-  "HSLAToColor", "HSVAToColor", "RGBAToColor", "Rotator", "SignalGenerator", "Sin",
+/** CPU node types with EVIDENCED semantics get typed lowerings; every
+ *  other CPU type becomes an explicit unsupported node (no generic-
+ *  expression translation — COMPATIBILITY-GOAL.md Hard Rules):
+ *  - Expression -> cpu-expr/expreval (evaluator identified in plane9.txt
+ *    credits: expreval.sourceforge.net);
+ *  - Vector -> p9-vector (wiki/nodes: "Combines a x, y and z component
+ *    to a 3d vector");
+ *  - HSLAToColor / HSVAToColor / RGBAToColor -> p9-color (standard
+ *    color-space conversions; names + ports in the census);
+ *  - Beat / Spectrum / Waveform -> audio features.
+ *  MinMax, Rotator, SignalGenerator, Sin, and all other CPU types have
+ *  UNEVIDENCED exact behavior and import as unsupported. */
+const CPU_EVIDENCED = new Set([
+  "Expression", "Vector", "Beat", "Spectrum", "Waveform",
+  "HSLAToColor", "HSVAToColor", "RGBAToColor",
 ]);
 
 /** Texture-producing node types (flow into Shader.TextureN / processors). */
@@ -121,19 +129,33 @@ const TEXTURE_SOURCE_TYPES = new Set([
   "RandomTexture", "ExpressionTexture", "TuringPattern",
 ]);
 
+/** Per-source-node disposition: how the importer accounted for it.
+ *  Every source node MUST appear here — structural completeness is
+ *  auditable as "no source node lacks a disposition". */
+export type P9Disposition =
+  | { p9Type: string; p9Id: string; disposition: "lowered"; graphKind: string }
+  | { p9Type: string; p9Id: string; disposition: "consumed-by"; by: string }
+  | { p9Type: string; p9Id: string; disposition: "unsupported"; feature: string };
+
 export interface P9GraphImport {
   graph: GraphScene;
-  mapping: { p9Type: string; p9Id: string; graphKind: string }[];
+  dispositions: P9Disposition[];
+  /** True only when every node lowered or consumed (none unsupported) and
+   *  every connection was carried structurally or as a data edge. */
+  structurallyComplete: boolean;
 }
 
 export function p9ToGraph(src: P9SceneXml): P9GraphImport {
   const nodes: GraphNode[] = [];
   const data: DataEdge[] = [];
-  const mapping: P9GraphImport["mapping"] = [];
+  const dispositions: P9Disposition[] = [];
   const emit = (node: GraphNode, p9: P9Node) => {
     nodes.push(node);
-    mapping.push({ p9Type: p9.type, p9Id: p9.id, graphKind: node.kind });
+    dispositions.push(node.kind === "unsupported"
+      ? { p9Type: p9.type, p9Id: p9.id, disposition: "unsupported", feature: (node as { feature: string }).feature }
+      : { p9Type: p9.type, p9Id: p9.id, disposition: "lowered", graphKind: node.kind });
   };
+  const consumed = new Map<string, string>(); // source node id -> consuming draw id
 
   // Connection indexes.
   const inTo = new Map<string, P9Connection[]>();   // toNode -> conns
@@ -250,9 +272,6 @@ export function p9ToGraph(src: P9SceneXml): P9GraphImport {
   };
 
   /* ---- per-node mapping ---- */
-  const consumed = new Set<string>(); // node ids consumed structurally
-  for (const chain of renderChains) for (const id of chain) consumed.add(id);
-
   for (const n of src.nodes.values()) {
     if (texRefs.has(n.id)) continue;          // pass 1
     if (n.type === "Screen") continue;        // emitted with chains
@@ -279,6 +298,7 @@ export function p9ToGraph(src: P9SceneXml): P9GraphImport {
             "texture chain contains processors without verified implementations"), n);
           break;
         }
+        consumed.set(shaderNode.id, n.id);
         emit({
           kind: "draw-fullscreen", id: n.id,
           target: renderTargetOf.get(n.id) ?? "screenTarget",
@@ -318,6 +338,14 @@ export function p9ToGraph(src: P9SceneXml): P9GraphImport {
             "texture chain contains processors without verified implementations"), n);
           break;
         }
+        consumed.set(shaderNode.id, n.id);
+        consumed.set(meshObject.id, n.id);
+        // primitive + clean chain: mark the primitive consumed too
+        let mc = inPort(meshObject.id, "Mesh");
+        while (mc) {
+          consumed.set(mc.fromNode, n.id);
+          mc = inPort(mc.fromNode, "Mesh");
+        }
         emit({
           kind: "draw-mesh", id: n.id,
           target: renderTargetOf.get(n.id) ?? "screenTarget",
@@ -328,24 +356,32 @@ export function p9ToGraph(src: P9SceneXml): P9GraphImport {
         break;
       }
       case "Shader": case "MeshObject": case "BasicEffect":
-        break; // consumed by draw mapping
+        break; // dispositioned in the final accounting pass
       default: {
         if (MESH_PRIMS[n.type] || ["TransformMesh", "TransformEx", "Transform", "Bevel",
           "CloneMesh", "CloneMeshExpression", "MeshInstancer", "CloneExpression", "Clone",
           "DelayedTransform"].includes(n.type)) {
-          break; // consumed (or reported) via mesh/object chain resolution
+          break; // dispositioned in the final accounting pass
         }
-        if (CPU_TYPES.has(n.type)) {
+        if (CPU_EVIDENCED.has(n.type)) {
           if (n.type === "Beat" || n.type === "Spectrum" || n.type === "Waveform") {
             emit({
               kind: "audio", id: n.id,
               feature: n.type === "Beat" ? "beat" : n.type === "Spectrum" ? "spectrum-bin" : "waveform-bin",
               origin: og(n),
             }, n);
-          } else {
+          } else if (n.type === "Vector") {
+            emit({ kind: "p9-vector", id: n.id, params: portParams(n), origin: og(n) }, n);
+          } else if (n.type === "HSLAToColor" || n.type === "HSVAToColor" || n.type === "RGBAToColor") {
+            emit({
+              kind: "p9-color", id: n.id,
+              space: n.type === "HSLAToColor" ? "hsla" : n.type === "HSVAToColor" ? "hsva" : "rgba",
+              params: portParams(n), origin: og(n),
+            }, n);
+          } else { // Expression
             emit({
               kind: "cpu-expr", id: n.id, dialect: "expreval",
-              program: String(n.ports.get("Expression")?.value ?? n.ports.get("Value")?.value ?? ""),
+              program: String(n.ports.get("Expression")?.value ?? ""),
               outputs: (outOf.get(n.id) ?? []).map((c) => c.fromPort),
               params: portParams(n), origin: og(n),
             }, n);
@@ -358,6 +394,25 @@ export function p9ToGraph(src: P9SceneXml): P9GraphImport {
     }
   }
 
+  /* ---- final accounting: every source node MUST have a disposition ---- */
+  const dispositioned = new Set(dispositions.map((d) => d.p9Id));
+  for (const n of src.nodes.values()) {
+    if (dispositioned.has(n.id)) continue;
+    const by = consumed.get(n.id);
+    if (by) {
+      dispositions.push({ p9Type: n.type, p9Id: n.id, disposition: "consumed-by", by });
+    } else {
+      // Structurally present but not lowered and not consumed by a
+      // successful draw (e.g. a modifier in a chain that blocked its draw,
+      // or a Shader whose render node was unsupported): explicit.
+      dispositions.push({
+        p9Type: n.type, p9Id: n.id, disposition: "unsupported",
+        feature: `Plane9:${n.type}(orphaned-by-unsupported-consumer)`,
+      });
+    }
+    dispositioned.add(n.id);
+  }
+
   /* ---- CPU data edges ---- */
   const graphIds = new Set(nodes.map((x) => x.id));
   const STRUCTURAL_PORTS = /^(Render|Effect|Mesh|Object|Texture\d?|Color)$/;
@@ -368,9 +423,33 @@ export function p9ToGraph(src: P9SceneXml): P9GraphImport {
     }
   }
 
-  /* ---- order: offscreen chains first, then screen chain, CPU first ---- */
+  /* ---- order: CPU nodes topologically over data edges, then offscreen
+   *      chains, then the screen chain ---- */
   const order: string[] = [];
-  for (const nn of nodes) if (nn.kind === "cpu-expr" || nn.kind === "audio") order.push(nn.id);
+  const cpuKinds = new Set(["cpu-expr", "audio", "p9-vector", "p9-color"]);
+  const cpuIds = nodes.filter((nn) => cpuKinds.has(nn.kind)).map((nn) => nn.id);
+  const cpuSet = new Set(cpuIds);
+  const indeg = new Map(cpuIds.map((id) => [id, 0]));
+  const succ = new Map<string, string[]>();
+  for (const e of src.connections) {
+    if (cpuSet.has(e.fromNode) && cpuSet.has(e.toNode)) {
+      indeg.set(e.toNode, (indeg.get(e.toNode) ?? 0) + 1);
+      (succ.get(e.fromNode) ?? succ.set(e.fromNode, []).get(e.fromNode)!).push(e.toNode);
+    }
+  }
+  const queue = cpuIds.filter((id) => (indeg.get(id) ?? 0) === 0);
+  const topo: string[] = [];
+  while (queue.length) {
+    const id = queue.shift() as string;
+    topo.push(id);
+    for (const s of succ.get(id) ?? []) {
+      indeg.set(s, (indeg.get(s) ?? 1) - 1);
+      if ((indeg.get(s) ?? 0) === 0) queue.push(s);
+    }
+  }
+  // cycles (feedback loops through CPU nodes): append remaining in source order
+  for (const id of cpuIds) if (!topo.includes(id)) topo.push(id);
+  order.push(...topo);
   const chainsOffscreen = renderChains.filter((ch) => ch.some((id) => renderTargetOf.get(id) !== "screenTarget"));
   const chainsScreen = renderChains.filter((ch) => !chainsOffscreen.includes(ch));
   for (const ch of [...chainsOffscreen, ...chainsScreen]) {
@@ -384,16 +463,34 @@ export function p9ToGraph(src: P9SceneXml): P9GraphImport {
   }
   for (const nn of nodes) if (nn.kind === "present" && !ordered.has(nn.id)) order.push(nn.id);
 
+  // Lossless source record: every node, every port with its typed value,
+  // every connection.
+  const sourceRecord = {
+    format: "plane9" as const,
+    nodes: [...src.nodes.values()].map((n) => ({
+      type: n.type, id: n.id,
+      ports: [...n.ports.values()].map((p) => ({
+        id: p.id,
+        value: p.value === undefined ? null : p.value,
+      })),
+    })),
+    connections: src.connections.map((c) => ({ ...c })),
+  };
+
   const graph: GraphScene = {
     version: "graph-1",
     name: src.name.toUpperCase(),
     nodes, data, order,
     warmupSeconds: src.warmupTime,
+    source: sourceRecord,
     credit: `Ported from Plane9 '${src.name}' by ${src.author}` + (src.desc ? ` (${src.desc})` : ""),
     license: src.license,
   };
   validateGraph(graph);
-  return { graph, mapping };
+  const structurallyComplete =
+    dispositions.every((d) => d.disposition !== "unsupported") &&
+    dispositions.length === src.nodes.size;
+  return { graph, dispositions, structurallyComplete };
 }
 
 function og(n: P9Node) {

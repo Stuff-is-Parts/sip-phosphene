@@ -7,7 +7,6 @@
 import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { parseP9SceneXml, p9ToGraph } from "../src/import/p9-graph";
-import { unsupportedFeatures } from "../src/core/graph";
 
 const root = process.argv[2] ?? "scenes/plane9/scenes";
 const out = process.argv[3] ?? "docs/p9-graph-conversion.json";
@@ -22,7 +21,7 @@ const files = [];
 })(root);
 files.sort();
 
-let fullyMapped = 0, withUnsupported = 0, failed = 0;
+let structurallyComplete = 0, withUnsupported = 0, failed = 0;
 const featureCounts = new Map();
 const scenes = [];
 for (const f of files) {
@@ -30,17 +29,31 @@ for (const f of files) {
   try {
     const raw = readFileSync(f);
     const src = parseP9SceneXml(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength), rel);
-    const { graph } = p9ToGraph(src);
-    const unsupported = unsupportedFeatures(graph);
+    const { graph, dispositions, structurallyComplete: complete } = p9ToGraph(src);
+    const unsupported = dispositions.filter((d) => d.disposition === "unsupported");
     for (const u of unsupported) featureCounts.set(u.feature, (featureCounts.get(u.feature) ?? 0) + 1);
-    if (unsupported.length === 0) fullyMapped++;
+    if (complete) structurallyComplete++;
     else withUnsupported++;
-    scenes.push({ scene: rel, nodes: graph.nodes.length, unsupported: unsupported.map((u) => u.feature) });
+    // Accounting invariant: every source node dispositioned, source record
+    // carries every node + connection.
+    const srcNodeCount = graph.source.nodes.length;
+    if (dispositions.length !== srcNodeCount) {
+      throw new Error(`accounting hole: ${dispositions.length} dispositions for ${srcNodeCount} source nodes`);
+    }
+    scenes.push({
+      scene: rel,
+      sourceNodes: srcNodeCount,
+      sourceConnections: graph.source.connections.length,
+      lowered: dispositions.filter((d) => d.disposition === "lowered").length,
+      consumed: dispositions.filter((d) => d.disposition === "consumed-by").length,
+      unsupported: unsupported.map((u) => u.feature),
+    });
   } catch (err) {
     failed++;
     scenes.push({ scene: rel, error: String(err.message).slice(0, 200) });
   }
 }
+const fullyMapped = structurallyComplete;
 
 const report = {
   measures: "structural import completeness only — NOT fidelity; see COMPATIBILITY-GOAL.md",

@@ -97,6 +97,63 @@ export interface CpuExprNode extends NodeBase {
   outputs: string[];
 }
 
+/** A native PHOSPHENE modulation route, carried VERBATIM — target param,
+ *  source, gain, base, expr/init/readVar/ns — with no source conversion.
+ *  The executor implements each ModSource exactly as the legacy engine
+ *  does (src/core/mods.ts sourceValue) or refuses the scene. */
+export interface ModRouteNode extends NodeBase {
+  kind: "mod-route";
+  route: {
+    target: string;
+    source: string;
+    gain: number;
+    base: number;
+    expr?: string;
+    readVar?: string;
+    init?: string;
+    ns?: string;
+  };
+}
+
+/** Native CPU particle system (count + per-particle EEL update program). */
+export interface ParticlesNode extends NodeBase {
+  kind: "particles";
+  count: number;
+  program: string;
+  target: TextureRef;
+}
+
+/** Built-in bloom chain (bright/blur/composite) at strength 0..1. */
+export interface BloomNode extends NodeBase {
+  kind: "bloom";
+  strength: number;
+  target: TextureRef;
+}
+
+/** Native warp-mesh offsets: CPU-evaluated per-vertex program whose output
+ *  the post stage samples via meshOff(uv). Ordered before the consuming
+ *  draw; carries the program verbatim. */
+export interface WarpMeshNode extends NodeBase {
+  kind: "warp-mesh";
+  program: string;
+}
+
+/** Plane9 Vector node: combines scalar inputs X/Y/Z into a vec3
+ *  (port structure witnessed in docs/plane9-node-census.json; function
+ *  documented at plane9.com/wiki/nodes: "Combines a x, y and z component
+ *  to a 3d vector"). */
+export interface P9VectorNode extends NodeBase {
+  kind: "p9-vector";
+}
+
+/** Plane9 color-space conversion nodes (HSLAToColor / HSVAToColor /
+ *  RGBAToColor — names + ports witnessed in the census; conversions are
+ *  the standard CSS/graphics HSLA/HSVA/RGBA formulas). */
+export interface P9ColorNode extends NodeBase {
+  kind: "p9-color";
+  space: "hsla" | "hsva" | "rgba";
+}
+
 /** Audio feature source (evaluated per frame on CPU). */
 export interface AudioNode extends NodeBase {
   kind: "audio";
@@ -110,7 +167,8 @@ export interface TextureNode extends NodeBase {
   source:
     | { kind: "image"; slot: "scene-image" }
     | { kind: "previous-frame"; of: TextureRef }
-    | { kind: "sound"; mode: "spectrum" | "waveform" };
+    | { kind: "sound"; mode: "spectrum" | "waveform" }
+    | { kind: "text"; value: string; size?: number };
 }
 
 /** Copy/blit one texture into another. */
@@ -223,11 +281,26 @@ export interface MilkCompositeNode extends NodeBase {
 export type GraphNode =
   | TargetNode | ClearNode | DrawFullscreenNode | DrawMeshNode
   | CpuExprNode | AudioNode | TextureNode | CopyNode | PresentNode
+  | ModRouteNode | ParticlesNode | BloomNode | WarpMeshNode
+  | P9VectorNode | P9ColorNode
   | UnsupportedNode
   | MilkFrameNode | MilkMotionVectorsNode | MilkBlurNode | MilkBorderNode
   | MilkWarpNode | MilkWaveNode | MilkShapeNode | MilkCompositeNode;
 
 /* ------------------------------- scene -------------------------------- */
+
+/** Complete preserved source structure: every source node with every port
+ *  and its full typed value, and every connection — the lossless record
+ *  behind the executable lowering (COMPATIBILITY-GOAL.md: no source node,
+ *  port, or connection may be omitted). */
+export interface SourceRecord {
+  format: "plane9" | "milkdrop";
+  nodes: {
+    type: string; id: string;
+    ports: { id: string; value: string | number | null }[];
+  }[];
+  connections: { fromNode: string; fromPort: string; toNode: string; toPort: string }[];
+}
 
 export interface GraphScene {
   version: "graph-1";
@@ -237,8 +310,16 @@ export interface GraphScene {
   data: DataEdge[];
   /** Node execution order (explicit; importers derive it from the source). */
   order: string[];
+  /** Base render parameters (hue/speed/int/fb), carried verbatim. */
+  params?: Record<string, number>;
+  /** //@param custom values by name, carried verbatim. */
+  custom?: Record<string, number>;
+  /** Embedded image asset (data URL), carried verbatim. */
+  imageAsset?: string | null;
   /** Seconds to pre-run before first display (Plane9 WarmupTime). */
   warmupSeconds?: number;
+  /** Lossless source-structure record for imported scenes. */
+  source?: SourceRecord;
   credit?: string;
   license?: string;
 }
@@ -281,6 +362,8 @@ export function validateGraph(g: GraphScene): void {
       case "milk-motion-vectors": targetRef(n.target, n.id); break;
       case "milk-blur": targetRef(n.source, n.id); break;
       case "milk-composite": targetRef(n.source, n.id); targetRef(n.target, n.id); break;
+      case "particles":
+      case "bloom": targetRef(n.target, n.id); break;
       default: break;
     }
   }
