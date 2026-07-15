@@ -14,6 +14,8 @@
  *   unsupported — there is no silent third state.
  */
 
+import type { ModRoute } from "./types";
+
 /** A value flowing through CPU-side ports each frame. */
 export type PortValue = number | [number, number, number] | [number, number, number, number];
 
@@ -30,6 +32,10 @@ export interface ShaderSource {
   lang: "wgsl" | "glsl-p9" | "hlsl-md";
   vertex?: string;
   fragment: string;
+  /** Inter-stage struct declaration (Plane9 `VERTEXOUTPUT { ... }` block,
+   *  witnessed in scene.xml Shader ports: fields flow vertex `so.*` ->
+   *  fragment `si.*`). */
+  interstage?: string;
 }
 
 export type MeshPrimitive =
@@ -65,6 +71,13 @@ export interface ClearNode extends NodeBase {
   depth?: boolean;
 }
 
+/** Render-state ports carried VERBATIM from a Plane9 Shader node
+ *  (witnessed port set in scene.xml: DepthTest, DepthWrite, SrcBlend,
+ *  SrcAlphaBlend, DstBlend, DstAlphaBlend, CullMode). Values are the
+ *  source's raw strings — the executor maps them to pipeline state only
+ *  where the enum meaning is evidenced, and refuses otherwise. */
+export type P9RenderState = Record<string, string>;
+
 /** Fullscreen (optionally tessellated) draw with a shader. */
 export interface DrawFullscreenNode extends NodeBase {
   kind: "draw-fullscreen";
@@ -73,6 +86,8 @@ export interface DrawFullscreenNode extends NodeBase {
   textures?: Record<string, TextureRef>;
   target: TextureRef | "screen";
   blend?: "none" | "alpha" | "additive";
+  /** Source-verbatim render state (imported draws); absent for native. */
+  p9State?: P9RenderState;
   tessellateW?: number; tessellateH?: number;
 }
 
@@ -86,6 +101,8 @@ export interface DrawMeshNode extends NodeBase {
   target: TextureRef | "screen";
   blend?: "none" | "alpha" | "additive";
   depthTest?: boolean;
+  /** Source-verbatim render state (imported draws); absent for native. */
+  p9State?: P9RenderState;
 }
 
 /** CPU expression program (expreval for Plane9, EEL for MilkDrop). */
@@ -103,16 +120,7 @@ export interface CpuExprNode extends NodeBase {
  *  does (src/core/mods.ts sourceValue) or refuses the scene. */
 export interface ModRouteNode extends NodeBase {
   kind: "mod-route";
-  route: {
-    target: string;
-    source: string;
-    gain: number;
-    base: number;
-    expr?: string;
-    readVar?: string;
-    init?: string;
-    ns?: string;
-  };
+  route: ModRoute;
 }
 
 /** Native CPU particle system (count + per-particle EEL update program). */
@@ -123,11 +131,16 @@ export interface ParticlesNode extends NodeBase {
   target: TextureRef;
 }
 
-/** Built-in bloom chain (bright/blur/composite) at strength 0..1. */
+/** Built-in bloom chain (bright/blur/composite) at strength 0..1.
+ *  Reads `source` and produces its own output texture, readable by other
+ *  nodes under this node's id. Bloom output stays OUT of any feedback
+ *  loop: the legacy renderer composites bloom after the pass ping-pong
+ *  swap, so feedback reads always see pre-bloom content (renderer.ts
+ *  renderSlot). */
 export interface BloomNode extends NodeBase {
   kind: "bloom";
   strength: number;
-  target: TextureRef;
+  source: TextureRef;
 }
 
 /** Native warp-mesh offsets: CPU-evaluated per-vertex program whose output
@@ -290,14 +303,23 @@ export type GraphNode =
 /* ------------------------------- scene -------------------------------- */
 
 /** Complete preserved source structure: every source node with every port
- *  and its full typed value, and every connection — the lossless record
- *  behind the executable lowering (COMPATIBILITY-GOAL.md: no source node,
- *  port, or connection may be omitted). */
+ *  and its RAW source-text value (no numeric coercion — the original
+ *  string is the typed value's lossless form), every connection, and the
+ *  scene-level attributes/metadata elements of the source file
+ *  (COMPATIBILITY-GOAL.md: no source node, port, connection, or scene
+ *  attribute may be omitted). */
 export interface SourceRecord {
   format: "plane9" | "milkdrop";
+  /** Root-element attributes verbatim (Plane9: FormatVersion, Id,
+   *  ParentId, WarmupTime, SceneType, Version, DevelopmentTime, Created,
+   *  LastModified — witnessed across the corpus). */
+  sceneAttributes?: Record<string, string>;
+  /** Root metadata elements verbatim (Plane9: Author, Desc, Tags,
+   *  License text + Type attribute). */
+  sceneMeta?: Record<string, string>;
   nodes: {
     type: string; id: string;
-    ports: { id: string; value: string | number | null }[];
+    ports: { id: string; value: string | null }[];
   }[];
   connections: { fromNode: string; fromPort: string; toNode: string; toPort: string }[];
 }
@@ -320,6 +342,9 @@ export interface GraphScene {
   warmupSeconds?: number;
   /** Lossless source-structure record for imported scenes. */
   source?: SourceRecord;
+  /* --- non-execution metadata (carried verbatim; no pixel effect) --- */
+  /** JPEG data-URL thumbnail from the native scene file. */
+  thumb?: string | null;
   credit?: string;
   license?: string;
 }
@@ -362,8 +387,8 @@ export function validateGraph(g: GraphScene): void {
       case "milk-motion-vectors": targetRef(n.target, n.id); break;
       case "milk-blur": targetRef(n.source, n.id); break;
       case "milk-composite": targetRef(n.source, n.id); targetRef(n.target, n.id); break;
-      case "particles":
-      case "bloom": targetRef(n.target, n.id); break;
+      case "particles": targetRef(n.target, n.id); break;
+      case "bloom": targetRef(n.source, n.id); break;
       default: break;
     }
   }

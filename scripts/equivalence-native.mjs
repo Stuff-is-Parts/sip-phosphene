@@ -1,16 +1,19 @@
-// Native equivalence gate (continuation assignment, completion gate 1):
-// every shipped native scene renders through the LEGACY path and the
-// GRAPH-EXECUTOR path in separate clean page sessions, under identical
-// injected audio and frame times; screenshots at shared frames must match.
+// NATIVE GRAPH ROUND-TRIP EQUIVALENCE gate (completion gate 1): every
+// shipped native scene is lowered scene->graph (graph-compile.ts) and
+// executed by the node-driven graph executor; the same scene renders
+// through the legacy renderer path in a separate clean page session under
+// identical injected audio and frame times; screenshots at shared frames
+// must match. This proves the round trip (lowering + graph execution)
+// preserves native behavior — it is NOT evidence about imported formats.
 //
 // TOLERANCE (committed before results): mean SSIM >= 0.995 per compared
-// frame. The two paths drive the same GPU pipelines with the same
-// modulation engine, so near-exactness is the requirement — anything
-// lower indicates the lowering or executor changes behavior.
+// frame. The two paths must implement the same witnessed pixel behavior,
+// so near-exactness is the requirement — anything lower indicates the
+// lowering or executor changes behavior.
 //
 // Usage: node scripts/equivalence-native.mjs [out]
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { spawn } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import puppeteer from "puppeteer-core";
 import { PNG } from "pngjs";
 import { FPS } from "./lib/ref-audio.mjs";
@@ -25,6 +28,11 @@ const W = 800, H = 600;
 
 const sceneFiles = readdirSync("scenes").filter((f) => f.endsWith(".phos.json"));
 console.log(`native scenes: ${sceneFiles.length}`);
+
+// Build CURRENT source before serving: the gate must exercise the code as
+// it exists now, never a stale bundle.
+console.log("building current source...");
+execSync("npm run build", { stdio: "inherit" });
 
 const EDGE_PATHS = [
   "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
@@ -133,7 +141,7 @@ try {
 }
 
 const report = {
-  measures: "pixel equivalence of the graph-executor path against the legacy renderer path under identical inputs",
+  measures: "native graph ROUND-TRIP equivalence: scene->graph lowering executed by the node-driven graph executor vs the legacy renderer path, identical inputs, separate clean sessions; native-format evidence only",
   tolerance: { ssim: SSIM_TOLERANCE, frames: COMPARE_FRAMES },
   scenes: sceneFiles.length,
   equivalent: passCount, diverged: failCount, loadFailed: loadFail,

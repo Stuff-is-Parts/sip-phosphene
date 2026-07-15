@@ -3,6 +3,7 @@ import { GraphExecutor } from "./gpu/graph-executor";
 import { ModEngine } from "./core/mods";
 import { meshWarpFor } from "./core/meshwarp";
 import { particlesFor } from "./core/particles";
+import { renderTextImage } from "./core/text";
 import { compileSceneToGraph } from "./core/graph-compile";
 import { parseMilk, milkToScene } from "./import/milk";
 import { parseP9c, p9ToScene } from "./import/p9";
@@ -222,8 +223,23 @@ window.__equivLoad = async (sceneJson, path) => {
       if (errors.length) return { ok: false, errors, reports: [] };
       return { ok: true, errors: [], reports: [] };
     }
-    // legacy path: the exact flow the product uses
+    // legacy path: the exact flow the product uses, including scene-image
+    // loading (src/player.ts loadSceneImage — text rasterizes into the
+    // image slot when no image asset is present; absent -> null/white).
     mods.reset();
+    if (scene.text && !scene.assets?.image) {
+      const textImage = renderTextImage(scene);
+      if (textImage) scene.assets = { ...scene.assets, image: textImage };
+    }
+    const imgData = scene.assets?.image;
+    if (imgData) {
+      try {
+        const blob = await (await fetch(imgData)).blob();
+        await renderer.setImage(0, await createImageBitmap(blob));
+      } catch { await renderer.setImage(0, null); }
+    } else {
+      await renderer.setImage(0, null);
+    }
     const errors: string[] = [];
     for (const stage of STAGES) {
       const res = await renderer.compileStage(stage, scene.layers[stage].code, 0);

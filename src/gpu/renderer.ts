@@ -10,7 +10,7 @@ import {
 import { assembleMesh, makeGeometry, PARTICLE_WGSL } from "./mesh";
 
 /** IEEE 754 float32 -> float16 bits (for rgba16float texture uploads). */
-function toHalf(v: number): number {
+export function toHalf(v: number): number {
   const f = new Float32Array(1);
   const u = new Uint32Array(f.buffer);
   f[0] = v;
@@ -77,6 +77,12 @@ export class Renderer {
   get gpuDevice(): GPUDevice { return this.device; }
   private ctx!: GPUCanvasContext;
   private canvasFormat!: GPUTextureFormat;
+  /** Presentation surface access for sibling executors that render their
+   *  own passes but share the canvas: swapchain format, current backbuffer
+   *  view, and current pixel size. */
+  get presentationFormat(): GPUTextureFormat { return this.canvasFormat; }
+  currentTextureView(): GPUTextureView { return this.ctx.getCurrentTexture().createView(); }
+  get pixelSize(): { width: number; height: number } { return { width: this.width, height: this.height }; }
   private sampler!: GPUSampler;
   private white!: GPUTexture;
   private width = 4;

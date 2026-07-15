@@ -34,12 +34,19 @@ export class P9ImportError extends Error {}
 
 /* --------------------------- source parsing --------------------------- */
 
-export interface P9Port { id: string; value: string | number | undefined }
+/** Port value is the RAW source string (no numeric coercion — the string
+ *  is the lossless typed form; consumers parse explicitly). */
+export interface P9Port { id: string; value: string | undefined }
 export interface P9Node { type: string; id: string; ports: Map<string, P9Port> }
 export interface P9Connection { fromNode: string; fromPort: string; toNode: string; toPort: string }
 export interface P9SceneXml {
-  name: string; author: string; desc: string; license: string;
+  name: string; author: string; desc: string; license: string; licenseText: string;
+  tags: string;
   warmupTime: number;
+  /** Root-element attributes verbatim (FormatVersion, Id, ParentId,
+   *  WarmupTime, SceneType, Version, DevelopmentTime, Created,
+   *  LastModified — the full witnessed corpus set). */
+  rootAttributes: Record<string, string>;
   nodes: Map<string, P9Node>;
   connections: P9Connection[];
 }
@@ -51,11 +58,19 @@ export function parseP9SceneXml(buf: ArrayBuffer, filename: string): P9SceneXml 
   const xml = new TextDecoder().decode(files[entry]);
   const parser = new XMLParser({
     ignoreAttributes: false, attributeNamePrefix: "@",
+    // No value coercion anywhere: attribute and tag values stay raw
+    // strings so the source record is lossless ("1.10", "007", vectors).
+    parseTagValue: false, parseAttributeValue: false,
     isArray: (t) => t === "Node" || t === "Port" || t === "Connection",
   });
   const doc = parser.parse(xml);
   const root = doc.Plane9Scene;
   if (!root) throw new P9ImportError("no Plane9Scene root");
+
+  const rootAttributes: Record<string, string> = {};
+  for (const k of Object.keys(root)) {
+    if (k.startsWith("@")) rootAttributes[k.slice(1)] = String(root[k]);
+  }
 
   const nodes = new Map<string, P9Node>();
   for (const n of root.Nodes?.Node ?? []) {
@@ -66,11 +81,16 @@ export function parseP9SceneXml(buf: ArrayBuffer, filename: string): P9SceneXml 
     const ports = new Map<string, P9Port>();
     for (const p of n.Port ?? []) {
       const pid = String(p["@Id"] ?? "");
-      const v = p.Value;
-      ports.set(pid, {
-        id: pid,
-        value: typeof v === "object" && v !== null ? String(v["#text"] ?? "") : v,
-      });
+      // Attribute form <Port Value="..."/> or element form
+      // <Port><Value>...</Value></Port> (witnessed: multiline shader /
+      // expression text uses the element form).
+      const attr = p["@Value"];
+      const el = p.Value;
+      const value = attr !== undefined ? String(attr)
+        : el !== undefined && el !== null
+          ? (typeof el === "object" ? String(el["#text"] ?? "") : String(el))
+          : undefined;
+      ports.set(pid, { id: pid, value });
     }
     nodes.set(id, { type, id, ports });
   }
@@ -82,14 +102,77 @@ export function parseP9SceneXml(buf: ArrayBuffer, filename: string): P9SceneXml 
     connections.push({ fromNode, fromPort, toNode, toPort });
   }
 
+  const licenseEl = root.License;
   return {
     name: filename.replace(/\.p9c$/i, "").replace(/^.*[\\/]/, ""),
     author: String(root.Author ?? ""),
     desc: String(root.Desc ?? ""),
-    license: String(root.License?.["@Type"] ?? ""),
-    warmupTime: parseFloat(String(root["@WarmupTime"] ?? "0")) || 0,
+    tags: String(root.Tags ?? ""),
+    license: String(licenseEl?.["@Type"] ?? ""),
+    licenseText: typeof licenseEl === "object" && licenseEl !== null
+      ? String(licenseEl["#text"] ?? "") : String(licenseEl ?? ""),
+    warmupTime: parseFloat(rootAttributes.WarmupTime ?? "0") || 0,
+    rootAttributes,
     nodes, connections,
   };
+}
+
+/* ----------------------- installed shader format ----------------------- */
+
+/** Parsed Plane9 shader text (witnessed format in scene.xml Shader ports
+ *  and the engine DLL string table): an optional `VERTEXOUTPUT { ... }`
+ *  inter-stage struct, then common text compiled twice — once with VERTEX
+ *  defined, once with FRAGMENT defined (`#ifdef VERTEX` / `#ifdef
+ *  FRAGMENT` sections; vertex writes gl_Position and `so.*`, fragment
+ *  reads `si.*` and writes oColor). */
+export interface P9ShaderStages {
+  interstage: string;
+  vertex: string;
+  fragment: string;
+}
+
+/** Split the installed two-stage-in-one-text format by evaluating the
+ *  #ifdef VERTEX / #ifdef FRAGMENT / #else / #endif conditionals for each
+ *  stage define. Text outside those conditionals is shared by both. */
+export function parseP9ShaderStages(text: string): P9ShaderStages {
+  let interstage = "";
+  let rest = text;
+  const m = /VERTEXOUTPUT\s*\{[\s\S]*?\}/.exec(text);
+  if (m) {
+    interstage = m[0];
+    rest = text.slice(0, m.index) + text.slice(m.index + m[0].length);
+  }
+  const forStage = (define: "VERTEX" | "FRAGMENT"): string => {
+    const out: string[] = [];
+    // Conditional stack: stage frames (#ifdef VERTEX/FRAGMENT) are
+    // evaluated here; every other conditional is a passthrough frame whose
+    // directive lines are emitted verbatim (the GLSL compiler handles it).
+    const stack: { stage: boolean; active: boolean }[] = [];
+    const live = () => stack.every((s) => !s.stage || s.active);
+    for (const line of rest.split(/\r?\n/)) {
+      const stageIf = /^\s*#ifdef\s+(VERTEX|FRAGMENT)\b/.exec(line);
+      const anyIf = /^\s*#\s*if(def|ndef)?\b/.test(line);
+      const els = /^\s*#\s*else\b/.test(line);
+      const endif = /^\s*#\s*endif\b/.test(line);
+      if (stageIf) { stack.push({ stage: true, active: stageIf[1] === define }); continue; }
+      if (anyIf) { stack.push({ stage: false, active: true }); if (live()) out.push(line); continue; }
+      if (els && stack.length) {
+        const top = stack[stack.length - 1];
+        if (top.stage) { top.active = !top.active; continue; }
+        if (live()) out.push(line);
+        continue;
+      }
+      if (endif && stack.length) {
+        const top = stack.pop() as { stage: boolean };
+        if (top.stage) continue;
+        if (live()) out.push(line);
+        continue;
+      }
+      if (live()) out.push(line);
+    }
+    return out.join("\n").trim();
+  };
+  return { interstage, vertex: forStage("VERTEX"), fragment: forStage("FRAGMENT") };
 }
 
 function splitRef(ref: string): [string, string] {
@@ -113,12 +196,14 @@ const MESH_PRIMS: Record<string, MeshPrimitive["kind"]> = {
  *  - Vector -> p9-vector (wiki/nodes: "Combines a x, y and z component
  *    to a 3d vector");
  *  - HSLAToColor / HSVAToColor / RGBAToColor -> p9-color (standard
- *    color-space conversions; names + ports in the census);
- *  - Beat / Spectrum / Waveform -> audio features.
+ *    color-space conversions; names + ports in the census).
+ *  Beat / Spectrum / Waveform are UNSUPPORTED until their Plane9-specific
+ *  semantics (beat-detection algorithm, spectrum/waveform scaling, port
+ *  meanings) are evidenced — they are NOT generic audio features.
  *  MinMax, Rotator, SignalGenerator, Sin, and all other CPU types have
  *  UNEVIDENCED exact behavior and import as unsupported. */
 const CPU_EVIDENCED = new Set([
-  "Expression", "Vector", "Beat", "Spectrum", "Waveform",
+  "Expression", "Vector",
   "HSLAToColor", "HSVAToColor", "RGBAToColor",
 ]);
 
@@ -140,9 +225,14 @@ export type P9Disposition =
 export interface P9GraphImport {
   graph: GraphScene;
   dispositions: P9Disposition[];
-  /** True only when every node lowered or consumed (none unsupported) and
-   *  every connection was carried structurally or as a data edge. */
-  structurallyComplete: boolean;
+  /** True when every source node carries a disposition AND none is
+   *  currently labeled unsupported. This measures source-node disposition
+   *  accounting ONLY — it is NOT executable structural completeness
+   *  (connections and required behaviors are not yet proven executable)
+   *  and NOT fidelity (COMPATIBILITY-GOAL.md: only reference-validated
+   *  conversion counts). */
+  dispositionCleanImport: boolean;
+  unsupportedCount: number;
 }
 
 export function p9ToGraph(src: P9SceneXml): P9GraphImport {
@@ -271,6 +361,21 @@ export function p9ToGraph(src: P9SceneXml): P9GraphImport {
     return { textures, missing };
   };
 
+  /** Render-state ports carried verbatim from a Shader node (witnessed
+   *  port set — raw strings; the executor maps them only with evidence). */
+  const P9_STATE_PORTS = [
+    "DepthTest", "DepthWrite", "SrcBlend", "SrcAlphaBlend",
+    "DstBlend", "DstAlphaBlend", "CullMode",
+  ];
+  const shaderState = (shaderNode: P9Node): Record<string, string> => {
+    const out: Record<string, string> = {};
+    for (const k of P9_STATE_PORTS) {
+      const v = shaderNode.ports.get(k)?.value;
+      if (v !== undefined) out[k] = v;
+    }
+    return out;
+  };
+
   /* ---- per-node mapping ---- */
   for (const n of src.nodes.values()) {
     if (texRefs.has(n.id)) continue;          // pass 1
@@ -299,12 +404,19 @@ export function p9ToGraph(src: P9SceneXml): P9GraphImport {
           break;
         }
         consumed.set(shaderNode.id, n.id);
-        emit({
-          kind: "draw-fullscreen", id: n.id,
-          target: renderTargetOf.get(n.id) ?? "screenTarget",
-          shader: { lang: "glsl-p9", fragment: String(shaderNode.ports.get("Shader")?.value ?? "") },
-          textures, blend: "alpha", origin: og(n),
-        }, n);
+        {
+          const stages = parseP9ShaderStages(String(shaderNode.ports.get("Shader")?.value ?? ""));
+          emit({
+            kind: "draw-fullscreen", id: n.id,
+            target: renderTargetOf.get(n.id) ?? "screenTarget",
+            shader: {
+              lang: "glsl-p9",
+              vertex: stages.vertex, fragment: stages.fragment,
+              ...(stages.interstage ? { interstage: stages.interstage } : {}),
+            },
+            textures, p9State: shaderState(shaderNode), origin: og(n),
+          }, n);
+        }
         break;
       }
       case "RenderObject": {
@@ -346,13 +458,25 @@ export function p9ToGraph(src: P9SceneXml): P9GraphImport {
           consumed.set(mc.fromNode, n.id);
           mc = inPort(mc.fromNode, "Mesh");
         }
-        emit({
-          kind: "draw-mesh", id: n.id,
-          target: renderTargetOf.get(n.id) ?? "screenTarget",
-          mesh: prim,
-          shader: { lang: "glsl-p9", fragment: String(shaderNode.ports.get("Shader")?.value ?? "") },
-          textures, blend: "alpha", depthTest: true, origin: og(n),
-        }, n);
+        {
+          const stages = parseP9ShaderStages(String(shaderNode.ports.get("Shader")?.value ?? ""));
+          const state = shaderState(shaderNode);
+          emit({
+            kind: "draw-mesh", id: n.id,
+            target: renderTargetOf.get(n.id) ?? "screenTarget",
+            mesh: prim,
+            shader: {
+              lang: "glsl-p9",
+              vertex: stages.vertex, fragment: stages.fragment,
+              ...(stages.interstage ? { interstage: stages.interstage } : {}),
+            },
+            textures,
+            // Depth test comes from the witnessed Shader port; blend and
+            // the rest stay verbatim in p9State (no hardcoded state).
+            ...(state.DepthTest !== undefined ? { depthTest: state.DepthTest === "true" } : {}),
+            p9State: state, origin: og(n),
+          }, n);
+        }
         break;
       }
       case "Shader": case "MeshObject": case "BasicEffect":
@@ -363,14 +487,13 @@ export function p9ToGraph(src: P9SceneXml): P9GraphImport {
           "DelayedTransform"].includes(n.type)) {
           break; // dispositioned in the final accounting pass
         }
+        if (n.type === "Beat" || n.type === "Spectrum" || n.type === "Waveform") {
+          emit(unsup(n, `Plane9:${n.type}`,
+            "Plane9-specific audio semantics (beat detection, spectrum/waveform scaling, port meanings) not yet evidenced — not a generic audio feature"), n);
+          break;
+        }
         if (CPU_EVIDENCED.has(n.type)) {
-          if (n.type === "Beat" || n.type === "Spectrum" || n.type === "Waveform") {
-            emit({
-              kind: "audio", id: n.id,
-              feature: n.type === "Beat" ? "beat" : n.type === "Spectrum" ? "spectrum-bin" : "waveform-bin",
-              origin: og(n),
-            }, n);
-          } else if (n.type === "Vector") {
+          if (n.type === "Vector") {
             emit({ kind: "p9-vector", id: n.id, params: portParams(n), origin: og(n) }, n);
           } else if (n.type === "HSLAToColor" || n.type === "HSVAToColor" || n.type === "RGBAToColor") {
             emit({
@@ -463,10 +586,15 @@ export function p9ToGraph(src: P9SceneXml): P9GraphImport {
   }
   for (const nn of nodes) if (nn.kind === "present" && !ordered.has(nn.id)) order.push(nn.id);
 
-  // Lossless source record: every node, every port with its typed value,
-  // every connection.
+  // Lossless source record: every node, every port with its RAW source
+  // string, every connection, plus scene-level attributes and metadata.
   const sourceRecord = {
     format: "plane9" as const,
+    sceneAttributes: { ...src.rootAttributes },
+    sceneMeta: {
+      Author: src.author, Desc: src.desc, Tags: src.tags,
+      LicenseType: src.license, LicenseText: src.licenseText,
+    },
     nodes: [...src.nodes.values()].map((n) => ({
       type: n.type, id: n.id,
       ports: [...n.ports.values()].map((p) => ({
@@ -487,10 +615,10 @@ export function p9ToGraph(src: P9SceneXml): P9GraphImport {
     license: src.license,
   };
   validateGraph(graph);
-  const structurallyComplete =
-    dispositions.every((d) => d.disposition !== "unsupported") &&
-    dispositions.length === src.nodes.size;
-  return { graph, dispositions, structurallyComplete };
+  const unsupportedCount = dispositions.filter((d) => d.disposition === "unsupported").length;
+  const dispositionCleanImport =
+    unsupportedCount === 0 && dispositions.length === src.nodes.size;
+  return { graph, dispositions, dispositionCleanImport, unsupportedCount };
 }
 
 function og(n: P9Node) {

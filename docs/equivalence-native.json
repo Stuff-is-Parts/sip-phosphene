@@ -1,5 +1,5 @@
 {
-  "measures": "pixel equivalence of the graph-executor path against the legacy renderer path under identical inputs",
+  "measures": "native graph ROUND-TRIP equivalence: scene->graph lowering executed by the node-driven graph executor vs the legacy renderer path, identical inputs, separate clean sessions; native-format evidence only",
   "tolerance": {
     "ssim": 0.995,
     "frames": [

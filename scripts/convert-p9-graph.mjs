@@ -1,8 +1,11 @@
-// Structural-conversion report for the Plane9 corpus: run every .p9c
-// through the graph importer and report, per scene, whether the graph is
-// fully executable data or which exact features are unsupported.
-// This is a STRUCTURAL diagnostic (import completeness), not fidelity —
-// fidelity is only ever reference validation (COMPATIBILITY-GOAL.md).
+// SOURCE-NODE DISPOSITION report for the Plane9 corpus: run every .p9c
+// through the graph importer and report, per scene, how each source node
+// was dispositioned (lowered / consumed-by / unsupported). "Disposition-
+// clean" means every node has a disposition and none is currently labeled
+// unsupported — it does NOT mean executable structural completeness
+// (connections and required behaviors are not yet proven executable) and
+// it is NOT fidelity (COMPATIBILITY-GOAL.md: only reference-validated
+// conversion counts as compatibility progress).
 // Usage: npx vite-node scripts/convert-p9-graph.mjs [dir] [out]
 import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -21,7 +24,7 @@ const files = [];
 })(root);
 files.sort();
 
-let structurallyComplete = 0, withUnsupported = 0, failed = 0;
+let dispositionClean = 0, withUnsupported = 0, failed = 0;
 const featureCounts = new Map();
 const scenes = [];
 for (const f of files) {
@@ -29,10 +32,10 @@ for (const f of files) {
   try {
     const raw = readFileSync(f);
     const src = parseP9SceneXml(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength), rel);
-    const { graph, dispositions, structurallyComplete: complete } = p9ToGraph(src);
+    const { graph, dispositions, dispositionCleanImport: complete } = p9ToGraph(src);
     const unsupported = dispositions.filter((d) => d.disposition === "unsupported");
     for (const u of unsupported) featureCounts.set(u.feature, (featureCounts.get(u.feature) ?? 0) + 1);
-    if (complete) structurallyComplete++;
+    if (complete) dispositionClean++;
     else withUnsupported++;
     // Accounting invariant: every source node dispositioned, source record
     // carries every node + connection.
@@ -53,19 +56,17 @@ for (const f of files) {
     scenes.push({ scene: rel, error: String(err.message).slice(0, 200) });
   }
 }
-const fullyMapped = structurallyComplete;
-
 const report = {
-  measures: "structural import completeness only — NOT fidelity; see COMPATIBILITY-GOAL.md",
+  measures: "source-node disposition accounting only (every node dispositioned; count of scenes with zero currently-labeled unsupported nodes) — NOT executable structural completeness and NOT fidelity; see COMPATIBILITY-GOAL.md",
   corpus: root, total: files.length,
-  fullyMappedStructures: fullyMapped,
+  dispositionCleanScenes: dispositionClean,
   scenesWithUnsupportedFeatures: withUnsupported,
   importFailures: failed,
   unsupportedFeatureCounts: Object.fromEntries([...featureCounts.entries()].sort((a, b) => b[1] - a[1])),
   scenes,
 };
 writeFileSync(out, JSON.stringify(report, null, 2));
-console.log(`total ${files.length} | fully-mapped ${fullyMapped} | with-unsupported ${withUnsupported} | failed ${failed}`);
+console.log(`total ${files.length} | disposition-clean ${dispositionClean} | with-unsupported ${withUnsupported} | failed ${failed}`);
 console.log("top unsupported features:");
 [...featureCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12)
   .forEach(([k, v]) => console.log(` ${String(v).padStart(4)}  ${k}`));

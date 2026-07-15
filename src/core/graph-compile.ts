@@ -10,8 +10,16 @@
  * readVar — NO source conversion), particles, bloom, text/image assets,
  * warp-mesh in its true position (CPU offsets consumed by the post
  * stage), passes with per-pass feedback, mesh, blending, presentation.
+ *
+ * Field classification (Complete Representation, sip-code-guidelines §1A):
+ * - Execution fields (layers, params, custom, mods, assets, passes, mesh,
+ *   particles, text, bloom, warpMesh) lower to graph structure.
+ * - Non-execution metadata (name, thumb, credit, license) is carried
+ *   VERBATIM on GraphScene — preserved, not lowered, no pixel effect.
+ * - `version` is the scene-format tag (always 3); GraphScene carries its
+ *   own format tag ("graph-1"), so the field is consumed by construction.
  * Unknown fields raise GraphCompileError so format growth cannot bypass
- * the graph silently (Complete Representation, sip-code-guidelines §1A).
+ * the graph silently.
  * Equivalence is proven by scripts/equivalence-native.mjs, which renders
  * shipped scenes through both paths under identical inputs.
  */
@@ -85,8 +93,10 @@ export function compileSceneToGraph(scene: Scene): GraphScene {
     order.push("warpMesh");
   }
 
-  // Canvas: bg -> mesh -> fg compose here; post reads it with feedback.
-  nodes.push({ kind: "target", id: "tCanvas", feedback: true });
+  // Canvas: bg -> mesh -> fg compose here; post reads it same-frame.
+  // No feedback: the legacy renderer keeps no previous frame of sceneTex
+  // (renderer.ts renderSlot — only post/pass targets ping-pong).
+  nodes.push({ kind: "target", id: "tCanvas" });
   nodes.push({ kind: "clear", id: "clear0", target: "tCanvas" });
   order.push("clear0");
   nodes.push({
@@ -96,8 +106,10 @@ export function compileSceneToGraph(scene: Scene): GraphScene {
   });
   order.push("bg");
   if (scene.mesh) {
+    // blend "none": the legacy mesh pipeline has NO blend state
+    // (renderer.ts setMesh — opaque fragment targets, depth-tested).
     nodes.push({
-      kind: "draw-mesh", id: "mesh", target: "tCanvas", blend: "alpha", depthTest: true,
+      kind: "draw-mesh", id: "mesh", target: "tCanvas", blend: "none", depthTest: true,
       mesh: { kind: scene.mesh.primitive as never },
       instances: scene.mesh.count,
       shader: { lang: "wgsl", fragment: scene.mesh.code },
@@ -144,11 +156,15 @@ export function compileSceneToGraph(scene: Scene): GraphScene {
   }
 
   if (scene.bloom !== undefined && scene.bloom > 0) {
+    // Bloom reads the chain and produces its own output; presentation
+    // reads the bloom output while the chain's feedback stays pre-bloom
+    // (legacy renderSlot: swap before bloom; bloomOut outside ping/pong).
     nodes.push({
-      kind: "bloom", id: "bloom", strength: scene.bloom, target: chain,
+      kind: "bloom", id: "bloom", strength: scene.bloom, source: chain,
       origin: { format: "phosphene", type: "capability:bloom" },
     });
     order.push("bloom");
+    chain = "bloom";
   }
 
   nodes.push({ kind: "present", id: "screen", source: chain });
@@ -161,6 +177,7 @@ export function compileSceneToGraph(scene: Scene): GraphScene {
     params: { ...scene.params },
     custom: { ...scene.custom },
     imageAsset: scene.assets?.image ?? null,
+    thumb: scene.thumb ?? null,
     credit: scene.credit,
     license: scene.license,
   };

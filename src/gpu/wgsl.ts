@@ -296,9 +296,18 @@ export interface AssembledShader {
 }
 
 export function assemble(stage: StageId, body: string, params: CustomParam[]): AssembledShader {
+  return assembleFullscreen(body, params, stage === "post");
+}
+
+/** Stage-name-free assembly for the graph executor: chain bindings
+ *  (srcTex/prevTex/meshOff) are included iff the draw node declares
+ *  chain-texture inputs — same generated code as the legacy stages. */
+export function assembleFullscreen(
+  body: string, params: CustomParam[], withChainBindings: boolean,
+): AssembledShader {
   const pre =
     COMMON +
-    (stage === "post" ? POST_COMMON : "") +
+    (withChainBindings ? POST_COMMON : "") +
     customAccessors(params);
   const bodyLineOffset = countLines(pre);
   const code = pre + body + "\n" + FRAG_ENTRY;
