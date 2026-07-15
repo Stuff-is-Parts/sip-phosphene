@@ -284,3 +284,251 @@ export function getBlurCascadeSizes(mainW: number, mainH: number): {
     ],
   };
 }
+
+/** Source ratios flattened as (H input ratio, H target ratio, V target
+ *  ratio) per level. Level 1's H input is the main canvas at ratio 1.
+ *  Level 2 reads level 1's V output; level 3 reads level 2's V output.
+ *  These ratios drive both texture allocation (via `getBlurTargetSize`)
+ *  and the horizontal texel-offset scale in the H shader. */
+export const BLUR_LEVEL_TRIPLES: readonly [
+  readonly [number, number, number],
+  readonly [number, number, number],
+  readonly [number, number, number],
+] = [
+  [1.0, BLUR_LEVEL_RATIOS[0][0], BLUR_LEVEL_RATIOS[0][1]],
+  [BLUR_LEVEL_RATIOS[0][1], BLUR_LEVEL_RATIOS[1][0], BLUR_LEVEL_RATIOS[1][1]],
+  [BLUR_LEVEL_RATIOS[1][1], BLUR_LEVEL_RATIOS[2][0], BLUR_LEVEL_RATIOS[2][1]],
+] as const;
+
+/** Uniform-buffer byte layout for the horizontal blur pass shader
+ *  (BLUR_H_WGSL). Struct fields align to 16-byte boundaries per WGSL
+ *  std140-ish alignment; the total is padded to 16-byte multiples. */
+export const BLUR_H_UNIFORM_SIZE = 64; // 4x vec4f + scalars packed
+
+/** Uniform-buffer byte layout for the vertical blur pass shader
+ *  (BLUR_V_WGSL). */
+export const BLUR_V_UNIFORM_SIZE = 48;
+
+const TARGET_FORMAT: GPUTextureFormat = "rgba8unorm";
+
+/** Six-texture blur cascade — the GPU pipeline that renders
+ *  butterchurn's blurShader1/2/3 chain. Owns three horizontal
+ *  intermediates and three vertical outputs; caller allocates via
+ *  `allocate(mainW, mainH)` after construction and calls
+ *  `render(commandEncoder, sourceView, mainW, mainH, mdVSFrame,
+ *  numLevels)` each frame to update the cascade. The three vertical
+ *  outputs are exposed via `blurVViews` as the shader-visible
+ *  `sampler_blur1/2/3` textures.
+ *
+ *  Uniform layout is per BLUR_H_WGSL and BLUR_V_WGSL. Each level has
+ *  its own H uniform buffer and V uniform buffer so the cascade can
+ *  be rendered in one encoder pass without buffer reuse hazards.
+ *
+ *  This class does NOT depend on MilkPipeline; it is a standalone
+ *  render helper the pipeline instantiates when a MilkDrop 2 shader
+ *  preset requires the cascade. */
+export class MilkBlurCascade {
+  private hPipeline!: GPURenderPipeline;
+  private vPipeline!: GPURenderPipeline;
+  private sampler!: GPUSampler;
+
+  /** Horizontal intermediates. Populated by allocate(). */
+  hTextures: GPUTexture[] = [];
+  /** Vertical outputs — the shader-visible textures. Populated by
+   *  allocate(). */
+  vTextures: GPUTexture[] = [];
+  hViews: GPUTextureView[] = [];
+  vViews: GPUTextureView[] = [];
+  /** Per-level uniform buffers. */
+  private hUnis: GPUBuffer[] = [];
+  private vUnis: GPUBuffer[] = [];
+  private width = 0;
+  private height = 0;
+
+  constructor(private readonly device: GPUDevice) {
+    this.buildPipelines();
+    this.sampler = device.createSampler({
+      magFilter: "linear", minFilter: "linear", mipmapFilter: "linear",
+      addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge",
+    });
+  }
+
+  private buildPipelines(): void {
+    const dev = this.device;
+    const hModule = dev.createShaderModule({ code: BLUR_H_WGSL });
+    const vModule = dev.createShaderModule({ code: BLUR_V_WGSL });
+    this.hPipeline = dev.createRenderPipeline({
+      layout: "auto",
+      vertex: { module: hModule, entryPoint: "vmain" },
+      fragment: {
+        module: hModule, entryPoint: "fmain",
+        targets: [{ format: TARGET_FORMAT }],
+      },
+      primitive: { topology: "triangle-strip" },
+    });
+    this.vPipeline = dev.createRenderPipeline({
+      layout: "auto",
+      vertex: { module: vModule, entryPoint: "vmain" },
+      fragment: {
+        module: vModule, entryPoint: "fmain",
+        targets: [{ format: TARGET_FORMAT }],
+      },
+      primitive: { topology: "triangle-strip" },
+    });
+  }
+
+  /** (Re)allocate the six textures for the given main resolution. Safe
+   *  to call whenever the main resolution changes; destroys previous
+   *  textures. Uniform buffers are created lazily and reused. */
+  allocate(mainW: number, mainH: number): void {
+    if (this.width === mainW && this.height === mainH && this.hTextures.length > 0) {
+      return;
+    }
+    for (const t of this.hTextures) t.destroy();
+    for (const t of this.vTextures) t.destroy();
+    this.hTextures = []; this.vTextures = [];
+    this.hViews = []; this.vViews = [];
+    const dev = this.device;
+    const usage = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING;
+    for (let level = 0; level < 3; level++) {
+      const [hR, vR] = [BLUR_LEVEL_RATIOS[level][0], BLUR_LEVEL_RATIOS[level][1]];
+      const [hW, hH] = getBlurTargetSize(mainW, mainH, hR);
+      const [vW, vH] = getBlurTargetSize(mainW, mainH, vR);
+      const hTex = dev.createTexture({ size: [hW, hH], format: TARGET_FORMAT, usage });
+      const vTex = dev.createTexture({ size: [vW, vH], format: TARGET_FORMAT, usage });
+      this.hTextures.push(hTex);
+      this.vTextures.push(vTex);
+      this.hViews.push(hTex.createView());
+      this.vViews.push(vTex.createView());
+      if (!this.hUnis[level]) {
+        this.hUnis[level] = dev.createBuffer({
+          size: BLUR_H_UNIFORM_SIZE, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+        this.vUnis[level] = dev.createBuffer({
+          size: BLUR_V_UNIFORM_SIZE, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+      }
+    }
+    this.width = mainW; this.height = mainH;
+  }
+
+  /** Compute uniform bytes for the H pass at a given level. The
+   *  buffer layout matches BLUR_H_WGSL's struct U declaration:
+   *  texsize:vec4f, ws:vec4f, ds:vec4f, scale:f32, bias:f32, wdiv:f32,
+   *  pad:f32. Total 64 bytes. */
+  private writeHUniform(
+    level: number, srcSize: [number, number],
+    scale: number, bias: number,
+  ): void {
+    const { ws, ds, wDiv } = horizontalUniforms();
+    const data = new Float32Array(BLUR_H_UNIFORM_SIZE / 4);
+    // texsize (w, h, 1/w, 1/h)
+    data[0] = srcSize[0]; data[1] = srcSize[1];
+    data[2] = 1 / srcSize[0]; data[3] = 1 / srcSize[1];
+    // ws
+    data[4] = ws[0]; data[5] = ws[1]; data[6] = ws[2]; data[7] = ws[3];
+    // ds
+    data[8] = ds[0]; data[9] = ds[1]; data[10] = ds[2]; data[11] = ds[3];
+    // scale, bias, wdiv, pad
+    data[12] = scale; data[13] = bias; data[14] = wDiv; data[15] = 0;
+    this.device.queue.writeBuffer(this.hUnis[level], 0, data);
+  }
+
+  /** Compute uniform bytes for the V pass at a given level. Layout
+   *  matches BLUR_V_WGSL's struct U: texsize:vec4f, wds:vec4f,
+   *  ed1:f32, ed2:f32, ed3:f32, wdiv:f32. Total 48 bytes. */
+  private writeVUniform(
+    level: number, srcSize: [number, number], b1ed: number,
+  ): void {
+    const { wds, wDiv } = verticalUniforms();
+    const data = new Float32Array(BLUR_V_UNIFORM_SIZE / 4);
+    data[0] = srcSize[0]; data[1] = srcSize[1];
+    data[2] = 1 / srcSize[0]; data[3] = 1 / srcSize[1];
+    data[4] = wds[0]; data[5] = wds[1]; data[6] = wds[2]; data[7] = wds[3];
+    // ed1 = 1 - b1ed on level 0, else 1; ed2 = b1ed on level 0, else 0.
+    const active = level === 0;
+    data[8] = active ? (1 - b1ed) : 1;
+    data[9] = active ? b1ed : 0;
+    data[10] = 5.0;
+    data[11] = wDiv;
+    this.device.queue.writeBuffer(this.vUnis[level], 0, data);
+  }
+
+  /** Render the blur cascade for `numLevels` levels using the current
+   *  main texture as the level-1 input. `mdVSFrame` provides the
+   *  preset's `b1n/b1x/b2n/b2x/b3n/b3x` values and `b1ed` for edge
+   *  darken; the caller has already applied any per-frame equation
+   *  updates. Blur ranges are clamped via `getBlurValues`.
+   *
+   *  This method issues render passes into the provided command
+   *  encoder; the caller submits the encoder. */
+  render(
+    encoder: GPUCommandEncoder,
+    sourceView: GPUTextureView,
+    numLevels: 1 | 2 | 3,
+    blurRanges: { blurMins: readonly number[]; blurMaxs: readonly number[] },
+    b1ed: number,
+  ): void {
+    const dev = this.device;
+    const { blurMins, blurMaxs } = blurRanges;
+    let hInput = sourceView;
+    for (let level = 0; level < numLevels; level++) {
+      const [hInputRatio] = BLUR_LEVEL_TRIPLES[level];
+      const srcHSize: [number, number] = getBlurTargetSize(this.width, this.height, hInputRatio);
+      const { scale, bias } = getScaleAndBias(level as 0 | 1 | 2, blurMins, blurMaxs);
+      this.writeHUniform(level, srcHSize, scale, bias);
+      const hBind = dev.createBindGroup({
+        layout: this.hPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: { buffer: this.hUnis[level] } },
+          { binding: 1, resource: this.sampler },
+          { binding: 2, resource: hInput },
+        ],
+      });
+      const hPass = encoder.beginRenderPass({
+        colorAttachments: [{
+          view: this.hViews[level], loadOp: "clear", storeOp: "store",
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+        }],
+      });
+      hPass.setPipeline(this.hPipeline);
+      hPass.setBindGroup(0, hBind);
+      hPass.draw(4);
+      hPass.end();
+
+      // Vertical pass: sample the H intermediate, write the V output.
+      const [, hTargetRatio] = BLUR_LEVEL_TRIPLES[level];
+      const srcVSize: [number, number] = getBlurTargetSize(this.width, this.height, hTargetRatio);
+      this.writeVUniform(level, srcVSize, b1ed);
+      const vBind = dev.createBindGroup({
+        layout: this.vPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: { buffer: this.vUnis[level] } },
+          { binding: 1, resource: this.sampler },
+          { binding: 2, resource: this.hViews[level] },
+        ],
+      });
+      const vPass = encoder.beginRenderPass({
+        colorAttachments: [{
+          view: this.vViews[level], loadOp: "clear", storeOp: "store",
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+        }],
+      });
+      vPass.setPipeline(this.vPipeline);
+      vPass.setBindGroup(0, vBind);
+      vPass.draw(4);
+      vPass.end();
+
+      // Next level reads THIS level's V output.
+      hInput = this.vViews[level];
+    }
+  }
+
+  destroy(): void {
+    for (const t of this.hTextures) t.destroy();
+    for (const t of this.vTextures) t.destroy();
+    this.hTextures = []; this.vTextures = [];
+    this.hViews = []; this.vViews = [];
+    this.width = 0; this.height = 0;
+  }
+}
