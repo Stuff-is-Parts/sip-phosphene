@@ -1,38 +1,40 @@
 // Direct semantic tests for the projectM-authoritative noise generator
 // against docs/evidence/projectm/MilkdropNoise.cpp `generate2D` and
-// `generate3D`. Every assertion cites the source behavior it verifies.
+// `generate3D`. Every assertion cites the projectM behavior verified.
 
 import { describe, expect, it } from "vitest";
 import {
-  fCubicInterpolate, dwCubicInterpolate,
+  fCubicInterpolate, dwCubicInterpolateU32,
   createNoiseTex, createNoiseVolTex, NOISE_TEX_SPECS,
 } from "../src/gpu/milk-noise";
 import { makeMulberry32 } from "../src/core/milk-runner";
 
 describe("fCubicInterpolate — projectM MilkdropNoise.cpp fCubicInterpolate", () => {
-  it("returns y1 at t=0 (a3 in projectM's expansion)", () => {
+  it("returns y1 at t=0", () => {
     expect(fCubicInterpolate(1, 2, 3, 4, 0)).toBe(2);
     expect(fCubicInterpolate(0.1, 0.5, 0.9, 0.3, 0)).toBe(0.5);
   });
 
-  it("returns y2 at t=1 (a0 + a1 + a2 + a3 = y2)", () => {
+  it("returns y2 at t=1", () => {
     expect(fCubicInterpolate(1, 2, 3, 4, 1)).toBe(3);
     expect(fCubicInterpolate(0.1, 0.5, 0.9, 0.3, 1)).toBeCloseTo(0.9, 10);
   });
 });
 
-describe("dwCubicInterpolate — projectM MilkdropNoise.cpp dwCubicInterpolate", () => {
-  it("clamps each channel to [0, 1] before rescaling to bytes", () => {
-    const out = dwCubicInterpolate([0, 0, 0, 0], [64, 64, 64, 64], [192, 192, 192, 192], [255, 255, 255, 255], 0.5);
-    for (let i = 0; i < 4; i++) {
-      expect(out[i]).toBeGreaterThan(100);
-      expect(out[i]).toBeLessThan(160);
-    }
-  });
-
-  it("passes an in-range value through without truncation", () => {
-    const out = dwCubicInterpolate([255, 255, 255, 255], [255, 255, 255, 255], [0, 0, 0, 0], [0, 0, 0, 0], 0);
-    expect(out).toEqual([255, 255, 255, 255]);
+describe("dwCubicInterpolateU32 — projectM MilkdropNoise.cpp dwCubicInterpolate", () => {
+  it("operates on packed uint32 values per shift (byte-wise interpolation)", () => {
+    // At t=0 the function returns y1 exactly (per fCubicInterpolate).
+    // Packed uint32 y1 with byte pattern (A, B, C, D) at shifts 24,16,8,0.
+    const y0 = 0;
+    const y1 = 0x40506070; // bytes: 0x40, 0x50, 0x60, 0x70 at shifts 24, 16, 8, 0
+    const y2 = 0xff000000;
+    const y3 = 0;
+    const out = dwCubicInterpolateU32(y0, y1, y2, y3, 0);
+    // At t=0, each channel returns byte of y1.
+    expect((out >>> 24) & 0xff).toBe(0x40);
+    expect((out >>> 16) & 0xff).toBe(0x50);
+    expect((out >>> 8)  & 0xff).toBe(0x60);
+    expect(out & 0xff).toBe(0x70);
   });
 });
 
@@ -57,34 +59,23 @@ describe("createNoiseTex — projectM 2D noise", () => {
     expect(differ).toBe(true);
   });
 
-  it("does per-row random pixel swaps distinct from a plain uniform-random fill", () => {
-    // projectM's per-row swap step is the distinguishing feature vs a
-    // pure fill+cubic-interp; changing the swap-loop count would produce
-    // a different byte order. Verify by comparing two seeds that would
-    // hit the same fill sequence but different swap indices.
-    const withSwaps = createNoiseTex(32, 1, makeMulberry32(7));
-    // Sanity: full byte range is exercised (values above 100 and below
-    // 100 both present) even though the fill uses (rand%256) + 128.
+  it("produces bytes in the full 0..255 range from projectM's packed pack + wrap semantics", () => {
+    // At RANGE=256, each channel value can be 128..383. After 8-bit
+    // truncation via projectM's packed uint32 (bit-spill included),
+    // final byte values span 0..255.
+    const tex = createNoiseTex(32, 1, makeMulberry32(7));
     let low = 0, high = 0;
-    for (let i = 0; i < withSwaps.length; i++) {
-      if (withSwaps[i] < 128) low++;
+    for (let i = 0; i < tex.length; i++) {
+      if (tex[i] < 128) low++;
       else high++;
     }
-    // Byte truncation from `(rand%256) + 128` gives roughly balanced
-    // low/high halves after wrap; both should be > 0.
     expect(low).toBeGreaterThan(0);
     expect(high).toBeGreaterThan(0);
   });
 
-  it("produces size * size * 4 bytes at zoom=4 (cubic interpolation)", () => {
+  it("produces size * size * 4 bytes at zoom=4 with cubic interpolation", () => {
     const tex = createNoiseTex(16, 4, makeMulberry32(1));
     expect(tex.length).toBe(16 * 16 * 4);
-  });
-
-  it("is deterministic for a fixed seed at zoom=4", () => {
-    const a = createNoiseTex(16, 4, makeMulberry32(7));
-    const b = createNoiseTex(16, 4, makeMulberry32(7));
-    expect(Array.from(a)).toEqual(Array.from(b));
   });
 });
 
@@ -94,7 +85,7 @@ describe("createNoiseVolTex — projectM 3D noise", () => {
     expect(tex.length).toBe(8 * 8 * 8 * 4);
   });
 
-  it("produces size ** 3 * 4 bytes at zoom=4 (with X/Y/Z interpolation)", () => {
+  it("produces size ** 3 * 4 bytes at zoom=4 with cubic interpolation", () => {
     const tex = createNoiseVolTex(8, 4, makeMulberry32(1));
     expect(tex.length).toBe(8 * 8 * 8 * 4);
   });

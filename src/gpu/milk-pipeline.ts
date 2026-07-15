@@ -27,7 +27,9 @@
 import { Renderer } from "./renderer";
 import { MilkPresetRunner, makeMulberry32, RecordingMilkRng, REGS, type Pool, type MilkRng } from "../core/milk-runner";
 import { MilkSession } from "./milk-session";
-import { MilkShaderInstance, type Mat4 } from "./milk-shader-instance";
+import {
+  MilkShaderInstance, floatRand, type Mat3x4,
+} from "./milk-shader-instance";
 import {
   GraphScene, GraphNode, MilkWaveNode, MilkShapeNode,
   UnsupportedNodeError, unsupportedFeatures, validateGraph,
@@ -63,14 +65,14 @@ export interface MilkShaderContract {
    *  contracts differ in `randPreset` and the persistent rotation
    *  state per projectM `MilkdropShader` constructor. */
   kind: "warp" | "comp";
-  /** _c2.x-w. time, fps, frame come from the Renderer's timing loop.
-   *  `progress` is the runtime supertext-progress value — projectM
-   *  supplies it via `renderContext.progress`; upstream data does
-   *  not yet track it in PHOSPHENE, so `progress` stays 0 for now
-   *  and the caller may substitute a real value when preset
-   *  playhead progress is threaded through. */
+  /** Time, fps, frame from projectM's `renderContext`. `progress`
+   *  is projectM's runtime playhead value uploaded in `_c2.w`;
+   *  PHOSPHENE has no upstream source for it yet, so `progress`
+   *  remains `null` and a preset that references `progress` in its
+   *  shader body must refuse at load rather than receive a fabricated
+   *  value. */
   time: number; fps: number; frame: number;
-  progress: number;
+  progress: number | null;
   /** _c3.xyzw = bass/mid/treb/vol; _c4.xyzw = *_att. */
   bass: number; mid: number; treb: number; vol: number;
   bassAtt: number; midAtt: number; trebAtt: number; volAtt: number;
@@ -120,17 +122,19 @@ export interface MilkShaderContract {
   blur1Min: number; blur1Max: number;
   blur2Min: number; blur2Max: number;
   blur3Min: number; blur3Max: number;
-  /** 24 4x4 rotation matrices per projectM
-   *  `MilkdropShader::LoadVariables`. Slots 0..19 use persistent
-   *  translations, rotation centers, and speeds; slots 20..23 draw
-   *  fresh values per invocation from the session shader RNG. Groups
-   *  of 4 map to (rot_s, rot_d, rot_f, rot_vf, rot_uf, rot_rand). */
-  rotStatic: readonly Mat4[];    // rot_s1..rot_s4 (slots 0..3)
-  rotDynamic: readonly Mat4[];   // rot_d1..rot_d4 (slots 4..7)
-  rotFast: readonly Mat4[];      // rot_f1..rot_f4 (slots 8..11)
-  rotVeryFast: readonly Mat4[];  // rot_vf1..rot_vf4 (slots 12..15)
-  rotUltraFast: readonly Mat4[]; // rot_uf1..rot_uf4 (slots 16..19)
-  rotPerFrame: readonly Mat4[];  // rot_rand1..rot_rand4 (slots 20..23)
+  /** 24 rotation matrices per projectM `MilkdropShader::LoadVariables`,
+   *  each uploaded as a `mat3x4` (12 floats, three column-major
+   *  columns from the first 12 floats of the projectM glm::mat4).
+   *  Slots 0..19 come from the instance's persistent state at the
+   *  current `floatTime`; slots 20..23 are drawn fresh from the
+   *  session shader RNG at each contract build using six `floatRand`
+   *  draws per slot (angleX, angleY, angleZ, translationX, Y, Z). */
+  rotStatic: readonly Mat3x4[];    // rot_s1..rot_s4 (slots 0..3)
+  rotDynamic: readonly Mat3x4[];   // rot_d1..rot_d4 (slots 4..7)
+  rotFast: readonly Mat3x4[];      // rot_f1..rot_f4 (slots 8..11)
+  rotVeryFast: readonly Mat3x4[];  // rot_vf1..rot_vf4 (slots 12..15)
+  rotUltraFast: readonly Mat3x4[]; // rot_uf1..rot_uf4 (slots 16..19)
+  rotPerFrame: readonly Mat3x4[];  // rot_rand1..rot_rand4 (slots 20..23)
 }
 
 /** Blur-range clamp math ported verbatim from butterchurn's
@@ -873,18 +877,18 @@ export class MilkPipeline {
 
   /* ------------------------------- frame -------------------------------- */
 
-  frame(g: GraphScene, data: MilkFrameData, elapsed?: number): void {
+  frame(g: GraphScene, data: MilkFrameData): void {
     const runner = this.runner;
     if (!runner) throw new Error("no preset loaded");
     const dev = this.device;
-
-    // Advance session timing. Butterchurn's `calcTimeAndFPS`
-    // (rendering_renderer.js:353-378) and projectM's equivalent both
-    // integrate `time += 1/fps`. The caller may supply an explicit
-    // elapsed value; the default derives from the frame globals' fps.
-    const fpsForStep = data.globals.fps ?? 30;
-    const step = elapsed ?? (1 / (fpsForStep > 0 ? fpsForStep : 30));
-    this.session.beginFrame(step);
+    // Session timing unification is a coherent-window blocker per
+    // COMPATIBILITY-GOAL.md: projectM's Renderer owns time/frame/fps
+    // and feeds them into equations and shader uniforms. PHOSPHENE
+    // currently accepts them as `data.globals`; running a parallel
+    // `session.beginFrame` counter without unifying its output into
+    // the runner's globals would produce two competing timing models,
+    // which the spec forbids. Skip the session advance until the
+    // unification lands.
 
     const timeL = Array.from(data.timeArrayL as ArrayLike<number>);
     const timeR = Array.from(data.timeArrayR as ArrayLike<number>);
@@ -1709,14 +1713,26 @@ export class MilkPipeline {
   }
 }
 
-/** Build one MilkShaderContract for the given shader instance.
- *  Populated fully per projectM `MilkdropShader::LoadVariables`:
- *  `randPreset` from the instance, `randFrame` from a fresh session
- *  shader-RNG draw, `mipX/Y/Avg` from `log2` of viewport dimensions,
- *  and all 24 rotation matrices from the instance's per-invocation
- *  build. `progress` is 0 until upstream data threads a real value
- *  through. Sources retained at docs/evidence/projectm/MilkdropShader.cpp
- *  and docs/evidence/projectm/BlurTexture.cpp. */
+/** Build one MilkShaderContract for the given shader instance, drawing
+ *  random values in the exact projectM order per
+ *  docs/evidence/projectm/MilkdropShader.cpp `LoadVariables`:
+ *
+ *    1. Compute blur clamp values (no random draws).
+ *    2. Draw `rand_frame` = four `floatRand()` values.
+ *    3. Use the instance's persistent `rand_preset`.
+ *    4. Compute scalar uniforms (mip, roam, texsize, aspect, q banks,
+ *       blur ranges).
+ *    5. Build persistent-slot rotation matrices 0..19 from the
+ *       instance's persistent state + current `floatTime` (no random
+ *       draws).
+ *    6. Draw 24 `floatRand()` values (six per fully-random slot in
+ *       source order — angleX, angleY, angleZ, translationX/Y/Z) and
+ *       build rotation matrices 20..23.
+ *
+ *  `progress` remains `null` — projectM uploads
+ *  `renderContext.progress` in `_c2.w`, and PHOSPHENE has no upstream
+ *  source for that value yet, so a preset shader that references
+ *  `progress` refuses at load rather than receiving a fabricated 0. */
 export function buildShaderContract(
   instance: MilkShaderInstance,
   mdVSFrame: Pool,
@@ -1729,26 +1745,30 @@ export function buildShaderContract(
   const time = mdVSFrame.time ?? 0;
   const q = (idx: number): number => mdVSFrame[`q${idx}`] ?? 0;
   const { blurMins, blurMaxs } = getBlurValues(mdVSFrame);
-  // projectM: mipX = log2(viewportW), mipY = log2(viewportH),
-  // mipAvg = 0.5 * (mipX + mipY). Not previous-frame image statistics.
+
+  // Step 2 — draw rand_frame FIRST per projectM's SetUniformFloat4
+  // ("rand_frame", ...) call which precedes rand_preset and every
+  // scalar/matrix upload.
+  const rng = session.shaderRng;
+  const randFrame: [number, number, number, number] = [
+    floatRand(rng), floatRand(rng), floatRand(rng), floatRand(rng),
+  ];
+
+  // Step 5 — persistent-slot matrices 0..19 (no random draws).
+  const persistent = instance.buildPersistentMatrices(time);
+  // Step 6 — random-slot matrices 20..23 (24 floatRand draws in
+  // projectM order).
+  const perFrame = instance.buildRandomMatrices(rng);
+
   const mipX = Math.log2(texsizeX);
   const mipY = Math.log2(texsizeY);
   const mipAvg = 0.5 * (mipX + mipY);
-  // Build all 24 rotation matrices per projectM
-  // `MilkdropShader::LoadVariables`. Slots 20..23 draw from the
-  // session shader RNG; slots 0..19 use the instance's persistent
-  // state combined with the current time.
-  const matrices = instance.buildRotationMatrices(time, session.shaderRng);
   return {
     kind: instance.kind,
     time,
     fps: mdVSFrame.fps ?? 30,
     frame: mdVSFrame.frame ?? 0,
-    // projectM uploads renderContext.progress; PHOSPHENE has no
-    // preset-playhead progress input yet, so this stays 0 until
-    // upstream data supplies it. The value is a required number
-    // rather than nullable — a shader referencing it reads 0.
-    progress: 0,
+    progress: null,
     bass: mdVSFrame.bass ?? 0,
     mid: mdVSFrame.mid ?? 0,
     treb: mdVSFrame.treb ?? 0,
@@ -1761,10 +1781,7 @@ export function buildShaderContract(
     texsize: [texsizeX, texsizeY, 1 / texsizeX, 1 / texsizeY],
     randPreset: [instance.randPreset[0], instance.randPreset[1],
                  instance.randPreset[2], instance.randPreset[3]],
-    // Fresh randFrame per invocation — projectM draws four
-    // `floatRand()` at each `LoadVariables`, and warp/comp thus
-    // receive DIFFERENT random 4-vectors within the same frame.
-    randFrame: session.nextRandFrame(session.shaderRng),
+    randFrame,
     qBanks: [
       [q(1), q(2), q(3), q(4)],
       [q(5), q(6), q(7), q(8)],
@@ -1776,7 +1793,7 @@ export function buildShaderContract(
       [q(29), q(30), q(31), q(32)],
     ],
     // projectM fast-roam frequencies + phase offsets from
-    // MilkdropShader.cpp `LoadVariables`.
+    // MilkdropShader.cpp `LoadVariables` _c8 / _c9.
     roamCos: [
       0.5 + 0.5 * Math.cos(time * 0.329 + 1.2),
       0.5 + 0.5 * Math.cos(time * 1.293 + 3.9),
@@ -1805,12 +1822,12 @@ export function buildShaderContract(
     blur1Min: blurMins[0], blur1Max: blurMaxs[0],
     blur2Min: blurMins[1], blur2Max: blurMaxs[1],
     blur3Min: blurMins[2], blur3Max: blurMaxs[2],
-    rotStatic:    [matrices[0],  matrices[1],  matrices[2],  matrices[3]],
-    rotDynamic:   [matrices[4],  matrices[5],  matrices[6],  matrices[7]],
-    rotFast:      [matrices[8],  matrices[9],  matrices[10], matrices[11]],
-    rotVeryFast:  [matrices[12], matrices[13], matrices[14], matrices[15]],
-    rotUltraFast: [matrices[16], matrices[17], matrices[18], matrices[19]],
-    rotPerFrame:  [matrices[20], matrices[21], matrices[22], matrices[23]],
+    rotStatic:    [persistent[0],  persistent[1],  persistent[2],  persistent[3]],
+    rotDynamic:   [persistent[4],  persistent[5],  persistent[6],  persistent[7]],
+    rotFast:      [persistent[8],  persistent[9],  persistent[10], persistent[11]],
+    rotVeryFast:  [persistent[12], persistent[13], persistent[14], persistent[15]],
+    rotUltraFast: [persistent[16], persistent[17], persistent[18], persistent[19]],
+    rotPerFrame:  [perFrame[0],    perFrame[1],    perFrame[2],    perFrame[3]],
   };
 }
 

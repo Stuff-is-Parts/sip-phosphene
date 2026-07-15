@@ -1,186 +1,267 @@
 /**
  * MilkShaderInstance — persistent per-shader state that outlives a
  * single frame but is scoped to one preset's warp or composite shader.
- * Ported from docs/evidence/projectm/MilkdropShader.cpp constructor +
- * `LoadVariables`. COMPATIBILITY-GOAL.md §Source-Authority puts projectM
- * above butterchurn for the default execution path, and butterchurn does
- * not upload the 24 rotation matrices at all — projectM does, so
- * PHOSPHENE must, and the state that produces them lives here.
+ * Ported from docs/evidence/projectm/MilkdropShader.cpp (retained at
+ * pinned SHA 2f244141320f6b97b09bf99964cc72a4efdfcfd3): the constructor
+ * that draws `rand_preset` and 20 persistent rotation slots' random
+ * translation, rotation center, and rotation speed, and the
+ * `LoadVariables` invocation that builds the 24 rotation matrices.
  *
- * Two instances per preset: one for the warp shader, one for the comp
- * shader. Each owns its own `rand_preset` 4-vector and its own 20
- * persistent rotation-state slots. Butterchurn shares one Renderer
- * seed across warp and comp; projectM constructs two `MilkdropShader`
- * objects each with its own `floatRand()` draws. PHOSPHENE follows
- * projectM here.
+ * projectM constructs two `MilkdropShader` objects per preset (warp +
+ * comp) each drawing its own `floatRand()` values in construction
+ * order. PHOSPHENE reuses one `MilkSession.shaderRng` stream across
+ * both instances' construction plus their per-invocation calls,
+ * matching projectM's use of the single process-wide `rand()` stream.
  *
- * The rotation matrices projectM uploads are laid out as:
- *   slots 0..3   → rot_s1..rot_s4    (uf-slow)
- *   slots 4..7   → rot_d1..rot_d4    (dynamic)
- *   slots 8..11  → rot_f1..rot_f4    (fast)
- *   slots 12..15 → rot_vf1..rot_vf4  (very fast)
- *   slots 16..19 → rot_uf1..rot_uf4  (ultra fast)
- *   slots 20..23 → rot_rand1..rot_rand4  (fully random this call)
- *
- * Slots 0..19 use persistent random translations, rotation centers,
- * and rotation speeds drawn once at construction and combined with
- * `floatTime` at each invocation. Slots 20..23 draw four fresh random
- * numbers per invocation.
+ * Upload representation. projectM's `SetUniformMat3x4("rot_sN",
+ * glm::mat4)` calls `glUniformMatrix3x4fv(loc, 1, GL_FALSE,
+ * glm::value_ptr(mat4))`. `glm::value_ptr` yields 16 floats in
+ * column-major order; `glUniformMatrix3x4fv` reads the first 12 floats
+ * as three columns of four rows each. PHOSPHENE stores each uploaded
+ * matrix as a `Float32Array(12)` where indices 0-3 hold column 0,
+ * 4-7 hold column 1, and 8-11 hold column 2 of the projectM glm::mat4.
+ * Column 3 (the translation column) is discarded to match the
+ * projectM upload exactly.
  */
 
 import { type MilkRng } from "../core/milk-runner";
 
-/** A row-major 4x4 matrix stored as 16 floats. */
-export type Mat4 = Float32Array;
-
-/** The persistent random state one shader instance owns for the 20
- *  non-per-frame rotation slots. */
-interface PersistentRotState {
-  translation: [number, number, number];
-  rotationCenter: [number, number, number];
-  rotationSpeed: [number, number, number];
+/** projectM MilkdropShader.cpp:
+ *  `rand() % 7381 / 7380.0f`.
+ *  PHOSPHENE takes a MilkRng so the stream is reproducible under
+ *  session ownership. Callers use this for every random draw that
+ *  projectM would emit through `floatRand()`. */
+export function floatRand(rng: MilkRng): number {
+  return Math.floor(rng.next() * 7381) / 7380;
 }
 
-function identity(): Mat4 {
+/** A `mat3x4` — three columns × four rows — stored as 12 floats in
+ *  column-major order. Matches what `glUniformMatrix3x4fv` uploads
+ *  from the first 12 floats of `glm::value_ptr(mat4)`. */
+export type Mat3x4 = Float32Array;
+
+/** Apply a projectM-authored `mat3x4` to a 3-vector using the GLSL
+ *  post-multiplication convention `M * v` (M has 3 cols and 4 rows,
+ *  v has 3 components, result is a 4-vector). Used in tests to verify
+ *  the storage layout matches projectM's upload. */
+export function applyMat3x4ToPoint(
+  m: Mat3x4, v: readonly [number, number, number],
+): [number, number, number, number] {
+  return [
+    m[0] * v[0] + m[4] * v[1] + m[8]  * v[2],
+    m[1] * v[0] + m[5] * v[1] + m[9]  * v[2],
+    m[2] * v[0] + m[6] * v[1] + m[10] * v[2],
+    m[3] * v[0] + m[7] * v[1] + m[11] * v[2],
+  ];
+}
+
+/** Build the 3x4 rotation matrix projectM constructs for one of the
+ *  20 persistent slots at a given `floatTime`:
+ *
+ *    angleX = center.x + speed.x * floatTime
+ *    angleY = center.y + speed.y * floatTime
+ *    angleZ = center.z + speed.z * floatTime
+ *    rotX   = glm::rotate(mat4(1), angleX, {1,0,0})
+ *    rotY   = glm::rotate(mat4(1), angleY, {0,1,0})
+ *    rotZ   = glm::rotate(mat4(1), angleZ, {0,0,1})
+ *    tr     = glm::translate(mat4(1), translation)
+ *    m      = rotY * rotZ * tr * rotX
+ *    upload = first 12 floats of glm::value_ptr(m) in column-major order.
+ *
+ *  Exported so tests can construct a source-derived matrix from known
+ *  inputs and verify the upload layout via applyMat3x4ToPoint. */
+export function composeRotationMatrix(
+  center: readonly [number, number, number],
+  speed: readonly [number, number, number],
+  translation: readonly [number, number, number],
+  floatTime: number,
+): Mat3x4 {
+  const ax = center[0] + speed[0] * floatTime;
+  const ay = center[1] + speed[1] * floatTime;
+  const az = center[2] + speed[2] * floatTime;
+  const rotX = mat4RotateX(ax);
+  const rotY = mat4RotateY(ay);
+  const rotZ = mat4RotateZ(az);
+  const tr = mat4Translate(translation[0], translation[1], translation[2]);
+  // m = rotY * rotZ * tr * rotX
+  let m = mat4Multiply(tr, rotX);
+  m = mat4Multiply(rotZ, m);
+  m = mat4Multiply(rotY, m);
+  return mat4ToMat3x4(m);
+}
+
+/** Build the 3x4 rotation matrix projectM constructs for one of the
+ *  four fully-random slots at each `LoadVariables` invocation. Slots
+ *  20..23 draw six values in this exact order per projectM:
+ *
+ *    angleX = floatRand() * 6.28
+ *    angleY = floatRand() * 6.28
+ *    angleZ = floatRand() * 6.28
+ *    translation = (floatRand(), floatRand(), floatRand())
+ *
+ *  Then composes `rotY * rotZ * translation * rotX` and extracts the
+ *  first 12 floats. Exposed so the shader-contract builder can draw
+ *  the values in the source order. */
+export function composeRandomRotationMatrix(rng: MilkRng): Mat3x4 {
+  const ax = floatRand(rng) * 6.28;
+  const ay = floatRand(rng) * 6.28;
+  const az = floatRand(rng) * 6.28;
+  const tx = floatRand(rng);
+  const ty = floatRand(rng);
+  const tz = floatRand(rng);
+  const rotX = mat4RotateX(ax);
+  const rotY = mat4RotateY(ay);
+  const rotZ = mat4RotateZ(az);
+  const tr = mat4Translate(tx, ty, tz);
+  let m = mat4Multiply(tr, rotX);
+  m = mat4Multiply(rotZ, m);
+  m = mat4Multiply(rotY, m);
+  return mat4ToMat3x4(m);
+}
+
+/** MilkdropShader instance state — the persistent members `m_randValues`,
+ *  `m_randTranslation`, `m_randRotationCenters`, and
+ *  `m_randRotationSpeeds` per docs/evidence/projectm/MilkdropShader.cpp
+ *  constructor. All draws come from the shared session shader RNG. */
+export class MilkShaderInstance {
+  readonly kind: "warp" | "comp";
+  readonly randPreset: readonly [number, number, number, number];
+  private readonly translations: readonly [number, number, number][];
+  private readonly rotationCenters: readonly [number, number, number][];
+  private readonly rotationSpeeds: readonly [number, number, number][];
+
+  constructor(kind: "warp" | "comp", rng: MilkRng) {
+    this.kind = kind;
+    // projectM MilkdropShader constructor:
+    //   m_randValues({floatRand(), floatRand(), floatRand(), floatRand()})
+    this.randPreset = [floatRand(rng), floatRand(rng), floatRand(rng), floatRand(rng)];
+    const t: [number, number, number][] = [];
+    const c: [number, number, number][] = [];
+    const s: [number, number, number][] = [];
+    for (let index = 0; index < 20; index++) {
+      const translationMult = 1;
+      const rotMult = 0.9 * Math.pow(index / 8.0, 3.2);
+      t.push([
+        (floatRand(rng) * 2 - 1) * translationMult,
+        (floatRand(rng) * 2 - 1) * translationMult,
+        (floatRand(rng) * 2 - 1) * translationMult,
+      ]);
+      c.push([
+        floatRand(rng) * 6.28,
+        floatRand(rng) * 6.28,
+        floatRand(rng) * 6.28,
+      ]);
+      s.push([
+        (floatRand(rng) * 2 - 1) * rotMult,
+        (floatRand(rng) * 2 - 1) * rotMult,
+        (floatRand(rng) * 2 - 1) * rotMult,
+      ]);
+    }
+    this.translations = t;
+    this.rotationCenters = c;
+    this.rotationSpeeds = s;
+  }
+
+  /** Build the 20 persistent-slot matrices at a given `floatTime`.
+   *  Draws no random values. */
+  buildPersistentMatrices(floatTime: number): Mat3x4[] {
+    const out: Mat3x4[] = new Array(20);
+    for (let i = 0; i < 20; i++) {
+      out[i] = composeRotationMatrix(
+        this.rotationCenters[i], this.rotationSpeeds[i], this.translations[i],
+        floatTime,
+      );
+    }
+    return out;
+  }
+
+  /** Build the 4 fully-random-per-invocation matrices for slots
+   *  20..23. Draws 24 floatRand values from the provided RNG in the
+   *  exact projectM order (6 per slot: aX, aY, aZ, tX, tY, tZ). */
+  buildRandomMatrices(rng: MilkRng): Mat3x4[] {
+    const out: Mat3x4[] = new Array(4);
+    for (let i = 0; i < 4; i++) {
+      out[i] = composeRandomRotationMatrix(rng);
+    }
+    return out;
+  }
+}
+
+/* ------------------------- internal mat4 helpers ---------------------- */
+// A glm::mat4 stored as 16 floats in column-major order:
+//   [col0[0..3], col1[0..3], col2[0..3], col3[0..3]]
+
+function mat4Identity(): Float32Array {
   const m = new Float32Array(16);
   m[0] = 1; m[5] = 1; m[10] = 1; m[15] = 1;
   return m;
 }
 
-function multiply(a: Mat4, b: Mat4): Mat4 {
+function mat4RotateX(angle: number): Float32Array {
+  const m = mat4Identity();
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  // Row form: [1, 0, 0, 0; 0, c, -s, 0; 0, s, c, 0; 0, 0, 0, 1]
+  // Column-major memory: col0=(1,0,0,0), col1=(0,c,s,0), col2=(0,-s,c,0), col3=(0,0,0,1)
+  m[0] = 1; m[1] = 0; m[2] = 0; m[3] = 0;
+  m[4] = 0; m[5] = c; m[6] = s; m[7] = 0;
+  m[8] = 0; m[9] = -s; m[10] = c; m[11] = 0;
+  m[12] = 0; m[13] = 0; m[14] = 0; m[15] = 1;
+  return m;
+}
+
+function mat4RotateY(angle: number): Float32Array {
+  const m = mat4Identity();
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  // Row form: [c, 0, s, 0; 0, 1, 0, 0; -s, 0, c, 0; 0, 0, 0, 1]
+  // Column-major memory: col0=(c,0,-s,0), col1=(0,1,0,0), col2=(s,0,c,0), col3=(0,0,0,1)
+  m[0] = c; m[1] = 0; m[2] = -s; m[3] = 0;
+  m[4] = 0; m[5] = 1; m[6] = 0; m[7] = 0;
+  m[8] = s; m[9] = 0; m[10] = c; m[11] = 0;
+  m[12] = 0; m[13] = 0; m[14] = 0; m[15] = 1;
+  return m;
+}
+
+function mat4RotateZ(angle: number): Float32Array {
+  const m = mat4Identity();
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  // Row form: [c, -s, 0, 0; s, c, 0, 0; 0, 0, 1, 0; 0, 0, 0, 1]
+  // Column-major memory: col0=(c,s,0,0), col1=(-s,c,0,0), col2=(0,0,1,0), col3=(0,0,0,1)
+  m[0] = c; m[1] = s; m[2] = 0; m[3] = 0;
+  m[4] = -s; m[5] = c; m[6] = 0; m[7] = 0;
+  m[8] = 0; m[9] = 0; m[10] = 1; m[11] = 0;
+  m[12] = 0; m[13] = 0; m[14] = 0; m[15] = 1;
+  return m;
+}
+
+function mat4Translate(tx: number, ty: number, tz: number): Float32Array {
+  const m = mat4Identity();
+  // Column-major memory: col3 = (tx, ty, tz, 1)
+  m[12] = tx; m[13] = ty; m[14] = tz; m[15] = 1;
+  return m;
+}
+
+function mat4Multiply(a: Float32Array, b: Float32Array): Float32Array {
+  // Column-major multiply: (a * b)[c][r] = sum_k a[k][r] * b[c][k]
+  // where mat[c][r] = memory[c*4 + r].
   const out = new Float32Array(16);
-  for (let r = 0; r < 4; r++) {
-    for (let c = 0; c < 4; c++) {
+  for (let c = 0; c < 4; c++) {
+    for (let r = 0; r < 4; r++) {
       let s = 0;
-      for (let k = 0; k < 4; k++) s += a[r * 4 + k] * b[k * 4 + c];
-      out[r * 4 + c] = s;
+      for (let k = 0; k < 4; k++) {
+        s += a[k * 4 + r] * b[c * 4 + k];
+      }
+      out[c * 4 + r] = s;
     }
   }
   return out;
 }
 
-function rotateX(angle: number): Mat4 {
-  const m = identity();
-  const c = Math.cos(angle);
-  const s = Math.sin(angle);
-  m[5] = c;  m[6] = -s;
-  m[9] = s;  m[10] = c;
-  return m;
-}
-
-function rotateY(angle: number): Mat4 {
-  const m = identity();
-  const c = Math.cos(angle);
-  const s = Math.sin(angle);
-  m[0] = c;  m[2] = s;
-  m[8] = -s; m[10] = c;
-  return m;
-}
-
-function rotateZ(angle: number): Mat4 {
-  const m = identity();
-  const c = Math.cos(angle);
-  const s = Math.sin(angle);
-  m[0] = c;  m[1] = -s;
-  m[4] = s;  m[5] = c;
-  return m;
-}
-
-function translate(x: number, y: number, z: number): Mat4 {
-  const m = identity();
-  m[3] = x; m[7] = y; m[11] = z;
-  return m;
-}
-
-/** projectM `MilkdropShader.cpp`'s `floatRand()`: `rand() % 7381 /
- *  7380.0f`. PHOSPHENE takes a MilkRng so the stream is reproducible
- *  and stays under session ownership. */
-function floatRand(rng: MilkRng): number {
-  return Math.floor(rng.next() * 7381) / 7380.0;
-}
-
-/** MilkdropShader instance. Constructor draws all persistent random
- *  state from the provided RNG once; subsequent per-invocation draws
- *  come through `buildRotationMatrices` from the caller's session
- *  shader RNG (a distinct stream from the construction RNG, so
- *  reproducing state across a reload does not shift the per-frame
- *  matrices). */
-export class MilkShaderInstance {
-  readonly kind: "warp" | "comp";
-  /** `rand_preset` — persistent for this instance's lifetime.
-   *  Uploaded verbatim by `LoadVariables`. */
-  readonly randPreset: readonly [number, number, number, number];
-  /** Persistent random state for the 20 non-per-frame rotation slots. */
-  private readonly persistent: readonly PersistentRotState[];
-
-  constructor(kind: "warp" | "comp", rng: MilkRng) {
-    this.kind = kind;
-    this.randPreset = [floatRand(rng), floatRand(rng), floatRand(rng), floatRand(rng)];
-    // 20 persistent slots. `rotMult` follows the projectM formula
-    // `0.9f * powf(index / 8.0f, 3.2f)` — slower rotation on earlier
-    // slots, faster on later ones.
-    const slots: PersistentRotState[] = [];
-    for (let index = 0; index < 20; index++) {
-      const translationMult = 1;
-      const rotMult = 0.9 * Math.pow(index / 8.0, 3.2);
-      slots.push({
-        translation: [
-          (floatRand(rng) * 2 - 1) * translationMult,
-          (floatRand(rng) * 2 - 1) * translationMult,
-          (floatRand(rng) * 2 - 1) * translationMult,
-        ],
-        rotationCenter: [
-          floatRand(rng) * 6.28,
-          floatRand(rng) * 6.28,
-          floatRand(rng) * 6.28,
-        ],
-        rotationSpeed: [
-          (floatRand(rng) * 2 - 1) * rotMult,
-          (floatRand(rng) * 2 - 1) * rotMult,
-          (floatRand(rng) * 2 - 1) * rotMult,
-        ],
-      });
-    }
-    this.persistent = slots;
-  }
-
-  /** Build the 24 rotation matrices this instance uploads to its
-   *  shader. Slots 0..19 use persistent state + `floatTime`. Slots
-   *  20..23 draw fresh values from `rng` at each invocation, matching
-   *  MilkdropShader.cpp's per-invocation `floatRand()` loop.
-   *
-   *  The `rng` argument is the session's shader RNG — a stream
-   *  independent from the construction RNG so an instance reload does
-   *  not shift the per-invocation randomness. */
-  buildRotationMatrices(floatTime: number, rng: MilkRng): Mat4[] {
-    const matrices: Mat4[] = new Array(24);
-    // Persistent slots 0..19.
-    for (let i = 0; i < 20; i++) {
-      const s = this.persistent[i];
-      const rx = rotateX(s.rotationCenter[0] + s.rotationSpeed[0] * floatTime);
-      const ry = rotateY(s.rotationCenter[1] + s.rotationSpeed[1] * floatTime);
-      const rz = rotateZ(s.rotationCenter[2] + s.rotationSpeed[2] * floatTime);
-      const t = translate(s.translation[0], s.translation[1], s.translation[2]);
-      // projectM: tempMatrices[i] = randomTranslation * rotationX;
-      //          tempMatrices[i] = rotationZ * tempMatrices[i];
-      //          tempMatrices[i] = rotationY * tempMatrices[i];
-      let m = multiply(t, rx);
-      m = multiply(rz, m);
-      m = multiply(ry, m);
-      matrices[i] = m;
-    }
-    // Fully-random slots 20..23. Each slot draws 3 rotation angles
-    // (as `floatRand * 6.28`) plus 3 translations (as raw `floatRand`).
-    for (let i = 20; i < 24; i++) {
-      const rx = rotateX(floatRand(rng) * 6.28);
-      const ry = rotateY(floatRand(rng) * 6.28);
-      const rz = rotateZ(floatRand(rng) * 6.28);
-      const t = translate(floatRand(rng), floatRand(rng), floatRand(rng));
-      let m = multiply(t, rx);
-      m = multiply(rz, m);
-      m = multiply(ry, m);
-      matrices[i] = m;
-    }
-    return matrices;
-  }
+function mat4ToMat3x4(m: Float32Array): Mat3x4 {
+  // Extract the first 12 floats of the column-major glm::mat4.
+  const out = new Float32Array(12);
+  for (let i = 0; i < 12; i++) out[i] = m[i];
+  return out;
 }

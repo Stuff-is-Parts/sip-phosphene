@@ -1,31 +1,49 @@
 /**
  * MilkDrop noise-texture generators — projectM-authoritative port from
- * docs/evidence/projectm/MilkdropNoise.cpp `generate2D` / `generate3D`.
- * COMPATIBILITY-GOAL.md §Source-Authority puts projectM above butterchurn
- * for the default execution path, so this module reproduces projectM's
- * behavior verbatim:
+ * docs/evidence/projectm/MilkdropNoise.cpp (retained at pinned SHA
+ * 2f244141320f6b97b09bf99964cc72a4efdfcfd3). COMPATIBILITY-GOAL.md
+ * §Source-Authority puts projectM above butterchurn for the default
+ * execution path.
  *
- * 1. Per-pixel initial fill uses `(rand % RANGE) + RANGE/2` where
- *    RANGE = 216 when zoom > 1, 256 otherwise. Each of the four
- *    channels is an independent draw. Byte truncation matches
- *    projectM's implicit `<< N` overflow at the packed uint32_t
- *    boundary — a channel value of 383 stores as byte 127.
- * 2. After the fill, EACH row runs `size` random pixel-pair swaps
- *    within that row. This is projectM-distinctive; butterchurn does
- *    not do it. Same RNG stream as the fill.
- * 3. When zoom > 1, cubic-interpolate lattice points along X, then Y
- *    (2D) or X, Y, then Z (3D).
+ * Byte-exact reproduction of projectM's packed uint32_t layout.
  *
- * The RNG parameter is an INDEPENDENT source per COMPATIBILITY-GOAL.md
- * — this stream does not consume or shift the preset equation RNG.
- * Callers own the noise-RNG lifetime; MilkSession is the session-level
- * owner.
+ * projectM stores each pixel as a packed uint32:
+ *
+ *     dst[x] = (v0 << 24) | (v1 << 16) | (v2 << 8) | v3
+ *
+ * where each `vN` is `(rand() % RANGE) + RANGE/2` and can exceed 255.
+ * When `vN > 255` its bit 8 spills into the next-higher byte via the
+ * OR. PHOSPHENE reproduces this exactly by storing the packed value in
+ * a `Uint32Array` — the JS integer OR handles 32-bit semantics — and
+ * running per-row swaps + cubic interpolation on the packed values so
+ * the spill survives every step.
+ *
+ * Final upload byte layout for `rgba8unorm`.
+ *
+ * projectM uploads its uint32 array to OpenGL with `GL_BGRA + GL_UNSIGNED_BYTE`
+ * on desktop (see `MilkdropNoise::GetPreferredInternalFormat`). Under
+ * that interpretation and little-endian host storage the shader sees:
+ *
+ *     R = byte at addr+2 = (packed >> 16) & 0xff
+ *     G = byte at addr+1 = (packed >>  8) & 0xff
+ *     B = byte at addr+0 =  packed        & 0xff
+ *     A = byte at addr+3 = (packed >> 24) & 0xff
+ *
+ * PHOSPHENE targets `rgba8unorm`, where the shader reads byte 0 as R,
+ * byte 1 as G, byte 2 as B, byte 3 as A. To preserve projectM's
+ * shader-visible values the byte-emission remaps the packed uint32
+ * with those exact expressions.
+ *
+ * RNG ownership. projectM seeds a fresh `std::default_random_engine`
+ * from `system_clock` at each `generate2D`/`generate3D` call.
+ * PHOSPHENE accepts a `MilkRng` so the stream is reproducible under
+ * `MilkSession.noiseRng`, which is independent from the shader RNG
+ * and from the preset equation RNG.
  */
 
 import { type MilkRng } from "../core/milk-runner";
 
-/** Cubic interpolation across four sample points, parameter t ∈ [0, 1].
- *  Matches MilkdropNoise.cpp `fCubicInterpolate`. */
+/** projectM's `fCubicInterpolate` per MilkdropNoise.cpp. */
 export function fCubicInterpolate(
   y0: number, y1: number, y2: number, y3: number, t: number,
 ): number {
@@ -37,225 +55,209 @@ export function fCubicInterpolate(
   return a0 * t * t2 + a1 * t2 + a2 * t + a3;
 }
 
-/** Per-channel cubic interpolation for a 4-channel RGBA byte pixel.
- *  Matches MilkdropNoise.cpp `dwCubicInterpolate`: normalize each channel
- *  to [0, 1], interpolate, clamp, and rescale to 0..255. */
-export function dwCubicInterpolate(
-  y0: readonly number[], y1: readonly number[],
-  y2: readonly number[], y3: readonly number[], t: number,
-): [number, number, number, number] {
-  const out: [number, number, number, number] = [0, 0, 0, 0];
+/** projectM's `dwCubicInterpolate` per MilkdropNoise.cpp — operates on
+ *  the packed uint32 layout directly so bit-spill in the packed value
+ *  is preserved end-to-end. Each of the four bytes is interpolated
+ *  independently, clamped to [0, 1], and packed back into the result. */
+export function dwCubicInterpolateU32(
+  y0: number, y1: number, y2: number, y3: number, t: number,
+): number {
+  let ret = 0;
   for (let i = 0; i < 4; i++) {
-    let f = fCubicInterpolate(y0[i] / 255, y1[i] / 255, y2[i] / 255, y3[i] / 255, t);
-    if (f < 0) f = 0; else if (f > 1) f = 1;
-    out[i] = Math.floor(f * 255);
+    const shift = i * 8;
+    const c0 = ((y0 >>> shift) & 0xff) / 255;
+    const c1 = ((y1 >>> shift) & 0xff) / 255;
+    const c2 = ((y2 >>> shift) & 0xff) / 255;
+    const c3 = ((y3 >>> shift) & 0xff) / 255;
+    let f = fCubicInterpolate(c0, c1, c2, c3, t);
+    if (f < 0) f = 0;
+    if (f > 1) f = 1;
+    ret = (ret | (((f * 255) | 0) << shift)) >>> 0;
   }
-  return out;
+  return ret;
 }
 
-/** Simulate projectM's `std::uniform_int_distribution<int>(0, INT32_MAX)`
- *  draw on top of the provided MilkRng. */
+/** projectM uses `std::uniform_int_distribution<int>(0, INT32_MAX)` on
+ *  a `std::default_random_engine`. PHOSPHENE simulates that on top of
+ *  a MilkRng. */
 function randInt(rng: MilkRng): number {
   return Math.floor(rng.next() * 0x7fffffff);
 }
 
-/** Byte value from projectM's `(rand % RANGE) + RANGE/2` expression,
- *  truncated to a byte to match the implicit overflow at the packed
- *  uint32_t boundary. */
-function packedByte(rng: MilkRng, range: number, halfRange: number): number {
-  return (((randInt(rng) % range) + halfRange) & 0xff);
+/** Pack four `(rand() % RANGE) + RANGE/2` draws into projectM's exact
+ *  packed uint32 layout, preserving bit-spill via the JS OR. */
+function packQuadU32(rng: MilkRng, range: number, halfRange: number): number {
+  const v0 = (randInt(rng) % range) + halfRange;
+  const v1 = (randInt(rng) % range) + halfRange;
+  const v2 = (randInt(rng) % range) + halfRange;
+  const v3 = (randInt(rng) % range) + halfRange;
+  return (((v0 << 24) | (v1 << 16) | (v2 << 8) | v3) >>> 0);
 }
 
-/** Fill one row with 4-channel bytes then swap `size` random pixel-pairs
- *  within that row. Matches MilkdropNoise.cpp `generate2D` inner loops. */
-function fillAndSwapRow(
-  tex: Uint8Array, row: number, size: number, rng: MilkRng,
-  range: number, halfRange: number,
-): void {
-  const rowStart = row * size * 4;
-  for (let x = 0; x < size; x++) {
-    const p = rowStart + x * 4;
-    tex[p]     = packedByte(rng, range, halfRange);
-    tex[p + 1] = packedByte(rng, range, halfRange);
-    tex[p + 2] = packedByte(rng, range, halfRange);
-    tex[p + 3] = packedByte(rng, range, halfRange);
+/** Convert projectM's packed uint32 array to a `rgba8unorm` byte layout
+ *  that preserves projectM's BGRA-interpretation shader-visible values. */
+function u32ToRgba8Unorm(tex32: Uint32Array): Uint8Array {
+  const out = new Uint8Array(tex32.length * 4);
+  for (let i = 0; i < tex32.length; i++) {
+    const packed = tex32[i];
+    out[i * 4]     = (packed >>> 16) & 0xff; // R = projectM's shader R
+    out[i * 4 + 1] = (packed >>> 8)  & 0xff; // G
+    out[i * 4 + 2] =  packed         & 0xff; // B
+    out[i * 4 + 3] = (packed >>> 24) & 0xff; // A
   }
-  // Per-row random pixel-pair swaps (`size` swaps per row).
-  for (let x = 0; x < size; x++) {
-    const x1 = randInt(rng) % size;
-    const x2 = randInt(rng) % size;
-    const p1 = rowStart + x1 * 4;
-    const p2 = rowStart + x2 * 4;
-    for (let c = 0; c < 4; c++) {
-      const t = tex[p1 + c];
-      tex[p1 + c] = tex[p2 + c];
-      tex[p2 + c] = t;
-    }
-  }
+  return out;
 }
 
-/** Sample four channels at a given texel offset. */
-function readPixel(tex: Uint8Array, offset: number): [number, number, number, number] {
-  return [tex[offset], tex[offset + 1], tex[offset + 2], tex[offset + 3]];
-}
-
-function writePixel(tex: Uint8Array, offset: number, p: [number, number, number, number]): void {
-  tex[offset]     = p[0];
-  tex[offset + 1] = p[1];
-  tex[offset + 2] = p[2];
-  tex[offset + 3] = p[3];
-}
-
-/** 2D noise per projectM MilkdropNoise.cpp `generate2D(size, zoomFactor)`.
- *  Returns a Uint8Array of `size * size * 4` bytes. When `zoom > 1`,
- *  lattice values fill every `zoom`-th X and Y position and cubic
- *  interpolation produces the intermediate texels. */
+/** 2D noise per projectM's `generate2D(size, zoomFactor)`. Returns a
+ *  `Uint8Array` of `size * size * 4` bytes with the channel remap that
+ *  gives PHOSPHENE `rgba8unorm` textures the same shader-visible
+ *  values projectM's GL_BGRA upload produces. */
 export function createNoiseTex(
   size: number, zoom: number, rng: MilkRng,
 ): Uint8Array {
   const range = zoom > 1 ? 216 : 256;
   const halfRange = range >> 1;
-  const tex = new Uint8Array(size * size * 4);
+  const tex = new Uint32Array(size * size);
 
-  // Step 1+2: initial fill and per-row swaps.
   for (let y = 0; y < size; y++) {
-    fillAndSwapRow(tex, y, size, rng, range, halfRange);
-  }
-
-  if (zoom <= 1) return tex;
-
-  // Step 3a: cubic interpolate along X on lattice rows.
-  for (let y = 0; y < size; y += zoom) {
-    const rowStart = y * size * 4;
     for (let x = 0; x < size; x++) {
-      if (x % zoom === 0) continue;
-      const baseX = Math.floor(x / zoom) * zoom + size;
-      const p0 = rowStart + ((baseX - zoom) % size) * 4;
-      const p1 = rowStart + (baseX % size) * 4;
-      const p2 = rowStart + ((baseX + zoom) % size) * 4;
-      const p3 = rowStart + ((baseX + zoom * 2) % size) * 4;
-      const t = (x % zoom) / zoom;
-      writePixel(tex, rowStart + x * 4,
-        dwCubicInterpolate(readPixel(tex, p0), readPixel(tex, p1),
-                           readPixel(tex, p2), readPixel(tex, p3), t));
+      tex[y * size + x] = packQuadU32(rng, range, halfRange);
+    }
+    // Per-row random pixel-pair swaps operate on packed uint32 values.
+    for (let x = 0; x < size; x++) {
+      const x1 = randInt(rng) % size;
+      const x2 = randInt(rng) % size;
+      const tmp = tex[y * size + x1];
+      tex[y * size + x1] = tex[y * size + x2];
+      tex[y * size + x2] = tmp;
     }
   }
-  // Step 3b: cubic interpolate along Y on every column.
-  for (let x = 0; x < size; x++) {
-    for (let y = 0; y < size; y++) {
-      if (y % zoom === 0) continue;
-      const baseY = Math.floor(y / zoom) * zoom + size;
-      const p0 = (((baseY - zoom) % size) * size + x) * 4;
-      const p1 = ((baseY % size) * size + x) * 4;
-      const p2 = (((baseY + zoom) % size) * size + x) * 4;
-      const p3 = (((baseY + zoom * 2) % size) * size + x) * 4;
-      const t = (y % zoom) / zoom;
-      writePixel(tex, (y * size + x) * 4,
-        dwCubicInterpolate(readPixel(tex, p0), readPixel(tex, p1),
-                           readPixel(tex, p2), readPixel(tex, p3), t));
+
+  if (zoom > 1) {
+    // X-axis cubic interpolation on lattice rows.
+    for (let y = 0; y < size; y += zoom) {
+      const rowBase = y * size;
+      for (let x = 0; x < size; x++) {
+        if (x % zoom === 0) continue;
+        const baseX = Math.floor(x / zoom) * zoom + size;
+        const y0 = tex[rowBase + ((baseX - zoom) % size)];
+        const y1 = tex[rowBase + (baseX % size)];
+        const y2 = tex[rowBase + ((baseX + zoom) % size)];
+        const y3 = tex[rowBase + ((baseX + zoom * 2) % size)];
+        const t = (x % zoom) / zoom;
+        tex[rowBase + x] = dwCubicInterpolateU32(y0, y1, y2, y3, t);
+      }
+    }
+    // Y-axis cubic interpolation on every column.
+    for (let x = 0; x < size; x++) {
+      for (let y = 0; y < size; y++) {
+        if (y % zoom === 0) continue;
+        const baseY = Math.floor(y / zoom) * zoom + size;
+        const y0 = tex[((baseY - zoom) % size) * size + x];
+        const y1 = tex[(baseY % size) * size + x];
+        const y2 = tex[((baseY + zoom) % size) * size + x];
+        const y3 = tex[((baseY + zoom * 2) % size) * size + x];
+        const t = (y % zoom) / zoom;
+        tex[y * size + x] = dwCubicInterpolateU32(y0, y1, y2, y3, t);
+      }
     }
   }
-  return tex;
+
+  return u32ToRgba8Unorm(tex);
 }
 
-/** 3D volumetric noise per projectM MilkdropNoise.cpp `generate3D`.
- *  Returns a Uint8Array of `size * size * size * 4` bytes. */
+/** 3D volumetric noise per projectM's `generate3D(size, zoomFactor)`.
+ *  The projectM source uses distinctive indexing that mixes slice and
+ *  row bases (`dst[y * size + base_z + x]` instead of the "expected"
+ *  `dst[base_z + y * size + x]`) in the Y and Z passes. PHOSPHENE
+ *  reproduces the indexing verbatim rather than "repairing" it — under
+ *  COMPATIBILITY-GOAL.md the retained projectM revision defines the
+ *  behavior, and the correct treatment of any downstream visual effect
+ *  is to match what the source runtime does. */
 export function createNoiseVolTex(
   size: number, zoom: number, rng: MilkRng,
 ): Uint8Array {
   const range = zoom > 1 ? 216 : 256;
   const halfRange = range >> 1;
-  const tex = new Uint8Array(size * size * size * 4);
-  const sliceBytes = size * size * 4;
+  const tex = new Uint32Array(size * size * size);
+  const slice = size * size;
 
-  // Fill: per Z slice, per Y row: fill then swap.
   for (let z = 0; z < size; z++) {
-    const sliceStart = z * sliceBytes;
+    const sliceStart = z * slice;
     for (let y = 0; y < size; y++) {
-      const rowStart = sliceStart + y * size * 4;
+      const rowStart = sliceStart + y * size;
       for (let x = 0; x < size; x++) {
-        const p = rowStart + x * 4;
-        tex[p]     = packedByte(rng, range, halfRange);
-        tex[p + 1] = packedByte(rng, range, halfRange);
-        tex[p + 2] = packedByte(rng, range, halfRange);
-        tex[p + 3] = packedByte(rng, range, halfRange);
+        tex[rowStart + x] = packQuadU32(rng, range, halfRange);
       }
       for (let x = 0; x < size; x++) {
         const x1 = randInt(rng) % size;
         const x2 = randInt(rng) % size;
-        const p1 = rowStart + x1 * 4;
-        const p2 = rowStart + x2 * 4;
-        for (let c = 0; c < 4; c++) {
-          const t = tex[p1 + c];
-          tex[p1 + c] = tex[p2 + c];
-          tex[p2 + c] = t;
+        const tmp = tex[rowStart + x1];
+        tex[rowStart + x1] = tex[rowStart + x2];
+        tex[rowStart + x2] = tmp;
+      }
+    }
+  }
+
+  if (zoom > 1) {
+    // X-axis pass on lattice rows across every lattice slice.
+    for (let z = 0; z < size; z += zoom) {
+      for (let y = 0; y < size; y += zoom) {
+        const rowBase = z * size + y * size;
+        for (let x = 0; x < size; x++) {
+          if (x % zoom === 0) continue;
+          const baseX = Math.floor(x / zoom) * zoom + size;
+          const y0 = tex[rowBase + ((baseX - zoom) % size)];
+          const y1 = tex[rowBase + (baseX % size)];
+          const y2 = tex[rowBase + ((baseX + zoom) % size)];
+          const y3 = tex[rowBase + ((baseX + zoom * 2) % size)];
+          const t = (x % zoom) / zoom;
+          tex[z * size + y * size + x] = dwCubicInterpolateU32(y0, y1, y2, y3, t);
+        }
+      }
+    }
+    // Y-axis pass on every column of every lattice slice — verbatim
+    // projectM indexing including `base_z = z * size` (not `z * slice`).
+    for (let z = 0; z < size; z += zoom) {
+      for (let x = 0; x < size; x++) {
+        for (let y = 0; y < size; y++) {
+          if (y % zoom === 0) continue;
+          const baseY = Math.floor(y / zoom) * zoom + size;
+          const baseZ = z * size;
+          const y0 = tex[((baseY - zoom) % size) * size + baseZ + x];
+          const y1 = tex[(baseY % size) * size + baseZ + x];
+          const y2 = tex[((baseY + zoom) % size) * size + baseZ + x];
+          const y3 = tex[((baseY + zoom * 2) % size) * size + baseZ + x];
+          const t = (y % zoom) / zoom;
+          tex[y * size + baseZ + x] = dwCubicInterpolateU32(y0, y1, y2, y3, t);
+        }
+      }
+    }
+    // Z-axis pass — verbatim projectM indexing including `base_z * size + base_y + x`.
+    for (let x = 0; x < size; x++) {
+      for (let y = 0; y < size; y++) {
+        for (let z = 0; z < size; z++) {
+          if (z % zoom === 0) continue;
+          const baseY = y * size;
+          const baseZ = Math.floor(z / zoom) * zoom + size;
+          const y0 = tex[((baseZ - zoom) % size) * size + baseY + x];
+          const y1 = tex[(baseZ % size) * size + baseY + x];
+          const y2 = tex[((baseZ + zoom) % size) * size + baseY + x];
+          const y3 = tex[((baseZ + zoom * 2) % size) * size + baseY + x];
+          const t = (z % zoom) / zoom;
+          tex[z * size + baseY + x] = dwCubicInterpolateU32(y0, y1, y2, y3, t);
         }
       }
     }
   }
 
-  if (zoom <= 1) return tex;
-
-  const linearOffset = (x: number, y: number, z: number): number =>
-    (z * size * size + y * size + x) * 4;
-
-  // X-axis interpolation on lattice rows.
-  for (let z = 0; z < size; z += zoom) {
-    for (let y = 0; y < size; y += zoom) {
-      for (let x = 0; x < size; x++) {
-        if (x % zoom === 0) continue;
-        const baseX = Math.floor(x / zoom) * zoom + size;
-        const p0 = linearOffset((baseX - zoom) % size, y, z);
-        const p1 = linearOffset(baseX % size, y, z);
-        const p2 = linearOffset((baseX + zoom) % size, y, z);
-        const p3 = linearOffset((baseX + zoom * 2) % size, y, z);
-        const t = (x % zoom) / zoom;
-        writePixel(tex, linearOffset(x, y, z),
-          dwCubicInterpolate(readPixel(tex, p0), readPixel(tex, p1),
-                             readPixel(tex, p2), readPixel(tex, p3), t));
-      }
-    }
-  }
-  // Y-axis interpolation on main slices.
-  for (let z = 0; z < size; z += zoom) {
-    for (let x = 0; x < size; x++) {
-      for (let y = 0; y < size; y++) {
-        if (y % zoom === 0) continue;
-        const baseY = Math.floor(y / zoom) * zoom + size;
-        const p0 = linearOffset(x, (baseY - zoom) % size, z);
-        const p1 = linearOffset(x, baseY % size, z);
-        const p2 = linearOffset(x, (baseY + zoom) % size, z);
-        const p3 = linearOffset(x, (baseY + zoom * 2) % size, z);
-        const t = (y % zoom) / zoom;
-        writePixel(tex, linearOffset(x, y, z),
-          dwCubicInterpolate(readPixel(tex, p0), readPixel(tex, p1),
-                             readPixel(tex, p2), readPixel(tex, p3), t));
-      }
-    }
-  }
-  // Z-axis interpolation everywhere.
-  for (let x = 0; x < size; x++) {
-    for (let y = 0; y < size; y++) {
-      for (let z = 0; z < size; z++) {
-        if (z % zoom === 0) continue;
-        const baseZ = Math.floor(z / zoom) * zoom + size;
-        const p0 = linearOffset(x, y, (baseZ - zoom) % size);
-        const p1 = linearOffset(x, y, baseZ % size);
-        const p2 = linearOffset(x, y, (baseZ + zoom) % size);
-        const p3 = linearOffset(x, y, (baseZ + zoom * 2) % size);
-        const t = (z % zoom) / zoom;
-        writePixel(tex, linearOffset(x, y, z),
-          dwCubicInterpolate(readPixel(tex, p0), readPixel(tex, p1),
-                             readPixel(tex, p2), readPixel(tex, p3), t));
-      }
-    }
-  }
-  return tex;
+  return u32ToRgba8Unorm(tex);
 }
 
-/** Manifest of the six MilkDrop-visible noise textures per projectM
- *  MilkdropNoise.hpp static factory methods. Consumers (MilkSession)
- *  invoke `createNoiseTex` or `createNoiseVolTex` per row. */
+/** Manifest of the six MilkDrop-visible noise textures per projectM's
+ *  static factory methods in `MilkdropNoise::LowQuality` etc.
+ *  Consumers (MilkSession) call `createNoiseTex` or `createNoiseVolTex`
+ *  with each row's parameters. */
 export const NOISE_TEX_SPECS: readonly {
   name: "noise_lq" | "noise_lq_lite" | "noise_mq" | "noise_hq"
       | "noisevol_lq" | "noisevol_hq";
