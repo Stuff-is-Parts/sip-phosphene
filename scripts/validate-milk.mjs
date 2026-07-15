@@ -15,12 +15,38 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import puppeteer from "puppeteer-core";
 import { PNG } from "pngjs";
+import { execSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { CAPTURE_FRAMES, TOTAL_FRAMES, FPS } from "./lib/ref-audio.mjs";
 import { MilkAudioModel } from "./lib/milk-audio-model.mjs";
-import { ssim, meanAbsError } from "./lib/ssim.mjs";
+import { ssimColor, meanAbsError } from "./lib/ssim.mjs";
 
 const out = process.argv[2] ?? "docs/fidelity-milk.json";
+// Tolerance committed at harness creation (SSIM >= 0.80 per capture frame);
+// now measured on MEAN PER-CHANNEL COLOR SSIM — a stricter, color-aware
+// application of the same committed threshold.
 const SSIM_TOLERANCE = 0.80;
+
+// Build the current source before validating (assignment: validation must
+// exercise the code as it exists now, not a stale bundle).
+console.log("building current source...");
+execSync("npm run build", { stdio: "inherit" });
+
+// Correspondence proof inputs: butterchurn's converted preset JSON carries
+// the ORIGINAL equation text (frame_eqs_str); a fixture pair is only
+// validated when the corpus file's per_frame text matches it after
+// whitespace/case normalization — proving same-source, not just same name.
+const require2 = createRequire(import.meta.url);
+const butterchurnPresets = require2("butterchurn-presets/lib/butterchurnPresets.min.js").getPresets();
+const normEq = (s) => String(s ?? "").toLowerCase().replace(/\/\/[^\n]*/g, "").replace(/[\s`;]+/g, "");
+const corpusPerFrame = (text) => {
+  const lines = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const m = /^per_frame_(\d+)=(.*)$/.exec(raw.trim());
+    if (m) lines[parseInt(m[1], 10) - 1] = m[2];
+  }
+  return lines.filter((s) => s !== undefined).join("");
+};
 
 const manifestPath = "reference/milk/manifest.json";
 if (!existsSync(manifestPath)) {
@@ -73,47 +99,69 @@ const browser = await puppeteer.launch({
 mkdirSync("reference/milk-phosphene", { recursive: true });
 
 const results = [];
-let validated = 0, compileFailed = 0, diverged = 0;
+let validated = 0, compileFailed = 0, diverged = 0, unproven = 0;
 try {
-  const page = await browser.newPage();
-  await page.setViewport({ width: W, height: H });
-  await page.goto(`http://localhost:${PORT}/verify.html`, { waitUntil: "networkidle2", timeout: 20000 });
-  await page.waitForFunction(() => window.__ready === true, { timeout: 20000 });
-
   for (const pair of pairs) {
     const text = readFileSync(pair.corpusFile, "latin1");
-    const load = await page.evaluate((t, n) => window.__refLoadMilk(t, n), text, pair.preset);
-    if (!load.ok) {
-      compileFailed++;
-      results.push({ preset: pair.preset, status: "compile-failed", errors: load.errors });
+
+    // Same-source proof: corpus per_frame text must equal the butterchurn
+    // fixture's original equation text after normalization.
+    const bcPreset = butterchurnPresets[pair.preset];
+    const proof = normEq(corpusPerFrame(text)) === normEq(bcPreset?.frame_eqs_str);
+    if (!proof) {
+      unproven++;
+      results.push({ preset: pair.preset, status: "correspondence-unproven",
+        detail: "corpus per_frame text does not match the fixture's frame_eqs_str" });
+      console.log(`UNPRV ${pair.preset.slice(0, 60)}`);
       continue;
     }
-    const model = new MilkAudioModel();
-    const frames = [];
-    mkdirSync(`reference/milk-phosphene/${pair.slug}`, { recursive: true });
-    for (let f = 0; f <= TOTAL_FRAMES; f++) {
-      const features = model.features(f);
-      await page.evaluate(
-        (t, feat) => window.__refFrame(t, {
-          ...feat,
-          spec: Float32Array.from(feat.spec),
-          wave: Float32Array.from(feat.wave),
-        }),
-        f / FPS,
-        { ...features, spec: Array.from(features.spec), wave: Array.from(features.wave) },
-      );
-      if (CAPTURE_FRAMES.includes(f)) {
-        const shot = await page.screenshot({ type: "png" });
-        const ours = PNG.sync.read(shot);
-        writeFileSync(`reference/milk-phosphene/${pair.slug}/frame-${f}.png`, shot);
-        const refPath = `reference/milk/${pair.slug}/frame-${f}.png`;
-        const ref = PNG.sync.read(readFileSync(refPath));
-        frames.push({
-          frame: f,
-          ssim: Number(ssim(ours, ref).toFixed(4)),
-          meanAbsError: Number(meanAbsError(ours, ref).toFixed(2)),
-        });
+
+    // Clean renderer state per preset: fresh page.
+    const page = await browser.newPage();
+    let frames;
+    try {
+      await page.setViewport({ width: W, height: H });
+      await page.goto(`http://localhost:${PORT}/verify.html`, { waitUntil: "networkidle2", timeout: 20000 });
+      await page.waitForFunction(() => window.__ready === true, { timeout: 20000 });
+      const load = await page.evaluate((t, n) => window.__refLoadMilk(t, n), text, pair.preset);
+      if (!load.ok) {
+        compileFailed++;
+        results.push({ preset: pair.preset, status: "compile-failed", errors: load.errors });
+        continue;
       }
+      const model = new MilkAudioModel();
+      frames = [];
+      mkdirSync(`reference/milk-phosphene/${pair.slug}`, { recursive: true });
+      for (let f = 0; f <= TOTAL_FRAMES; f++) {
+        const features = model.features(f);
+        await page.evaluate(
+          (t, feat) => window.__refFrame(t, {
+            ...feat,
+            spec: Float32Array.from(feat.spec),
+            wave: Float32Array.from(feat.wave),
+          }),
+          f / FPS,
+          { ...features, spec: Array.from(features.spec), wave: Array.from(features.wave) },
+        );
+        if (CAPTURE_FRAMES.includes(f)) {
+          await page.evaluate(() => new Promise((r) => {
+            globalThis.requestAnimationFrame(() => globalThis.requestAnimationFrame(() => r(null)));
+          }));
+          const shot = await page.screenshot({ type: "png" });
+          const ours = PNG.sync.read(shot);
+          writeFileSync(`reference/milk-phosphene/${pair.slug}/frame-${f}.png`, shot);
+          const ref = PNG.sync.read(readFileSync(`reference/milk/${pair.slug}/frame-${f}.png`));
+          const c = ssimColor(ours, ref);
+          frames.push({
+            frame: f,
+            ssim: Number(c.mean.toFixed(4)),
+            ssimMinChannel: Number(c.min.toFixed(4)),
+            meanAbsError: Number(meanAbsError(ours, ref).toFixed(2)),
+          });
+        }
+      }
+    } finally {
+      await page.close();
     }
     const allMatch = frames.every((fr) => fr.ssim >= SSIM_TOLERANCE);
     if (allMatch) validated++;
@@ -127,13 +175,13 @@ try {
 }
 
 const report = {
-  measures: "reference-validated fidelity: SSIM vs Butterchurn oracle renders under identical deterministic audio and frame times",
-  tolerance: { ssim: SSIM_TOLERANCE, rule: "every capture frame must reach tolerance; committed before implementation per COMPATIBILITY-GOAL.md" },
+  measures: "reference-validated fidelity: mean per-channel color SSIM vs seeded Butterchurn oracle renders under identical deterministic audio and frame times; correspondence proven by equation-text match",
+  tolerance: { ssim: SSIM_TOLERANCE, metric: "mean per-channel color SSIM", rule: "every capture frame must reach tolerance; committed before implementation per COMPATIBILITY-GOAL.md" },
   captureFrames: CAPTURE_FRAMES,
   pairsTested: pairs.length,
-  validated, diverged, compileFailed,
+  validated, diverged, compileFailed, correspondenceUnproven: unproven,
   results,
 };
 writeFileSync(out, JSON.stringify(report, null, 2));
-console.log(`\nVALIDATED ${validated} / ${pairs.length} (diverged ${diverged}, compile-failed ${compileFailed})`);
+console.log(`\nVALIDATED ${validated} / ${pairs.length} (diverged ${diverged}, compile-failed ${compileFailed}, unproven ${unproven})`);
 console.log(`report: ${out}`);

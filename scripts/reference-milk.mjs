@@ -34,6 +34,19 @@ const browser = await puppeteer.launch({
 try {
   const page = await browser.newPage();
   await page.setViewport({ width: W, height: H });
+  // COMMITTED SEED 0x5eed1e55: Butterchurn has no built-in deterministic
+  // mode (grep of lib/butterchurn.js: no seed/testMode); installing a
+  // seeded PRNG over Math.random before any page script makes every
+  // internal draw (preset init rand(), rand_preset, etc.) deterministic.
+  await page.evaluateOnNewDocument(() => {
+    let s = 0x5eed1e55;
+    Math.random = () => {
+      s |= 0; s = (s + 0x6d2b79f5) | 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  });
   page.on("pageerror", (e) => console.error("pageerror:", String(e).slice(0, 200)));
   const url = pathToFileURL("reference/butterchurn-ref.html").href;
   await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
