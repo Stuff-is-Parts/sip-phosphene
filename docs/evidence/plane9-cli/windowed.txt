@@ -1,0 +1,2 @@
+=== TEST 3: windowed mode + scene ===
+exit=124

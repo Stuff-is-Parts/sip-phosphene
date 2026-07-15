@@ -12,7 +12,11 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { spawn, execSync } from "node:child_process";
+import { spawn, execSync, execFileSync } from "node:child_process";
+
+// Embed HEAD SHA so evidence traces to the exact code that produced it.
+let COMMIT_SHA = "unknown";
+try { COMMIT_SHA = execFileSync("git", ["rev-parse", "HEAD"]).toString().trim(); } catch { /* not a repo */ }
 import puppeteer from "puppeteer-core";
 import { PNG } from "pngjs";
 import { audioFrame } from "./lib/ref-audio.mjs";
@@ -154,11 +158,31 @@ try {
   preview.kill("SIGKILL");
 }
 
+const unsupportedByFeature = {};
+for (const r of results) {
+  if (r.status !== "unsupported") continue;
+  for (const f of r.features ?? []) {
+    const key = f.replace(/\s*\(.*$/, "");
+    unsupportedByFeature[key] = (unsupportedByFeature[key] || 0) + 1;
+  }
+}
+const executable = results.length - unsupported - loadFailed - skipped;
 const report = {
   measures: "END-TO-END MilkDrop fidelity: PHOSPHENE derives its own audio levels + frame globals + EEL evaluations + rendering from only the .milk source + PCM + committed seed. Compared per RGB channel against the oracle's screenshots.",
   path: "graph milk path (milkToGraph -> MilkPipeline dispatched per-node from graph.order); no oracle values injected.",
+  commitSha: COMMIT_SHA,
   tolerance: { ssim: SSIM_TOLERANCE, metric: "min per-channel color SSIM" },
   captureFrames: CAPTURE_FRAMES,
+  counts: {
+    totalCorpusPresets: manifest.presets.length,
+    presetsTested: results.length,
+    executable,
+    validatedExecutable: validated,
+    divergedExecutable: diverged,
+    unsupportedByFeature,
+    fixtureConvertFailures: skipped,
+    loadFailed,
+  },
   presetsTested: results.length,
   validated, diverged, loadFailed, unsupportedShaderPresets: unsupported, fixtureConvertFailures: skipped,
   results,

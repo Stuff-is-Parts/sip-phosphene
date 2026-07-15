@@ -25,9 +25,9 @@
  */
 
 import { Renderer } from "./renderer";
-import { MilkPresetRunner, REGS, type Pool } from "../core/milk-runner";
+import { MilkPresetRunner, makeMulberry32, REGS, type Pool, type MilkRng } from "../core/milk-runner";
 import {
-  GraphScene, GraphNode, MilkFrameNode, MilkWarpNode, MilkWaveNode, MilkShapeNode,
+  GraphScene, GraphNode, MilkWaveNode, MilkShapeNode,
   UnsupportedNodeError, unsupportedFeatures, validateGraph,
 } from "../core/graph";
 import { UnsupportedGraphError } from "./graph-executor";
@@ -245,19 +245,37 @@ interface MilkTarget { tex: GPUTexture; views: GPUTextureView[]; mipCount: numbe
  *  our per-context pools store gmegabuf writes but do not share cells
  *  cross-context within a frame, presets touching gmegabuf cannot be
  *  faithfully executed today. */
+/** Syntax-aware, case-insensitive detector for gmegabuf references.
+ *  MilkDrop identifiers are case-insensitive — the converter lowercases
+ *  them before evaluation, so a preset writing `GMEGABUF(3)` or
+ *  `GMegabuf(reg00)` reaches our EEL compiler as `gmegabuf`. The detector
+ *  strips comments and quoted strings before scanning so a `//` comment
+ *  containing the token cannot false-positive, and requires a word
+ *  boundary + optional whitespace + `(` after the identifier so a
+ *  variable named `mygmegabuf` (no evidence it exists in the corpus, but
+ *  cheap to guard) does not trip it.
+ *
+ *  Refusal continues until true shared 1M-cell storage across preset,
+ *  pixel, wave, and shape contexts is implemented (COMPATIBILITY-GOAL.md
+ *  Hard Rules). */
 function usesGmegabuf(g: GraphScene): boolean {
-  const re = /\bgmegabuf\s*\(/;
+  const scan = (src: string | undefined | null): boolean => {
+    if (!src) return false;
+    // Strip line comments and block comments (MilkDrop EEL uses //).
+    const noComments = src
+      .replace(/\/\/[^\n]*/g, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "");
+    // Case-insensitive with word-boundary + optional whitespace before "(".
+    return /\bgmegabuf\s*\(/i.test(noComments);
+  };
   for (const n of g.nodes) {
-    if (n.kind === "milk-frame" && (re.test(n.initCode) || re.test(n.perFrame))) return true;
-    if (n.kind === "milk-warp" && (re.test(n.perPixel) || re.test(n.perPixelInit))) return true;
+    if (n.kind === "milk-frame" && (scan(n.initCode) || scan(n.perFrame))) return true;
+    if (n.kind === "milk-warp" && (scan(n.perPixel) || scan(n.perPixelInit))) return true;
     if (n.kind === "milk-wave") {
-      if (n.initCode && re.test(n.initCode)) return true;
-      if (n.perFrame && re.test(n.perFrame)) return true;
-      if (n.perPoint && re.test(n.perPoint)) return true;
+      if (scan(n.initCode) || scan(n.perFrame) || scan(n.perPoint)) return true;
     }
     if (n.kind === "milk-shape") {
-      if (n.initCode && re.test(n.initCode)) return true;
-      if (n.perFrame && re.test(n.perFrame)) return true;
+      if (scan(n.initCode) || scan(n.perFrame)) return true;
     }
   }
   return false;
@@ -284,7 +302,12 @@ export class MilkPipeline {
   private invAspectx = 1;
   private invAspecty = 1;
 
-  private runner: MilkPresetRunner | null = null;
+  // MilkPresetRunner exposed as readable state so the E2E harness can
+  // inspect PHOSPHENE's post-equation mdVSFrame each frame.
+  runner: MilkPresetRunner | null = null;
+  /** Most recent post-per-frame mdVSFrame pool (populated after each
+   *  frame() call). Read-only for external consumers. */
+  lastMdVSFrame: Pool | null = null;
   private regVars: Pool = {};
   private waveNodes: MilkWaveNode[] = [];
   private shapeNodes: MilkShapeNode[] = [];
@@ -326,7 +349,15 @@ export class MilkPipeline {
 
   private canvasVertBuf: GPUBuffer | null = null;
 
-  constructor(private readonly renderer: Renderer) {}
+  /** RNG stream fed to the runner; committed seed by default so every
+   *  preset execution is reproducible without external Math.random
+   *  patching. Callers may pass an explicit MilkRng when a specific
+   *  seeded stream is required (e.g. E2E validation aligned to the
+   *  instrumented oracle). */
+  private readonly rng: MilkRng;
+  constructor(private readonly renderer: Renderer, rng?: MilkRng) {
+    this.rng = rng ?? makeMulberry32(0x5eed1e55);
+  }
 
   /* ------------------------------ loading ------------------------------ */
 
@@ -404,7 +435,7 @@ export class MilkPipeline {
       shapes: this.shapeNodes.map((s) => ({
         baseValues: s.baseValues, initEel: s.initCode, frameEel: s.perFrame,
       })),
-    }, loadGlobals);
+    }, loadGlobals, this.rng);
     this.regVars = {};
     this.oldWaveMode = 0;
 
@@ -663,48 +694,21 @@ export class MilkPipeline {
     const freqL = Array.from(data.freqArrayL as ArrayLike<number>);
     const freqR = Array.from(data.freqArrayR as ArrayLike<number>);
 
-    // Walk graph.order to find the milk-frame node and the milk-warp
-    // node; per-frame equations run once per milk-frame, per-pixel
-    // equations use the milk-warp node's declared grid dims.
+    // Per-frame CPU state — populated by the milk-frame case in the
+    // dispatch loop below and read by the milk-warp / milk-shape /
+    // milk-wave / milk-composite cases. Nothing runs before the loop
+    // enters graph.order.
     const byId = new Map(g.nodes.map((n) => [n.id, n]));
-    let frameNode: MilkFrameNode | null = null;
-    let warpNode: MilkWarpNode | null = null;
-    for (const id of g.order) {
-      const n = byId.get(id) as GraphNode | undefined;
-      if (n?.kind === "milk-frame") frameNode = n;
-      else if (n?.kind === "milk-warp") warpNode = n;
-    }
-    if (!frameNode) throw new Error("graph.order carries no milk-frame node");
-    if (!warpNode) throw new Error("graph.order carries no milk-warp node");
-    // Grid dims come from the milk-warp node (the importer sets these
-    // per preset). Buffers were sized for GRID_X x GRID_Y at load; refuse
-    // if the graph declares different dims than the pre-allocated size.
-    if (warpNode.gridX !== GRID_X || warpNode.gridY !== GRID_Y) {
-      throw new UnsupportedGraphError([
-        `milk-warp(${warpNode.id}):grid=${warpNode.gridX}x${warpNode.gridY} ` +
-        `(pipeline pre-allocated at ${GRID_X}x${GRID_Y}; alternative grid dims require reallocation)`,
-      ]);
-    }
-    void frameNode;
-
-    // 1) frame equations (renderer merges regVars into globals — witnessed)
-    const globals: Pool = { ...data.globals, ...this.regVars };
-    const mdVSFrame = runner.runFrameEquations(globals);
-
-    // 2) per-pixel equations -> warp UVs; regs picked from the vertex pool
-    const vertexPool = runner.runPixelEquations(
-      mdVSFrame, warpNode.gridX, warpNode.gridY, this.aspectx, this.aspecty, this.warpUVs);
-    this.regVars = {};
-    for (const r of REGS) if (r in vertexPool) this.regVars[r] = vertexPool[r];
-    dev.queue.writeBuffer(this.warpUvBuf, 0, this.warpUVs);
-
-    // 3) swap targets; mip the previous frame (witnessed generateMipmap)
-    const t = this.target; this.target = this.prev; this.prev = t;
-
-    // 4) build CPU geometry for every canvas-space draw
+    let mdVSFrame: Pool | null = null;
+    let frameGlobals: Pool | null = null;
     const draws: CanvasDraw[] = [];
-    const verts: number[] = []; // line/strip verts: x,y,r,g,b,a
-    const shapeVerts: number[] = []; // x,y,r,g,b,a,u,v,textured
+    // Per-node dispatch driven by graph.order. Each shape and wave case
+    // uses the node's imported index (n.index) rather than an
+    // incrementing counter detached from source data. Every stage that
+    // needs mdVSFrame or the current audio arrays reads them from the
+    // per-frame state assembled by milk-frame.
+    const verts: number[] = [];
+    const shapeVerts: number[] = [];
     const dotInsts: number[] = [];
     const lineDraw = (
       kind: "line-strip" | "line-list", blend: "alpha" | "additive",
@@ -718,60 +722,85 @@ export class MilkPipeline {
       });
       verts.push(...pts);
     };
-
-    // Per-node dispatch driven by graph.order. Each case reads its own
-    // node data — this is the executor's contract with the graph: a
-    // fixed MilkDrop sequence may be REPRESENTED by the graph, but its
-    // execution is DERIVED from graph.order and per-node data
-    // (COMPATIBILITY-GOAL.md Architecture: unified execution model).
-    //
-    // Waves are indexed by unit position within the waves list from the
-    // preset; the graph carries one milk-wave node per custom wave plus
-    // one default-wave node (custom=false). Same for shapes.
-    let customWaveIdx = 0;
-    let basicWaveDrawn = false;
-    let shapeIdx = 0;
     for (const id of g.order) {
       const n = byId.get(id) as GraphNode | undefined;
       if (!n) continue;
       switch (n.kind) {
-        case "milk-frame":
-        case "milk-warp":
-          // per-pixel + warp handled by the CPU/GPU steps above; the
-          // GPU warp pass fires below where the target render pass runs.
+        case "milk-frame": {
+          // Frame equations run here — using THIS node's baseValues and
+          // EEL programs — not before the dispatch loop. Regs merged
+          // from the previous frame's per-pixel pool.
+          frameGlobals = { ...data.globals, ...this.regVars };
+          mdVSFrame = runner.runFrameEquations(frameGlobals);
+          this.lastMdVSFrame = mdVSFrame;
           break;
-        case "milk-motion-vectors":
-          this.buildMotionVectors(mdVSFrame, lineDraw);
-          break;
-        case "milk-shape":
-          this.buildShape(shapeIdx, globals, shapeVerts, draws, verts, lineDraw);
-          shapeIdx++;
-          break;
-        case "milk-wave":
-          if (n.custom) {
-            this.buildCustomWave(customWaveIdx, globals, timeL, timeR, freqL, freqR, lineDraw, dotInsts, draws);
-            customWaveIdx++;
-          } else if (!basicWaveDrawn) {
-            this.buildBasicWave(mdVSFrame, timeL, timeR, lineDraw, dotInsts, draws);
-            basicWaveDrawn = true;
+        }
+        case "milk-warp": {
+          if (!mdVSFrame) throw new Error("milk-warp reached before milk-frame in graph.order");
+          if (n.gridX !== GRID_X || n.gridY !== GRID_Y) {
+            throw new UnsupportedGraphError([
+              `milk-warp(${n.id}):grid=${n.gridX}x${n.gridY} ` +
+              `(pipeline pre-allocated at ${GRID_X}x${GRID_Y})`,
+            ]);
+          }
+          // Per-pixel equations use this node's declared grid dims —
+          // read from the node, not a hardcoded constant. Regs picked
+          // from the vertex pool for the next frame.
+          const vertexPool = runner.runPixelEquations(
+            mdVSFrame, n.gridX, n.gridY, this.aspectx, this.aspecty, this.warpUVs);
+          this.regVars = {};
+          for (const r of REGS) if (r in vertexPool) this.regVars[r] = vertexPool[r];
+          dev.queue.writeBuffer(this.warpUvBuf, 0, this.warpUVs);
+          // Swap this warp's declared source and target textures. Milk
+          // graphs today carry source=target=canvas (feedback), so the
+          // swap always rotates the executor's ping-pong pair; a future
+          // milk graph with distinct source/target would render into a
+          // separate destination and the swap would not fire.
+          if (n.source === n.target) {
+            const t = this.target; this.target = this.prev; this.prev = t;
           }
           break;
-        case "milk-border":
+        }
+        case "milk-motion-vectors": {
+          if (!mdVSFrame) throw new Error("milk-motion-vectors reached before milk-frame");
+          this.buildMotionVectors(mdVSFrame, lineDraw);
+          break;
+        }
+        case "milk-shape": {
+          if (!frameGlobals) throw new Error("milk-shape reached before milk-frame");
+          // Use the node's imported index — the shape's position in the
+          // preset's shapecode_N table — not an incrementing counter.
+          this.buildShape(n.index, frameGlobals, shapeVerts, draws, verts, lineDraw);
+          break;
+        }
+        case "milk-wave": {
+          if (!frameGlobals || !mdVSFrame) throw new Error("milk-wave reached before milk-frame");
+          if (n.custom) {
+            if (n.index === undefined) {
+              throw new UnsupportedGraphError([`milk-wave(${n.id}):custom with no index`]);
+            }
+            this.buildCustomWave(n.index, frameGlobals, timeL, timeR, freqL, freqR, lineDraw, dotInsts, draws);
+          } else {
+            this.buildBasicWave(mdVSFrame, timeL, timeR, lineDraw, dotInsts, draws);
+          }
+          break;
+        }
+        case "milk-border": {
+          if (!mdVSFrame) throw new Error("milk-border reached before milk-frame");
           this.buildDarkenCenterAndBorders(mdVSFrame, draws, shapeVerts, verts);
           break;
+        }
         case "milk-blur":
-          // refused at load() — should never reach dispatch.
           throw new UnsupportedGraphError([`milk-blur(${n.id}):dispatched (should have refused at load)`]);
         case "milk-composite":
           // composite fires after the canvas pass completes; handled
-          // in the presentation pass below.
+          // below in the presentation pass.
           break;
         default:
-          // Non-milk nodes in a milk graph are unexpected — the load
-          // gate should have caught this.
           throw new UnsupportedGraphError([`${n.kind}(${n.id}) unexpected in milk graph`]);
       }
     }
+    if (!mdVSFrame) throw new Error("graph.order produced no milk-frame execution");
 
     const vertData = new Float32Array(verts);
     const shapeData = new Float32Array(shapeVerts);

@@ -19,7 +19,11 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { spawn, execSync } from "node:child_process";
+import { spawn, execSync, execFileSync } from "node:child_process";
+
+// Embed the exact HEAD SHA in every report so the evidence is verifiable.
+let COMMIT_SHA = "unknown";
+try { COMMIT_SHA = execFileSync("git", ["rev-parse", "HEAD"]).toString().trim(); } catch { /* not a repo */ }
 import puppeteer from "puppeteer-core";
 import { PNG } from "pngjs";
 import { OracleAudioProcessor } from "./lib/milk-audio-model.mjs";
@@ -180,11 +184,36 @@ try {
   preview.kill("SIGKILL");
 }
 
+// Group unsupported reasons by exact feature name — not the flattened
+// "shader presets" label. The pipeline's UnsupportedGraphError feature
+// list carries the concrete refusal (perPixelInit, gmegabuf, warpShader,
+// compShader, blur, etc.) so callers see WHY each preset refused.
+const unsupportedByFeature = {};
+for (const r of results) {
+  if (r.status !== "unsupported") continue;
+  for (const f of r.features ?? []) {
+    // Trim any parenthetical explanation to a stable feature key.
+    const key = f.replace(/\s*\(.*$/, "");
+    unsupportedByFeature[key] = (unsupportedByFeature[key] || 0) + 1;
+  }
+}
+const executable = results.length - unsupported - loadFailed - skipped;
 const report = {
   measures: "reference-validated fidelity of the GRAPH MILK PATH (MilkPipeline on WebGPU) vs the seeded Butterchurn oracle: identical corpus source file (sha256-verified), oracle per-frame globals, oracle audio chain; gate = SSIM >= tolerance on EVERY RGB channel at every capture frame",
-  path: "graph milk path (milkToGraph -> MilkPipeline); presets requiring MilkDrop 2 warp/comp shaders REFUSE and are counted as unsupported",
+  path: "graph milk path (milkToGraph -> MilkPipeline); presets refusing at load carry their exact feature list",
+  commitSha: COMMIT_SHA,
   tolerance: { ssim: SSIM_TOLERANCE, metric: "min per-channel color SSIM", rule: "every capture frame, every channel; committed before implementation per COMPATIBILITY-GOAL.md" },
   captureFrames: CAPTURE_FRAMES,
+  counts: {
+    totalCorpusPresets: manifest.presets.length,
+    presetsTested: results.length,
+    executable,
+    validatedExecutable: validated,
+    divergedExecutable: diverged,
+    unsupportedByFeature,
+    fixtureConvertFailures: skipped,
+    loadFailed,
+  },
   presetsTested: results.length,
   validated, diverged, loadFailed, unsupportedShaderPresets: unsupported, fixtureConvertFailures: skipped,
   results,

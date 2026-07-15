@@ -29,6 +29,36 @@ import { compile, type Program } from "./expr";
 
 export type Pool = Record<string, number>;
 
+/** A deterministic RNG stream owned by a MilkDrop execution context.
+ *  The MilkPresetRunner takes one at construction so entropy is a
+ *  committed part of the execution state — no Math.random dependency.
+ *
+ *  Butterchurn's oracle draws four uniform values for `rand_start` and
+ *  four more for `rand_preset` at preset init (renderer initialization
+ *  entropy), independent of the equation-visible rand()/randint() stream
+ *  consumed by EEL programs. This RNG carries a single seed but exposes
+ *  discrete draws so callers can account for each surface separately. */
+export interface MilkRng {
+  /** Uniform [0,1) draw — the primitive every derived surface calls. */
+  next(): number;
+}
+
+/** Mulberry32 — small, fast, deterministic, and cheaply reproducible
+ *  from a 32-bit seed. Used for every MilkPresetRunner RNG stream so
+ *  the entropy state is fully committed. */
+export function makeMulberry32(seed: number): MilkRng {
+  let s = seed | 0;
+  return {
+    next() {
+      s |= 0;
+      s = (s + 0x6d2b79f5) | 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    },
+  };
+}
+
 /* --- witnessed default tables (visualizer.js baseValsDefaults etc.) --- */
 
 export const MILK_BASE_DEFAULTS: Record<string, number> = {
@@ -181,18 +211,25 @@ export class MilkPresetRunner {
   private shapeFrameProgs: (Program | null)[] = [];
   readonly shapeBaseVals: Pool[] = [];
 
-  constructor(def: MilkPresetDef, globals: Pool, private readonly rand: () => number = Math.random) {
+  constructor(def: MilkPresetDef, globals: Pool, private readonly rng: MilkRng) {
+    // Every draw goes through `rng.next()` — no Math.random dependency.
+    // Callers commit an explicit seeded MilkRng (see makeMulberry32).
+    const rand = () => this.rng.next();
     this.baseVals = { ...MILK_BASE_DEFAULTS, ...mapMilkKeys(def.baseValues, "main") };
-    this.initProg = compileOrNull(def.initEel, this.errors, "init", this.rand);
-    this.frameProg = compileOrNull(def.frameEel, this.errors, "per-frame", this.rand);
-    this.pixelProg = compileOrNull(def.pixelEel, this.errors, "per-pixel", this.rand);
+    this.initProg = compileOrNull(def.initEel, this.errors, "init", rand);
+    this.frameProg = compileOrNull(def.frameEel, this.errors, "per-frame", rand);
+    this.pixelProg = compileOrNull(def.pixelEel, this.errors, "per-pixel", rand);
 
-    // (witnessed: mdVS = {baseVals, mdVSBase}; rand_start then
-    // rand_preset each consume 4 draws at init; the values feed the comp
-    // hue base and shader uniforms, not the equation pool)
+    // Renderer initialization entropy: rand_start (4 draws) then
+    // rand_preset (4 draws), witnessed in butterchurn visualizer.js
+    // loadPreset. These draws are DISTINCT from EEL rand() calls: they
+    // feed shader uniforms (rand_frame / rand_preset per warp.js) and
+    // the comp shader's hue_base seeds, not the equation pool. The
+    // draws happen from the same seeded stream so a caller replaying
+    // the seed reproduces every surface bit-for-bit.
     this.mdVS = { ...this.baseVals, ...globals };
-    this.randStart = [this.rand(), this.rand(), this.rand(), this.rand()];
-    this.randPreset = [this.rand(), this.rand(), this.rand(), this.rand()];
+    this.randStart = [rand(), rand(), rand(), rand()];
+    this.randPreset = [rand(), rand(), rand(), rand()];
 
     const nonUserKeys = [...QS, ...REGS, ...Object.keys(this.mdVS)];
     const afterInit = { ...this.mdVS };
@@ -228,7 +265,7 @@ export class MilkPresetRunner {
       const pool: Pool = { ...baseVals, ...globals };
       const nonUserWaveKeys = [...QS, ...TS, ...REGS, ...Object.keys(pool)];
       Object.assign(pool, this.mdVSQAfterFrame, this.mdVSRegs);
-      const initProg = compileOrNull(wave.initEel, this.errors, `wave${i} init`, this.rand);
+      const initProg = compileOrNull(wave.initEel, this.errors, `wave${i} init`, () => this.rng.next());
       if (initProg) {
         initProg.run(pool);
         this.mdVSRegs = pick(pool, REGS);
@@ -239,8 +276,8 @@ export class MilkPresetRunner {
       const userKeys = omitKeys(pool, nonUserWaveKeys);
       this.waveUserKeys.push(userKeys);
       this.waveFrameMaps.push(pick(pool, userKeys));
-      this.waveFrameProgs.push(compileOrNull(wave.frameEel, this.errors, `wave${i} per-frame`, this.rand));
-      this.wavePointProgs.push(compileOrNull(wave.pointEel, this.errors, `wave${i} per-point`, this.rand));
+      this.waveFrameProgs.push(compileOrNull(wave.frameEel, this.errors, `wave${i} per-frame`, () => this.rng.next()));
+      this.wavePointProgs.push(compileOrNull(wave.pointEel, this.errors, `wave${i} per-point`, () => this.rng.next()));
     });
 
     def.shapes.forEach((shape, i) => {
@@ -257,7 +294,7 @@ export class MilkPresetRunner {
       const pool: Pool = { ...baseVals, ...globals };
       const nonUserShapeKeys = [...QS, ...TS, ...REGS, ...Object.keys(pool)];
       Object.assign(pool, this.mdVSQAfterFrame, this.mdVSRegs);
-      const initProg = compileOrNull(shape.initEel, this.errors, `shape${i} init`, this.rand);
+      const initProg = compileOrNull(shape.initEel, this.errors, `shape${i} init`, () => this.rng.next());
       if (initProg) {
         initProg.run(pool);
         this.mdVSRegs = pick(pool, REGS);
@@ -268,7 +305,7 @@ export class MilkPresetRunner {
       const userKeys = omitKeys(pool, nonUserShapeKeys);
       this.shapeUserKeys.push(userKeys);
       this.shapeFrameMaps.push(pick(pool, userKeys));
-      this.shapeFrameProgs.push(compileOrNull(shape.frameEel, this.errors, `shape${i} per-frame`, this.rand));
+      this.shapeFrameProgs.push(compileOrNull(shape.frameEel, this.errors, `shape${i} per-frame`, () => this.rng.next()));
     });
   }
 

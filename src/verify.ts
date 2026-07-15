@@ -9,6 +9,7 @@ import { compileSceneToGraph } from "./core/graph-compile";
 import { parseMilk, milkToScene } from "./import/milk";
 import { parseMilkComplete, milkToGraph } from "./import/milk-graph";
 import { parseP9c, p9ToScene } from "./import/p9";
+import { OracleFrameModel } from "./core/milk-audio";
 import { normalizeScene, STAGES, type AudioFeatures, type Scene } from "./core/types";
 
 /**
@@ -245,47 +246,37 @@ window.__milkFrameGraph = (data) => {
   return true;
 };
 
-/* ----------- end-to-end milk fidelity harness (defect 4) --------------- */
-// This harness supplies both engines ONLY the .milk source and the PCM
-// bytes per frame at committed times and seed. PHOSPHENE derives its own
-// audio levels, frame globals, EEL evaluation, and rendering — no oracle
-// values are injected. The oracle-global-injection surface (__milkFrameGraph)
-// stays available as a SUBSYSTEM diagnostic; this harness is the true
-// end-to-end fidelity test.
-//
-// Ported audio+time model: scripts/lib/milk-audio-model.mjs -> the same
-// FFT/AudioLevels/time-integration chain from butterchurn, exposed
-// server-side. Here we import the classes' TS equivalents via a small
-// facade that lives in a new file so the driver can reuse them.
+/* ----------- end-to-end milk fidelity harness ------------------------- */
+// Both engines get only the .milk source and the PCM per frame; PHOSPHENE
+// derives its own audio levels, integrated time/fps, EEL evaluations, and
+// rendering. The single shared audio+time model lives at
+// src/core/milk-audio.ts and is the same code the audio-model validation
+// script uses to prove parity against the oracle. No handwritten second
+// FFT anywhere. The harness exposes PHOSPHENE's post-equation mdVSFrame
+// (from MilkPipeline.lastMdVSFrame) plus its derived globals so a driver
+// can compare against oracle state on every frame.
 
 declare global {
   interface Window {
     __milkLoadE2E(text: string, name: string): Promise<Verdict & { unsupported?: string[] }>;
     __milkFrameE2E(pcm: { c: number[]; l: number[]; r: number[] }): boolean;
+    /** Read PHOSPHENE's derived globals + post-equation mdVSFrame for
+     *  the last frame processed. Returns null if no frame ran. */
+    __milkE2EState(): {
+      globals: Record<string, number>;
+      mdVSFrame: Record<string, number>;
+    } | null;
   }
 }
 
-// Reuse the graph-loader plumbing; the difference is per-frame PCM input.
 let e2eGraph: import("./core/graph").GraphScene | null = null;
 let e2ePipeline: MilkPipeline | null = null;
-// PHOSPHENE-derived audio+time state (installed by the E2E harness only).
-interface E2EState {
-  frameNum: number;
-  time: number;
-  fps: number;
-  timeHist: number[];
-  audio: {
-    freqArray: number[]; freqArrayL: number[]; freqArrayR: number[];
-    timeArrayL: number[]; timeArrayR: number[];
-  } | null;
-  bandStarts: number[]; bandStops: number[];
-  val: [number, number, number]; imm: [number, number, number];
-  att: [number, number, number]; avg: [number, number, number];
-  longAvg: [number, number, number];
-  gridX: number; gridY: number;
-  pixelsx: number; pixelsy: number;
-}
-let e2eState: E2EState | null = null;
+let e2eModel: OracleFrameModel | null = null;
+let e2eLastGlobals: Record<string, number> | null = null;
+const E2E_PIXELS_X = 800;
+const E2E_PIXELS_Y = 600;
+const E2E_GRID_X = 48;
+const E2E_GRID_Y = 36;
 
 window.__milkLoadE2E = async (text, name) => {
   let phase = "parse";
@@ -297,24 +288,8 @@ window.__milkLoadE2E = async (text, name) => {
     e2ePipeline = new MilkPipeline(renderer);
     const { errors } = await e2ePipeline.load(graph);
     e2eGraph = graph;
-    // Reset E2E state (fresh audio + time each preset).
-    const sampleRate = 44100; // committed with the oracle
-    const bucketHz = sampleRate / 1024;
-    const clampi = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
-    const bassLow = clampi(Math.round(20 / bucketHz) - 1, 0, 511);
-    const bassHigh = clampi(Math.round(320 / bucketHz) - 1, 0, 511);
-    const midHigh = clampi(Math.round(2800 / bucketHz) - 1, 0, 511);
-    const trebHigh = clampi(Math.round(11025 / bucketHz) - 1, 0, 511);
-    e2eState = {
-      frameNum: 0, time: 0, fps: 30, timeHist: [0],
-      audio: null,
-      bandStarts: [bassLow, bassHigh, midHigh],
-      bandStops: [bassHigh, midHigh, trebHigh],
-      val: [0, 0, 0], imm: [0, 0, 0], att: [1, 1, 1],
-      avg: [1, 1, 1], longAvg: [1, 1, 1],
-      gridX: 48, gridY: 36,
-      pixelsx: 800, pixelsy: 600,
-    };
+    e2eModel = new OracleFrameModel(); // fresh audio+time state per preset
+    e2eLastGlobals = null;
     return { ok: errors.length === 0, errors, reports: [] };
   } catch (err) {
     if (err instanceof UnsupportedGraphError) {
@@ -325,112 +300,48 @@ window.__milkLoadE2E = async (text, name) => {
 };
 
 window.__milkFrameE2E = (pcm) => {
-  if (!e2ePipeline || !e2eGraph || !e2eState) return false;
-  // 1) FFT the PCM (radix-2 length-1024) — a tiny inline port of the
-  //    same math as scripts/lib/milk-audio-model.mjs OracleAudioProcessor.
-  const s = e2eState;
-  const FFT_SIZE = 1024;
-  const timeArray = new Int8Array(FFT_SIZE);
-  const timeArrayL = new Int8Array(FFT_SIZE);
-  const timeArrayR = new Int8Array(FFT_SIZE);
-  const tmpL = new Int8Array(FFT_SIZE);
-  const tmpR = new Int8Array(FFT_SIZE);
-  for (let i = 0, lastIdx = 0; i < FFT_SIZE; i++) {
-    timeArray[i] = pcm.c[i] - 128;
-    timeArrayL[i] = pcm.l[i] - 128;
-    timeArrayR[i] = pcm.r[i] - 128;
-    tmpL[i] = 0.5 * (timeArrayL[i] + timeArrayL[lastIdx]);
-    tmpR[i] = 0.5 * (timeArrayR[i] + timeArrayR[lastIdx]);
-    lastIdx = i;
-  }
-  const fft = (input: Int8Array): Float32Array => {
-    const N = FFT_SIZE;
-    const real = new Float32Array(N);
-    const imag = new Float32Array(N);
-    // bit reversal
-    for (let i = 1, j = 0; i < N; i++) {
-      let bit = N >> 1;
-      for (; j & bit; bit >>= 1) j ^= bit;
-      j ^= bit;
-      if (i < j) { const tr = input[i]; real[i] = input[j]; real[j] = tr; }
-      else real[i] = input[i];
-    }
-    real[0] = input[0];
-    for (let size = 2; size <= N; size <<= 1) {
-      const half = size >> 1;
-      const step = Math.PI * 2 / size;
-      for (let i = 0; i < N; i += size) {
-        for (let j = 0; j < half; j++) {
-          const cs = Math.cos(-step * j), sn = Math.sin(-step * j);
-          const tRe = cs * real[i + j + half] - sn * imag[i + j + half];
-          const tIm = sn * real[i + j + half] + cs * imag[i + j + half];
-          real[i + j + half] = real[i + j] - tRe;
-          imag[i + j + half] = imag[i + j] - tIm;
-          real[i + j] += tRe;
-          imag[i + j] += tIm;
-        }
-      }
-    }
-    // equalize table + magnitude (samplesOut = 512)
-    const out = new Float32Array(512);
-    for (let i = 0; i < 512; i++) {
-      const eq = -0.02 * Math.log((512 - i) / 512);
-      out[i] = eq * Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
-    }
-    return out;
-  };
-  const freqArray = fft(timeArray);
-  const freqArrayL = fft(timeArrayL);
-  const freqArrayR = fft(timeArrayR);
-  s.audio = {
-    freqArray: Array.from(freqArray),
-    freqArrayL: Array.from(freqArrayL),
-    freqArrayR: Array.from(freqArrayR),
-    timeArrayL: Array.from(timeArrayL), timeArrayR: Array.from(timeArrayR),
-  };
-  // 2) integrate time + damped fps (witnessed butterchurn calcTimeAndFPS)
-  const elapsed = 1 / 30;
-  s.time += 1 / s.fps;
-  s.timeHist.push(s.timeHist[s.timeHist.length - 1] + elapsed);
-  if (s.timeHist.length > 120) s.timeHist.shift();
-  const newFPS = s.timeHist.length / (s.timeHist[s.timeHist.length - 1] - s.timeHist[0]);
-  s.fps = 0.93 * s.fps + 0.07 * newFPS;
-  s.frameNum += 1;
-  // 3) audio levels (witnessed AudioLevels.updateAudioLevels)
-  const effectiveFPS = Math.min(144, Math.max(15, s.fps));
-  const adj = (r: number) => Math.pow(r, 30 / effectiveFPS);
-  s.imm = [0, 0, 0];
-  for (let i = 0; i < 3; i++) {
-    for (let j = s.bandStarts[i]; j < s.bandStops[i]; j++) s.imm[i] += freqArray[j];
-  }
-  for (let i = 0; i < 3; i++) {
-    const shortR = adj(s.imm[i] > s.avg[i] ? 0.2 : 0.5);
-    s.avg[i] = s.avg[i] * shortR + s.imm[i] * (1 - shortR);
-    const longR = adj(s.frameNum < 50 ? 0.9 : 0.992);
-    s.longAvg[i] = s.longAvg[i] * longR + s.imm[i] * (1 - longR);
-    if (s.longAvg[i] < 0.001) { s.val[i] = 1; s.att[i] = 1; }
-    else { s.val[i] = s.imm[i] / s.longAvg[i]; s.att[i] = s.avg[i] / s.longAvg[i]; }
-  }
-  // 4) build the globals PHOSPHENE hands to its own runner
-  const invAspectX = s.pixelsy > s.pixelsx ? s.pixelsx / s.pixelsy : 1;
-  const invAspectY = s.pixelsx > s.pixelsy ? s.pixelsy / s.pixelsx : 1;
-  const globals = {
-    frame: s.frameNum, time: s.time, fps: s.fps,
-    bass: s.val[0], bass_att: s.att[0],
-    mid: s.val[1], mid_att: s.att[1],
-    treb: s.val[2], treb_att: s.att[2],
-    meshx: s.gridX, meshy: s.gridY,
+  if (!e2ePipeline || !e2eGraph || !e2eModel) return false;
+  // Step the shared audio+time model with the injected PCM.
+  const step = e2eModel.step(pcm.c, pcm.l, pcm.r, 1 / 30);
+  // Build the globals PHOSPHENE hands to its runner — same aspect
+  // convention as the injection harness, from PHOSPHENE-derived values.
+  const invAspectX = E2E_PIXELS_Y > E2E_PIXELS_X ? E2E_PIXELS_X / E2E_PIXELS_Y : 1;
+  const invAspectY = E2E_PIXELS_X > E2E_PIXELS_Y ? E2E_PIXELS_Y / E2E_PIXELS_X : 1;
+  const globals: Record<string, number> = {
+    frame: step.frame, time: step.time, fps: step.fps,
+    bass: step.bass, bass_att: step.bass_att,
+    mid: step.mid, mid_att: step.mid_att,
+    treb: step.treb, treb_att: step.treb_att,
+    meshx: E2E_GRID_X, meshy: E2E_GRID_Y,
     aspectx: 1 / invAspectX, aspecty: 1 / invAspectY,
-    pixelsx: s.pixelsx, pixelsy: s.pixelsy,
+    pixelsx: E2E_PIXELS_X, pixelsy: E2E_PIXELS_Y,
   };
+  e2eLastGlobals = globals;
+  // Hand the pipeline the same source-of-truth audio arrays the runner
+  // reads for wave/spectrum sampling. NO raw 1024-sample custom-wave
+  // input: waves consume the smoothed downsampled 512-sample L/R and
+  // the 512-bin frequency arrays that the witnessed AudioProcessor
+  // produces (butterchurn's customWaveform.js reads timeArrayL/R which
+  // are 512 samples).
   e2ePipeline.frame(e2eGraph, {
     globals,
-    timeArrayL: s.audio.timeArrayL,
-    timeArrayR: s.audio.timeArrayR,
-    freqArrayL: s.audio.freqArrayL,
-    freqArrayR: s.audio.freqArrayR,
+    timeArrayL: e2eModel.audio.timeArrayL,
+    timeArrayR: e2eModel.audio.timeArrayR,
+    freqArrayL: e2eModel.audio.freqArrayL,
+    freqArrayR: e2eModel.audio.freqArrayR,
   });
   return true;
+};
+
+window.__milkE2EState = () => {
+  if (!e2ePipeline || !e2eLastGlobals || !e2ePipeline.lastMdVSFrame) return null;
+  // Serialize only numeric mdVSFrame entries so the driver receives
+  // plain JSON — expr.ts pool cells are all numbers by construction.
+  const mdVSFrame: Record<string, number> = {};
+  for (const [k, v] of Object.entries(e2ePipeline.lastMdVSFrame)) {
+    if (typeof v === "number" && Number.isFinite(v)) mdVSFrame[k] = v;
+  }
+  return { globals: { ...e2eLastGlobals }, mdVSFrame };
 };
 
 /* -------- native-equivalence mode (legacy path vs graph executor) ------ */

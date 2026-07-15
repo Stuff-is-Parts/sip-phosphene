@@ -20,7 +20,7 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { parseMilkComplete } from "../src/import/milk-graph";
-import { MilkPresetRunner, REGS } from "../src/core/milk-runner";
+import { MilkPresetRunner, makeMulberry32, REGS } from "../src/core/milk-runner";
 
 const out = process.argv[2] ?? "docs/frame-equation-validation.json";
 const REL_TOL = 1e-9;
@@ -89,7 +89,7 @@ for (const entry of manifest.presets) {
       shapes: parsed.shapes.map((s) => ({
         baseValues: s.values, initEel: s.initCode, frameEel: s.perFrame,
       })),
-    }, loadGlobals);
+    }, loadGlobals, makeMulberry32(0x5eed1e55));
 
     const warpUVs = new Float32Array((GRID_X + 1) * (GRID_Y + 1) * 2);
     let regVars = {};

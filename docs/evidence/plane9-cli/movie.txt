@@ -1,0 +1,2 @@
+=== TEST 4: movie mode short recordtime ===
+exit=124

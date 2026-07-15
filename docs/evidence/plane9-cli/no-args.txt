@@ -1,0 +1,2 @@
+=== TEST 1: no args ===
+exit=124
