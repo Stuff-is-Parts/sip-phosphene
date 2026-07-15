@@ -44,6 +44,73 @@ export interface MilkFrameData {
   freqArrayR: Float32Array | number[];
 }
 
+/** MilkDrop-2 shader resource contract. Every field maps to a
+ *  `PresetShaderHeaderGlsl330.inc` uniform bank (see
+ *  docs/milkdrop-execution-model.md §11A-§11E and
+ *  docs/evidence/projectm/PresetShaderHeaderGlsl330.inc). The pipeline
+ *  populates the contract from the Runner (`rand_preset`, q1..q32,
+ *  audio-derived values) and the session/Renderer layer (`rand_frame`,
+ *  rotation-matrix accumulators, mip stats from prev-frame texture,
+ *  noise textures, image slots, blur cascade textures). The transpiler
+ *  consumes the contract as its uniform-input surface; a value that
+ *  the pipeline cannot populate from source-witnessed state must NOT
+ *  be synthesized — the containing preset must refuse at load. */
+export interface MilkShaderContract {
+  /** _c2.x-w = time, fps, frame, progress. */
+  time: number; fps: number; frame: number; progress: number;
+  /** _c3.xyzw = bass/mid/treb/vol; _c4.xyzw = *_att. */
+  bass: number; mid: number; treb: number; vol: number;
+  bassAtt: number; midAtt: number; trebAtt: number; volAtt: number;
+  /** _c0 aspect: xy = fullscreen-paste multiplier, zw = inverse. */
+  aspect: [number, number, number, number];
+  /** _c7 texsize: xy = (w,h), zw = (1/w, 1/h). */
+  texsize: [number, number, number, number];
+  /** Per-preset random 4-vector, drawn once at preset load
+   *  (rendering_renderer.js:88-89 via the seeded stream). */
+  randPreset: [number, number, number, number];
+  /** Per-frame random 4-vector, regenerated each frame
+   *  (rendering_renderer.js populates it via 4 Math.random() draws;
+   *  PHOSPHENE session must own a per-frame RNG draw). */
+  randFrame: [number, number, number, number];
+  /** q1..q32 from the runner's post-per-frame mdVSFrame, packed into
+   *  8 float4 banks _qa.._qh. */
+  qBanks: [
+    [number, number, number, number], [number, number, number, number],
+    [number, number, number, number], [number, number, number, number],
+    [number, number, number, number], [number, number, number, number],
+    [number, number, number, number], [number, number, number, number],
+  ];
+  /** _c8, _c9 (roam_cos, roam_sin) = 0.5 + 0.5 * cos/sin(time *
+   *  float4(~0.3, ~1.3, ~5, ~20)). Owner: Renderer, computed inline
+   *  from `time`. */
+  roamCos: [number, number, number, number];
+  roamSin: [number, number, number, number];
+  /** _c10, _c11 (slow_roam_cos, slow_roam_sin) using
+   *  float4(~0.005, ~0.008, ~0.013, ~0.022). */
+  slowRoamCos: [number, number, number, number];
+  slowRoamSin: [number, number, number, number];
+  /** _c12.xyz = mip_x, mip_y, mip_avg from prev-frame main texture
+   *  statistics (Renderer computes; PHOSPHENE has no source-correct
+   *  implementation yet — must remain unpopulated until it does). */
+  mipX: number | null; mipY: number | null; mipAvg: number | null;
+  /** _c6.zw = blur1_min, blur1_max; _c13.xy = blur2_*; _c13.zw =
+   *  blur3_*. Presets can assign these in per-frame code and the
+   *  Renderer reads them from mdVSFrame at draw time. */
+  blur1Min: number; blur1Max: number;
+  blur2Min: number; blur2Max: number;
+  blur3Min: number; blur3Max: number;
+  /** 24 float4x3 rotation matrices (rot_s/d/f/vf/uf/rand × 4). Owner:
+   *  Renderer accumulators updated per frame. `null` until PHOSPHENE
+   *  implements the rotation-state manager; presets that read any of
+   *  these fields must refuse when they are null. */
+  rotStatic: readonly Float32Array[] | null;   // rot_s1..rot_s4
+  rotDynamic: readonly Float32Array[] | null;  // rot_d1..rot_d4
+  rotFast: readonly Float32Array[] | null;     // rot_f1..rot_f4
+  rotVeryFast: readonly Float32Array[] | null; // rot_vf1..rot_vf4
+  rotUltraFast: readonly Float32Array[] | null; // rot_uf1..rot_uf4
+  rotPerFrame: readonly Float32Array[] | null; // rot_rand1..rot_rand4
+}
+
 
 const GRID_X = 48, GRID_Y = 36;   // witnessed oracle mesh (globalVars meshx/meshy)
 const COMP_W = 32, COMP_H = 24;   // witnessed comp grid (comp.js constructor)
@@ -1527,6 +1594,93 @@ export class MilkPipeline {
     border([mdVSFrame.ob_r, mdVSFrame.ob_g, mdVSFrame.ob_b, mdVSFrame.ob_a], mdVSFrame.ob_size, 0);
     border([mdVSFrame.ib_r, mdVSFrame.ib_g, mdVSFrame.ib_b, mdVSFrame.ib_a], mdVSFrame.ib_size, mdVSFrame.ob_size);
   }
+}
+
+/** Build the source-derivable portion of the MilkDrop-2 shader
+ *  resource contract from the runner's post-per-frame state and the
+ *  session's `randPreset` + `roam` uniforms. Session-owned uniforms
+ *  that PHOSPHENE has not implemented yet (rand_frame, mip stats,
+ *  the 24 rotation matrices) are set to `null`. Presets whose shader
+ *  reads any null field must refuse at load — no fallback synthesis.
+ *  Source: docs/milkdrop-execution-model.md §11A-§11E. */
+export function buildShaderContract(
+  mdVSFrame: Pool,
+  randPreset: readonly number[],
+  texsizeX: number,
+  texsizeY: number,
+): MilkShaderContract {
+  const aspectXY = texsizeY > texsizeX ? texsizeX / texsizeY : 1;
+  const aspectYX = texsizeX > texsizeY ? texsizeY / texsizeX : 1;
+  const time = mdVSFrame.time ?? 0;
+  const q = (idx: number): number => mdVSFrame[`q${idx}`] ?? 0;
+  return {
+    time,
+    fps: mdVSFrame.fps ?? 30,
+    frame: mdVSFrame.frame ?? 0,
+    progress: 0, // butterchurn does not compute progress; matches source
+    bass: mdVSFrame.bass ?? 0,
+    mid: mdVSFrame.mid ?? 0,
+    treb: mdVSFrame.treb ?? 0,
+    vol: ((mdVSFrame.bass ?? 0) + (mdVSFrame.mid ?? 0) + (mdVSFrame.treb ?? 0)) / 3,
+    bassAtt: mdVSFrame.bass_att ?? 1,
+    midAtt: mdVSFrame.mid_att ?? 1,
+    trebAtt: mdVSFrame.treb_att ?? 1,
+    volAtt: ((mdVSFrame.bass_att ?? 1) + (mdVSFrame.mid_att ?? 1) + (mdVSFrame.treb_att ?? 1)) / 3,
+    aspect: [aspectXY, aspectYX, 1 / aspectXY, 1 / aspectYX],
+    texsize: [texsizeX, texsizeY, 1 / texsizeX, 1 / texsizeY],
+    randPreset: [randPreset[0] ?? 0, randPreset[1] ?? 0, randPreset[2] ?? 0, randPreset[3] ?? 0],
+    // randFrame owner is the session-level Renderer; PHOSPHENE has none yet.
+    randFrame: [0, 0, 0, 0],
+    qBanks: [
+      [q(1), q(2), q(3), q(4)],
+      [q(5), q(6), q(7), q(8)],
+      [q(9), q(10), q(11), q(12)],
+      [q(13), q(14), q(15), q(16)],
+      [q(17), q(18), q(19), q(20)],
+      [q(21), q(22), q(23), q(24)],
+      [q(25), q(26), q(27), q(28)],
+      [q(29), q(30), q(31), q(32)],
+    ],
+    roamCos: [
+      0.5 + 0.5 * Math.cos(time * 0.3),
+      0.5 + 0.5 * Math.cos(time * 1.3),
+      0.5 + 0.5 * Math.cos(time * 5),
+      0.5 + 0.5 * Math.cos(time * 20),
+    ],
+    roamSin: [
+      0.5 + 0.5 * Math.sin(time * 0.3),
+      0.5 + 0.5 * Math.sin(time * 1.3),
+      0.5 + 0.5 * Math.sin(time * 5),
+      0.5 + 0.5 * Math.sin(time * 20),
+    ],
+    slowRoamCos: [
+      0.5 + 0.5 * Math.cos(time * 0.005),
+      0.5 + 0.5 * Math.cos(time * 0.008),
+      0.5 + 0.5 * Math.cos(time * 0.013),
+      0.5 + 0.5 * Math.cos(time * 0.022),
+    ],
+    slowRoamSin: [
+      0.5 + 0.5 * Math.sin(time * 0.005),
+      0.5 + 0.5 * Math.sin(time * 0.008),
+      0.5 + 0.5 * Math.sin(time * 0.013),
+      0.5 + 0.5 * Math.sin(time * 0.022),
+    ],
+    // Mip statistics from the previous main texture — the Renderer
+    // computes them via a downsampled sample of the prev frame.
+    // PHOSPHENE does not compute them yet. Null blocks any preset
+    // shader that reads mip_x/y/avg.
+    mipX: null, mipY: null, mipAvg: null,
+    blur1Min: mdVSFrame.blur1_min ?? 0,
+    blur1Max: mdVSFrame.blur1_max ?? 1,
+    blur2Min: mdVSFrame.blur2_min ?? 0,
+    blur2Max: mdVSFrame.blur2_max ?? 1,
+    blur3Min: mdVSFrame.blur3_min ?? 0,
+    blur3Max: mdVSFrame.blur3_max ?? 1,
+    // Rotation matrices — Renderer-owned accumulators regenerated
+    // per frame at multiple frequencies. Not implemented yet.
+    rotStatic: null, rotDynamic: null, rotFast: null,
+    rotVeryFast: null, rotUltraFast: null, rotPerFrame: null,
+  };
 }
 
 /** Witnessed comp.js generateHueBase — four RGB triples derived from
