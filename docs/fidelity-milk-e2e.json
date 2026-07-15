@@ -1,0 +1,1217 @@
+{
+  "measures": "END-TO-END MilkDrop fidelity: PHOSPHENE derives its own audio levels + frame globals + EEL evaluations + rendering from only the .milk source + PCM + committed seed. Compared per RGB channel against the oracle's screenshots.",
+  "path": "graph milk path (milkToGraph -> MilkPipeline dispatched per-node from graph.order); no oracle values injected.",
+  "tolerance": {
+    "ssim": 0.8,
+    "metric": "min per-channel color SSIM"
+  },
+  "captureFrames": [
+    30,
+    90,
+    180,
+    300
+  ],
+  "presetsTested": 97,
+  "validated": 4,
+  "diverged": 12,
+  "loadFailed": 0,
+  "unsupportedShaderPresets": 81,
+  "fixtureConvertFailures": 3,
+  "results": [
+    {
+      "preset": "! Transition\\Fast transition to black - levels effect === Goody's Lightning (ps 2-0) --- Isosceles edit.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Dancer\\Blobby Mirror\\suksma - veiny texture of your m gloves - you can change everything if you can change the mind,.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Dancer\\Comet Mirror\\EoS + Phat - chasers 13 sentinel 189 nz+ shifting through manyanas.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Dancer\\Comet\\LuxXx - Daily Data (alien seed deposite).milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Dancer\\Glowsticks Mirror\\268.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Dancer\\Glowsticks Mirror\\EoS - glowsticks v2 05 and proton lights (+Krash's beat code) _Phat_remix08.milk",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssimMinChannel": 0.7408,
+          "ssimMean": 0.7779,
+          "meanAbsError": 5.78
+        },
+        {
+          "frame": 90,
+          "ssimMinChannel": 0.6355,
+          "ssimMean": 0.6726,
+          "meanAbsError": 15.12
+        },
+        {
+          "frame": 180,
+          "ssimMinChannel": 0.7396,
+          "ssimMean": 0.7628,
+          "meanAbsError": 9.41
+        },
+        {
+          "frame": 300,
+          "ssimMinChannel": 0.7388,
+          "ssimMean": 0.7597,
+          "meanAbsError": 9.46
+        }
+      ]
+    },
+    {
+      "preset": "Dancer\\Glowsticks\\EoS - angleform 2_Phat_Decay_Edit_v2Throw_water music response 2way bumper.milk",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssimMinChannel": 0.9666,
+          "ssimMean": 0.9669,
+          "meanAbsError": 2.14
+        },
+        {
+          "frame": 90,
+          "ssimMinChannel": 0.7829,
+          "ssimMean": 0.7868,
+          "meanAbsError": 7.74
+        },
+        {
+          "frame": 180,
+          "ssimMinChannel": 0.9344,
+          "ssimMean": 0.9352,
+          "meanAbsError": 3.2
+        },
+        {
+          "frame": 300,
+          "ssimMinChannel": 0.9135,
+          "ssimMean": 0.9156,
+          "meanAbsError": 4
+        }
+      ]
+    },
+    {
+      "preset": "Dancer\\Glowsticks\\Tripgnosis - GoldenGlowstick.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)"
+      ]
+    },
+    {
+      "preset": "Dancer\\Infect\\LuxXx - blurrpy rainbow matrix.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Dancer\\Lasers\\rce-ordinary - microscopic things (crosslinking mix) - splice leg stain.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)"
+      ]
+    },
+    {
+      "preset": "Dancer\\Orbit\\EoS - glowsticks v2 04 music minimal - ghosts nz+7.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Dancer\\Shapes\\suksma - busier than a one-legged man in a non-existence contest.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Dancer\\Wake Mirror\\377.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)"
+      ]
+    },
+    {
+      "preset": "Drawing\\Dunes\\LuxXx - Melt down the Engine i nz+.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Drawing\\Explosions\\Zylot - Paint Spill (Music Reactive Paint Mix) nz+ awful universe of all things being circumlocutes.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Drawing\\Explosions\\mboanaphithe.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Drawing\\Explosions\\stbenge - dripping_piles_B gained outside of mistranslation (dare rid vs tour ying) fixatives.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Drawing\\Fractal\\suksma - dreaming and dmt is the plant foreman observes and troubleshoots major employee and mechanical problems.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Drawing\\Growth\\suksma - chemosynthetic nosferatu - automating transformation with b n s3 - claim form fsh shf flx obl roam3,2 nz+ take rydberg m.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Drawing\\Liquid Mirror\\suksma - chemosynthetic nosferatu - automating transformation with biochrome nostril suppositories2 nz+.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Drawing\\Liquid\\fiShbRaiN + Flexi - witchcraft unleashed [00 the template] + shifter - turing tape - tarah phwormbs - d3.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Drawing\\Liquid\\suksma - chemosynthetic nosferatu - automating transformation with b n s3 - claim form fsh shf flx nz+ christ a lien pistil nardram.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Drawing\\Trails Mirror\\New Creation Sensation -  AdamFx,Flexi,Amandio c n Martin - Star to Another World ft Hexocollie,ShadowH,Geiss Bewitchcrafted A.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Drawing\\Trails Mirror\\suksma - feeling retry.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)"
+      ]
+    },
+    {
+      "preset": "Drawing\\Trails\\martin + stahlregen - martin in da mash 4 nz+ compeckts system of agitation.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Fractal\\Core Mirror\\Cope - fractal explorer 122.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Fractal\\Core\\LuxXx - Starfield A.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Fractal\\Lattice Mirror\\$$$ Royal - Mashup (30).milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Fractal\\Lattice\\Geiss - Swirlie 5.milk",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssimMinChannel": 0.8426,
+          "ssimMean": 0.8433,
+          "meanAbsError": 15.01
+        },
+        {
+          "frame": 90,
+          "ssimMinChannel": 0.7933,
+          "ssimMean": 0.7943,
+          "meanAbsError": 25.61
+        },
+        {
+          "frame": 180,
+          "ssimMinChannel": 0.7592,
+          "ssimMean": 0.7697,
+          "meanAbsError": 30.6
+        },
+        {
+          "frame": 300,
+          "ssimMinChannel": 0.6702,
+          "ssimMean": 0.7142,
+          "meanAbsError": 33.67
+        }
+      ]
+    },
+    {
+      "preset": "Fractal\\Loops\\EVET - The Id Machine 2.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)"
+      ]
+    },
+    {
+      "preset": "Fractal\\Nested Circle\\EoS - Apocalypse D_ImFuckedUP_2.milk",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssimMinChannel": 0.7165,
+          "ssimMean": 0.7928,
+          "meanAbsError": 9.17
+        },
+        {
+          "frame": 90,
+          "ssimMinChannel": 0.7037,
+          "ssimMean": 0.7414,
+          "meanAbsError": 16.2
+        },
+        {
+          "frame": 180,
+          "ssimMinChannel": 0.8161,
+          "ssimMean": 0.8413,
+          "meanAbsError": 11.02
+        },
+        {
+          "frame": 300,
+          "ssimMinChannel": 0.7597,
+          "ssimMean": 0.7811,
+          "meanAbsError": 14.95
+        }
+      ]
+    },
+    {
+      "preset": "Fractal\\Nested Circle\\PieturP - sides_betterSeries2_absurd.milk",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssimMinChannel": 0.8585,
+          "ssimMean": 0.8764,
+          "meanAbsError": 7.25
+        },
+        {
+          "frame": 90,
+          "ssimMinChannel": 0.8161,
+          "ssimMean": 0.8369,
+          "meanAbsError": 13.93
+        },
+        {
+          "frame": 180,
+          "ssimMinChannel": 0.8196,
+          "ssimMean": 0.9048,
+          "meanAbsError": 7.03
+        },
+        {
+          "frame": 300,
+          "ssimMinChannel": 0.7785,
+          "ssimMean": 0.8749,
+          "meanAbsError": 12.99
+        }
+      ]
+    },
+    {
+      "preset": "Fractal\\Nested Dancer\\EoS - random 06B.milk",
+      "status": "VALIDATED",
+      "frames": [
+        {
+          "frame": 30,
+          "ssimMinChannel": 0.8347,
+          "ssimMean": 0.8377,
+          "meanAbsError": 21.43
+        },
+        {
+          "frame": 90,
+          "ssimMinChannel": 0.869,
+          "ssimMean": 0.8824,
+          "meanAbsError": 18.47
+        },
+        {
+          "frame": 180,
+          "ssimMinChannel": 0.8672,
+          "ssimMean": 0.8868,
+          "meanAbsError": 15.58
+        },
+        {
+          "frame": 300,
+          "ssimMinChannel": 0.8491,
+          "ssimMean": 0.8619,
+          "meanAbsError": 28.34
+        }
+      ]
+    },
+    {
+      "preset": "Fractal\\Nested Ellipse\\suksma - squasm minor plot frugal koonut kalifee.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Fractal\\Nested Spiral\\Phat_Aderrasi - Chromatic Abyss (the other side)_Dope.milk",
+      "status": "VALIDATED",
+      "frames": [
+        {
+          "frame": 30,
+          "ssimMinChannel": 0.9911,
+          "ssimMean": 0.9915,
+          "meanAbsError": 0.64
+        },
+        {
+          "frame": 90,
+          "ssimMinChannel": 0.9933,
+          "ssimMean": 0.9936,
+          "meanAbsError": 0.93
+        },
+        {
+          "frame": 180,
+          "ssimMinChannel": 0.9944,
+          "ssimMean": 0.9949,
+          "meanAbsError": 0.88
+        },
+        {
+          "frame": 300,
+          "ssimMinChannel": 0.9954,
+          "ssimMean": 0.9957,
+          "meanAbsError": 1.47
+        }
+      ]
+    },
+    {
+      "preset": "Fractal\\Nested Spiral\\suksma - tetraxectsual aeliaen kkuhltz --- Isosceles edit08.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Fractal\\Nested Square\\ORB - Windmill and Water.milk",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssimMinChannel": 1,
+          "ssimMean": 1,
+          "meanAbsError": 0
+        },
+        {
+          "frame": 90,
+          "ssimMinChannel": 0.5346,
+          "ssimMean": 0.555,
+          "meanAbsError": 53
+        },
+        {
+          "frame": 180,
+          "ssimMinChannel": 0.2456,
+          "ssimMean": 0.3278,
+          "meanAbsError": 41.84
+        },
+        {
+          "frame": 300,
+          "ssimMinChannel": 0.1267,
+          "ssimMean": 0.2039,
+          "meanAbsError": 66.2
+        }
+      ]
+    },
+    {
+      "preset": "Fractal\\Radial\\suksma - Fvese - MV Fun 3 - completely juiced by presses - lattice crowded by infinite space.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Geometric\\City\\martin - city lights v2(1).milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)",
+        "gmegabuf (cross-context shared 1M-cell buffer not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)"
+      ]
+    },
+    {
+      "preset": "Geometric\\Monster\\martin - attack of the beast [flexi's plasma + glass lens mix].milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Geometric\\Sphere Wild\\amandio c - green machinery 1a hell if i could nz+2 why not, right3 utter qosmiq phailre ov mbrusce li.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)",
+        "gmegabuf (cross-context shared 1M-cell buffer not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)"
+      ]
+    },
+    {
+      "preset": "Geometric\\Sphere Wild\\suksma - everyone's opinion is infinitely differennt - 1-ret roam3.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Geometric\\Squares\\suksma - pus on my cat - hate shade.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Geometric\\Tunnel Spheres\\Martin n AdamFX - Hardcore Mix Collision in Myself ft Stahlregen .milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Geometric\\Wire Circles\\goody - second collaboration (ps2-0) - #1.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)"
+      ]
+    },
+    {
+      "preset": "Geometric\\Wire Grid\\suksma + flexi geiss rovastar roosta demonld shifter - dr horicon willn't ignore dr fuqduqwen.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Geometric\\Wire Morph\\shifter - lazerspecs.milk",
+      "status": "VALIDATED",
+      "frames": [
+        {
+          "frame": 30,
+          "ssimMinChannel": 0.8895,
+          "ssimMean": 0.8954,
+          "meanAbsError": 6.82
+        },
+        {
+          "frame": 90,
+          "ssimMinChannel": 0.8944,
+          "ssimMean": 0.9011,
+          "meanAbsError": 5.61
+        },
+        {
+          "frame": 180,
+          "ssimMinChannel": 0.8858,
+          "ssimMean": 0.8945,
+          "meanAbsError": 4.94
+        },
+        {
+          "frame": 300,
+          "ssimMinChannel": 0.8911,
+          "ssimMean": 0.8931,
+          "meanAbsError": 4.74
+        }
+      ]
+    },
+    {
+      "preset": "Geometric\\Wire Spiral\\Zylot - Spiral (Hypnotic)_Phat_Fourish_Spiral_Mix_Beta6 EoS warp edit 3.milk",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssimMinChannel": 0.6398,
+          "ssimMean": 0.6922,
+          "meanAbsError": 21.47
+        },
+        {
+          "frame": 90,
+          "ssimMinChannel": 0.537,
+          "ssimMean": 0.649,
+          "meanAbsError": 23.84
+        },
+        {
+          "frame": 180,
+          "ssimMinChannel": 0.596,
+          "ssimMean": 0.6673,
+          "meanAbsError": 21.9
+        },
+        {
+          "frame": 300,
+          "ssimMinChannel": 0.6036,
+          "ssimMean": 0.6842,
+          "meanAbsError": 21.73
+        }
+      ]
+    },
+    {
+      "preset": "Geometric\\Wire Trace\\EoS + Phat - CAT Scan (Nirvana).milk",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssimMinChannel": 0.714,
+          "ssimMean": 0.7154,
+          "meanAbsError": 9.65
+        },
+        {
+          "frame": 90,
+          "ssimMinChannel": 0.4193,
+          "ssimMean": 0.4792,
+          "meanAbsError": 134.11
+        },
+        {
+          "frame": 180,
+          "ssimMinChannel": 0.6428,
+          "ssimMean": 0.6522,
+          "meanAbsError": 17.84
+        },
+        {
+          "frame": 300,
+          "ssimMinChannel": 0.5755,
+          "ssimMean": 0.6036,
+          "meanAbsError": 27.65
+        }
+      ]
+    },
+    {
+      "preset": "Hypnotic\\Polar Mirror\\GreatWho + Flexi - Lasershow [bipolar stranger party].milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Hypnotic\\Polar Static\\TonyMilkdrop - Tricolors [Flexi - gettogether + multiverse] --- Isosceles edit.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Hypnotic\\Polar Warp\\flexi - grind my glitch up [334].milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Particles\\Crystal\\shifter - plasmic fact - witholding, with-a holding, widdaholting - voyeurulant roam3 enormous hog pig nz+.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)"
+      ]
+    },
+    {
+      "preset": "Particles\\Points Trails\\$$$ Royal - Mashup (340).milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Particles\\Points\\EoS - pointfield 09 the gases beyond 85b 3d_v2.milk",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssimMinChannel": 0.8031,
+          "ssimMean": 0.8098,
+          "meanAbsError": 5.35
+        },
+        {
+          "frame": 90,
+          "ssimMinChannel": 0.7869,
+          "ssimMean": 0.8018,
+          "meanAbsError": 5.13
+        },
+        {
+          "frame": 180,
+          "ssimMinChannel": 0.7889,
+          "ssimMean": 0.8062,
+          "meanAbsError": 4.58
+        },
+        {
+          "frame": 300,
+          "ssimMinChannel": 0.7874,
+          "ssimMean": 0.7988,
+          "meanAbsError": 4.73
+        }
+      ]
+    },
+    {
+      "preset": "Particles\\Swarm\\$$$ Royal - Mashup (60).milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)",
+        "gmegabuf (cross-context shared 1M-cell buffer not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)"
+      ]
+    },
+    {
+      "preset": "Reaction\\Contagion\\Flexi - emergencey 2 --- Isosceles edit6d warp invert.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Reaction\\Feedback\\$$$ Royal - Mashup (452).milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Reaction\\Feedback\\flexi - splatter effects 17 the wave, a google love story written in decay roam3-2 .milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Reaction\\Growth\\you're right, i would rather be alive - my only goal is to find out if i can tap the vacuum - i fucking .milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)"
+      ]
+    },
+    {
+      "preset": "Reaction\\Liquid Blobby\\shifter + Flexi - liquid circuitry from the oblivion hive rw4 nz+ cancellation of everything please.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Reaction\\Liquid Blobby\\various - whirygig03 - flx rigidigeridoolittle' - reconsidering life in terms of loving how bizarre it is.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Reaction\\Liquid Gradient\\Bmelgren - Acid Iris.milk",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssimMinChannel": 0.0467,
+          "ssimMean": 0.2622,
+          "meanAbsError": 146.66
+        },
+        {
+          "frame": 90,
+          "ssimMinChannel": 0.3838,
+          "ssimMean": 0.3936,
+          "meanAbsError": 156.38
+        },
+        {
+          "frame": 180,
+          "ssimMinChannel": 0.1294,
+          "ssimMean": 0.3993,
+          "meanAbsError": 33.56
+        },
+        {
+          "frame": 300,
+          "ssimMinChannel": 0.1475,
+          "ssimMean": 0.1807,
+          "meanAbsError": 70.29
+        }
+      ]
+    },
+    {
+      "preset": "Reaction\\Liquid Gradient\\suksma - 'witty' drone performing for titty cakes , everyone's impressed apparently.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Reaction\\Liquid Ripples\\Flexi - crush ice 39.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Reaction\\Liquid Ripples\\Rovastar - Ritual Halostar.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)"
+      ]
+    },
+    {
+      "preset": "Reaction\\Liquid Ripples\\buxom xuxum sluxtxphuxnx.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Reaction\\Liquid Ripples\\stop being so smart and placing differential equations in shaders.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Reaction\\Liquid Ripples\\when i first mixed this, i loved it, now, because of your existence, i fucking hate it - life itself is  --- Isosceles edit.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Reaction\\Liquid Windy\\phat + EoS - Bass_responce_Red_Movements_Disorienting nebula3 aaa.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Reaction\\Rorschach\\$$$ Royal - Mashup (131).milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Reaction\\Rorschach\\NeW Adam Master Mashup FX 2 Geiss - Reaction Diffusion 34 + Geiss and Zylot + Shifter + Nil + Work with lines .milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)"
+      ]
+    },
+    {
+      "preset": "Reaction\\Viscera\\sone' ovaembiasche' instantaneousle' cliche' novelte' nz+.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Sparkle\\Explosions\\Goody + martin - crystal palace - Schizotoxin - The Wild Iris Bloom - mess2 nz+ mechanize.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Sparkle\\Explosions\\craving 'spinach man' action figures suppositoric nutrition - burial at ornans.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Sparkle\\Explosions\\suksma - chernobyl pie for dessert - more lateral shade of masueality.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Sparkle\\Explosions\\suksma - fear and loathing in provo orem - fleshhooks.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Sparkle\\Explosions\\total hackville flacc crap nz+.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Sparkle\\Glimmer\\118.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Sparkle\\Mass Circles\\suksma - broadcloak rnz.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Sparkle\\Mass Squares\\suksma - dotes hostile undertake - can't even remember her name2.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)"
+      ]
+    },
+    {
+      "preset": "Supernova\\Burst\\$$$ Royal - Mashup (392).milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Supernova\\Burst\\suksma - pen space - log smell (automate credit or fuck off).milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Supernova\\Radiate\\$$$ Royal - Mashup (20).milk",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssimMinChannel": 0.2161,
+          "ssimMean": 0.2611,
+          "meanAbsError": 108.04
+        },
+        {
+          "frame": 90,
+          "ssimMinChannel": 0.2316,
+          "ssimMean": 0.4066,
+          "meanAbsError": 49.95
+        },
+        {
+          "frame": 180,
+          "ssimMinChannel": 0.167,
+          "ssimMean": 0.3018,
+          "meanAbsError": 67.53
+        },
+        {
+          "frame": 300,
+          "ssimMinChannel": 0.1626,
+          "ssimMean": 0.2695,
+          "meanAbsError": 81.77
+        }
+      ]
+    },
+    {
+      "preset": "Supernova\\Radiate\\amandio c - dark side of the sun 2.milk",
+      "status": "VALIDATED",
+      "frames": [
+        {
+          "frame": 30,
+          "ssimMinChannel": 0.9999,
+          "ssimMean": 1,
+          "meanAbsError": 0
+        },
+        {
+          "frame": 90,
+          "ssimMinChannel": 1,
+          "ssimMean": 1,
+          "meanAbsError": 0
+        },
+        {
+          "frame": 180,
+          "ssimMinChannel": 1,
+          "ssimMean": 1,
+          "meanAbsError": 0
+        },
+        {
+          "frame": 300,
+          "ssimMinChannel": 1,
+          "ssimMean": 1,
+          "meanAbsError": 0
+        }
+      ]
+    },
+    {
+      "preset": "Waveform\\Spectrum\\beta106i - Potion of Ink - mrt cope n777.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Waveform\\Spectrum\\suksma - ed geining hateops - flx palette massacrow.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Waveform\\Spectrum\\suksma - negative infinity for not flinching - dyst3.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Waveform\\Wire Circular\\Halfbreak - Chemical Artistry 1.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Waveform\\Wire Circular\\faintling --- Isosceles edit.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)"
+      ]
+    },
+    {
+      "preset": "Waveform\\Wire Flat Double\\Serge mashup002.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Waveform\\Wire Flat\\Stahlregen & Geiss - Down the Drain_2.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)"
+      ]
+    },
+    {
+      "preset": "Waveform\\Wire Mirror\\Geiss - Confetti (Kaleidoscope Mix) (color saturation boosted).milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)"
+      ]
+    },
+    {
+      "preset": "Waveform\\Wire Rising\\Goody - Need.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+      ]
+    },
+    {
+      "preset": "Waveform\\Wire Spirograph\\Fumbling_Foo, Martin, Orb, Flexi - Star Forge v7 (HAKAN mash-up) 2-55 [mixwithv6v1bass] remade7d [[pixel theme]] 0-7 v2 {more active}.milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
+        "milk-blur (blur cascade consumed only by unimplemented shaders)",
+        "gmegabuf (cross-context shared 1M-cell buffer not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)"
+      ]
+    },
+    {
+      "preset": "Waveform\\Wire Tangle\\Geiss - Cauldron - Tendrils (saturation remix).milk",
+      "status": "unsupported",
+      "features": [
+        "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
+        "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)"
+      ]
+    },
+    {
+      "preset": "Waveform\\Wire Tangle\\Rovastar - Hyperspace.milk",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssimMinChannel": 0.315,
+          "ssimMean": 0.3264,
+          "meanAbsError": 61.84
+        },
+        {
+          "frame": 90,
+          "ssimMinChannel": 0.0914,
+          "ssimMean": 0.0974,
+          "meanAbsError": 104.71
+        },
+        {
+          "frame": 180,
+          "ssimMinChannel": 0.019,
+          "ssimMean": 0.0259,
+          "meanAbsError": 137.79
+        },
+        {
+          "frame": 300,
+          "ssimMinChannel": 0.036,
+          "ssimMean": 0.0371,
+          "meanAbsError": 138.26
+        }
+      ]
+    }
+  ]
+}
