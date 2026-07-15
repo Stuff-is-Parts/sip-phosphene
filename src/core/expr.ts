@@ -3,6 +3,16 @@
  * Programs are statement lists (`name = expr;`, `megabuf(i) = expr;`,
  * `loop(n, …)`, or bare expressions). Compile once, run per frame against a
  * persistent variable environment; unknown identifiers read as 0.
+ *
+ * Intrinsic and operator semantics follow the witnessed authoritative
+ * MilkDrop reimplementation (butterchurn presetBase.js runtime functions
+ * + milkdrop-preset-converter operator emissions — evidence at
+ * docs/evidence/butterchurn/presetBase.js and the converter output):
+ * EPSILON = 0.00001 for equal/==/bnot/!/if-condition; sqrt takes |x|;
+ * `%` and mod() floor both operands and guard 0; `&`/`|` are BITWISE
+ * (floor + int or/and) while `&&`/`||` are logical; int() floors;
+ * rand(x) floors its arg (x<1 -> [0,1)); pow returns 0 on non-finite;
+ * div guards 0; assignments store raw doubles (no sanitization).
  */
 
 export interface Program {
@@ -14,29 +24,42 @@ export interface Program {
 type Node = (env: Record<string, number>) => number;
 
 const LOOP_CAP = 65536;
+const EPSILON = 0.00001;
 
 const FUNCS: Record<string, (...a: number[]) => number> = {
   sin: Math.sin, cos: Math.cos, tan: Math.tan,
   asin: Math.asin, acos: Math.acos, atan: Math.atan, atan2: Math.atan2,
-  sqrt: (x) => Math.sqrt(Math.max(0, x)), invsqrt: (x) => 1 / Math.sqrt(Math.max(1e-12, x)),
+  sqrt: (x) => Math.sqrt(Math.abs(x)),
+  invsqrt: (x) => 1 / Math.sqrt(Math.abs(x)),
   pow: (a, b) => {
     const r = Math.pow(a, b);
     return Number.isFinite(r) ? r : 0;
   },
-  exp: Math.exp, log: (x) => Math.log(Math.max(1e-12, x)), log10: (x) => Math.log10(Math.max(1e-12, x)),
-  abs: Math.abs, sign: Math.sign, floor: Math.floor, ceil: Math.ceil,
-  int: Math.trunc, frac: (x) => x - Math.floor(x),
+  exp: Math.exp, log: Math.log, log10: (x) => Math.log(x) * Math.LOG10E,
+  abs: Math.abs,
+  sign: (x) => (x > 0 ? 1 : x < 0 ? -1 : 0),
+  floor: Math.floor, ceil: Math.ceil,
+  int: Math.floor, frac: (x) => x - Math.floor(x),
   min: Math.min, max: Math.max,
   sqr: (x) => x * x,
-  rand: (x) => Math.random() * x,
-  sigmoid: (x, c) => 1 / (1 + Math.exp(-x * c)),
+  rand: (x) => {
+    const xf = Math.floor(x);
+    return xf < 1 ? Math.random() : Math.random() * xf;
+  },
+  randint: (x) => Math.floor(FUNCS.rand(x)),
+  sigmoid: (x, y) => {
+    const t = 1 + Math.exp(-x * y);
+    return Math.abs(t) > EPSILON ? 1.0 / t : 0;
+  },
   above: (a, b) => (a > b ? 1 : 0),
   below: (a, b) => (a < b ? 1 : 0),
-  equal: (a, b) => (a === b ? 1 : 0),
-  band: (a, b) => (a !== 0 && b !== 0 ? 1 : 0),
-  bor: (a, b) => (a !== 0 || b !== 0 ? 1 : 0),
-  bnot: (a) => (a === 0 ? 1 : 0),
-  if: (c, t, f) => (c !== 0 ? t : f),
+  equal: (a, b) => (Math.abs(a - b) < EPSILON ? 1 : 0),
+  band: (a, b) => (Math.abs(a) > EPSILON && Math.abs(b) > EPSILON ? 1 : 0),
+  bor: (a, b) => (Math.abs(a) > EPSILON || Math.abs(b) > EPSILON ? 1 : 0),
+  bnot: (a) => (Math.abs(a) < EPSILON ? 1 : 0),
+  bitand: (a, b) => Math.floor(a) & Math.floor(b),
+  bitor: (a, b) => Math.floor(a) | Math.floor(b),
+  if: (c, t, f) => (Math.abs(c) > EPSILON ? t : f),
   exec2: (_a, b) => b,
   exec3: (_a, _b, c) => c,
 };
@@ -126,7 +149,7 @@ class Parser {
   private static readonly COMPOUND: Record<string, (a: number, b: number) => number> = {
     "+=": (a, b) => a + b, "-=": (a, b) => a - b, "*=": (a, b) => a * b,
     "/=": (a, b) => (b === 0 ? 0 : a / b),
-    "%=": (a, b) => (Math.trunc(b) === 0 ? 0 : Math.trunc(a) % Math.trunc(b)),
+    "%=": (a, b) => (Math.floor(b) === 0 ? 0 : Math.floor(a) % Math.floor(b)),
   };
 
   private parseStmt(): Node {
@@ -139,28 +162,42 @@ class Parser {
 
   private parseOr(): Node {
     let l = this.parseAnd();
-    while (this.takeOp("||") || this.takeOp("|")) {
-      const r = this.parseAnd();
-      const a = l;
-      l = (e) => (a(e) !== 0 || r(e) !== 0 ? 1 : 0);
+    for (;;) {
+      // `||` is logical (JS truthiness -> 1/0); bare `|` is BITWISE
+      // (witnessed: the authoritative converter emits bitor for `|`).
+      if (this.takeOp("||")) {
+        const r = this.parseAnd();
+        const a = l;
+        l = (e) => (a(e) || r(e) ? 1 : 0);
+      } else if (this.takeOp("|")) {
+        const r = this.parseAnd();
+        const a = l;
+        l = (e) => FUNCS.bitor(a(e), r(e));
+      } else return l;
     }
-    return l;
   }
   private parseAnd(): Node {
     let l = this.parseCmp();
-    while (this.takeOp("&&") || this.takeOp("&")) {
-      const r = this.parseCmp();
-      const a = l;
-      l = (e) => (a(e) !== 0 && r(e) !== 0 ? 1 : 0);
+    for (;;) {
+      if (this.takeOp("&&")) {
+        const r = this.parseCmp();
+        const a = l;
+        l = (e) => (a(e) && r(e) ? 1 : 0);
+      } else if (this.takeOp("&")) {
+        const r = this.parseCmp();
+        const a = l;
+        l = (e) => FUNCS.bitand(a(e), r(e));
+      } else return l;
     }
-    return l;
   }
   private parseCmp(): Node {
     let l = this.parseAdd();
     for (;;) {
       const ops: [string, (a: number, b: number) => number][] = [
         ["<=", (a, b) => (a <= b ? 1 : 0)], [">=", (a, b) => (a >= b ? 1 : 0)],
-        ["==", (a, b) => (a === b ? 1 : 0)], ["!=", (a, b) => (a !== b ? 1 : 0)],
+        // ==/!= are EPSILON comparisons (witnessed converter emission)
+        ["==", (a, b) => (Math.abs(a - b) < EPSILON ? 1 : 0)],
+        ["!=", (a, b) => (Math.abs(a - b) < EPSILON ? 0 : 1)],
         ["<", (a, b) => (a < b ? 1 : 0)], [">", (a, b) => (a > b ? 1 : 0)],
       ];
       const hit = ops.find(([t]) => this.takeOp(t));
@@ -187,8 +224,9 @@ class Parser {
         const r = this.parsePow(); const a = l;
         l = (e) => { const d = r(e); return d === 0 ? 0 : a(e) / d; };
       } else if (this.takeOp("%")) {
+        // floor-mod with zero guard (witnessed presetBase mod())
         const r = this.parsePow(); const a = l;
-        l = (e) => { const d = Math.trunc(r(e)); return d === 0 ? 0 : Math.trunc(a(e)) % d; };
+        l = (e) => { const d = Math.floor(r(e)); return d === 0 ? 0 : Math.floor(a(e)) % d; };
       } else return l;
     }
   }
@@ -203,7 +241,7 @@ class Parser {
   private parseUnary(): Node {
     if (this.takeOp("-")) { const v = this.parseUnary(); return (e) => -v(e); }
     if (this.takeOp("+")) return this.parseUnary();
-    if (this.takeOp("!")) { const v = this.parseUnary(); return (e) => (v(e) === 0 ? 1 : 0); }
+    if (this.takeOp("!")) { const v = this.parseUnary(); return (e) => FUNCS.bnot(v(e)); }
     return this.parsePrimary();
   }
   private parsePrimary(): Node {
@@ -221,10 +259,12 @@ class Parser {
         const value = this.parseExpr();
         const name = t.text;
         this.assigns.add(name);
+        // Raw assignment (witnessed converter output stores unsanitized
+        // doubles; NaN propagation matches the oracle).
         return (e) => {
           const v = compound ? compound(e[name] ?? 0, value(e)) : value(e);
-          e[name] = Number.isFinite(v) ? v : 0;
-          return e[name];
+          e[name] = v;
+          return v;
         };
       }
       if (this.takeOp("(")) {
@@ -234,20 +274,21 @@ class Parser {
           const prefix = BUF_PREFIX[t.text];
           const idx = this.parseExpr();
           this.expectOp(")");
-          // store form composes inside if()/exec2() args like any assignment
+          // floor indexing (witnessed converter: megabuf[Math.floor(i)]);
+          // store form composes inside if()/exec2() args like assignment
           const opTok = this.peek();
           const compound = opTok && Parser.COMPOUND[opTok.text];
           if (compound || (opTok?.kind === "op" && opTok.text === "=")) {
             this.p++;
             const value = this.parseExpr();
             return (e) => {
-              const key = prefix + Math.trunc(idx(e));
+              const key = prefix + Math.floor(idx(e));
               const v = compound ? compound(e[key] ?? 0, value(e)) : value(e);
-              e[key] = Number.isFinite(v) ? v : 0;
-              return e[key];
+              e[key] = v;
+              return v;
             };
           }
-          return (e) => e[prefix + Math.trunc(idx(e))] ?? 0;
+          return (e) => e[prefix + Math.floor(idx(e))] ?? 0;
         }
         const fn = FUNCS[t.text];
         if (!fn) throw new Error(`unknown function '${t.text}' at ${t.pos}`);
@@ -256,10 +297,12 @@ class Parser {
           do { args.push(this.parseArgBlock()); } while (this.takeOp(","));
           this.expectOp(")");
         }
-        // EEL if() executes only the taken branch (branches carry assignments)
+        // EEL if() executes only the taken branch (branches carry
+        // assignments); condition is EPSILON-tested (witnessed converter:
+        // Math.abs(cond) > 0.00001 ? then : else).
         if (t.text === "if") {
           const [c, th, el] = [args[0], args[1], args[2]];
-          return (e) => (c(e) !== 0 ? (th ? th(e) : 0) : (el ? el(e) : 0));
+          return (e) => (Math.abs(c(e)) > EPSILON ? (th ? th(e) : 0) : (el ? el(e) : 0));
         }
         return (e) => fn(...args.map((a) => a(e)));
       }

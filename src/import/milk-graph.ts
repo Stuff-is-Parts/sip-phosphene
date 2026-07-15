@@ -143,15 +143,14 @@ export function milkToGraph(p: MilkParsed): MilkGraphImport {
   // Canvas ping-pong pair is one feedback target in graph terms.
   nodes.push({ kind: "target", id: "canvas", feedback: true });
 
-  // Stage order per docs/milkdrop-execution-model.md §1.
+  // Stage order per the witnessed oracle render flow (butterchurn
+  // renderer.js render(): warp -> blur -> motion vectors -> shapes ->
+  // waves -> basic wave -> darken-center+borders -> composite; evidence
+  // at docs/evidence/butterchurn/rendering_renderer.js).
   push({
     kind: "milk-frame", id: "frame",
     initCode: p.perFrameInit, perFrame: p.perFrame, baseValues: p.values,
     origin: { format: "milkdrop", type: "per-frame" },
-  });
-  push({
-    kind: "milk-motion-vectors", id: "motionVectors", target: "canvas",
-    origin: { format: "milkdrop", type: "motion-vectors" },
   });
   const warpShader: ShaderSource | undefined = p.warpShader
     ? { lang: "hlsl-md", fragment: p.warpShader } : undefined;
@@ -173,6 +172,10 @@ export function milkToGraph(p: MilkParsed): MilkGraphImport {
       origin: { format: "milkdrop", type: "blur-cascade" },
     });
   }
+  push({
+    kind: "milk-motion-vectors", id: "motionVectors", target: "canvas",
+    origin: { format: "milkdrop", type: "motion-vectors" },
+  });
   // ALL shapes, in index order (enabled flag preserved in values).
   for (const s of p.shapes) {
     const node: MilkShapeNode = {
@@ -198,9 +201,12 @@ export function milkToGraph(p: MilkParsed): MilkGraphImport {
     baseValues: {}, target: "canvas",
     origin: { format: "milkdrop", type: "default-wave" },
   });
+  // Borders stage covers the witnessed sprite sequence after the basic
+  // wave: darken-center, then outer border, then inner border (evidence:
+  // butterchurn renderer.js render() + sprites/darkenCenter.js).
   push({
     kind: "milk-border", id: "borders", target: "canvas",
-    origin: { format: "milkdrop", type: "borders" },
+    origin: { format: "milkdrop", type: "darken-center+borders" },
   });
   push({
     kind: "milk-composite", id: "composite",

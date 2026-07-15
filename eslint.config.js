@@ -26,5 +26,5 @@ export default ts.config(
       "eqeqeq": ["error", "smart"],
     },
   },
-  { ignores: ["dist/", "dist-portable/", "node_modules/", "vite.config.ts", "vite.onefile.config.ts"] },
+  { ignores: ["dist/", "dist-portable/", "node_modules/", "vite.config.ts", "vite.onefile.config.ts", "docs/evidence/"] },
 );

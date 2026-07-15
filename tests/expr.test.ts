@@ -64,8 +64,30 @@ describe("expression compiler", () => {
     expect(() => compile("3 = x;")).toThrow();
   });
 
-  it("clamps non-finite results to 0", () => {
-    expect(run("out = log(0) * 0 + exp(9999);").out).toBe(0);
+  it("stores raw doubles (witnessed converter assignment: no sanitization)", () => {
+    // log(0) * 0 = -Infinity * 0 = NaN; exp(9999) = Infinity; sum = NaN.
+    // The oracle's generated JS assigns the raw value (butterchurn
+    // loadPreset new Function bodies — docs/evidence/butterchurn).
+    expect(Number.isNaN(run("out = log(0) * 0 + exp(9999);").out)).toBe(true);
+    // pow is the witnessed exception: non-finite results return 0.
+    expect(run("out = pow(-1, 0.5);").out).toBe(0);
+  });
+
+  it("applies witnessed MilkDrop EEL semantics (converter + presetBase evidence)", () => {
+    expect(run("out = 7.9 % 3.2;").out).toBe(1);            // floor-mod: 7 % 3
+    expect(run("out = 5 % 0;").out).toBe(0);                // zero guard
+    expect(run("out = 0.300000001 == 0.3;").out).toBe(1);   // epsilon equality
+    expect(run("out = 6 & 3;").out).toBe(2);                // bitwise and
+    expect(run("out = 6 | 3;").out).toBe(7);                // bitwise or
+    expect(run("out = 2 && 0;").out).toBe(0);               // logical
+    expect(run("out = int(3.9);").out).toBe(3);             // int = floor
+    expect(run("out = int(0 - 1.5);").out).toBe(-2);        // floor, not trunc
+    expect(run("out = sqrt(0 - 4);").out).toBe(2);          // sqrt(|x|)
+    expect(run("out = if(0.000001, 1, 2);").out).toBe(2);   // epsilon condition
+    expect(run("out = !0.000001;").out).toBe(1);            // bnot epsilon
+    const r = run("out = rand(0.5);").out;                  // arg<1 -> [0,1)
+    expect(r).toBeGreaterThanOrEqual(0);
+    expect(r).toBeLessThan(1);
   });
 
   it("runs loop() bodies with statement lists", () => {
