@@ -10,6 +10,8 @@ import {
   horizontalUniforms,
   verticalUniforms,
   getScaleAndBias,
+  getBlurTargetSize,
+  getBlurCascadeSizes,
 } from "../src/gpu/milk-blur";
 
 describe("milk-blur — weight and offset constants", () => {
@@ -105,5 +107,47 @@ describe("milk-blur — getScaleAndBias per-level range compression", () => {
     // -0 === 0 in ==, but toBe uses Object.is which distinguishes; the
     // formula is -min * scale = -0 * 1 = -0. Accept both zero signs.
     expect(Object.is(bias, 0) || Object.is(bias, -0)).toBe(true);
+  });
+});
+
+describe("milk-blur — getBlurTargetSize source-exact rounding", () => {
+  // Source: blur.js:3132-3139 verbatim.
+  //   sizeX = max(w * ratio, 16); sizeX = floor((sizeX + 3) / 16) * 16
+  //   sizeY = max(h * ratio, 16); sizeY = floor((sizeY + 3) / 4) * 4
+  it("rounds X to the next multiple of 16 and Y to the next multiple of 4", () => {
+    // 800 * 0.5 = 400. (400 + 3) / 16 = 25.1875. floor = 25. 25 * 16 = 400.
+    // 600 * 0.5 = 300. (300 + 3) / 4 = 75.75. floor = 75. 75 * 4 = 300.
+    expect(getBlurTargetSize(800, 600, 0.5)).toEqual([400, 300]);
+    // 800 * 0.25 = 200. (200 + 3) / 16 = 12.6875. floor = 12. 12 * 16 = 192.
+    // 600 * 0.25 = 150. (150 + 3) / 4 = 38.25. floor = 38. 38 * 4 = 152.
+    expect(getBlurTargetSize(800, 600, 0.25)).toEqual([192, 152]);
+  });
+
+  it("clamps sub-16 sizes up to the 16-texel minimum on both axes", () => {
+    // 16 * 0.0625 = 1. max(1, 16) = 16. Same for both axes.
+    // Then X: (16 + 3) / 16 = 1.1875. floor = 1. 1 * 16 = 16.
+    //      Y: (16 + 3) / 4 = 4.75. floor = 4. 4 * 4 = 16.
+    expect(getBlurTargetSize(16, 16, 0.0625)).toEqual([16, 16]);
+  });
+
+  it("returns the six-target cascade sizes matching the source per-level pairs", () => {
+    // Main resolution 800x600. Cascade produces three H intermediates
+    // and three V outputs, each rounded per getBlurTargetSize.
+    const s = getBlurCascadeSizes(800, 600);
+    // Level 1: H at 0.5x, V at 0.25x
+    expect(s.h[0]).toEqual(getBlurTargetSize(800, 600, 0.5));
+    expect(s.v[0]).toEqual(getBlurTargetSize(800, 600, 0.25));
+    // Level 2: H at 0.125x, V at 0.125x
+    expect(s.h[1]).toEqual(getBlurTargetSize(800, 600, 0.125));
+    expect(s.v[1]).toEqual(getBlurTargetSize(800, 600, 0.125));
+    // Level 3: H at 0.0625x, V at 0.0625x
+    expect(s.h[2]).toEqual(getBlurTargetSize(800, 600, 0.0625));
+    expect(s.v[2]).toEqual(getBlurTargetSize(800, 600, 0.0625));
+  });
+
+  it("keeps V output smaller than H intermediate at level 1 as source ratios prescribe", () => {
+    // Level 1: H at 0.5x, V at 0.25x. V is half the H in area.
+    const s = getBlurCascadeSizes(800, 600);
+    expect(s.v[0][0]).toBeLessThan(s.h[0][0]);
   });
 });

@@ -48,24 +48,110 @@ Runner's. The Runner sees only what the Renderer hands it via
 
 ## 1. Frame pipeline order
 
-Source: `MilkdropPreset.cpp` `RenderFrame()` [fetched]. Exact stage order:
+Sources:
+- Butterchurn `rendering_renderer.js` `render()` [fetched verbatim from
+  `node_modules/butterchurn/lib/butterchurn.js:2716-2858`]. This is the
+  primary source PHOSPHENE follows because it is available as retrieved
+  source text; every stage below is cited by line number.
+- projectM `MilkdropPreset.cpp` `RenderFrame()` — NOT currently retained
+  as source text under `docs/evidence/projectm/`. Any prior claim about
+  projectM's order was second-hand and unverifiable. See §1C below.
 
-1. Per-frame equation update (`PerFrameUpdate()`).
-2. Motion vectors drawn onto the PREVIOUS frame texture (skipped frame 1).
-3. Previous frame y-flip (`m_flipTexture`).
-4. Per-pixel mesh warp: warp shader samples the flipped previous frame,
-   writes the new canvas (`m_perPixelMesh.Draw()`).
-5. Blur cascade update from the warped image (`m_state.blurTexture.Update()`).
-6. Custom shapes (all instances, in index order).
-7. Custom waveforms (all instances, in index order).
-8. Default waveform.
-9. Darken-center (only when `darken_center > 0`).
-10. Borders (outer then inner).
-11. Final composite (comp shader, or legacy video-echo + filters path).
-12. Framebuffer swap (current ↔ previous).
+### 1A. Butterchurn render() order (verbatim)
 
-Waves/shapes draw ONTO the warped canvas (they persist into the next
-frame's feedback); composite output does not feed back.
+The stages fire in this exact sequence per line numbers in
+`node_modules/butterchurn/lib/butterchurn.js`:
+
+1. `calcTimeAndFPS(elapsedTime)` then `frameNum += 1` (2724-2725).
+2. Audio: `updateAudio` if audioLevels arg provided, else `sampleAudio()`
+   (2727-2731).
+3. `audioLevels.updateAudioLevels(fps, frameNum)` (2733).
+4. `globalVars` built: frame, time, fps, bass/mid/treb + _att, meshx/y,
+   aspectx/y (INV forms — `invAspectx/invAspecty`), pixelsx/y (=
+   texsizeX/Y). `gmegabuf` attached. `regVars` from previous frame's
+   per-pixel merged in (2734-2754).
+5. `presetEquationRunner.runFrameEquations(globalVars)` → `mdVSFrame`
+   (2755-2756).
+6. `runPixelEquations(preset, mdVSFrame, runVertEQs, false)` → writes
+   `warpUVs` + `warpColor` and captures the final vertex pool as
+   `this.mdVSVertex` (2757).
+7. `regVars` picked from `mdVSVertex` and merged back into `globalVars`
+   for wave/shape unit calls later this frame (2758-2759).
+8. If `blending`: run the previous preset's frame + pixel equations on
+   `prevGlobalVars`, compute `mdVSFrameMixed` via `mixFrameEquations`
+   (2762-2768); else `mdVSFrameMixed = mdVSFrame`.
+9. **Framebuffer swap**: `[targetTexture, prevTexture]` and their
+   framebuffers swap. Then `prevTexture` gets a mipmap update. Then
+   `targetFrameBuffer` binds and clears. Blend enabled (2770-2782).
+10. `getBlurValues(mdVSFrameMixed)` → `{blurMins, blurMaxs}` (2784-2786).
+    See §12A below for the exact clamping semantics.
+11. **Warp shader** (`warpShader.renderQuadTexture`) samples `prevTexture`
+    + `blurTexture1/2/3`, writes to `targetTexture` via the currently
+    bound target framebuffer (2789 non-blend / 2790-2793 blend two-pass).
+12. **Blur cascade update** IF `numBlurPasses > 0`: `blurShader1`
+    samples `targetTexture` (the just-warped result); `blurShader2`
+    samples `blurTexture1`; `blurShader3` samples `blurTexture2`
+    (2795-2807). Then target framebuffer is re-bound (2807).
+13. **Motion vectors** drawn onto `targetTexture`:
+    `motionVectors.drawMotionVectors(mdVSFrameMixed, warpUVs)` (2810).
+    Butterchurn draws them on the CURRENT target after warp+blur, not
+    on the previous frame before warp.
+14. Custom shapes (all four slots, in index order; blending sends both
+    presets' shapes with per-preset opacity) (2812-2816).
+15. Custom waveforms (same rule) (2818-2822).
+16. During blend, previous preset's shapes and waves are ALSO drawn on
+    the current target with `1 - blendProgress` opacity (2824-2836).
+17. `basicWaveform.drawBasicWaveform` (2838).
+18. `darkenCenter.drawDarkenCenter` (2839).
+19. `outerBorder.drawBorder` then `innerBorder.drawBorder` (2840-2843).
+20. Title text if `supertext.startTime >= 0` (2845-2850).
+21. `mdVSFrame`, `mdVSFrameMixed`, `globalVars` saved onto `this`
+    (2854-2856).
+22. `renderToScreen()` — comp shader draws `targetTexture` + blur
+    textures to the presentation surface (2857 → 2860-2865).
+
+Custom shapes/waves and basic waveform draw ONTO `targetTexture`; they
+persist into next frame's feedback because next frame will swap
+`targetTexture ↔ prevTexture` and read from `prevTexture` in step 11.
+Composite output does not feed back.
+
+### 1B. What "framebuffer swap" means (position matters)
+
+Butterchurn's swap fires BEFORE the warp draw (step 9), so warp writes
+to what will become next frame's `prevTexture`. My previous statement
+"Framebuffer swap (current ↔ previous)" as step 12 (last) was wrong —
+the swap is first, not last. This is corrected in §1A above.
+
+### 1C. projectM / original MilkDrop reconciliation status
+
+Retained evidence at `docs/evidence/projectm/` currently contains only
+`PerPixelMesh.cpp`, `PresetShaderHeaderGlsl330.inc`,
+`projectm-warp-fragment.frag`, `projectm-warp-vertex.vert`, and
+`README.md`. `MilkdropPreset.cpp` `RenderFrame()` is NOT retained.
+
+The two implementations may differ on:
+
+- **Motion vector placement**: butterchurn draws onto the warp-target
+  (post-warp, pre-composite). projectM's `RenderFrame()` was previously
+  claimed to draw onto the prev-texture (pre-warp), but that claim
+  cannot be verified from retained evidence. Until `MilkdropPreset.cpp`
+  is retained, PHOSPHENE follows butterchurn's placement — the source
+  it CAN verify — and this reconciliation is an open question rather
+  than a silent choice.
+- **Framebuffer y-flip**: projectM has been claimed to y-flip the
+  previous frame before warp (`m_flipTexture`) because it renders in
+  OpenGL Y-up while MilkDrop's per-vertex UV math assumes D3D
+  convention. Butterchurn does not perform an explicit y-flip pass; its
+  warp vertex shader handles the coordinate convention inline. This
+  cannot be verified against projectM without retaining `MilkdropPreset.cpp`.
+- **Motion vector edge behavior** (§8) uses butterchurn's grid math
+  which is source-verifiable.
+
+Per COMPATIBILITY-GOAL.md source priority (MilkDrop → projectM →
+butterchurn), if `MilkdropPreset.cpp` is retained and its behavior
+differs from butterchurn's, PHOSPHENE MUST support both orders
+explicitly (either by executor mode-switch or by two graph forms), not
+silently choose butterchurn. Missing knowledge stays explicit.
 
 ## 1B. Preset lifecycle and blending
 
@@ -369,24 +455,91 @@ transpiler must:
 
 ## 12. Blur cascade
 
-Source: `BlurTexture.cpp` [fetched, weights verbatim].
+Primary source: butterchurn `rendering_shaders_blur_blur.js`
+(`node_modules/butterchurn/lib/butterchurn.js:3080-3196`),
+`blurHorizontal.js` and `blurVertical.js` (retained at
+`docs/evidence/butterchurn/rendering_shaders_blur_*.js`), and the
+`getBlurValues` function in the Renderer at
+`node_modules/butterchurn/lib/butterchurn.js:3030-3070`. Weight vector
+and pass math also referenced in projectM's `BlurTexture.cpp`.
 
-- Pyramid: blur0 = 1/2 main, blur1 = 1/4 (user "blur1"), blur2 = 1/8,
-  blur3 = 1/8 (user "blur2"), blur4 = 1/16, blur5 = 1/16 (user "blur3").
-- Base weights `{4.0, 3.8, 3.5, 2.9, 1.9, 1.2, 0.7, 0.3}`
-  (fixtures/blurtexture.cpp:124, fetched copy).
-- Horizontal pass: w1..w4 = pairwise sums; d1..d4 = 0/2/4/6 + 2*odd/pair;
-  w_div = 0.5/(Σw). Vertical pass: w1 = first four, w2 = last four,
-  d1 = 2*(w[2]+w[3])/w1, d2 = 2 + 2*(w[6]+w[7])/w2, w_div = 1/(2Σ).
-- Passes per level: blur1 = 2, blur2 = 4, blur3 = 6 (each level = one
-  H + one V pass on progressively smaller targets).
-- Scale/bias packing per level from blurN_min/max:
-  `scale = 1/(max-min); bias = -min*scale`, levels 1..2 chained relative
-  to the previous level's range.
-- Edge darken (first vertical pass only): `_c6 = {w_div, 1-edgeDarken,
-  edgeDarken, 5.0}`.
-- Blur shaders themselves: `Blur1FragmentShaderGlsl330.frag` (8-tap H)
-  and `Blur2...` (4-tap V + edge darken) [fetched verbatim earlier].
+### 12A. Six targets per full cascade
+
+Each of the three `BlurShader` instances owns TWO textures — a
+horizontal-pass intermediate and a vertical-pass output
+(butterchurn.js:3115-3121). The vertical outputs are the shader-visible
+`sampler_blur1/2/3` textures; the horizontal intermediates are
+consumed and immediately re-read within one cascade update and are not
+exposed to preset shaders.
+
+### 12B. Per-level target ratios (butterchurn.js:2326 `blurRatios`)
+
+`blurRatios = [[0.5, 0.25], [0.125, 0.125], [0.0625, 0.0625]]`.
+
+Each pair is `(H target ratio, V target ratio)` relative to the main
+render resolution. Level N's H pass writes at `pair[0]`; level N's V
+pass writes at `pair[1]`. Level N+1's H pass READS from level N's V
+output (butterchurn.js:3143). So:
+
+| Level | H input ratio | H target ratio | V target ratio (shader-visible) |
+|---|---|---|---|
+| 1 | 1.0 (main) | 0.5 | 0.25 |
+| 2 | 0.25 (blur1 V) | 0.125 | 0.125 |
+| 3 | 0.125 (blur2 V) | 0.0625 | 0.0625 |
+
+### 12C. `getTextureSize` rounding (butterchurn.js:3132-3139)
+
+Each dimension is rounded on allocation:
+
+```
+sizeX = max(mainW * ratio, 16);  sizeX = floor((sizeX + 3) / 16) * 16
+sizeY = max(mainH * ratio, 16);  sizeY = floor((sizeY + 3) / 4)  * 4
+```
+
+Minimum 16 texels on both axes. X rounds to the next multiple of 16
+(with 3 texels of padding before the divide); Y rounds to the next
+multiple of 4 (same padding). Ported at
+`src/gpu/milk-blur.ts` `getBlurTargetSize`.
+
+### 12D. Weights and offsets (verbatim from source)
+
+Base weight vector `w = [4.0, 3.8, 3.5, 2.9, 1.9, 1.2, 0.7, 0.3]`
+(blurHorizontal.js:28, blurVertical.js:28).
+
+Horizontal pass (blurHorizontal.js:29-39): pair sums `w1H..w4H`,
+offsets `d1H..d4H = 0/2/4/6 + 2 * w[odd]/pairsum`, `wDiv = 0.5 / Σ`.
+Ported at `src/gpu/milk-blur.ts` `horizontalUniforms`.
+
+Vertical pass (blurVertical.js:29-34): pair sums `w1V, w2V` and
+offsets `d1V = 2*(w[2]+w[3])/w1V`, `d2V = 2 + 2*(w[6]+w[7])/w2V`,
+`wDiv = 1 / (2 * (w1V + w2V))`. Ported at
+`src/gpu/milk-blur.ts` `verticalUniforms`.
+
+### 12E. Range compression per level
+
+Presets supply blur1/2/3 ranges via `b1n`/`b1x`/`b2n`/`b2x`/`b3n`/`b3x`
+base values or per-frame writes (defaults `bNn = 0`, `bNx = 1`).
+`getBlurValues(mdVSFrame)` at butterchurn.js:3030-3070 computes the
+final ranges with a three-stage clamping:
+
+1. If `max1 - min1 < 0.1`, collapse both to `avg - 0.05` (a source
+   oddity — both sides set to the SAME expression, not `avg ± halfDist`;
+   ported verbatim at `src/gpu/milk-pipeline.ts` `getBlurValues`).
+2. `max2 = min(max1, max2); min2 = max(min1, min2)`, then same guard.
+3. `max3 = min(max2, max3); min3 = max(min2, min3)`, then same guard.
+
+`getScaleAndBias(level, mins, maxs)` at blurHorizontal.js:69-89 then
+turns the clamped ranges into (scale, bias) for the H-pass compression;
+ported at `src/gpu/milk-blur.ts`. The comp shader header decompresses
+via `sample * scale + bias`.
+
+### 12F. Edge darken (vertical pass, level 0 only)
+
+blurVertical.js:74: `b1ed = level === 0 ? mdVSFrame.b1ed : 0`. Uniforms
+`ed1 = 1 - b1ed`, `ed2 = b1ed`, `ed3 = 5.0`. The V-pass applies
+`t = sqrt(min(uv.x, uv.y, 1 - max(uv.x, uv.y)))` then
+`t = ed1 + ed2 * clamp(t * ed3, 0, 1)` and multiplies the vertical
+sum by `t`. Ported into `BLUR_V_WGSL` at `src/gpu/milk-blur.ts`.
 
 ## 13. Coordinate conventions
 

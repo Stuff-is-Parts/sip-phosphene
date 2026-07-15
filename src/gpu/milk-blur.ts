@@ -216,14 +216,18 @@ fn fmain(in : VOut) -> @location(0) vec4f {
 }
 `;
 
-/** Per-level output-texture resolution ratios relative to the main
- *  texture. rendering_renderer.js:102:
- *    blurRatios = [[0.5, 0.25], [0.125, 0.125], [0.0625, 0.0625]];
- *  Each pair is (H-pass output ratio, V-pass output ratio) — the H
- *  pass writes at 0.5x width for level 1 and the V pass reads that
- *  and writes at 0.25x. Level 2 chains from level 1's V output at
- *  0.125x, and level 3 at 0.0625x. The user-facing blur1/blur2/blur3
- *  textures are the V-pass outputs at each level. */
+/** Per-level (H target ratio, V target ratio) pairs relative to the
+ *  main texture resolution. Source: rendering_renderer.js:102
+ *  `blurRatios = [[0.5, 0.25], [0.125, 0.125], [0.0625, 0.0625]]`.
+ *
+ *  Read as: level N's H-pass writes at `pair[0]` of main, level N's
+ *  V-pass writes at `pair[1]` of main. Level N+1's H-pass READS from
+ *  level N's V output — its source ratio equals `blurRatios[N-1][1]`
+ *  (butterchurn's blur.js:3143 `srcBlurRatios = blurRatios[level-1]`
+ *  and `getTextureSize(srcBlurRatios[1])`).
+ *
+ *  Six textures per cascade: three H intermediates (one per level)
+ *  plus three V outputs (shader-visible as sampler_blur1/2/3). */
 export const BLUR_LEVEL_RATIOS: readonly [readonly [number, number],
                                           readonly [number, number],
                                           readonly [number, number]] = [
@@ -231,3 +235,52 @@ export const BLUR_LEVEL_RATIOS: readonly [readonly [number, number],
   [0.125, 0.125],
   [0.0625, 0.0625],
 ];
+
+/** Source-exact texture-size rounding for one blur-target dimension
+ *  pair. Ports butterchurn's blur.js:3132-3139 `getTextureSize`
+ *  verbatim.
+ *
+ *    sizeX = max(mainW * ratio, 16);
+ *    sizeX = floor((sizeX + 3) / 16) * 16
+ *    sizeY = max(mainH * ratio, 16);
+ *    sizeY = floor((sizeY + 3) / 4) * 4
+ *
+ *  Minimum size: both axes clamp up to 16 texels. Rounding: X rounds
+ *  to the next multiple of 16 (with 3 texels of padding before the
+ *  divide), Y rounds to the next multiple of 4 (same padding). The
+ *  asymmetric rounding matches the source; an executor that uses
+ *  power-of-two rounding or exact-fractional sizes will diverge from
+ *  butterchurn's per-texel offsets and blur output. */
+export function getBlurTargetSize(
+  mainW: number, mainH: number, ratio: number,
+): [number, number] {
+  let sizeX = Math.max(mainW * ratio, 16);
+  sizeX = Math.floor((sizeX + 3) / 16) * 16;
+  let sizeY = Math.max(mainH * ratio, 16);
+  sizeY = Math.floor((sizeY + 3) / 4) * 4;
+  return [sizeX, sizeY];
+}
+
+/** Convenience: the six target sizes for a full three-level cascade
+ *  at the given main resolution. Returns
+ *  `{ h: [level1H, level2H, level3H], v: [level1V, level2V, level3V] }`
+ *  where each entry is `[w, h]` after the source rounding. Handy for
+ *  executor allocation and for asserting the source-correct sizes in
+ *  tests. */
+export function getBlurCascadeSizes(mainW: number, mainH: number): {
+  h: [[number, number], [number, number], [number, number]];
+  v: [[number, number], [number, number], [number, number]];
+} {
+  return {
+    h: [
+      getBlurTargetSize(mainW, mainH, BLUR_LEVEL_RATIOS[0][0]),
+      getBlurTargetSize(mainW, mainH, BLUR_LEVEL_RATIOS[1][0]),
+      getBlurTargetSize(mainW, mainH, BLUR_LEVEL_RATIOS[2][0]),
+    ],
+    v: [
+      getBlurTargetSize(mainW, mainH, BLUR_LEVEL_RATIOS[0][1]),
+      getBlurTargetSize(mainW, mainH, BLUR_LEVEL_RATIOS[1][1]),
+      getBlurTargetSize(mainW, mainH, BLUR_LEVEL_RATIOS[2][1]),
+    ],
+  };
+}

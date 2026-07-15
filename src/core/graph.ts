@@ -236,36 +236,51 @@ export interface MilkMotionVectorsNode extends NodeBase {
 }
 
 /** Blur cascade update after warp (semantics doc §12). Butterchurn's
- *  Renderer holds three chained blur shaders (blurShader1/2/3) each of
- *  which does one H + one V separable Gaussian pass onto a downsampled
- *  render target. Shaders reference the cascade output textures as
- *  `sampler_blur1/2/3` and decompress the range with the per-level
- *  scale/bias in `_c5.xy`/`_c5.zw`/`_c6.xy` uniforms. This node names:
+ *  Renderer holds three `BlurShader` instances (blur.js), each of
+ *  which owns TWO render targets: a horizontal-pass intermediate and
+ *  a vertical-pass output. The shader-visible `sampler_blur1/2/3`
+ *  textures are the THREE VERTICAL OUTPUTS. So the cascade needs six
+ *  textures total (three H intermediates, three V outputs).
  *
- *  - `source`: the input texture the cascade samples (canvas post-warp).
+ *  This node names:
+ *
+ *  - `source`: the input the cascade samples for level 1 (canvas
+ *    post-warp).
  *  - `levels`: the highest `GetBlurN` referenced by the preset shaders
- *    (0 = unused, and blur cascade fires N times to produce blur1..N).
- *  - `blurTargets`: the source-defined output texture references the
- *    executor writes at each level. `blur1Target` = the level the
- *    shaders see as sampler_blur1 (half-resolution); etc. When
- *    `levels < 3`, higher targets stay unpopulated.
+ *    (0 = unused; N fires N BlurShader cascades levels 1..N).
+ *  - `blurHTargets` / `blurVTargets`: the six-target set. Level N reads
+ *    from `blurVTargets[N-1]` (or `source` at level 1), writes its H
+ *    pass into `blurHTargets[N]`, then its V pass into
+ *    `blurVTargets[N]`. Only `blurVTargets` are shader-visible.
  *
- *  Level shape per rendering_renderer.js:102 (`blurRatios`):
- *    blur1 target = 0.5 × main resolution
- *    blur2 target = 0.25 × main resolution  (0.5 × blur1)
- *    blur3 target = 0.125 × main resolution (0.5 × blur2)
+ *  Per-pair resolution ratios per rendering_renderer.js:102
+ *  `blurRatios`:
+ *    Level 1 pair: (H target 0.5x, V target 0.25x of main resolution).
+ *    Level 2 pair: (H target 0.125x, V target 0.125x).
+ *    Level 3 pair: (H target 0.0625x, V target 0.0625x).
  *
- *  Scale/bias unpack per BlurTexture.cpp (docs/milkdrop-execution-model.md
- *  §12): the executor packs each level's dynamic range into 8-bit storage
- *  and uploads (scale, bias) so the shader can decompress via
- *  `sample * scale + bias`. */
+ *  Butterchurn's blur.js:3132-3139 rounds the actual pixel sizes:
+ *    sizeX = max(mainW * ratio, 16); sizeX = floor((sizeX + 3) / 16) * 16
+ *    sizeY = max(mainH * ratio, 16); sizeY = floor((sizeY + 3) / 4) * 4
+ *  Any executor must reproduce this rounding rule for its allocated
+ *  textures so per-level texel offsets match the source's blur math.
+ *
+ *  Scale/bias unpack per src/gpu/milk-blur.ts `getScaleAndBias` from
+ *  the getBlurValues-clamped ranges (src/gpu/milk-pipeline.ts
+ *  `getBlurValues`). The shader header
+ *  (docs/evidence/projectm/PresetShaderHeaderGlsl330.inc lines 149-151)
+ *  decompresses on read via `_c5.xy` / `_c5.zw` / `_c6.xy`. */
 export interface MilkBlurNode extends NodeBase {
   kind: "milk-blur";
   levels: 0 | 1 | 2 | 3;
   source: TextureRef;
-  blur1Target?: TextureRef;
-  blur2Target?: TextureRef;
-  blur3Target?: TextureRef;
+  /** H-pass intermediates per level (blurHTargets[0] = level 1's H
+   *  intermediate, etc.). Written and immediately read within the
+   *  cascade update; not shader-visible. */
+  blurHTargets?: readonly [TextureRef?, TextureRef?, TextureRef?];
+  /** V-pass outputs per level. `blurVTargets[N-1]` is the texture the
+   *  warp/comp shader sees as `sampler_blurN`. */
+  blurVTargets?: readonly [TextureRef?, TextureRef?, TextureRef?];
 }
 
 /** Outer+inner borders drawn onto the canvas (semantics doc §9). */

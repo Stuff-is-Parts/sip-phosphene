@@ -4,7 +4,7 @@
 // derivation in docs/milkdrop-execution-model.md §11A-§11E.
 
 import { describe, expect, it } from "vitest";
-import { buildShaderContract } from "../src/gpu/milk-pipeline";
+import { buildShaderContract, getBlurValues } from "../src/gpu/milk-pipeline";
 import { type Pool } from "../src/core/milk-runner";
 
 const baseFrame: Pool = {
@@ -106,35 +106,93 @@ describe("buildShaderContract — session-owned uniforms are null", () => {
     expect(c.rotPerFrame).toBeNull();
   });
 
-  it("leaves randFrame at [0,0,0,0] pending session-owned per-frame RNG draws", () => {
+  it("leaves randFrame null pending session-owned per-frame RNG draws", () => {
     const c = buildShaderContract(baseFrame, [0.5, 0.6, 0.7, 0.8], 800, 600);
-    // randPreset was passed through, but randFrame is session-owned and
-    // stays zero until PHOSPHENE has a per-frame RNG source.
+    // randPreset is drawn by the runner at preset load, so it flows.
+    // randFrame is session-owned per-frame; leaving it null forces
+    // refusal for any shader that reads it (butterchurn.js:2789
+    // uploads a fresh vec4 per frame from session RNG).
     expect(c.randPreset).toEqual([0.5, 0.6, 0.7, 0.8]);
-    expect(c.randFrame).toEqual([0, 0, 0, 0]);
+    expect(c.randFrame).toBeNull();
+  });
+
+  it("leaves progress null pending source-witnessed owner", () => {
+    // Butterchurn's warp/comp shader uniform block at butterchurn.js:3372
+    // and :4321 does NOT include a `progress` uniform. The header spec
+    // names one but butterchurn never uploads. Null forces refusal.
+    const c = buildShaderContract(baseFrame, [0, 0, 0, 0], 800, 600);
+    expect(c.progress).toBeNull();
   });
 });
 
-describe("buildShaderContract — blur ranges from mdVSFrame (_c6.zw, _c13)", () => {
-  // Per header lines 27-28 and 135-140, blurN_min/max come from
-  // _c6.zw and _c13. Presets can write blurN_min/blurN_max in per-frame
-  // code; the Renderer reads them from mdVSFrame at draw time.
-  it("reads blurN_min and blurN_max from mdVSFrame", () => {
-    const c = buildShaderContract({
-      ...baseFrame,
-      blur1_min: 0.05, blur1_max: 0.95,
-      blur2_min: 0.1, blur2_max: 0.9,
-      blur3_min: 0.2, blur3_max: 0.8,
-    }, [0, 0, 0, 0], 800, 600);
-    expect(c.blur1Min).toBe(0.05);
-    expect(c.blur1Max).toBe(0.95);
-    expect(c.blur2Min).toBe(0.1);
-    expect(c.blur2Max).toBe(0.9);
-    expect(c.blur3Min).toBe(0.2);
-    expect(c.blur3Max).toBe(0.8);
+describe("getBlurValues — source-witnessed clamping (butterchurn.js:3030-3070)", () => {
+  // The three-stage recursion:
+  //   Level 1: if max1 - min1 < 0.1, collapse both to avg - 0.05.
+  //   Level 2: max2 = min(max1, max2), min2 = max(min1, min2), then
+  //     apply the same min-distance guard.
+  //   Level 3: max3 = min(max2, max3), min3 = max(min2, min3), then
+  //     apply the same min-distance guard.
+  it("passes through wide non-overlapping ranges unchanged", () => {
+    const { blurMins, blurMaxs } = getBlurValues({
+      b1n: 0, b1x: 1, b2n: 0.1, b2x: 0.9, b3n: 0.2, b3x: 0.8,
+    });
+    expect(blurMins).toEqual([0, 0.1, 0.2]);
+    expect(blurMaxs).toEqual([1, 0.9, 0.8]);
   });
 
-  it("defaults blur ranges to the identity unpack (0, 1) when preset does not set them", () => {
+  it("clamps level 2 min up to level 1 min when level 2 min is below it", () => {
+    const { blurMins } = getBlurValues({
+      b1n: 0.3, b1x: 1, b2n: 0.1, b2x: 0.9, b3n: 0.05, b3x: 0.8,
+    });
+    // level 2 min = max(0.3, 0.1) = 0.3
+    // level 3 min = max(0.3, 0.05) = 0.3
+    expect(blurMins[1]).toBe(0.3);
+    expect(blurMins[2]).toBe(0.3);
+  });
+
+  it("clamps level 2 max down to level 1 max when level 2 max is above it", () => {
+    const { blurMaxs } = getBlurValues({
+      b1n: 0, b1x: 0.5, b2n: 0, b2x: 0.9, b3n: 0, b3x: 0.8,
+    });
+    // level 2 max = min(0.5, 0.9) = 0.5; then level 2 collapses to avg
+    // (max-min = 0.5 > 0.1 so no clamp fires). level 3 max = min(0.5, 0.8) = 0.5.
+    expect(blurMaxs[1]).toBe(0.5);
+    expect(blurMaxs[2]).toBe(0.5);
+  });
+
+  it("collapses a narrow range to a single point per the source oddity", () => {
+    // butterchurn.js:3040-3044 uses the same expression on both sides —
+    // both min and max become avg - fMinDist * 0.5 when the range is
+    // too narrow. PHOSPHENE reproduces the source verbatim rather than
+    // "fixing" the apparent bug.
+    const { blurMins, blurMaxs } = getBlurValues({
+      b1n: 0.5, b1x: 0.55, b2n: 0.5, b2x: 0.6, b3n: 0, b3x: 1,
+    });
+    // level 1: max - min = 0.05 < 0.1 → both become avg - 0.05
+    //   avg = (0.5 + 0.55) / 2 = 0.525; both = 0.475
+    expect(blurMins[0]).toBeCloseTo(0.525 - 0.05, 10);
+    expect(blurMaxs[0]).toBeCloseTo(0.525 - 0.05, 10);
+  });
+
+  it("defaults missing b*n/b*x to the source defaults (b*n=0, b*x=1)", () => {
+    const { blurMins, blurMaxs } = getBlurValues({});
+    expect(blurMins).toEqual([0, 0, 0]);
+    expect(blurMaxs).toEqual([1, 1, 1]);
+  });
+});
+
+describe("buildShaderContract — blur ranges routed through getBlurValues", () => {
+  it("uses getBlurValues clamping, not raw b1n/b1x", () => {
+    const c = buildShaderContract({
+      ...baseFrame,
+      // Provoke the level 2 clamp: b2x above b1x must clamp to b1x.
+      b1n: 0, b1x: 0.5, b2n: 0, b2x: 0.9, b3n: 0, b3x: 1,
+    }, [0, 0, 0, 0], 800, 600);
+    // level 2 max = min(0.5, 0.9) = 0.5
+    expect(c.blur2Max).toBe(0.5);
+  });
+
+  it("returns level defaults (0, 1) for empty inputs matching butterchurn defaults", () => {
     const c = buildShaderContract(baseFrame, [0, 0, 0, 0], 800, 600);
     expect(c.blur1Min).toBe(0);
     expect(c.blur1Max).toBe(1);

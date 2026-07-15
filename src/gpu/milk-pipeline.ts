@@ -56,8 +56,17 @@ export interface MilkFrameData {
  *  the pipeline cannot populate from source-witnessed state must NOT
  *  be synthesized — the containing preset must refuse at load. */
 export interface MilkShaderContract {
-  /** _c2.x-w = time, fps, frame, progress. */
-  time: number; fps: number; frame: number; progress: number;
+  /** _c2.x-w. time, fps, frame come from the Renderer's timing loop
+   *  (rendering_renderer.js:353-378). `progress` in butterchurn is a
+   *  supertext-progress value (butterchurn.js:2846) that is NOT the
+   *  same as the projectM preset progress the header spec mentions.
+   *  Butterchurn does not upload `progress` as a shader uniform in
+   *  its warp/comp shader source (butterchurn.js:3372, 4321 uniform
+   *  block does not include it). Marked null until a source-witnessed
+   *  owner + upload path is identified; a shader that reads `progress`
+   *  must refuse until then. */
+  time: number; fps: number; frame: number;
+  progress: number | null;
   /** _c3.xyzw = bass/mid/treb/vol; _c4.xyzw = *_att. */
   bass: number; mid: number; treb: number; vol: number;
   bassAtt: number; midAtt: number; trebAtt: number; volAtt: number;
@@ -68,10 +77,12 @@ export interface MilkShaderContract {
   /** Per-preset random 4-vector, drawn once at preset load
    *  (rendering_renderer.js:88-89 via the seeded stream). */
   randPreset: [number, number, number, number];
-  /** Per-frame random 4-vector, regenerated each frame
-   *  (rendering_renderer.js populates it via 4 Math.random() draws;
-   *  PHOSPHENE session must own a per-frame RNG draw). */
-  randFrame: [number, number, number, number];
+  /** Per-frame random 4-vector, regenerated each frame from the
+   *  session-level per-frame RNG draws. `null` until a session-level
+   *  Renderer owns the per-frame RNG stream — a shader that reads
+   *  rand_frame must refuse. Do not supply zeros or synthesized
+   *  values here. */
+  randFrame: [number, number, number, number] | null;
   /** q1..q32 from the runner's post-per-frame mdVSFrame, packed into
    *  8 float4 banks _qa.._qh. */
   qBanks: [
@@ -94,8 +105,11 @@ export interface MilkShaderContract {
    *  implementation yet — must remain unpopulated until it does). */
   mipX: number | null; mipY: number | null; mipAvg: number | null;
   /** _c6.zw = blur1_min, blur1_max; _c13.xy = blur2_*; _c13.zw =
-   *  blur3_*. Presets can assign these in per-frame code and the
-   *  Renderer reads them from mdVSFrame at draw time. */
+   *  blur3_*. Values are derived by `getBlurValues(mdVSFrame)` from
+   *  the preset's `b1n`/`b1x`/`b2n`/`b2x`/`b3n`/`b3x` per
+   *  butterchurn.js:3030-3070 with the source's min-distance clamp
+   *  (fMinDist = 0.1) plus the level 2/3 recursion that clamps each
+   *  level's range within the previous level's range. */
   blur1Min: number; blur1Max: number;
   blur2Min: number; blur2Max: number;
   blur3Min: number; blur3Max: number;
@@ -109,6 +123,56 @@ export interface MilkShaderContract {
   rotVeryFast: readonly Float32Array[] | null; // rot_vf1..rot_vf4
   rotUltraFast: readonly Float32Array[] | null; // rot_uf1..rot_uf4
   rotPerFrame: readonly Float32Array[] | null; // rot_rand1..rot_rand4
+}
+
+/** Blur-range clamp math ported verbatim from butterchurn's
+ *  Renderer.getBlurValues (rendering_renderer.js:3030-3070). Presets
+ *  supply blur1/2/3 min/max via `b1n`/`b1x`/`b2n`/`b2x`/`b3n`/`b3x`
+ *  base values or per-frame writes; this function applies the source's
+ *  three-stage clamping so downstream uploads never diverge from
+ *  butterchurn's uploaded values.
+ *
+ *  Note on a source oddity: when the min-distance guard fires
+ *  (max - min < 0.1), butterchurn sets BOTH min and max to
+ *  `avg - fMinDist * 0.5` — the same value, collapsing the range to a
+ *  point. This looks like it should be `avg - halfDist` and
+ *  `avg + halfDist`, but the source is verbatim what butterchurn
+ *  runs, and PHOSPHENE reproduces it exactly per COMPATIBILITY-GOAL.md
+ *  Source Authority. */
+export function getBlurValues(mdVSFrame: Pool): {
+  blurMins: [number, number, number]; blurMaxs: [number, number, number];
+} {
+  let blurMin1 = mdVSFrame.b1n ?? 0;
+  let blurMin2 = mdVSFrame.b2n ?? 0;
+  let blurMin3 = mdVSFrame.b3n ?? 0;
+  let blurMax1 = mdVSFrame.b1x ?? 1;
+  let blurMax2 = mdVSFrame.b2x ?? 1;
+  let blurMax3 = mdVSFrame.b3x ?? 1;
+  const fMinDist = 0.1;
+
+  if (blurMax1 - blurMin1 < fMinDist) {
+    const avg = (blurMin1 + blurMax1) * 0.5;
+    blurMin1 = avg - fMinDist * 0.5;
+    blurMax1 = avg - fMinDist * 0.5;
+  }
+  blurMax2 = Math.min(blurMax1, blurMax2);
+  blurMin2 = Math.max(blurMin1, blurMin2);
+  if (blurMax2 - blurMin2 < fMinDist) {
+    const avg = (blurMin2 + blurMax2) * 0.5;
+    blurMin2 = avg - fMinDist * 0.5;
+    blurMax2 = avg - fMinDist * 0.5;
+  }
+  blurMax3 = Math.min(blurMax2, blurMax3);
+  blurMin3 = Math.max(blurMin2, blurMin3);
+  if (blurMax3 - blurMin3 < fMinDist) {
+    const avg = (blurMin3 + blurMax3) * 0.5;
+    blurMin3 = avg - fMinDist * 0.5;
+    blurMax3 = avg - fMinDist * 0.5;
+  }
+  return {
+    blurMins: [blurMin1, blurMin2, blurMin3],
+    blurMaxs: [blurMax1, blurMax2, blurMax3],
+  };
 }
 
 
@@ -1630,11 +1694,16 @@ export function buildShaderContract(
   const aspectYX = texsizeX > texsizeY ? texsizeY / texsizeX : 1;
   const time = mdVSFrame.time ?? 0;
   const q = (idx: number): number => mdVSFrame[`q${idx}`] ?? 0;
+  const { blurMins, blurMaxs } = getBlurValues(mdVSFrame);
   return {
     time,
     fps: mdVSFrame.fps ?? 30,
     frame: mdVSFrame.frame ?? 0,
-    progress: 0, // butterchurn does not compute progress; matches source
+    // butterchurn's warp/comp shader uniform block (butterchurn.js:3372,
+    // 4321) does not include a `progress` uniform; the value the shader
+    // header spec calls `progress` has no source-witnessed upload path
+    // in butterchurn. Null forces refusal for shaders that read it.
+    progress: null,
     bass: mdVSFrame.bass ?? 0,
     mid: mdVSFrame.mid ?? 0,
     treb: mdVSFrame.treb ?? 0,
@@ -1646,8 +1715,10 @@ export function buildShaderContract(
     aspect: [aspectXY, aspectYX, 1 / aspectXY, 1 / aspectYX],
     texsize: [texsizeX, texsizeY, 1 / texsizeX, 1 / texsizeY],
     randPreset: [randPreset[0] ?? 0, randPreset[1] ?? 0, randPreset[2] ?? 0, randPreset[3] ?? 0],
-    // randFrame owner is the session-level Renderer; PHOSPHENE has none yet.
-    randFrame: [0, 0, 0, 0],
+    // randFrame owner is the session-level Renderer's per-frame RNG.
+    // Until that session state exists, null forces refusal — no zero
+    // fallback.
+    randFrame: null,
     qBanks: [
       [q(1), q(2), q(3), q(4)],
       [q(5), q(6), q(7), q(8)],
@@ -1687,12 +1758,14 @@ export function buildShaderContract(
     // PHOSPHENE does not compute them yet. Null blocks any preset
     // shader that reads mip_x/y/avg.
     mipX: null, mipY: null, mipAvg: null,
-    blur1Min: mdVSFrame.blur1_min ?? 0,
-    blur1Max: mdVSFrame.blur1_max ?? 1,
-    blur2Min: mdVSFrame.blur2_min ?? 0,
-    blur2Max: mdVSFrame.blur2_max ?? 1,
-    blur3Min: mdVSFrame.blur3_min ?? 0,
-    blur3Max: mdVSFrame.blur3_max ?? 1,
+    // Blur ranges via source-witnessed getBlurValues clamping
+    // (butterchurn.js:3030-3070). The min-distance clamp and level 2/3
+    // recursion produce values that may differ from the raw b1n/b1x
+    // etc. inputs; downstream uploads MUST use these clamped values,
+    // not the raw preset fields.
+    blur1Min: blurMins[0], blur1Max: blurMaxs[0],
+    blur2Min: blurMins[1], blur2Max: blurMaxs[1],
+    blur3Min: blurMins[2], blur3Max: blurMaxs[2],
     // Rotation matrices — Renderer-owned accumulators regenerated
     // per frame at multiple frequencies. Not implemented yet.
     rotStatic: null, rotDynamic: null, rotFast: null,
