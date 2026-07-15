@@ -31,6 +31,8 @@
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.1.1",
     "@webgpu/types": "^0.1.44",
+    "butterchurn": "^2.6.7",
+    "butterchurn-presets": "^2.4.7",
     "eslint": "^10.7.0",
     "pngjs": "^7.0.0",
     "puppeteer-core": "^25.3.0",

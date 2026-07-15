@@ -170,9 +170,12 @@ Hard Rules — no invented fallbacks):
    `_voronoi` exactness). Path: reference-render comparison, or GL
    capture of the running app.
 2. Per-node runtime semantics beyond port structure for CPU nodes
-   (Beat's exact envelope, Expression's function set, SignalGenerator
-   waveform details). Wiki gives descriptions; exact behavior needs
-   observation against the running app.
+   (Beat's exact envelope, SignalGenerator waveform details). Wiki gives
+   descriptions; exact behavior needs observation against the running
+   app. The Expression node's evaluator is IDENTIFIED: `$P9/plane9.txt`
+   credits "Expression Evaluator by Brian Allen Vanderburg II
+   (expreval.sourceforge.net)" — the function set and syntax are that
+   open-source library's documented behavior.
 3. Camera/projection defaults (gViewPosition default, FOV, near/far
    values per scene) — extractable from scene Transform/Camera node port
    values per scene; engine defaults need observation.

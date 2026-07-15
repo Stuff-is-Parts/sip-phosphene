@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Butterchurn reference renderer</title>
+<style>html,body{margin:0;background:#000}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="stage" width="800" height="600"></canvas>
+<script src="../node_modules/butterchurn/lib/butterchurn.min.js"></script>
+<script src="../node_modules/butterchurn-presets/lib/butterchurnPresets.min.js"></script>
+<script>
+// Reference renderer for MilkDrop presets via Butterchurn (MIT), driven
+// deterministically: the driver injects audio byte arrays and elapsed time
+// per frame, so renders are repeatable. Serves as the validation oracle
+// per COMPATIBILITY-GOAL.md Plan step 3.
+(function () {
+  const canvas = document.getElementById("stage");
+  let visualizer = null;
+  let lastTime = 0;
+
+  window.__refList = function () {
+    return Object.keys(butterchurnPresets.getPresets());
+  };
+
+  window.__refInit = function (presetName, width, height) {
+    canvas.width = width; canvas.height = height;
+    // AudioContext is required by the constructor; rendering uses injected
+    // audioLevels, so the context is never started (no real audio flows).
+    const ctx = new AudioContext();
+    visualizer = butterchurn.default.createVisualizer(ctx, canvas, {
+      width, height,
+      pixelRatio: 1,
+      textureRatio: 1,
+    });
+    const presets = butterchurnPresets.getPresets();
+    const preset = presets[presetName];
+    if (!preset) return { ok: false, error: "unknown preset: " + presetName };
+    visualizer.loadPreset(preset, 0.0); // no blend
+    lastTime = 0;
+    return { ok: true };
+  };
+
+  // c, l, r: arrays of 1024 ints (0..255); timeSec: absolute frame time.
+  window.__refFrame = function (timeSec, c, l, r) {
+    const dt = timeSec - lastTime;
+    lastTime = timeSec;
+    visualizer.render({
+      elapsedTime: dt,
+      audioLevels: {
+        timeByteArray: new Uint8Array(c),
+        timeByteArrayL: new Uint8Array(l),
+        timeByteArrayR: new Uint8Array(r),
+      },
+    });
+    return true;
+  };
+
+  window.__ready = true;
+})();
+</script>
+</body>
+</html>
