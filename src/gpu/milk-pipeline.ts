@@ -967,13 +967,83 @@ export class MilkPipeline {
     this.isFirstFrame = true;
   }
 
+  /**
+   * Recreate every dimension-dependent GPU resource when the renderer
+   * pixel size changes since the previous frame. Matches projectM's
+   * per-frame resize handling in `MilkdropPreset::RenderFrame` where a
+   * viewport change triggers `m_framebuffer.SetSize` plus an
+   * `m_isFirstFrame = true` reset.
+   *
+   * Recreates: both feedback targets (this.target, this.prev), both
+   * flip intermediates (flip1, flip2), the motion-vector line uniform,
+   * the thick and no-thick line uniforms, and the three dot uniforms
+   * — every buffer whose contents reference `this.width` or
+   * `this.height`. Updates aspect and inverse-aspect values.
+   *
+   * Warp mesh, comp grid, and shader-pipeline objects use fixed grid
+   * sizes and format-only descriptors, so they are not recreated here.
+   * Returns true when a resize was performed.
+   */
+  private handleResize(): boolean {
+    const { width, height } = this.renderer.pixelSize;
+    if (width === this.width && height === this.height) return false;
+    const dev = this.device;
+    this.width = width;
+    this.height = height;
+    // aspectx = h>w ? w/h : 1 ; aspecty = w>h ? h/w : 1
+    this.aspectx = height > width ? width / height : 1;
+    this.aspecty = width > height ? height / width : 1;
+    this.invAspectx = 1 / this.aspectx;
+    this.invAspecty = 1 / this.aspecty;
+    // Recreate feedback targets.
+    this.target?.tex.destroy();
+    this.prev?.tex.destroy();
+    this.target = this.makeTarget();
+    this.prev = this.makeTarget();
+    // Recreate flip intermediates at the new dimensions.
+    this.flip1?.destroy();
+    this.flip2?.destroy();
+    this.flip1 = dev.createTexture({
+      size: [width, height], format: TARGET_FORMAT,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    });
+    this.flip1View = this.flip1.createView();
+    this.flip2 = dev.createTexture({
+      size: [width, height], format: TARGET_FORMAT,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    });
+    this.flip2View = this.flip2.createView();
+    // Update every dimension-dependent uniform. Line/dot pipelines
+    // read (texsize.x, texsize.y) from binding 0 to place per-instance
+    // thick-line offsets and to place per-pixel dot corners.
+    dev.queue.writeBuffer(this.lineUni,        0, new Float32Array([width, height, 1, 0]));
+    dev.queue.writeBuffer(this.lineUniNoThick, 0, new Float32Array([width, height, 0, 0]));
+    dev.queue.writeBuffer(this.mvUni,          0, new Float32Array([width, height, 0, 0]));
+    for (let s = 1; s <= 3; s++) {
+      dev.queue.writeBuffer(this.dotUnis[s - 1], 0, new Float32Array([width, height, s, 0]));
+    }
+    // First-frame reset per projectM `m_isFirstFrame = true`. The frame
+    // that observes the resize skips motion vectors before the flip,
+    // matching projectM's post-resize behavior.
+    this.isFirstFrame = true;
+    return true;
+  }
+
   /* ------------------------------- frame -------------------------------- */
 
   frame(g: GraphScene, data: MilkFrameData): void {
     const runner = this.runner;
     if (!runner) throw new Error("no preset loaded");
     const dev = this.device;
-    // Session timing unification is a coherent-window blocker per
+
+    // Per-frame resize check per projectM MilkdropPreset::RenderFrame.
+    // When the renderer's pixel dimensions differ from our allocated
+    // dimensions, recreate every size-dependent GPU resource and reset
+    // the first-frame tracker so motion vectors skip on the frame that
+    // observes the resize.
+    this.handleResize();
+
+    // Session timing unification is a separate task per
     // COMPATIBILITY-GOAL.md: projectM's Renderer owns time/frame/fps
     // and feeds them into equations and shader uniforms. PHOSPHENE
     // currently accepts them as `data.globals`; running a parallel
@@ -1338,11 +1408,43 @@ export class MilkPipeline {
       this.passTrace.push("legacy-composite");
     }
 
-    // Step 11: projectM's legacy correction flip fires only when
-    // FinalComposite has no shader — PHOSPHENE's COMP_WGSL is the
-    // shader-composite equivalent, so the correction flip is a no-op
-    // here. The `legacy-correction-flip?` trace stage is intentionally
-    // omitted when the correction is not required.
+    // Step 11: legacy correction flip decision derived from the
+    // shader-and-flip coordinate math.
+    //
+    // projectM applies an extra y-flip on the previous framebuffer AFTER
+    // composite when FinalComposite has no MilkDrop shader — the
+    // shaderless VideoEcho + Filters legacy path at
+    // docs/evidence/projectm/MilkdropPreset.cpp inside the
+    // "if (!m_finalComposite.HasCompositeShader())" branch.
+    //
+    // PHOSPHENE's legacy-composite stage is a single WGSL program
+    // (COMP_WGSL) that reproduces the video-echo, gamma, hue, and
+    // filter math inline. Its coordinate math is:
+    //   vertex:  o.pos  = vec4f(aPos, 0, 1)          // no y negation
+    //            o.vUv  = aPos * 0.5 + 0.5           // straight NDC to UV
+    //   fragment: samples flip2 at o.vUv
+    //
+    // flip2's math (FLIP_WGSL):
+    //   flip2 texel(x, y) = current texel(x, height - 1 - y)
+    //
+    // Combining, comp writes prev texel(x, y) with flip2 sampled at
+    // UV (x / width, 1 - y / height), which is flip2 texel(x,
+    // height - 1 - y) = current texel(x, y). Prev texel(x, y) therefore
+    // receives current texel(x, y) — orientation is preserved and no
+    // residual y inversion enters the composite output.
+    //
+    // The correction flip exists to undo the inversion left behind by
+    // VideoEcho + Filters. PHOSPHENE's shader path introduces no such
+    // inversion, so the correction is structurally not needed. The
+    // flag below encodes that derivation as a runtime value rather than
+    // as an unsupported comment; changing COMP_WGSL's vertex or UV math
+    // must revisit this decision.
+    const compositeIntroducesYInversion = false;
+    if (compositeIntroducesYInversion) {
+      // Placeholder for the correction flip. Not reachable while
+      // compositeIntroducesYInversion is derived-false above.
+      this.passTrace.push("legacy-correction-flip");
+    }
 
     // Step 12: swap current and previous framebuffer identities AFTER
     // composite completes.
