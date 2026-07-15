@@ -1,6 +1,7 @@
 // Search Plane9 binaries for UTF-16LE-encoded shader text (Qt string
 // storage) — specifically helper definitions absent from the ASCII dump.
 // Usage: node scripts/extract-p9-utf16.mjs <needle> [file...]
+import { Buffer } from "node:buffer";
 import { readFileSync } from "node:fs";
 
 const needle = process.argv[2];
