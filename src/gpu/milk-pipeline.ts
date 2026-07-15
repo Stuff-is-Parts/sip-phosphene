@@ -362,12 +362,13 @@ fn fmain(in : VOut) -> @location(0) vec4f {
 }
 `;
 
-// Explicit y-flip pass. projectM's `flipTexture.Draw(source, ...true, false)`
+// Explicit vertical flip pass. projectM's `flipTexture.Draw(source, ...true, false)`
 // (docs/evidence/projectm/MilkdropPreset.cpp:RenderFrame) copies a source
-// texture into an intermediate with the y axis inverted; PHOSPHENE
-// reproduces that with a fullscreen quad that samples the source at
-// (u, 1 - v). Used for the prev-before-warp flip and the current-before-
-// composite flip.
+// texture into an intermediate with the y axis inverted. In WebGPU with
+// framebuffer memory pixel (0, 0) at the top and NDC y up, the vertex
+// mapping that samples source at (uv.x, 1 - normalized_y) produces a
+// true vertical flip. See computeFlipUv below plus tests/milk-flip-uv.test.ts
+// for the direct texel-mapping verification.
 const FLIP_WGSL = /* wgsl */ `
 @group(0) @binding(0) var samp : sampler;
 @group(0) @binding(1) var src  : texture_2d<f32>;
@@ -377,7 +378,7 @@ fn vmain(@builtin(vertex_index) vi : u32) -> VOut {
   var o : VOut;
   let p = vec2f(f32(i32(vi & 1u) * 4 - 1), f32(i32(vi >> 1u) * 4 - 1));
   o.pos = vec4f(p, 0.0, 1.0);
-  o.uv = vec2f(p.x * 0.5 + 0.5, 1.0 - (p.y * 0.5 + 0.5));
+  o.uv = vec2f(p.x * 0.5 + 0.5, p.y * 0.5 + 0.5);
   return o;
 }
 @fragment
@@ -386,9 +387,13 @@ fn fmain(in : VOut) -> @location(0) vec4f {
 }
 `;
 
-// Final present pass. Copies the offscreen composite output (rgba8unorm)
-// to the presentation surface. No color transform — the offscreen texture
-// already holds the composited image.
+// Final present pass. The direct copy operation applied at the
+// presentation surface — samples the post-swap current framebuffer at
+// UV coordinates that match framebuffer pixel positions one-to-one
+// (the identity mapping in PHOSPHENE's WebGPU convention where memory
+// pixel (0, 0) sits at the top of the framebuffer and NDC y = 1 sits
+// at the top). See computeCopyUv below plus tests/milk-flip-uv.test.ts
+// for the direct texel-mapping verification.
 const PRESENT_WGSL = /* wgsl */ `
 @group(0) @binding(0) var samp : sampler;
 @group(0) @binding(1) var src  : texture_2d<f32>;
@@ -406,6 +411,22 @@ fn fmain(in : VOut) -> @location(0) vec4f {
   return textureSample(src, samp, in.uv);
 }
 `;
+
+/** UV mapping the copy pipeline vertex shader emits for a fullscreen
+ *  triangle vertex at NDC (px, py). Returns the UV that a fragment at
+ *  that vertex would read from the source texture. Exported so
+ *  tests/milk-flip-uv.test.ts can verify the copy math independent of
+ *  a live WebGPU device. */
+export function computeCopyUv(px: number, py: number): [number, number] {
+  return [px * 0.5 + 0.5, 0.5 - py * 0.5];
+}
+
+/** UV mapping the flip pipeline vertex shader emits — same x math as
+ *  copy, but y is inverted so the sampled row is measured from the
+ *  bottom of the source texture rather than the top. */
+export function computeFlipUv(px: number, py: number): [number, number] {
+  return [px * 0.5 + 0.5, py * 0.5 + 0.5];
+}
 
 const TARGET_FORMAT: GPUTextureFormat = "rgba8unorm";
 
@@ -520,11 +541,15 @@ export class MilkPipeline {
 
   // Explicit y-flip intermediates per projectM's MilkdropPreset::RenderFrame.
   // flip1 receives the y-flipped previous framebuffer just before warp;
-  // flip2 receives the y-flipped current framebuffer just before composite.
+  // flip2 receives the y-flipped current framebuffer just before composite;
+  // compositeIntermediate receives the legacy-composite output before the
+  // correction flip writes prev.
   private flip1!: GPUTexture;
   private flip1View!: GPUTextureView;
   private flip2!: GPUTexture;
   private flip2View!: GPUTextureView;
+  private compositeIntermediate!: GPUTexture;
+  private compositeIntermediateView!: GPUTextureView;
 
   // Motion-vector geometry stored separately from post-warp draws so
   // motion vectors can render on the previous framebuffer BEFORE warp,
@@ -690,16 +715,15 @@ export class MilkPipeline {
   }
 
   private makeTarget(): MilkTarget {
-    const mipCount = Math.floor(Math.log2(Math.max(this.width, this.height))) + 1;
+    // Single mip level per projectM's shaderless non-blur path. Warp,
+    // shape sampling, and the flip and copy passes read only level-zero
+    // data, so allocating additional mip levels would leave unwritten
+    // storage that a mipmap-enabled sampler could select from.
     const tex = this.device.createTexture({
-      size: [this.width, this.height], format: TARGET_FORMAT, mipLevelCount: mipCount,
+      size: [this.width, this.height], format: TARGET_FORMAT, mipLevelCount: 1,
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
-    const views: GPUTextureView[] = [];
-    for (let i = 0; i < mipCount; i++) {
-      views.push(tex.createView({ baseMipLevel: i, mipLevelCount: 1 }));
-    }
-    return { tex, views, mipCount };
+    return { tex, views: [tex.createView()], mipCount: 1 };
   }
 
   private initResources(): void {
@@ -709,15 +733,16 @@ export class MilkPipeline {
     this.target = this.makeTarget();
     this.prev = this.makeTarget();
 
-    // Samplers (witnessed warp.js mainSampler: LINEAR_MIPMAP_LINEAR/LINEAR
-    // + wrap by mdVSFrame.wrap; texture-level anisotropy).
+    // Samplers use linear min/mag WITHOUT mipmap filtering because the
+    // active feedback textures are single-mip. Anisotropy also drops —
+    // it requires a populated mip chain to sample across.
     this.sampRepeat = dev.createSampler({
-      magFilter: "linear", minFilter: "linear", mipmapFilter: "linear",
-      addressModeU: "repeat", addressModeV: "repeat", maxAnisotropy: 16,
+      magFilter: "linear", minFilter: "linear",
+      addressModeU: "repeat", addressModeV: "repeat",
     });
     this.sampClamp = dev.createSampler({
-      magFilter: "linear", minFilter: "linear", mipmapFilter: "linear",
-      addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge", maxAnisotropy: 16,
+      magFilter: "linear", minFilter: "linear",
+      addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge",
     });
     // Warp mesh (witnessed buildPositions: positions (x, -y), two tris per cell).
     const gx1 = GRID_X + 1, gy1 = GRID_Y + 1;
@@ -940,21 +965,31 @@ export class MilkPipeline {
       primitive: { topology: "triangle-list" },
     });
 
-    // Two flip intermediates sized to the main framebuffer. Only need
-    // one mip level and one view — sampled by warp (flip1) and comp
-    // (flip2) respectively.
+    // Three offscreen intermediates sized to the main framebuffer,
+    // single mip level each. flip1 stores the y-flipped previous
+    // framebuffer for warp to sample; flip2 stores the y-flipped
+    // current framebuffer for composite to sample; compositeIntermediate
+    // stores the legacy-composite output before the correction flip
+    // writes prev. Separate compositeIntermediate is required so the
+    // composite pass reads and writes distinct textures.
     this.flip1?.destroy();
     this.flip2?.destroy();
+    this.compositeIntermediate?.destroy();
     this.flip1 = dev.createTexture({
-      size: [this.width, this.height], format: TARGET_FORMAT,
+      size: [this.width, this.height], format: TARGET_FORMAT, mipLevelCount: 1,
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
     this.flip1View = this.flip1.createView();
     this.flip2 = dev.createTexture({
-      size: [this.width, this.height], format: TARGET_FORMAT,
+      size: [this.width, this.height], format: TARGET_FORMAT, mipLevelCount: 1,
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
     this.flip2View = this.flip2.createView();
+    this.compositeIntermediate = dev.createTexture({
+      size: [this.width, this.height], format: TARGET_FORMAT, mipLevelCount: 1,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    });
+    this.compositeIntermediateView = this.compositeIntermediate.createView();
 
     // Motion-vector uniform buffer — matches the line pipeline's expected
     // (texsize, thickMode, pad) layout.
@@ -1000,19 +1035,26 @@ export class MilkPipeline {
     this.prev?.tex.destroy();
     this.target = this.makeTarget();
     this.prev = this.makeTarget();
-    // Recreate flip intermediates at the new dimensions.
+    // Recreate flip intermediates and the composite intermediate at
+    // the new dimensions. All three are single-mip offscreen buffers.
     this.flip1?.destroy();
     this.flip2?.destroy();
+    this.compositeIntermediate?.destroy();
     this.flip1 = dev.createTexture({
-      size: [width, height], format: TARGET_FORMAT,
+      size: [width, height], format: TARGET_FORMAT, mipLevelCount: 1,
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
     this.flip1View = this.flip1.createView();
     this.flip2 = dev.createTexture({
-      size: [width, height], format: TARGET_FORMAT,
+      size: [width, height], format: TARGET_FORMAT, mipLevelCount: 1,
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
     this.flip2View = this.flip2.createView();
+    this.compositeIntermediate = dev.createTexture({
+      size: [width, height], format: TARGET_FORMAT, mipLevelCount: 1,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    });
+    this.compositeIntermediateView = this.compositeIntermediate.createView();
     // Update every dimension-dependent uniform. Line/dot pipelines
     // read (texsize.x, texsize.y) from binding 0 to place per-instance
     // thick-line offsets and to place per-pixel dot corners.
@@ -1094,7 +1136,22 @@ export class MilkPipeline {
       if (!n) continue;
       switch (n.kind) {
         case "milk-frame": {
-          frameGlobals = { ...data.globals, ...this.regVars };
+          // Renderer-owned dimensions override caller globals so per-frame
+          // and per-pixel equations see the SAME dimensions the GPU
+          // resources were allocated at. Matches projectM's convention:
+          // pixelsx/y are the viewport pixel dimensions, meshx/y are the
+          // per-pixel grid size, and aspectx/y are the INVERSE aspect
+          // values (per the preset-load globals block above).
+          frameGlobals = {
+            ...data.globals,
+            ...this.regVars,
+            pixelsx: this.width,
+            pixelsy: this.height,
+            aspectx: this.invAspectx,
+            aspecty: this.invAspecty,
+            meshx: GRID_X,
+            meshy: GRID_Y,
+          };
           mdVSFrame = runner.runFrameEquations(frameGlobals);
           this.lastMdVSFrame = mdVSFrame;
           // Shader contracts are NOT built here. projectM only invokes
@@ -1378,10 +1435,12 @@ export class MilkPipeline {
       this.passTrace.push("flip-current");
     }
 
-    // Step 10: legacy composite writes into the previous offscreen
-    // framebuffer per projectM `finalComposite.Draw` — NOT directly to
-    // the presentation surface. Composite samples flip2 (the y-flipped
-    // current) via its binding-2 texture.
+    // Step 10: legacy composite writes into the dedicated composite
+    // intermediate per projectM `finalComposite.Draw`. Composite samples
+    // flip2 (the y-flipped current) via its binding-2 texture. Writing
+    // into compositeIntermediate rather than prev keeps the read and
+    // write textures distinct so the correction flip in Step 11 has a
+    // stable source to sample from.
     {
       const bg = dev.createBindGroup({
         layout: this.compPipeline.getBindGroupLayout(0),
@@ -1393,7 +1452,7 @@ export class MilkPipeline {
       });
       const pass = enc.beginRenderPass({
         colorAttachments: [{
-          view: this.prev.views[0],
+          view: this.compositeIntermediateView,
           loadOp: "clear", storeOp: "store",
           clearValue: { r: 0, g: 0, b: 0, a: 1 },
         }],
@@ -1408,41 +1467,32 @@ export class MilkPipeline {
       this.passTrace.push("legacy-composite");
     }
 
-    // Step 11: legacy correction flip decision derived from the
-    // shader-and-flip coordinate math.
-    //
-    // projectM applies an extra y-flip on the previous framebuffer AFTER
-    // composite when FinalComposite has no MilkDrop shader — the
-    // shaderless VideoEcho + Filters legacy path at
-    // docs/evidence/projectm/MilkdropPreset.cpp inside the
-    // "if (!m_finalComposite.HasCompositeShader())" branch.
-    //
-    // PHOSPHENE's legacy-composite stage is a single WGSL program
-    // (COMP_WGSL) that reproduces the video-echo, gamma, hue, and
-    // filter math inline. Its coordinate math is:
-    //   vertex:  o.pos  = vec4f(aPos, 0, 1)          // no y negation
-    //            o.vUv  = aPos * 0.5 + 0.5           // straight NDC to UV
-    //   fragment: samples flip2 at o.vUv
-    //
-    // flip2's math (FLIP_WGSL):
-    //   flip2 texel(x, y) = current texel(x, height - 1 - y)
-    //
-    // Combining, comp writes prev texel(x, y) with flip2 sampled at
-    // UV (x / width, 1 - y / height), which is flip2 texel(x,
-    // height - 1 - y) = current texel(x, y). Prev texel(x, y) therefore
-    // receives current texel(x, y) — orientation is preserved and no
-    // residual y inversion enters the composite output.
-    //
-    // The correction flip exists to undo the inversion left behind by
-    // VideoEcho + Filters. PHOSPHENE's shader path introduces no such
-    // inversion, so the correction is structurally not needed. The
-    // flag below encodes that derivation as a runtime value rather than
-    // as an unsupported comment; changing COMP_WGSL's vertex or UV math
-    // must revisit this decision.
-    const compositeIntroducesYInversion = false;
-    if (compositeIntroducesYInversion) {
-      // Placeholder for the correction flip. Not reachable while
-      // compositeIntroducesYInversion is derived-false above.
+    // Step 11: legacy correction flip. projectM applies this after the
+    // shaderless composite in docs/evidence/projectm/MilkdropPreset.cpp
+    // inside the `if (!m_finalComposite.HasCompositeShader())` branch.
+    // PHOSPHENE's legacy-composite is a shaderless-path equivalent, so
+    // the correction runs unconditionally in this active path: flip
+    // compositeIntermediate into prev using the same real flip pipeline
+    // as flip-prev and flip-current.
+    {
+      const bg = dev.createBindGroup({
+        layout: this.flipPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: this.sampClamp },
+          { binding: 1, resource: this.compositeIntermediateView },
+        ],
+      });
+      const pass = enc.beginRenderPass({
+        colorAttachments: [{
+          view: this.prev.views[0],
+          loadOp: "clear", storeOp: "store",
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+        }],
+      });
+      pass.setPipeline(this.flipPipeline);
+      pass.setBindGroup(0, bg);
+      pass.draw(3);
+      pass.end();
       this.passTrace.push("legacy-correction-flip");
     }
 
