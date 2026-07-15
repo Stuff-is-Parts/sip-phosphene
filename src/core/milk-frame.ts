@@ -20,7 +20,6 @@
  */
 
 import { compile, type Program } from "./expr";
-import type { AudioFeatures } from "./types";
 
 const Q_COUNT = 32;
 const T_COUNT = 8;
@@ -35,22 +34,51 @@ export interface MilkFrameInputs {
   meshx: number; meshy: number;
   pixelsx: number; pixelsy: number;
   aspectx: number; aspecty: number;
+  /** projectM provides preset progress; Butterchurn (the validation
+   *  oracle) does not hand equations any progress value, so oracle-
+   *  fidelity renders supply 0. */
   progress: number;
 }
 
-export function inputsFromAudio(
-  t: number, frame: number, audio: AudioFeatures,
+/** Per-frame audio level set: DISTINCT instantaneous ratios (bass/mid/
+ *  treb = imm/longAvg) and attenuated ratios (_att = avg/longAvg), per
+ *  the witnessed AudioLevels model (butterchurn src/audio/audioLevels.js,
+ *  reimplementing MilkDrop's loudness model). */
+export interface MilkAudioLevels {
+  bass: number; bass_att: number;
+  mid: number; mid_att: number;
+  treb: number; treb_att: number;
+}
+
+/** Build the frame-input set the preset equations read. Conventions
+ *  witnessed in the oracle (butterchurn.js):
+ *  - time/fps/frame are the renderer's integrated values (time += 1/fps
+ *    per frame; fps damped; frame counts renders starting at 1) — NOT
+ *    naive frameIndex/FPS;
+ *  - equations receive the INVERSE render aspect: for texsize (tx, ty),
+ *    render aspectx = ty > tx ? tx/ty : 1 and aspecty = tx > ty ? ty/tx
+ *    : 1; the equation env gets 1/aspectx and 1/aspecty (globalVars use
+ *    invAspectx/invAspecty — witnessed);
+ *  - vol / vol_att are the three-band means (witnessed in the warp/comp
+ *    uniform uploads and waveform alpha computation). */
+export function makeFrameInputs(
+  time: number, frame: number, fps: number,
+  levels: MilkAudioLevels,
   meshx: number, meshy: number, pixelsx: number, pixelsy: number,
+  progress = 0,
 ): MilkFrameInputs {
-  const vol = (audio.bass + audio.mid + audio.treble) / 3;
+  const renderAspectX = pixelsy > pixelsx ? pixelsx / pixelsy : 1;
+  const renderAspectY = pixelsx > pixelsy ? pixelsy / pixelsx : 1;
   return {
-    time: t, frame, fps: 30,
-    bass: audio.bass, mid: audio.mid, treb: audio.treble, vol,
-    bass_att: audio.bass, mid_att: audio.mid, treb_att: audio.treble, vol_att: vol,
+    time, frame, fps,
+    bass: levels.bass, mid: levels.mid, treb: levels.treb,
+    vol: (levels.bass + levels.mid + levels.treb) / 3,
+    bass_att: levels.bass_att, mid_att: levels.mid_att, treb_att: levels.treb_att,
+    vol_att: (levels.bass_att + levels.mid_att + levels.treb_att) / 3,
     meshx, meshy, pixelsx, pixelsy,
-    aspectx: pixelsy > pixelsx ? pixelsx / pixelsy : 1,
-    aspecty: pixelsx > pixelsy ? pixelsy / pixelsx : 1,
-    progress: 0,
+    aspectx: 1 / renderAspectX,
+    aspecty: 1 / renderAspectY,
+    progress,
   };
 }
 

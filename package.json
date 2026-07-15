@@ -34,6 +34,7 @@
     "butterchurn": "^2.6.7",
     "butterchurn-presets": "^2.4.7",
     "eslint": "^10.7.0",
+    "milkdrop-preset-converter": "^0.1.2",
     "pngjs": "^7.0.0",
     "puppeteer-core": "^25.3.0",
     "typescript": "^5.5.0",

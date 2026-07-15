@@ -1,14 +1,12 @@
 // Lifecycle tests for the MilkDrop frame-equation engine against the
-// documented semantics (docs/milkdrop-execution-model.md §2).
+// documented semantics (docs/milkdrop-execution-model.md §2). Frame-
+// context VALUE validation against the running oracle lives in
+// scripts/validate-audio-model.mjs (globalVars extracted per frame).
 import { describe, expect, it } from "vitest";
-import { MilkFrameEngine, MilkUnitContext, inputsFromAudio } from "../src/core/milk-frame";
-import type { AudioFeatures } from "../src/core/types";
+import { MilkFrameEngine, MilkUnitContext, makeFrameInputs } from "../src/core/milk-frame";
 
-const audio: AudioFeatures = {
-  beatCount: 0, lastBeat: 0, bass: 1, mid: 1, treble: 1, beat: 0,
-  energy: 1, bpm: 120, spec: new Float32Array(64), wave: new Float32Array(64),
-};
-const inputs = (t: number, frame: number) => inputsFromAudio(t, frame, audio, 64, 48, 800, 600);
+const levels = { bass: 1, bass_att: 1, mid: 1, mid_att: 1, treb: 1, treb_att: 1 };
+const inputs = (t: number, frame: number) => makeFrameInputs(t, frame, 30, levels, 48, 36, 800, 600);
 
 describe("MilkFrameEngine lifecycle", () => {
   it("resets q to the init snapshot every frame (no accumulation)", () => {
@@ -64,5 +62,20 @@ describe("MilkFrameEngine lifecycle", () => {
     const env = unit.runPoint(0.25, 0.4, 0);
     expect(env.x).toBe(0.25);
     expect(env.y).toBeCloseTo(0.8);
+  });
+
+  it("builds equation-facing inputs with witnessed oracle conventions", () => {
+    // 800x600 landscape: render aspect (1, 600/800); equations see the
+    // inverse (butterchurn globalVars use invAspectx/invAspecty).
+    const i = makeFrameInputs(1.5, 7, 30.2, {
+      bass: 2, bass_att: 1.5, mid: 1, mid_att: 0.9, treb: 0.5, treb_att: 0.6,
+    }, 48, 36, 800, 600);
+    expect(i.aspectx).toBe(1);
+    expect(i.aspecty).toBeCloseTo(800 / 600);
+    expect(i.vol).toBeCloseTo((2 + 1 + 0.5) / 3);
+    expect(i.vol_att).toBeCloseTo((1.5 + 0.9 + 0.6) / 3);
+    expect(i.bass).not.toBe(i.bass_att); // distinct values carried
+    expect(i.fps).toBe(30.2);
+    expect(i.progress).toBe(0); // oracle provides none (witnessed)
   });
 });

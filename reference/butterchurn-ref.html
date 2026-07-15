@@ -8,37 +8,62 @@
 <body>
 <canvas id="stage" width="800" height="600"></canvas>
 <script src="../node_modules/butterchurn/lib/butterchurn.min.js"></script>
-<script src="../node_modules/butterchurn-presets/lib/butterchurnPresets.min.js"></script>
+<script src="../node_modules/milkdrop-preset-converter/dist/milkdrop-preset-converter.min.js"></script>
 <script>
 // Reference renderer for MilkDrop presets via Butterchurn (MIT), driven
 // deterministically: the driver injects audio byte arrays and elapsed time
 // per frame, so renders are repeatable. Serves as the validation oracle
 // per COMPATIBILITY-GOAL.md Plan step 3.
+//
+// Oracle identity is INTRINSIC: the driver passes the exact corpus .milk
+// text; this page converts it with the authoritative converter
+// (milkdrop-preset-converter — the same converter butterchurn-presets
+// were built with) and loads the result. No name matching, no
+// correspondence heuristics.
 (function () {
   const canvas = document.getElementById("stage");
   let visualizer = null;
   let lastTime = 0;
 
-  window.__refList = function () {
-    return Object.keys(butterchurnPresets.getPresets());
+  // COMMITTED SEED protocol: Butterchurn has no built-in deterministic
+  // mode; a seeded PRNG over Math.random makes every internal draw
+  // deterministic. The driver calls __refReseed(seed) independently
+  // before EACH preset load so per-preset streams are identical
+  // regardless of how much entropy earlier presets consumed.
+  window.__refReseed = function (seed) {
+    let s = seed | 0;
+    Math.random = () => {
+      s |= 0; s = (s + 0x6d2b79f5) | 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    return true;
   };
 
-  window.__refInit = function (presetName, width, height) {
-    canvas.width = width; canvas.height = height;
-    // AudioContext is required by the constructor; rendering uses injected
-    // audioLevels, so the context is never started (no real audio flows).
-    const ctx = new AudioContext();
-    visualizer = butterchurn.default.createVisualizer(ctx, canvas, {
-      width, height,
-      pixelRatio: 1,
-      textureRatio: 1,
-    });
-    const presets = butterchurnPresets.getPresets();
-    const preset = presets[presetName];
-    if (!preset) return { ok: false, error: "unknown preset: " + presetName };
-    visualizer.loadPreset(preset, 0.0); // no blend
-    lastTime = 0;
-    return { ok: true };
+  // Convert the exact .milk text with the authoritative converter, then
+  // load the converted preset. Returns converter/load errors verbatim.
+  window.__refLoadMilkSource = async function (milkText, width, height) {
+    try {
+      canvas.width = width; canvas.height = height;
+      if (!visualizer) {
+        // Fixed sample rate: AudioLevels derives its band-bin cutoffs
+        // from audioContext.sampleRate; committing 44100 makes the
+        // oracle machine-independent (butterchurn.js AudioLevels ctor).
+        const ctx = new AudioContext({ sampleRate: 44100 });
+        visualizer = butterchurn.default.createVisualizer(ctx, canvas, {
+          width, height,
+          pixelRatio: 1,
+          textureRatio: 1,
+        });
+      }
+      const preset = await milkdropPresetConverter.convertPreset(milkText);
+      visualizer.loadPreset(preset, 0.0); // no blend
+      lastTime = 0;
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: String(err && err.message || err).slice(0, 400) };
+    }
   };
 
   // c, l, r: arrays of 1024 ints (0..255); timeSec: absolute frame time.
@@ -54,6 +79,25 @@
       },
     });
     return true;
+  };
+
+  // Equation-facing frame state, extracted from the renderer after a
+  // render: globalVars is the exact value set handed to the preset
+  // equation runner (butterchurn.js: "Store variables in case we need to
+  // rerender"); mdVSFrame is the post-per-frame preset variable pool.
+  // Numeric values only (JSON-safe).
+  window.__refState = function (mdVSKeys) {
+    const out = { globalVars: {}, mdVSFrame: {} };
+    const gv = visualizer.renderer.globalVars || {};
+    for (const k of Object.keys(gv)) {
+      if (typeof gv[k] === "number" && Number.isFinite(gv[k])) out.globalVars[k] = gv[k];
+    }
+    const mv = visualizer.renderer.mdVSFrame || {};
+    const keys = mdVSKeys && mdVSKeys.length ? mdVSKeys : Object.keys(mv);
+    for (const k of keys) {
+      if (typeof mv[k] === "number" && Number.isFinite(mv[k])) out.mdVSFrame[k] = mv[k];
+    }
+    return out;
   };
 
   window.__ready = true;

@@ -1,73 +1,292 @@
-// MilkDrop audio semantics from the documented model
-// (docs/milkdrop-execution-model.md §3, derived from projectM
-// Audio/Loudness.cpp): FFT of the time-domain frame, 6-equal-band split,
-// bands 0/1/2 = bass/mid/treb, short-window asymmetric IIR (0.2 attack /
-// 0.5 release), long-window baseline (0.9 first 50 frames, then 0.992),
-// values exposed as ratios around 1.0.
+// Exact port of Butterchurn's audio + time chain, the validation oracle's
+// authoritative reimplementation of MilkDrop semantics
+// (COMPATIBILITY-GOAL.md Source Authority). Every constant and formula is
+// witnessed in node_modules/butterchurn/lib/butterchurn.js:
 //
-// Consumes the deterministic frames from ref-audio.mjs so PHOSPHENE
-// validation renders see the SAME audio the Butterchurn oracle saw.
+// - FFT: src/audio/fft.js — samplesIn=1024, samplesOut=512, NFREQ=1024,
+//   equalize table equalizeArr[i] = -0.02*ln((512-i)/512), raw signed
+//   byte input (byte-128, NOT normalized), magnitude sqrt(re^2+im^2).
+// - AudioProcessor: src/audio/audioProcessor.js — timeArray[i]=byte-128;
+//   L/R smoothed pairwise then undersampled x2 to 512 samples; main
+//   freqArray = FFT(timeArray).
+// - AudioLevels: src/audio/audioLevels.js — bucketHz = sampleRate/1024;
+//   band bin ranges from 20/320/2800/11025 Hz cutoffs; imm = plain bin
+//   sum; avg IIR rate 0.2 (rising) / 0.5 (falling); longAvg rate 0.9
+//   (frame<50) / 0.992, all rates adjusted pow(rate, 30/FPS); outputs
+//   val = imm/longAvg (bass/mid/treb), att = avg/longAvg (_att), both
+//   1.0 when longAvg < 0.001.
+// - Time/FPS: src/rendering/renderer.js calcTimeAndFPS — time += 1/fps
+//   each frame; fps starts 30, damped 0.93 toward
+//   timeHist.length/(histSpan), abrupt jumps (>3) replace when
+//   frame > 120; frameNum increments before globalVars are built.
+//
+// The oracle page is created with AudioContext({sampleRate: 44100}) so
+// bucketHz is committed, not device-dependent.
+//
+// scripts/validate-audio-model.mjs proves this port against per-frame
+// globalVars extracted from the running Butterchurn oracle.
 
-import { SAMPLES, FPS, audioFrame } from "./ref-audio.mjs";
+export const ORACLE_SAMPLE_RATE = 44100;
 
-/* ---------------------------- radix-2 FFT ----------------------------- */
+const FFT_SIZE = 1024;
+const NUM_SAMPS = 512;
 
-function fftMagnitudes(samples /* Float64Array length N (power of 2) */) {
-  const n = samples.length;
-  const re = Float64Array.from(samples);
-  const im = new Float64Array(n);
-  // bit-reversal permutation
-  for (let i = 1, j = 0; i < n; i++) {
-    let bit = n >> 1;
-    for (; j & bit; bit >>= 1) j ^= bit;
-    j ^= bit;
-    if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+/* ------------------------- FFT (butterchurn port) ---------------------- */
+
+class ButterchurnFFT {
+  constructor(samplesIn, samplesOut, equalize) {
+    this.samplesIn = samplesIn;
+    this.samplesOut = samplesOut;
+    this.NFREQ = samplesOut * 2;
+    if (equalize) {
+      this.equalizeArr = new Float32Array(samplesOut);
+      const invHalfNFREQ = 1.0 / samplesOut;
+      for (let i = 0; i < samplesOut; i++) {
+        this.equalizeArr[i] = -0.02 * Math.log((samplesOut - i) * invHalfNFREQ);
+      }
+    } else {
+      this.equalizeArr = null;
+    }
+    // bit-reversal table
+    this.bitrevtable = new Uint16Array(this.NFREQ);
+    for (let i = 0; i < this.NFREQ; i++) this.bitrevtable[i] = i;
+    for (let i = 0, j = 0; i < this.NFREQ; i++) {
+      if (j > i) {
+        const tmp = this.bitrevtable[i];
+        this.bitrevtable[i] = this.bitrevtable[j];
+        this.bitrevtable[j] = tmp;
+      }
+      let m = this.NFREQ >> 1;
+      while (m >= 1 && j >= m) { j -= m; m >>= 1; }
+      j += m;
+    }
+    // cos/sin table
+    let dftsize = 2, tabsize = 0;
+    while (dftsize <= this.NFREQ) { tabsize++; dftsize <<= 1; }
+    this.cossintable = [new Float32Array(tabsize), new Float32Array(tabsize)];
+    dftsize = 2;
+    let k = 0;
+    while (dftsize <= this.NFREQ) {
+      const theta = -2.0 * Math.PI / dftsize;
+      this.cossintable[0][k] = Math.cos(theta);
+      this.cossintable[1][k] = Math.sin(theta);
+      k++;
+      dftsize <<= 1;
+    }
   }
-  for (let len = 2; len <= n; len <<= 1) {
-    const ang = -2 * Math.PI / len;
-    const wRe = Math.cos(ang), wIm = Math.sin(ang);
-    for (let i = 0; i < n; i += len) {
-      let curRe = 1, curIm = 0;
-      for (let k = 0; k < len / 2; k++) {
-        const uRe = re[i + k], uIm = im[i + k];
-        const vRe = re[i + k + len / 2] * curRe - im[i + k + len / 2] * curIm;
-        const vIm = re[i + k + len / 2] * curIm + im[i + k + len / 2] * curRe;
-        re[i + k] = uRe + vRe; im[i + k] = uIm + vIm;
-        re[i + k + len / 2] = uRe - vRe; im[i + k + len / 2] = uIm - vIm;
-        const nRe = curRe * wRe - curIm * wIm;
-        curIm = curRe * wIm + curIm * wRe;
-        curRe = nRe;
+
+  timeToFrequencyDomain(waveDataIn) {
+    const real = new Float32Array(this.NFREQ);
+    const imag = new Float32Array(this.NFREQ);
+    for (let i = 0; i < this.NFREQ; i++) {
+      const idx = this.bitrevtable[i];
+      real[i] = idx < this.samplesIn ? waveDataIn[idx] : 0;
+      imag[i] = 0;
+    }
+    let dftsize = 2, t = 0;
+    while (dftsize <= this.NFREQ) {
+      const wpr = this.cossintable[0][t];
+      const wpi = this.cossintable[1][t];
+      let wr = 1.0, wi = 0.0;
+      const hdftsize = dftsize >> 1;
+      for (let m = 0; m < hdftsize; m++) {
+        for (let i = m; i < this.NFREQ; i += dftsize) {
+          const j = i + hdftsize;
+          const tempr = wr * real[j] - wi * imag[j];
+          const tempi = wr * imag[j] + wi * real[j];
+          real[j] = real[i] - tempr;
+          imag[j] = imag[i] - tempi;
+          real[i] += tempr;
+          imag[i] += tempi;
+        }
+        const wtemp = wr;
+        wr = wtemp * wpr - wi * wpi;
+        wi = wi * wpr + wtemp * wpi;
+      }
+      dftsize <<= 1;
+      t++;
+    }
+    const out = new Float32Array(this.samplesOut);
+    if (this.equalizeArr) {
+      for (let i = 0; i < this.samplesOut; i++) {
+        out[i] = this.equalizeArr[i] * Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
+      }
+    } else {
+      for (let i = 0; i < this.samplesOut; i++) {
+        out[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
+      }
+    }
+    return out;
+  }
+}
+
+/* --------------------- AudioProcessor (butterchurn port) --------------- */
+
+export class OracleAudioProcessor {
+  constructor() {
+    this.fft = new ButterchurnFFT(FFT_SIZE, NUM_SAMPS, true);
+    this.timeArray = new Int8Array(FFT_SIZE);
+    this.timeByteArraySignedL = new Int8Array(FFT_SIZE);
+    this.timeByteArraySignedR = new Int8Array(FFT_SIZE);
+    this.tempTimeArrayL = new Int8Array(FFT_SIZE);
+    this.tempTimeArrayR = new Int8Array(FFT_SIZE);
+    this.timeArrayL = new Int8Array(NUM_SAMPS);
+    this.timeArrayR = new Int8Array(NUM_SAMPS);
+    this.freqArray = new Float32Array(NUM_SAMPS);
+    this.freqArrayL = new Float32Array(NUM_SAMPS);
+    this.freqArrayR = new Float32Array(NUM_SAMPS);
+  }
+
+  /** c/l/r: Uint8Array(1024) time-domain bytes, 128 = silence. */
+  updateAudio(c, l, r) {
+    for (let i = 0, j = 0, lastIdx = 0; i < FFT_SIZE; i++) {
+      this.timeArray[i] = c[i] - 128;
+      this.timeByteArraySignedL[i] = l[i] - 128;
+      this.timeByteArraySignedR[i] = r[i] - 128;
+      this.tempTimeArrayL[i] = 0.5 * (this.timeByteArraySignedL[i] + this.timeByteArraySignedL[lastIdx]);
+      this.tempTimeArrayR[i] = 0.5 * (this.timeByteArraySignedR[i] + this.timeByteArraySignedR[lastIdx]);
+      if (i % 2 === 0) {
+        this.timeArrayL[j] = this.tempTimeArrayL[i];
+        this.timeArrayR[j] = this.tempTimeArrayR[i];
+        j += 1;
+      }
+      lastIdx = i;
+    }
+    this.freqArray = this.fft.timeToFrequencyDomain(this.timeArray);
+    this.freqArrayL = this.fft.timeToFrequencyDomain(this.timeByteArraySignedL);
+    this.freqArrayR = this.fft.timeToFrequencyDomain(this.timeByteArraySignedR);
+  }
+}
+
+/* ---------------------- AudioLevels (butterchurn port) ----------------- */
+
+const clampInt = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+export class OracleAudioLevels {
+  constructor(sampleRate = ORACLE_SAMPLE_RATE) {
+    const bucketHz = sampleRate / FFT_SIZE;
+    const bassLow = clampInt(Math.round(20 / bucketHz) - 1, 0, NUM_SAMPS - 1);
+    const bassHigh = clampInt(Math.round(320 / bucketHz) - 1, 0, NUM_SAMPS - 1);
+    const midHigh = clampInt(Math.round(2800 / bucketHz) - 1, 0, NUM_SAMPS - 1);
+    const trebHigh = clampInt(Math.round(11025 / bucketHz) - 1, 0, NUM_SAMPS - 1);
+    this.starts = [bassLow, bassHigh, midHigh];
+    this.stops = [bassHigh, midHigh, trebHigh];
+    this.val = new Float32Array(3);
+    this.imm = new Float32Array(3);
+    this.att = new Float32Array(3);
+    this.avg = new Float32Array(3);
+    this.longAvg = new Float32Array(3);
+    this.att.fill(1);
+    this.avg.fill(1);
+    this.longAvg.fill(1);
+  }
+
+  static adjustRateToFPS(rate, baseFPS, FPS) {
+    return Math.pow(rate, baseFPS / FPS);
+  }
+
+  updateAudioLevels(freqArray, fps, frame) {
+    let effectiveFPS = fps;
+    if (!Number.isFinite(effectiveFPS) || effectiveFPS < 15) effectiveFPS = 15;
+    else if (effectiveFPS > 144) effectiveFPS = 144;
+    this.imm.fill(0);
+    for (let i = 0; i < 3; i++) {
+      for (let j = this.starts[i]; j < this.stops[i]; j++) this.imm[i] += freqArray[j];
+    }
+    for (let i = 0; i < 3; i++) {
+      let rate = this.imm[i] > this.avg[i] ? 0.2 : 0.5;
+      rate = OracleAudioLevels.adjustRateToFPS(rate, 30.0, effectiveFPS);
+      this.avg[i] = this.avg[i] * rate + this.imm[i] * (1 - rate);
+      rate = frame < 50 ? 0.9 : 0.992;
+      rate = OracleAudioLevels.adjustRateToFPS(rate, 30.0, effectiveFPS);
+      this.longAvg[i] = this.longAvg[i] * rate + this.imm[i] * (1 - rate);
+      if (this.longAvg[i] < 0.001) {
+        this.val[i] = 1.0;
+        this.att[i] = 1.0;
+      } else {
+        this.val[i] = this.imm[i] / this.longAvg[i];
+        this.att[i] = this.avg[i] / this.longAvg[i];
       }
     }
   }
-  const mags = new Float64Array(n / 2);
-  for (let i = 0; i < n / 2; i++) mags[i] = Math.hypot(re[i], im[i]) / (n / 2);
-  return mags;
+
+  get bass() { return this.val[0]; }
+  get bass_att() { return this.att[0]; }
+  get mid() { return this.val[1]; }
+  get mid_att() { return this.att[1]; }
+  get treb() { return this.val[2]; }
+  get treb_att() { return this.att[2]; }
 }
 
-/* ------------------------- Loudness state model ------------------------ */
+/* ----------------------- time/fps (butterchurn port) ------------------- */
 
-class BandLoudness {
-  constructor() { this.current = 0; this.average = 0; this.longAverage = 0; this.frames = 0; }
-  /** rates are per-frame decay factors at 30 fps (Loudness.cpp). */
-  update(sum, secondsSinceLastFrame) {
-    const adjust = (rate) => Math.pow(Math.pow(rate, FPS), secondsSinceLastFrame);
-    this.current = sum;
-    const shortRate = adjust(sum > this.average ? 0.2 : 0.5);
-    this.average = this.average * shortRate + sum * (1 - shortRate);
-    const longRate = adjust(this.frames < 50 ? 0.9 : 0.992);
-    this.longAverage = this.longAverage * longRate + sum * (1 - longRate);
-    this.frames++;
+export class OracleTimeModel {
+  constructor() {
+    this.frameNum = 0;
+    this.fps = 30;
+    this.time = 0;
+    this.timeHist = [0];
+    this.timeHistMax = 120;
   }
-  get relative() { return this.average / Math.max(this.longAverage, 0.001); }
-  get relativeAtt() { return this.current / Math.max(this.longAverage, 0.001); }
+
+  /** One render step with an injected elapsedTime (seconds). Returns the
+   *  {time, fps, frame} the renderer's globalVars carry for this frame. */
+  advance(elapsed) {
+    // calcTimeAndFPS with elapsedTime provided:
+    this.time += 1.0 / this.fps;
+    const newHistTime = this.timeHist[this.timeHist.length - 1] + elapsed;
+    this.timeHist.push(newHistTime);
+    if (this.timeHist.length > this.timeHistMax) this.timeHist.shift();
+    const newFPS = this.timeHist.length / (newHistTime - this.timeHist[0]);
+    // butterchurn uses this.frame (undefined on Renderer) in the jump
+    // check: `this.frame > this.timeHistMax` is always false, so the
+    // damped branch always runs (witnessed: Renderer has frameNum, not
+    // frame; NaN/undefined comparisons are false).
+    const damping = 0.93;
+    this.fps = damping * this.fps + (1.0 - damping) * newFPS;
+    // frameNum increments after calcTimeAndFPS, before globalVars.
+    this.frameNum += 1;
+    return { time: this.time, fps: this.fps, frame: this.frameNum };
+  }
 }
+
+/* ------------- combined oracle model (audio + levels + time) ----------- */
+
+/** Drives the full witnessed chain for a deterministic PCM source.
+ *  step(c,l,r,elapsed) returns exactly the globalVars value set the
+ *  Butterchurn renderer hands its equation runner each frame. */
+export class OracleFrameModel {
+  constructor(sampleRate = ORACLE_SAMPLE_RATE) {
+    this.audio = new OracleAudioProcessor();
+    this.levels = new OracleAudioLevels(sampleRate);
+    this.timeModel = new OracleTimeModel();
+  }
+
+  step(c, l, r, elapsed) {
+    const { time, fps, frame } = this.timeModel.advance(elapsed);
+    this.audio.updateAudio(c, l, r);
+    this.levels.updateAudioLevels(this.audio.freqArray, fps, frame);
+    return {
+      frame, time, fps,
+      bass: this.levels.bass, bass_att: this.levels.bass_att,
+      mid: this.levels.mid, mid_att: this.levels.mid_att,
+      treb: this.levels.treb, treb_att: this.levels.treb_att,
+    };
+  }
+}
+
+/* --------------- PHOSPHENE AudioFeatures adapter (legacy path) --------- */
+
+import { SAMPLES, FPS, audioFrame } from "./ref-audio.mjs";
 
 /** Stateful mapper: deterministic ref-audio frames -> PHOSPHENE
- *  AudioFeatures with MilkDrop-correct value semantics. */
+ *  AudioFeatures. bass/mid/treble carry the oracle's val ratios
+ *  (imm/longAvg) — the same numbers MilkDrop equations read. Used by the
+ *  native-equivalence harness (any deterministic series works there) and
+ *  by the legacy-path validation renders. */
 export class MilkAudioModel {
   constructor() {
-    this.bands = [new BandLoudness(), new BandLoudness(), new BandLoudness()];
+    this.model = new OracleFrameModel();
     this.beatCount = 0;
     this.lastBeat = 0;
     this.prevBassAtt = 0;
@@ -75,50 +294,43 @@ export class MilkAudioModel {
 
   /** Features for frame index f (call sequentially from 0). */
   features(f) {
-    const { c } = audioFrame(f);
+    const { c, l, r } = audioFrame(f);
     const t = f / FPS;
-    const signed = new Float64Array(SAMPLES);
-    for (let i = 0; i < SAMPLES; i++) signed[i] = (c[i] - 128) / 128;
-    const mags = fftMagnitudes(signed); // 512 bins
-    const bins = mags.length;
-    const bandSums = [0, 0, 0];
-    for (let b = 0; b < 3; b++) {
-      const start = Math.floor(bins * b / 6), end = Math.floor(bins * (b + 1) / 6);
-      for (let i = start; i < end; i++) bandSums[b] += mags[i];
-      this.bands[b].update(bandSums[b], 1 / FPS);
-    }
-    const bass = this.bands[0].relative;
-    const mid = this.bands[1].relative;
-    const treble = this.bands[2].relative;
-    const bassAtt = this.bands[0].relativeAtt;
+    const g = this.model.step(c, l, r, 1 / FPS);
     // Beat: bass_att crossing 1.3 upward — the documented preset idiom.
-    if (bassAtt > 1.3 && this.prevBassAtt <= 1.3) {
+    if (g.bass_att > 1.3 && this.prevBassAtt <= 1.3) {
       this.beatCount++;
       this.lastBeat = t;
     }
+    this.prevBassAtt = g.bass_att;
     const beat = Math.max(0, 1 - (t - this.lastBeat) * 3);
-    this.prevBassAtt = bassAtt;
 
-    // 64-bin log-ish downsample for PHOSPHENE spec()/wav().
+    // 64-bin spectrum/waveform for PHOSPHENE spec()/wav() — the native
+    // uniform contract (not a MilkDrop surface; legacy path only).
+    const mags = this.model.audio.freqArray;
+    const bins = mags.length;
     const spec = new Float32Array(64);
     for (let i = 0; i < 64; i++) {
       const start = Math.floor(Math.pow(i / 64, 1.6) * (bins - 8));
       const end = Math.max(start + 1, Math.floor(Math.pow((i + 1) / 64, 1.6) * (bins - 8)));
       let s = 0;
       for (let k = start; k < end; k++) s += mags[k];
-      spec[i] = Math.min(1, (s / (end - start)) * 8);
+      spec[i] = Math.min(1, (s / (end - start)) / 96);
     }
     const wave = new Float32Array(64);
-    for (let i = 0; i < 64; i++) wave[i] = signed[Math.floor(i * SAMPLES / 64)];
+    for (let i = 0; i < 64; i++) wave[i] = (c[Math.floor(i * SAMPLES / 64)] - 128) / 128;
 
     return {
       beatCount: this.beatCount,
       lastBeat: this.lastBeat,
-      bass, mid, treble,
+      bass: g.bass, mid: g.mid, treble: g.treb,
       beat,
-      energy: (bass + mid + treble) / 3,
+      energy: (g.bass + g.mid + g.treb) / 3,
       bpm: 120,
       spec, wave,
+      // Oracle-exact extras for milk-context consumers:
+      bass_att: g.bass_att, mid_att: g.mid_att, treb_att: g.treb_att,
+      time: g.time, fps: g.fps, frame: g.frame,
     };
   }
 }

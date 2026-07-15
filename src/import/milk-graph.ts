@@ -158,7 +158,10 @@ export function milkToGraph(p: MilkParsed): MilkGraphImport {
   push({
     kind: "milk-warp", id: "warp",
     perPixel: p.perPixel, perPixelInit: p.perPixelInit,
-    gridX: 64, gridY: 48,
+    // Oracle mesh size: butterchurn's default equation-facing mesh is
+    // 48x36 (witnessed in extracted globalVars meshx/meshy; mesh size is
+    // a renderer setting, not preset data).
+    gridX: 48, gridY: 36,
     ...(warpShader ? { warpShader } : {}),
     source: "canvas", target: "canvas",
     origin: { format: "milkdrop", type: "warp" },

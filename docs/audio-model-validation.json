@@ -1,0 +1,46 @@
+{
+  "measures": "ported oracle audio/time model (OracleFrameModel) vs per-frame globalVars extracted from the running Butterchurn oracle — frame context validated against authoritative behavior",
+  "tolerance": {
+    "relative": 0.0001,
+    "keys": [
+      "frame",
+      "time",
+      "fps",
+      "bass",
+      "bass_att",
+      "mid",
+      "mid_att",
+      "treb",
+      "treb_att"
+    ]
+  },
+  "presets": 2,
+  "validated": 2,
+  "diverged": 0,
+  "results": [
+    {
+      "preset": "! Transition\\Fast transition to black - levels effect === Goody's Lightning (ps 2-0) --- Isosceles edit.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Hypnotic\\Illusion\\amandio c, flexi, martin - Op illusions - curved1.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    }
+  ]
+}
