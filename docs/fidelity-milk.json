@@ -529,7 +529,8 @@
       "features": [
         "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
         "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
-        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+        "milk-blur (blur cascade consumed only by unimplemented shaders)",
+        "gmegabuf (cross-context shared 1M-cell buffer not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)"
       ]
     },
     {
@@ -547,7 +548,8 @@
       "features": [
         "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
         "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
-        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+        "milk-blur (blur cascade consumed only by unimplemented shaders)",
+        "gmegabuf (cross-context shared 1M-cell buffer not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)"
       ]
     },
     {
@@ -764,7 +766,8 @@
       "features": [
         "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
         "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
-        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+        "milk-blur (blur cascade consumed only by unimplemented shaders)",
+        "gmegabuf (cross-context shared 1M-cell buffer not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)"
       ]
     },
     {
@@ -1169,7 +1172,8 @@
       "features": [
         "milk-warp:warpShader (MilkDrop 2 warp shader translation not yet implemented)",
         "milk-composite:compShader (MilkDrop 2 comp shader translation not yet implemented)",
-        "milk-blur (blur cascade consumed only by unimplemented shaders)"
+        "milk-blur (blur cascade consumed only by unimplemented shaders)",
+        "gmegabuf (cross-context shared 1M-cell buffer not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)"
       ]
     },
     {

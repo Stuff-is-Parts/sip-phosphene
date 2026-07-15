@@ -27,7 +27,8 @@
 import { Renderer } from "./renderer";
 import { MilkPresetRunner, REGS, type Pool } from "../core/milk-runner";
 import {
-  GraphScene, MilkWaveNode, MilkShapeNode, UnsupportedNodeError, unsupportedFeatures, validateGraph,
+  GraphScene, GraphNode, MilkFrameNode, MilkWarpNode, MilkWaveNode, MilkShapeNode,
+  UnsupportedNodeError, unsupportedFeatures, validateGraph,
 } from "../core/graph";
 import { UnsupportedGraphError } from "./graph-executor";
 
@@ -41,6 +42,7 @@ export interface MilkFrameData {
   freqArrayL: Float32Array | number[];
   freqArrayR: Float32Array | number[];
 }
+
 
 const GRID_X = 48, GRID_Y = 36;   // witnessed oracle mesh (globalVars meshx/meshy)
 const COMP_W = 32, COMP_H = 24;   // witnessed comp grid (comp.js constructor)
@@ -651,7 +653,7 @@ export class MilkPipeline {
 
   /* ------------------------------- frame -------------------------------- */
 
-  frame(data: MilkFrameData): void {
+  frame(g: GraphScene, data: MilkFrameData): void {
     const runner = this.runner;
     if (!runner) throw new Error("no preset loaded");
     const dev = this.device;
@@ -661,13 +663,37 @@ export class MilkPipeline {
     const freqL = Array.from(data.freqArrayL as ArrayLike<number>);
     const freqR = Array.from(data.freqArrayR as ArrayLike<number>);
 
+    // Walk graph.order to find the milk-frame node and the milk-warp
+    // node; per-frame equations run once per milk-frame, per-pixel
+    // equations use the milk-warp node's declared grid dims.
+    const byId = new Map(g.nodes.map((n) => [n.id, n]));
+    let frameNode: MilkFrameNode | null = null;
+    let warpNode: MilkWarpNode | null = null;
+    for (const id of g.order) {
+      const n = byId.get(id) as GraphNode | undefined;
+      if (n?.kind === "milk-frame") frameNode = n;
+      else if (n?.kind === "milk-warp") warpNode = n;
+    }
+    if (!frameNode) throw new Error("graph.order carries no milk-frame node");
+    if (!warpNode) throw new Error("graph.order carries no milk-warp node");
+    // Grid dims come from the milk-warp node (the importer sets these
+    // per preset). Buffers were sized for GRID_X x GRID_Y at load; refuse
+    // if the graph declares different dims than the pre-allocated size.
+    if (warpNode.gridX !== GRID_X || warpNode.gridY !== GRID_Y) {
+      throw new UnsupportedGraphError([
+        `milk-warp(${warpNode.id}):grid=${warpNode.gridX}x${warpNode.gridY} ` +
+        `(pipeline pre-allocated at ${GRID_X}x${GRID_Y}; alternative grid dims require reallocation)`,
+      ]);
+    }
+    void frameNode;
+
     // 1) frame equations (renderer merges regVars into globals — witnessed)
     const globals: Pool = { ...data.globals, ...this.regVars };
     const mdVSFrame = runner.runFrameEquations(globals);
 
     // 2) per-pixel equations -> warp UVs; regs picked from the vertex pool
     const vertexPool = runner.runPixelEquations(
-      mdVSFrame, GRID_X, GRID_Y, this.aspectx, this.aspecty, this.warpUVs);
+      mdVSFrame, warpNode.gridX, warpNode.gridY, this.aspectx, this.aspecty, this.warpUVs);
     this.regVars = {};
     for (const r of REGS) if (r in vertexPool) this.regVars[r] = vertexPool[r];
     dev.queue.writeBuffer(this.warpUvBuf, 0, this.warpUVs);
@@ -693,11 +719,59 @@ export class MilkPipeline {
       verts.push(...pts);
     };
 
-    this.buildMotionVectors(mdVSFrame, lineDraw);
-    this.buildShapes(globals, shapeVerts, draws, verts, lineDraw);
-    this.buildCustomWaves(globals, timeL, timeR, freqL, freqR, lineDraw, dotInsts, draws);
-    this.buildBasicWave(mdVSFrame, timeL, timeR, lineDraw, dotInsts, draws);
-    this.buildDarkenCenterAndBorders(mdVSFrame, draws, shapeVerts, verts);
+    // Per-node dispatch driven by graph.order. Each case reads its own
+    // node data — this is the executor's contract with the graph: a
+    // fixed MilkDrop sequence may be REPRESENTED by the graph, but its
+    // execution is DERIVED from graph.order and per-node data
+    // (COMPATIBILITY-GOAL.md Architecture: unified execution model).
+    //
+    // Waves are indexed by unit position within the waves list from the
+    // preset; the graph carries one milk-wave node per custom wave plus
+    // one default-wave node (custom=false). Same for shapes.
+    let customWaveIdx = 0;
+    let basicWaveDrawn = false;
+    let shapeIdx = 0;
+    for (const id of g.order) {
+      const n = byId.get(id) as GraphNode | undefined;
+      if (!n) continue;
+      switch (n.kind) {
+        case "milk-frame":
+        case "milk-warp":
+          // per-pixel + warp handled by the CPU/GPU steps above; the
+          // GPU warp pass fires below where the target render pass runs.
+          break;
+        case "milk-motion-vectors":
+          this.buildMotionVectors(mdVSFrame, lineDraw);
+          break;
+        case "milk-shape":
+          this.buildShape(shapeIdx, globals, shapeVerts, draws, verts, lineDraw);
+          shapeIdx++;
+          break;
+        case "milk-wave":
+          if (n.custom) {
+            this.buildCustomWave(customWaveIdx, globals, timeL, timeR, freqL, freqR, lineDraw, dotInsts, draws);
+            customWaveIdx++;
+          } else if (!basicWaveDrawn) {
+            this.buildBasicWave(mdVSFrame, timeL, timeR, lineDraw, dotInsts, draws);
+            basicWaveDrawn = true;
+          }
+          break;
+        case "milk-border":
+          this.buildDarkenCenterAndBorders(mdVSFrame, draws, shapeVerts, verts);
+          break;
+        case "milk-blur":
+          // refused at load() — should never reach dispatch.
+          throw new UnsupportedGraphError([`milk-blur(${n.id}):dispatched (should have refused at load)`]);
+        case "milk-composite":
+          // composite fires after the canvas pass completes; handled
+          // in the presentation pass below.
+          break;
+        default:
+          // Non-milk nodes in a milk graph are unexpected — the load
+          // gate should have caught this.
+          throw new UnsupportedGraphError([`${n.kind}(${n.id}) unexpected in milk graph`]);
+      }
+    }
 
     const vertData = new Float32Array(verts);
     const shapeData = new Float32Array(shapeVerts);
@@ -961,14 +1035,19 @@ export class MilkPipeline {
   }
 
   /** Witnessed customShape.js drawCustomShape (per-instance frame eqs,
-   *  fan fill, optional texture from prev frame, LINE_STRIP border). */
-  private buildShapes(
+   *  fan fill, optional texture from prev frame, LINE_STRIP border).
+   *  Called PER-NODE from the graph-order dispatch: i is the unit index
+   *  the milk-shape node position carries. */
+  private buildShape(
+    i: number,
     globals: Pool,
     shapeVerts: number[], draws: CanvasDraw[], verts: number[],
     lineDraw: (k: "line-strip" | "line-list", b: "alpha" | "additive", pts: number[], thick: boolean) => void,
   ): void {
     const runner = this.runner!;
-    this.shapeNodes.forEach((_node, i) => {
+    // wrap the original per-index body in an IIFE so the diff stays
+    // small; the forEach becomes a single-iteration call
+    ((): void => {
       if (!runner.shapeEnabled[i]) return;
       const pool = runner.shapeFramePool(i, globals);
       const base = { ...pool };
@@ -1028,21 +1107,22 @@ export class MilkPipeline {
         if (hasBorder) {
           lineDraw("line-strip", "alpha", borderPts, isBorderThick);
         }
-        void verts;
       }
       runner.saveShapeFrame(i, lastPool);
-    });
+    })();
   }
 
-  /** Witnessed customWaveform.js generate + draw. */
-  private buildCustomWaves(
+  /** Witnessed customWaveform.js generate + draw. Called PER-NODE for
+   *  one custom wave from the graph-order dispatch. */
+  private buildCustomWave(
+    i: number,
     globals: Pool,
     timeL: number[], timeR: number[], freqL: number[], freqR: number[],
     lineDraw: (k: "line-strip" | "line-list", b: "alpha" | "additive", pts: number[], thick: boolean) => void,
     dotInsts: number[], draws: CanvasDraw[],
   ): void {
     const runner = this.runner!;
-    this.waveNodes.forEach((_node, i) => {
+    ((): void => {
       if (!runner.waveEnabled[i]) return;
       const pool = runner.waveFramePool(i, globals);
       runner.runWaveFrame(i, pool);
@@ -1115,7 +1195,7 @@ export class MilkPipeline {
         const pts = smoothWaveAndColor(positions, colors, samples);
         lineDraw("line-strip", blend, pts, waveThick);
       }
-    });
+    })();
   }
 
   /** Witnessed basicWaveform.js (modes 0-7; non-blending path). */
