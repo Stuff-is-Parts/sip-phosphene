@@ -74,7 +74,7 @@ Every `unresolved` row names the evidence still needed.
 
 | Item | Source | PHOSPHENE representation | PHOSPHENE implementation | Semantic test | Status | Notes |
 |---|---|---|---|---|---|---|
-| Warp UV computation using `warpTime`, `warpScaleInv`, `warpf0..warpf3` oscillators, plus per-vertex zoom/rot/cx/cy/sx/sy/dx/dy from either the per-pixel-run pool or mdVSFrame | projectM `PerPixelMesh.cpp`; Butterchurn `renderer.js` runPixelEquations | `src/core/milk-runner.ts` `runPixelEquations` | same | none dedicated | partial | Missing: a golden-input test that runs runPixelEquations on a preset with known mdVSFrame and asserts every UV in the returned Float32Array matches values derived by the same formula independently. |
+| Warp UV computation using `warpTime`, `warpScaleInv`, `warpf0..warpf3` oscillators, plus per-vertex zoom/rot/cx/cy/sx/sy/dx/dy from either the per-pixel-run pool or mdVSFrame | projectM `PerPixelMesh.cpp`; Butterchurn `renderer.js` runPixelEquations; PHOSPHENE port at `src/core/milk-runner.ts:373-437` | same | same | `tests/milk-runner.test.ts` runPixelEquations warp UV block — identity map when warp=0, zoom=1 (corner and center vertices); zoom>1 halves the UV extent as source math predicts | partial | Missing: golden-input assertions for warp>0 oscillator offsets, non-zero rot, non-zero dx/dy, non-1 sx/sy, and per-pixel EEL running (all base-value-adjacent parameters exercised individually). |
 
 ## 7. Generated draw geometry
 

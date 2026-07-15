@@ -215,6 +215,66 @@ describe("MilkPresetRunner — base value reload per frame", () => {
   });
 });
 
+describe("MilkPresetRunner — runPixelEquations warp UV math", () => {
+  // Butterchurn rendering_renderer.js runPixelEquations mirrors the
+  // projectM PerPixelMesh.cpp warpFactors + PresetWarpVertexShaderGlsl330
+  // vertex math. When the preset carries no per_pixel code and default
+  // baseVals (zoom=1, warp=0, rot=0, cx=cy=0.5, sx=sy=1, dx=dy=0), the
+  // UV at each mesh vertex reduces to a simple identity-like map from
+  // NDC-space (x, y) in [-1, 1] to UV-space (u, v) in [0, 1]:
+  //   u = x * 0.5 * aspectx + 0.5
+  //   v = -y * 0.5 * aspecty + 0.5
+  // (aspectx = aspecty = 1 on a square viewport). This is the source
+  // math at src/core/milk-runner.ts runPixelEquations lines 373-437.
+  it("produces the identity warp when warp=0, zoom=1, rot=0 (source-cited defaults suppressed)", () => {
+    // MILK_BASE_DEFAULTS carries warp=1 as the default (evidence at
+    // src/core/milk-runner.ts and butterchurn baseValsDefaults). Warp=1
+    // adds the four warpf oscillator offsets, so the "identity" case
+    // requires an explicit warp=0 baseValues entry to isolate.
+    const runner = new MilkPresetRunner(
+      emptyDef({ baseValues: { warp: 0 } }), globals(), rng(),
+    );
+    const gridX = 4;
+    const gridY = 4;
+    const uvs = new Float32Array((gridX + 1) * (gridY + 1) * 2);
+    // Aspect = 1 on the equation-facing input (butterchurn renderer.js
+    // passes render aspect, not the inverse; on a square viewport both
+    // are 1). Base mdVSFrame values come from the runner constructor
+    // after the init-time frame_eqs run — all defaults.
+    runner.runPixelEquations(runner.mdVSFrame, gridX, gridY, 1, 1, uvs);
+    // Vertex (0, 0) → NDC (-1, -1) → UV (0, 1).
+    expect(uvs[0]).toBeCloseTo(0, 6);
+    expect(uvs[1]).toBeCloseTo(1, 6);
+    // Vertex (gridX, gridY) → NDC (1, 1) → UV (1, 0).
+    const last = (gridX + 1) * (gridY + 1) - 1;
+    expect(uvs[last * 2]).toBeCloseTo(1, 6);
+    expect(uvs[last * 2 + 1]).toBeCloseTo(0, 6);
+    // Center vertex → NDC (0, 0) → UV (0.5, 0.5).
+    const center = ((gridY / 2) * (gridX + 1) + gridX / 2);
+    expect(uvs[center * 2]).toBeCloseTo(0.5, 6);
+    expect(uvs[center * 2 + 1]).toBeCloseTo(0.5, 6);
+  });
+
+  it("scales UV toward center when zoom > 1", () => {
+    // zoom acts as an inverse-scale on the UV mapping: the warp reads
+    // texel(u, v) where u = x * 0.5 * aspectx / zoom + 0.5 for the
+    // identity per-pixel case. zoom=2 → half the UV extent → the
+    // outermost vertex maps to UV 0.25 or 0.75, not 0 or 1.
+    const runner = new MilkPresetRunner(
+      emptyDef({ baseValues: { zoom: 2, warp: 0 } }), globals(), rng(),
+    );
+    const gridX = 4;
+    const gridY = 4;
+    const uvs = new Float32Array((gridX + 1) * (gridY + 1) * 2);
+    runner.runPixelEquations(runner.mdVSFrame, gridX, gridY, 1, 1, uvs);
+    // Vertex (0, 0) → NDC (-1, -1) → u = -1 * 0.5 / 2 + 0.5 = 0.25.
+    expect(uvs[0]).toBeCloseTo(0.25, 6);
+    // Vertex (gridX, gridY) → NDC (1, 1) → u = 1 * 0.5 / 2 + 0.5 = 0.75.
+    const last = (gridX + 1) * (gridY + 1) - 1;
+    expect(uvs[last * 2]).toBeCloseTo(0.75, 6);
+  });
+});
+
 describe("MilkPresetRunner — renderer-injected old_wave_mode", () => {
   // Butterchurn rendering_renderer.js:194 injects into baseVals BEFORE
   // constructing the PresetEquationRunner:
