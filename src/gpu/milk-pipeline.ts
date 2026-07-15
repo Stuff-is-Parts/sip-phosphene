@@ -966,17 +966,7 @@ export class MilkPipeline {
   /** Witnessed comp.js generateCompColors (non-blending: alpha 1). */
   private generateCompColors(mdVSFrame: Pool): Float32Array<ArrayBuffer> {
     const runner = this.runner!;
-    // witnessed generateHueBase (rand_start-seeded time oscillators)
-    const hueBase = new Float32Array(12).fill(1);
-    for (let i = 0; i < 4; i++) {
-      hueBase[i * 3 + 0] = 0.6 + 0.3 * Math.sin(mdVSFrame.time * 30.0 * 0.0143 + 3 + i * 21 + runner.randStart[3]);
-      hueBase[i * 3 + 1] = 0.6 + 0.3 * Math.sin(mdVSFrame.time * 30.0 * 0.0107 + 1 + i * 13 + runner.randStart[1]);
-      hueBase[i * 3 + 2] = 0.6 + 0.3 * Math.sin(mdVSFrame.time * 30.0 * 0.0129 + 6 + i * 9 + runner.randStart[2]);
-      const maxshade = Math.max(hueBase[i * 3], hueBase[i * 3 + 1], hueBase[i * 3 + 2]);
-      for (let k = 0; k < 3; k++) {
-        hueBase[i * 3 + k] = 0.5 + 0.5 * (hueBase[i * 3 + k] / maxshade);
-      }
-    }
+    const hueBase = generateHueBase(mdVSFrame.time, runner.randStart);
     const cx1 = COMP_W + 1, cy1 = COMP_H + 1;
     const out = new Float32Array(cx1 * cy1 * 4);
     let o = 0;
@@ -1506,6 +1496,27 @@ export class MilkPipeline {
     border([mdVSFrame.ob_r, mdVSFrame.ob_g, mdVSFrame.ob_b, mdVSFrame.ob_a], mdVSFrame.ob_size, 0);
     border([mdVSFrame.ib_r, mdVSFrame.ib_g, mdVSFrame.ib_b, mdVSFrame.ib_a], mdVSFrame.ib_size, mdVSFrame.ob_size);
   }
+}
+
+/** Witnessed comp.js generateHueBase — four RGB triples derived from
+ *  four rand_start-seeded time oscillators plus a max-shade normalize.
+ *  Exported so direct semantic tests can pin the math without needing a
+ *  MilkPipeline instance. Source: butterchurn's shaders/comp.js
+ *  generateHueBase; time argument is mdVSFrame.time, randStart is the
+ *  4-element array the runner constructs from its seeded RNG (matching
+ *  butterchurn equations_presetEquationRunner.js:88). */
+export function generateHueBase(time: number, randStart: readonly number[]): Float32Array {
+  const hueBase = new Float32Array(12).fill(1);
+  for (let i = 0; i < 4; i++) {
+    hueBase[i * 3 + 0] = 0.6 + 0.3 * Math.sin(time * 30.0 * 0.0143 + 3 + i * 21 + randStart[3]);
+    hueBase[i * 3 + 1] = 0.6 + 0.3 * Math.sin(time * 30.0 * 0.0107 + 1 + i * 13 + randStart[1]);
+    hueBase[i * 3 + 2] = 0.6 + 0.3 * Math.sin(time * 30.0 * 0.0129 + 6 + i * 9 + randStart[2]);
+    const maxshade = Math.max(hueBase[i * 3], hueBase[i * 3 + 1], hueBase[i * 3 + 2]);
+    for (let k = 0; k < 3; k++) {
+      hueBase[i * 3 + k] = 0.5 + 0.5 * (hueBase[i * 3 + k] / maxshade);
+    }
+  }
+  return hueBase;
 }
 
 /** Witnessed waveUtils.smoothWaveAndColor: -0.15/1.15 spline midpoints;
