@@ -31,6 +31,63 @@ const emptyDef = (over: Partial<MilkPresetDef> = {}): MilkPresetDef => ({
   waves: [], shapes: [], ...over,
 });
 
+describe("MilkPresetRunner — runtime defaults exhaustive against butterchurn source", () => {
+  // Butterchurn's Visualizer constructor at butterchurn.js:6505-6574
+  // defines baseValsDefaults verbatim. Every key here is copied from
+  // that source; a drift in any value would surface as a divergence in
+  // presets that read a default via mdVSFrame (e.g., wave_a, echo_zoom).
+  const SOURCE_BASE_DEFAULTS: Record<string, number> = {
+    decay: 0.98, gammaadj: 2, echo_zoom: 2, echo_alpha: 0, echo_orient: 0,
+    red_blue: 0, brighten: 0, darken: 0, wrap: 1, darken_center: 0,
+    solarize: 0, invert: 0, fshader: 0, b1n: 0, b2n: 0, b3n: 0,
+    b1x: 1, b2x: 1, b3x: 1, b1ed: 0.25,
+    wave_mode: 0, additivewave: 0, wave_dots: 0, wave_thick: 0,
+    wave_a: 0.8, wave_scale: 1, wave_smoothing: 0.75, wave_mystery: 0,
+    modwavealphabyvolume: 0, modwavealphastart: 0.75, modwavealphaend: 0.95,
+    wave_r: 1, wave_g: 1, wave_b: 1, wave_x: 0.5, wave_y: 0.5,
+    wave_brighten: 1,
+    mv_x: 12, mv_y: 9, mv_dx: 0, mv_dy: 0, mv_l: 0.9,
+    mv_r: 1, mv_g: 1, mv_b: 1, mv_a: 1,
+    warpanimspeed: 1, warpscale: 1, zoomexp: 1, zoom: 1, rot: 0,
+    cx: 0.5, cy: 0.5, dx: 0, dy: 0, warp: 1, sx: 1, sy: 1,
+    ob_size: 0.01, ob_r: 0, ob_g: 0, ob_b: 0, ob_a: 0,
+    ib_size: 0.01, ib_r: 0.25, ib_g: 0.25, ib_b: 0.25, ib_a: 0,
+  };
+  // Butterchurn shapeBaseValsDefaults at butterchurn.js:6575-6600.
+  const SOURCE_SHAPE_DEFAULTS: Record<string, number> = {
+    enabled: 0, sides: 4, additive: 0, thickoutline: 0, textured: 0,
+    num_inst: 1, tex_zoom: 1, tex_ang: 0, x: 0.5, y: 0.5, rad: 0.1, ang: 0,
+    r: 1, g: 0, b: 0, a: 1, r2: 0, g2: 1, b2: 0, a2: 0,
+    border_r: 1, border_g: 1, border_b: 1, border_a: 0.1,
+  };
+  // Butterchurn waveBaseValsDefaults at butterchurn.js:6601-6615.
+  const SOURCE_WAVE_DEFAULTS: Record<string, number> = {
+    enabled: 0, samples: 512, sep: 0, scaling: 1, smoothing: 0.5,
+    r: 1, g: 1, b: 1, a: 1, spectrum: 0, usedots: 0, thick: 0, additive: 0,
+  };
+
+  it("MILK_BASE_DEFAULTS matches every key in butterchurn baseValsDefaults", async () => {
+    const { MILK_BASE_DEFAULTS } = await import("../src/core/milk-runner");
+    for (const [key, expected] of Object.entries(SOURCE_BASE_DEFAULTS)) {
+      expect(MILK_BASE_DEFAULTS[key]).toBe(expected);
+    }
+  });
+
+  it("MILK_SHAPE_DEFAULTS matches every key in butterchurn shapeBaseValsDefaults", async () => {
+    const { MILK_SHAPE_DEFAULTS } = await import("../src/core/milk-runner");
+    for (const [key, expected] of Object.entries(SOURCE_SHAPE_DEFAULTS)) {
+      expect(MILK_SHAPE_DEFAULTS[key]).toBe(expected);
+    }
+  });
+
+  it("MILK_WAVE_DEFAULTS matches every key in butterchurn waveBaseValsDefaults", async () => {
+    const { MILK_WAVE_DEFAULTS } = await import("../src/core/milk-runner");
+    for (const [key, expected] of Object.entries(SOURCE_WAVE_DEFAULTS)) {
+      expect(MILK_WAVE_DEFAULTS[key]).toBe(expected);
+    }
+  });
+});
+
 describe("MilkPresetRunner — seeded random draw order", () => {
   // Butterchurn PresetEquationRunner.initializeEquations at
   // equations_presetEquationRunner.js:88-89 fills rand_start[0..3] then
