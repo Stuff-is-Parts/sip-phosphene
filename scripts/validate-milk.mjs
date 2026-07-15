@@ -1,8 +1,8 @@
-// FIDELITY validation: render the EXACT corpus .milk files the oracle
-// rendered (identity is intrinsic — the manifest records corpus path +
-// sha256, and this harness re-reads and re-hashes the same file), with
-// the oracle's own frame times and oracle-validated audio values, and
-// compare screenshots at the shared capture frames.
+// FIDELITY validation through the GRAPH MILK PATH (MilkPipeline): render
+// the EXACT corpus .milk files the oracle rendered (identity intrinsic —
+// the manifest records corpus path + sha256, re-verified here), with the
+// oracle's own per-frame globals and the oracle-validated audio arrays,
+// and compare screenshots at the shared capture frames.
 //
 // This is the only metric that counts as compatibility progress per
 // COMPATIBILITY-GOAL.md. TOLERANCE (committed before implementation
@@ -10,20 +10,20 @@
 // channel reaches SSIM >= 0.80; a preset is VALIDATED when every capture
 // frame matches.
 //
-// PATH LABEL: renders currently go through the LEGACY import path
-// (milkToScene approximations). The graph milk path refuses to execute
-// until its stage implementations land; results below are labeled with
-// the path that produced them.
+// Presets that require MilkDrop 2 warp/comp shaders REFUSE (the pipeline
+// names the missing feature) and are reported as unsupported — never
+// approximated, never counted as validated.
 //
 // Prereq: node scripts/reference-milk.mjs  (builds reference/milk)
-// Usage: node scripts/validate-milk.mjs [out]
+// Usage: node scripts/validate-milk.mjs [out] [presetFilterSubstring]
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawn, execSync } from "node:child_process";
 import puppeteer from "puppeteer-core";
 import { PNG } from "pngjs";
-import { MilkAudioModel } from "./lib/milk-audio-model.mjs";
+import { OracleAudioProcessor } from "./lib/milk-audio-model.mjs";
+import { audioFrame } from "./lib/ref-audio.mjs";
 import { ssimColor, meanAbsError } from "./lib/ssim.mjs";
 
 const out = process.argv[2] ?? "docs/fidelity-milk.json";
@@ -66,11 +66,23 @@ const browser = await puppeteer.launch({
 });
 mkdirSync("reference/milk-phosphene", { recursive: true });
 
+// Base globals the executor consumes (regs stay renderer-owned inside
+// the pipeline; the fixture's globalVars may carry oracle reg values,
+// which must NOT be injected).
+const BASE_KEYS = [
+  "frame", "time", "fps", "bass", "bass_att", "mid", "mid_att",
+  "treb", "treb_att", "meshx", "meshy", "aspectx", "aspecty",
+  "pixelsx", "pixelsy",
+];
+
+const filter = process.argv[3] ?? "";
+
 const results = [];
-let validated = 0, compileFailed = 0, diverged = 0, skipped = 0;
+let validated = 0, loadFailed = 0, diverged = 0, unsupported = 0, skipped = 0;
 try {
   for (const entry of manifest.presets) {
     if (entry.error) { skipped++; continue; }
+    if (filter && !entry.file.includes(filter)) continue;
     const corpusPath = join(manifest.corpus, entry.file);
     const text = readFileSync(corpusPath, "latin1");
     const sha256 = createHash("sha256").update(text, "latin1").digest("hex");
@@ -95,9 +107,7 @@ try {
       }, SEED);
       await page.goto(`http://localhost:${PORT}/verify.html`, { waitUntil: "networkidle2", timeout: 20000 });
       await page.waitForFunction(() => window.__ready === true, { timeout: 20000 });
-      // Independent reseed before load (same protocol as the oracle):
-      // startup consumed page-dependent entropy; the preset stream
-      // starts here with the committed seed.
+      // Independent reseed before load (the committed protocol).
       await page.evaluate((seed) => {
         let s = seed | 0;
         Math.random = () => {
@@ -107,44 +117,50 @@ try {
           return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
         };
       }, SEED);
-      const load = await page.evaluate((t, n) => window.__refLoadMilk(t, n), text, entry.file);
-      if (!load.ok) {
-        compileFailed++;
-        results.push({ preset: entry.file, status: "compile-failed", errors: load.errors });
-        console.log(`CFAIL ${entry.file.slice(0, 60)}`);
+      const load = await page.evaluate((t, n) => window.__milkLoadGraph(t, n), text, entry.file);
+      if (load.unsupported) {
+        unsupported++;
+        results.push({ preset: entry.file, status: "unsupported", features: load.unsupported });
+        console.log(`UNSUP ${entry.file.slice(0, 56)}: ${load.unsupported.join("; ").slice(0, 60)}`);
         continue;
       }
-      const model = new MilkAudioModel();
+      if (!load.ok) {
+        loadFailed++;
+        results.push({ preset: entry.file, status: "load-failed", errors: load.errors });
+        console.log(`LFAIL ${entry.file.slice(0, 60)}: ${(load.errors ?? []).join("; ").slice(0, 80)}`);
+        continue;
+      }
+      const audio = new OracleAudioProcessor();
       frames = [];
       mkdirSync(`reference/milk-phosphene/${entry.slug}`, { recursive: true });
       for (let f = 0; f < fixture.globalVars.length; f++) {
-        const features = model.features(f);
-        // Frame time: the ORACLE's own integrated time for this frame
-        // (globalVars[f].time), so time-driven equations see identical
-        // values in both renders.
-        const t = fixture.globalVars[f].time;
+        const { c, l, r } = audioFrame(f);
+        audio.updateAudio(c, l, r);
+        const globals = {};
+        for (const k of BASE_KEYS) globals[k] = fixture.globalVars[f][k];
         await page.evaluate(
-          (tt, feat) => window.__refFrame(tt, {
-            ...feat,
-            spec: Float32Array.from(feat.spec),
-            wave: Float32Array.from(feat.wave),
-          }),
-          t,
-          { ...features, spec: Array.from(features.spec), wave: Array.from(features.wave) },
+          (d) => window.__milkFrameGraph(d),
+          {
+            globals,
+            timeArrayL: Array.from(audio.timeArrayL),
+            timeArrayR: Array.from(audio.timeArrayR),
+            freqArrayL: Array.from(audio.freqArrayL),
+            freqArrayR: Array.from(audio.freqArrayR),
+          },
         );
         if (CAPTURE_FRAMES.includes(f)) {
-          await page.evaluate(() => new Promise((r) => {
-            globalThis.requestAnimationFrame(() => globalThis.requestAnimationFrame(() => r(null)));
+          await page.evaluate(() => new Promise((r2) => {
+            globalThis.requestAnimationFrame(() => globalThis.requestAnimationFrame(() => r2(null)));
           }));
           const shot = await page.screenshot({ type: "png" });
           const ours = PNG.sync.read(shot);
           writeFileSync(`reference/milk-phosphene/${entry.slug}/frame-${f}.png`, shot);
           const ref = PNG.sync.read(readFileSync(`reference/milk/${entry.slug}/frame-${f}.png`));
-          const c = ssimColor(ours, ref);
+          const cc = ssimColor(ours, ref);
           frames.push({
             frame: f,
-            ssimMinChannel: Number(c.min.toFixed(4)),
-            ssimMean: Number(c.mean.toFixed(4)),
+            ssimMinChannel: Number(cc.min.toFixed(4)),
+            ssimMean: Number(cc.mean.toFixed(4)),
             meanAbsError: Number(meanAbsError(ours, ref).toFixed(2)),
           });
         }
@@ -165,14 +181,14 @@ try {
 }
 
 const report = {
-  measures: "reference-validated fidelity vs the seeded Butterchurn oracle: identical corpus source file (sha256-verified), oracle frame times, oracle-validated audio values; gate = SSIM >= tolerance on EVERY RGB channel at every capture frame",
-  path: "LEGACY import path (milkToScene) — the graph milk path refuses until its stage implementations land; this number is not evidence about the graph executor",
+  measures: "reference-validated fidelity of the GRAPH MILK PATH (MilkPipeline on WebGPU) vs the seeded Butterchurn oracle: identical corpus source file (sha256-verified), oracle per-frame globals, oracle audio chain; gate = SSIM >= tolerance on EVERY RGB channel at every capture frame",
+  path: "graph milk path (milkToGraph -> MilkPipeline); presets requiring MilkDrop 2 warp/comp shaders REFUSE and are counted as unsupported",
   tolerance: { ssim: SSIM_TOLERANCE, metric: "min per-channel color SSIM", rule: "every capture frame, every channel; committed before implementation per COMPATIBILITY-GOAL.md" },
   captureFrames: CAPTURE_FRAMES,
   presetsTested: results.length,
-  validated, diverged, compileFailed, fixtureConvertFailures: skipped,
+  validated, diverged, loadFailed, unsupportedShaderPresets: unsupported, fixtureConvertFailures: skipped,
   results,
 };
 writeFileSync(out, JSON.stringify(report, null, 2));
-console.log(`\nVALIDATED ${validated}/${results.length} (diverged ${diverged}, compile-failed ${compileFailed}, fixture-convert-failed ${skipped})`);
+console.log(`\nVALIDATED ${validated}/${results.length} (diverged ${diverged}, load-failed ${loadFailed}, unsupported ${unsupported}, fixture-convert-failed ${skipped})`);
 console.log(`report: ${out}`);

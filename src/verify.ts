@@ -1,11 +1,13 @@
 import { Renderer } from "./gpu/renderer";
-import { GraphExecutor } from "./gpu/graph-executor";
+import { GraphExecutor, UnsupportedGraphError } from "./gpu/graph-executor";
+import { MilkPipeline, type MilkFrameData } from "./gpu/milk-pipeline";
 import { ModEngine } from "./core/mods";
 import { meshWarpFor } from "./core/meshwarp";
 import { particlesFor } from "./core/particles";
 import { renderTextImage } from "./core/text";
 import { compileSceneToGraph } from "./core/graph-compile";
 import { parseMilk, milkToScene } from "./import/milk";
+import { parseMilkComplete, milkToGraph } from "./import/milk-graph";
 import { parseP9c, p9ToScene } from "./import/p9";
 import { normalizeScene, STAGES, type AudioFeatures, type Scene } from "./core/types";
 
@@ -189,6 +191,54 @@ window.__verifyP9 = async (base64, name) => {
   } catch (err) {
     return { ok: false, errors: ["import threw: " + ((err as Error).message ?? String(err)).slice(0, 300)], reports: [] };
   }
+};
+
+/* ------------- graph milk path (MilkPipeline; fidelity mode) ----------- */
+// The driver injects the oracle-validated frame globals plus the
+// processed audio arrays per frame; the pipeline executes the witnessed
+// butterchurn stages on WebGPU. Presets requiring MilkDrop 2 shaders
+// REFUSE (UnsupportedGraphError) — reported, never approximated.
+
+declare global {
+  interface Window {
+    __milkLoadGraph(text: string, name: string): Promise<Verdict & { unsupported?: string[] }>;
+    __milkFrameGraph(data: {
+      globals: Record<string, number>;
+      timeArrayL: number[]; timeArrayR: number[];
+      freqArrayL: number[]; freqArrayR: number[];
+    }): boolean;
+  }
+}
+
+let milkPipeline: MilkPipeline | null = null;
+
+window.__milkLoadGraph = async (text, name) => {
+  let phase = "parse";
+  try {
+    const parsed = parseMilkComplete(text, name);
+    phase = "toGraph";
+    const { graph } = milkToGraph(parsed);
+    phase = "pipeline";
+    milkPipeline = new MilkPipeline(renderer);
+    const { errors } = await milkPipeline.load(graph);
+    return { ok: errors.length === 0, errors, reports: [] };
+  } catch (err) {
+    if (err instanceof UnsupportedGraphError) {
+      return { ok: false, errors: [], reports: [], unsupported: err.features };
+    }
+    return { ok: false, errors: [`${phase} threw: ${(err as Error).message}`.slice(0, 300)], reports: [] };
+  }
+};
+
+window.__milkFrameGraph = (data) => {
+  if (!milkPipeline) return false;
+  const frameData: MilkFrameData = {
+    globals: data.globals,
+    timeArrayL: data.timeArrayL, timeArrayR: data.timeArrayR,
+    freqArrayL: data.freqArrayL, freqArrayR: data.freqArrayR,
+  };
+  milkPipeline.frame(frameData);
+  return true;
 };
 
 /* -------- native-equivalence mode (legacy path vs graph executor) ------ */

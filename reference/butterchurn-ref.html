@@ -86,7 +86,7 @@
   // equation runner (butterchurn.js: "Store variables in case we need to
   // rerender"); mdVSFrame is the post-per-frame preset variable pool.
   // Numeric values only (JSON-safe).
-  window.__refState = function (mdVSKeys) {
+  window.__refState = function (mdVSKeys, includeWarpUVs) {
     const out = { globalVars: {}, mdVSFrame: {} };
     const gv = visualizer.renderer.globalVars || {};
     for (const k of Object.keys(gv)) {
@@ -96,6 +96,9 @@
     const keys = mdVSKeys && mdVSKeys.length ? mdVSKeys : Object.keys(mv);
     for (const k of keys) {
       if (typeof mv[k] === "number" && Number.isFinite(mv[k])) out.mdVSFrame[k] = mv[k];
+    }
+    if (includeWarpUVs) {
+      out.warpUVs = Array.from(visualizer.renderer.warpUVs);
     }
     return out;
   };
