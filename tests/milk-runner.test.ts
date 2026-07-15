@@ -323,6 +323,77 @@ describe("MilkPresetRunner — base value reload per frame", () => {
   });
 });
 
+describe("MilkPresetRunner — unit-context lifecycle (waves and shapes)", () => {
+  // Butterchurn equations_presetEquationRunner.js:111-140 (waves) and
+  // :147-176 (shapes) define the wave/shape unit context. Each unit
+  // sees {mdVSQAfterFrame, mdVSRegs, unit baseVals, globals}, runs
+  // init once at preset load (populating t1..t8), and per-frame calls
+  // spread {wavePool, waveFrameMap, mdVSQAfterFrame, waveTInits,
+  // globals} into a fresh pool.
+  it("initializes t1..t8 from wave init_eqs and preserves them across per-frame calls", () => {
+    const runner = new MilkPresetRunner(emptyDef({
+      waves: [{
+        index: 0, baseValues: { enabled: 1 },
+        initEel: "t1 = 5; t3 = 11;",
+        frameEel: "",
+        pointEel: "",
+      }],
+    }), globals(), rng());
+    const pool = runner.waveFramePool(0, globals());
+    expect(pool.t1).toBe(5);
+    expect(pool.t3).toBe(11);
+    // Second call with a mutated pool should still see the original t-inits.
+    pool.t1 = 999;
+    const pool2 = runner.waveFramePool(0, globals());
+    expect(pool2.t1).toBe(5);
+  });
+
+  it("flows q values from preset frame_eqs into the wave frame pool", () => {
+    const runner = new MilkPresetRunner(emptyDef({
+      initEel: "q1 = 3;",
+      frameEel: "q1 = q1 * 4;",
+      waves: [{
+        index: 0, baseValues: { enabled: 1 },
+        initEel: "", frameEel: "", pointEel: "",
+      }],
+    }), globals(), rng());
+    runner.runFrameEquations(globals()); // q1 gets 3 * 4 = 12
+    const pool = runner.waveFramePool(0, globals());
+    expect(pool.q1).toBe(12);
+  });
+
+  it("wave per-point code sees sample and value1/value2 the caller sets in the pool", () => {
+    const runner = new MilkPresetRunner(emptyDef({
+      waves: [{
+        index: 0, baseValues: { enabled: 1 },
+        initEel: "", frameEel: "",
+        // Per-point code writes to x and y based on the sample position
+        // and per-channel value inputs.
+        pointEel: "x = sample; y = value1 * 2;",
+      }],
+    }), globals(), rng());
+    const pool = runner.waveFramePool(0, globals());
+    pool.sample = 0.25;
+    pool.value1 = 0.4;
+    pool.value2 = 0;
+    runner.runWavePoint(0, pool);
+    expect(pool.x).toBe(0.25);
+    expect(pool.y).toBeCloseTo(0.8, 10);
+  });
+
+  it("initializes t1..t8 from shape init_eqs", () => {
+    const runner = new MilkPresetRunner(emptyDef({
+      shapes: [{
+        index: 0, baseValues: { enabled: 1 },
+        initEel: "t2 = 7;",
+        frameEel: "",
+      }],
+    }), globals(), rng());
+    const pool = runner.shapeFramePool(0, globals());
+    expect(pool.t2).toBe(7);
+  });
+});
+
 describe("MilkPresetRunner — runPixelEquations warp UV math", () => {
   // Butterchurn rendering_renderer.js runPixelEquations mirrors the
   // projectM PerPixelMesh.cpp warpFactors + PresetWarpVertexShaderGlsl330

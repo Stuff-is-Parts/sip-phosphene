@@ -251,7 +251,8 @@ export interface MilkBorderNode extends NodeBase {
 
 export interface MilkWarpNode extends NodeBase {
   kind: "milk-warp";
-  /** Per-pixel (per-vertex) program; frame env comes from milk-frame. */
+  /** Per-pixel (per-vertex) program; frame env comes from the
+   *  MilkPresetRunner's post-per-frame mdVSFrame (src/core/milk-runner.ts). */
   perPixel: string;
   perPixelInit: string;
   gridX: number; gridY: number;
