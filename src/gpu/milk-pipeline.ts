@@ -376,6 +376,14 @@ export class MilkPipeline {
   /** Most recent post-per-frame mdVSFrame pool (populated after each
    *  frame() call). Read-only for external consumers. */
   lastMdVSFrame: Pool | null = null;
+  /** Most recent shader-input contract, computed from the runner's
+   *  post-per-frame state and the pipeline's session values at the end
+   *  of each frame() call. `null` before the first frame runs. A
+   *  future graph-path shader translator reads this. Contract fields
+   *  the pipeline cannot populate from source-witnessed state (mip
+   *  stats, rand_frame, 24 rotation matrices) stay null; the consumer
+   *  must refuse presets that read them. */
+  lastShaderContract: MilkShaderContract | null = null;
   private regVars: Pool = {};
   private waveNodes: MilkWaveNode[] = [];
   private shapeNodes: MilkShapeNode[] = [];
@@ -832,6 +840,15 @@ export class MilkPipeline {
           frameGlobals = { ...data.globals, ...this.regVars };
           mdVSFrame = runner.runFrameEquations(frameGlobals);
           this.lastMdVSFrame = mdVSFrame;
+          // Compute the shader-input contract from the post-per-frame
+          // state so external consumers (a future graph-path shader
+          // translator) can read a coherent contract each frame. The
+          // fields the pipeline cannot populate from source-witnessed
+          // state (mip stats, rand_frame, 24 rotation matrices) stay
+          // null; the consumer must refuse presets that read them.
+          this.lastShaderContract = buildShaderContract(
+            mdVSFrame, runner.randPreset, this.width, this.height,
+          );
           break;
         }
         case "milk-warp": {
