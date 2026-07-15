@@ -335,8 +335,9 @@ fn vmain(@location(0) aPos : vec2f, @location(1) aCompColor : vec4f) -> VOut {
 }
 @fragment
 fn fmain(in : VOut) -> @location(0) vec4f {
+  // Composite samples from the pre-flipped flip2 intermediate produced
+  // by the explicit second y-flip pass, so no inline y-inversion here.
   var uv = in.vUv;
-  uv.y = 1.0 - uv.y;
   let hue_shader = in.vColor.rgb;
   let orient_horiz = uv.x * 0.0 + (u.echo_orientation - 2.0 * floor(u.echo_orientation / 2.0)); // mod(echo_orientation, 2)
   var orient_x = 1.0;
@@ -361,11 +362,36 @@ fn fmain(in : VOut) -> @location(0) vec4f {
 }
 `;
 
-// Mip blit: linear downsample level i-1 -> i (GL generateMipmap
-// equivalent box reduction via linear sampling at half resolution).
-const MIP_WGSL = /* wgsl */ `
+// Explicit y-flip pass. projectM's `flipTexture.Draw(source, ...true, false)`
+// (docs/evidence/projectm/MilkdropPreset.cpp:RenderFrame) copies a source
+// texture into an intermediate with the y axis inverted; PHOSPHENE
+// reproduces that with a fullscreen quad that samples the source at
+// (u, 1 - v). Used for the prev-before-warp flip and the current-before-
+// composite flip.
+const FLIP_WGSL = /* wgsl */ `
 @group(0) @binding(0) var samp : sampler;
-@group(0) @binding(1) var src : texture_2d<f32>;
+@group(0) @binding(1) var src  : texture_2d<f32>;
+struct VOut { @builtin(position) pos : vec4f, @location(0) uv : vec2f };
+@vertex
+fn vmain(@builtin(vertex_index) vi : u32) -> VOut {
+  var o : VOut;
+  let p = vec2f(f32(i32(vi & 1u) * 4 - 1), f32(i32(vi >> 1u) * 4 - 1));
+  o.pos = vec4f(p, 0.0, 1.0);
+  o.uv = vec2f(p.x * 0.5 + 0.5, 1.0 - (p.y * 0.5 + 0.5));
+  return o;
+}
+@fragment
+fn fmain(in : VOut) -> @location(0) vec4f {
+  return textureSample(src, samp, in.uv);
+}
+`;
+
+// Final present pass. Copies the offscreen composite output (rgba8unorm)
+// to the presentation surface. No color transform — the offscreen texture
+// already holds the composited image.
+const PRESENT_WGSL = /* wgsl */ `
+@group(0) @binding(0) var samp : sampler;
+@group(0) @binding(1) var src  : texture_2d<f32>;
 struct VOut { @builtin(position) pos : vec4f, @location(0) uv : vec2f };
 @vertex
 fn vmain(@builtin(vertex_index) vi : u32) -> VOut {
@@ -483,14 +509,39 @@ export class MilkPipeline {
 
   private sampRepeat!: GPUSampler;
   private sampClamp!: GPUSampler;
-  private sampMip!: GPUSampler;
 
   private warpPipeline!: GPURenderPipeline;
   private linePipelines!: Record<string, GPURenderPipeline>;
   private dotPipelines!: Record<string, GPURenderPipeline>;
   private shapePipelines!: Record<string, GPURenderPipeline>;
   private compPipeline!: GPURenderPipeline;
-  private mipPipeline!: GPURenderPipeline;
+  private flipPipeline!: GPURenderPipeline;
+  private presentPipeline!: GPURenderPipeline;
+
+  // Explicit y-flip intermediates per projectM's MilkdropPreset::RenderFrame.
+  // flip1 receives the y-flipped previous framebuffer just before warp;
+  // flip2 receives the y-flipped current framebuffer just before composite.
+  private flip1!: GPUTexture;
+  private flip1View!: GPUTextureView;
+  private flip2!: GPUTexture;
+  private flip2View!: GPUTextureView;
+
+  // Motion-vector geometry stored separately from post-warp draws so
+  // motion vectors can render on the previous framebuffer BEFORE warp,
+  // not queued into the post-warp draw list.
+  private mvVertexBuf: GPUBuffer | null = null;
+  private mvUni!: GPUBuffer;
+
+  // First-frame tracker per projectM's `m_isFirstFrame` at
+  // docs/evidence/projectm/MilkdropPreset.cpp — motion vectors skip on
+  // the first frame after init or resize.
+  private isFirstFrame = true;
+
+  // Per-frame pass trace. External consumers read `lastPassTrace` to
+  // verify the projectM ordering; the trace is proof of the execution
+  // path, not a test artifact.
+  private passTrace: string[] = [];
+  lastPassTrace: readonly string[] = [];
 
   private warpUni!: GPUBuffer;
   private lineUni!: GPUBuffer;      // thick
@@ -668,8 +719,6 @@ export class MilkPipeline {
       magFilter: "linear", minFilter: "linear", mipmapFilter: "linear",
       addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge", maxAnisotropy: 16,
     });
-    this.sampMip = dev.createSampler({ magFilter: "linear", minFilter: "linear" });
-
     // Warp mesh (witnessed buildPositions: positions (x, -y), two tris per cell).
     const gx1 = GRID_X + 1, gy1 = GRID_Y + 1;
     this.warpPositions = new Float32Array(gx1 * gy1 * 2);
@@ -862,19 +911,60 @@ export class MilkPipeline {
         ],
       },
       fragment: {
+        // Composite now writes to the offscreen `prev` framebuffer in
+        // TARGET_FORMAT rather than directly to the presentation surface,
+        // per projectM's `finalComposite.Draw` writing into the previous
+        // framebuffer. Present is a separate copy pass.
         module: compModule, entryPoint: "fmain",
-        targets: [{ format: this.renderer.presentationFormat, blend: blendOf("alpha") }],
+        targets: [{ format: TARGET_FORMAT, blend: blendOf("alpha") }],
       },
       primitive: { topology: "triangle-list" },
     });
 
-    const mipModule = module(MIP_WGSL);
-    this.mipPipeline = dev.createRenderPipeline({
+    const flipModule = module(FLIP_WGSL);
+    this.flipPipeline = dev.createRenderPipeline({
       layout: "auto",
-      vertex: { module: mipModule, entryPoint: "vmain" },
-      fragment: { module: mipModule, entryPoint: "fmain", targets: [{ format: TARGET_FORMAT }] },
+      vertex: { module: flipModule, entryPoint: "vmain" },
+      fragment: { module: flipModule, entryPoint: "fmain", targets: [{ format: TARGET_FORMAT }] },
       primitive: { topology: "triangle-list" },
     });
+
+    const presentModule = module(PRESENT_WGSL);
+    this.presentPipeline = dev.createRenderPipeline({
+      layout: "auto",
+      vertex: { module: presentModule, entryPoint: "vmain" },
+      fragment: {
+        module: presentModule, entryPoint: "fmain",
+        targets: [{ format: this.renderer.presentationFormat }],
+      },
+      primitive: { topology: "triangle-list" },
+    });
+
+    // Two flip intermediates sized to the main framebuffer. Only need
+    // one mip level and one view — sampled by warp (flip1) and comp
+    // (flip2) respectively.
+    this.flip1?.destroy();
+    this.flip2?.destroy();
+    this.flip1 = dev.createTexture({
+      size: [this.width, this.height], format: TARGET_FORMAT,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    });
+    this.flip1View = this.flip1.createView();
+    this.flip2 = dev.createTexture({
+      size: [this.width, this.height], format: TARGET_FORMAT,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    });
+    this.flip2View = this.flip2.createView();
+
+    // Motion-vector uniform buffer — matches the line pipeline's expected
+    // (texsize, thickMode, pad) layout.
+    this.mvUni = dev.createBuffer({
+      size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+    dev.queue.writeBuffer(this.mvUni, 0, new Float32Array([this.width, this.height, 0, 0]));
+
+    // Reset first-frame tracker on every resource init (resize also fires here).
+    this.isFirstFrame = true;
   }
 
   /* ------------------------------- frame -------------------------------- */
@@ -913,6 +1003,10 @@ export class MilkPipeline {
     const verts: number[] = [];
     const shapeVerts: number[] = [];
     const dotInsts: number[] = [];
+    // Motion-vector vertices live in a separate collection so they can
+    // render in a pre-warp pass on the previous framebuffer per
+    // projectM's ordering.
+    const mvVertices: number[] = [];
     const lineDraw = (
       kind: "line-strip" | "line-list", blend: "alpha" | "additive",
       pts: number[], thick: boolean,
@@ -961,19 +1055,22 @@ export class MilkPipeline {
           this.regVars = {};
           for (const r of REGS) if (r in vertexPool) this.regVars[r] = vertexPool[r];
           dev.queue.writeBuffer(this.warpUvBuf, 0, this.warpUVs);
-          // Swap this warp's declared source and target textures. Milk
-          // graphs today carry source=target=canvas (feedback), so the
-          // swap always rotates the executor's ping-pong pair; a future
-          // milk graph with distinct source/target would render into a
-          // separate destination and the swap would not fire.
-          if (n.source === n.target) {
-            const t = this.target; this.target = this.prev; this.prev = t;
-          }
+          // Framebuffer swap runs at end of frame() per projectM's
+          // MilkdropPreset::RenderFrame — after composite completes,
+          // NOT inside the CPU warp dispatch.
           break;
         }
         case "milk-motion-vectors": {
           if (!mdVSFrame) throw new Error("milk-motion-vectors reached before milk-frame");
-          this.buildMotionVectors(mdVSFrame, lineDraw);
+          // Motion vectors do NOT enter the post-warp draw list.
+          // Their geometry is collected into a dedicated vertex buffer
+          // and rendered in a pre-warp pass targeting the previous
+          // framebuffer per docs/evidence/projectm/MilkdropPreset.cpp.
+          const mvCollect: typeof lineDraw = (_kind, _blend, pts, _thick) => {
+            if (!pts.length) return;
+            mvVertices.push(...pts);
+          };
+          this.buildMotionVectors(mdVSFrame, mvCollect);
           break;
         }
         case "milk-shape": {
@@ -1039,44 +1136,92 @@ export class MilkPipeline {
     // comp hue colors (witnessed generateCompColors, non-blending alpha=1)
     dev.queue.writeBuffer(this.compColBuf, 0, this.generateCompColors(mdVSFrame));
 
+    // Reset the pass trace for this frame. `frame-equations` and
+    // `pixel-equations` fired in the CPU dispatch loop above.
+    this.passTrace = ["frame-equations", "pixel-equations"];
+
+    const mainSamp = mdVSFrame.wrap !== 0 ? this.sampRepeat : this.sampClamp;
+
+    // Upload motion-vector vertex data when present. The buffer is
+    // re-created only when the current allocation is too small.
+    const mvData = new Float32Array(mvVertices);
+    if (mvVertices.length > 0) {
+      if (!this.mvVertexBuf || this.mvVertexBuf.size < mvData.byteLength) {
+        this.mvVertexBuf?.destroy();
+        this.mvVertexBuf = dev.createBuffer({
+          size: Math.max(1024, mvData.byteLength * 2),
+          usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+        });
+      }
+      dev.queue.writeBuffer(this.mvVertexBuf, 0, mvData);
+    }
+
     const enc = dev.createCommandEncoder();
 
-    // mips for prev (levels 1..n from level above)
-    for (let level = 1; level < this.prev.mipCount; level++) {
+    // Step 4: motion vectors draw into the previous framebuffer BEFORE
+    // warp per projectM MilkdropPreset::RenderFrame, and are skipped on
+    // the first frame after init/resize.
+    if (!this.isFirstFrame && mvVertices.length > 0 && this.mvVertexBuf) {
+      const mvPipeline = this.linePipelines["line-list/alpha"];
+      const mvBg = dev.createBindGroup({
+        layout: mvPipeline.getBindGroupLayout(0),
+        entries: [{ binding: 0, resource: { buffer: this.mvUni } }],
+      });
+      const pass = enc.beginRenderPass({
+        colorAttachments: [{
+          view: this.prev.views[0],
+          loadOp: "load",
+          storeOp: "store",
+        }],
+      });
+      pass.setPipeline(mvPipeline);
+      pass.setBindGroup(0, mvBg);
+      pass.setVertexBuffer(0, this.mvVertexBuf);
+      pass.draw(mvVertices.length / 6, 1, 0, 0);
+      pass.end();
+      this.passTrace.push("motion-vectors");
+    }
+
+    // Step 5: explicit y-flip of the previous framebuffer into flip1.
+    {
       const bg = dev.createBindGroup({
-        layout: this.mipPipeline.getBindGroupLayout(0),
+        layout: this.flipPipeline.getBindGroupLayout(0),
         entries: [
-          { binding: 0, resource: this.sampMip },
-          { binding: 1, resource: this.prev.views[level - 1] },
+          { binding: 0, resource: this.sampClamp },
+          { binding: 1, resource: this.prev.views[0] },
         ],
       });
       const pass = enc.beginRenderPass({
-        colorAttachments: [{ view: this.prev.views[level], loadOp: "clear", storeOp: "store" }],
-      });
-      pass.setPipeline(this.mipPipeline);
-      pass.setBindGroup(0, bg);
-      pass.draw(3);
-      pass.end();
-    }
-
-    const mainSamp = mdVSFrame.wrap !== 0 ? this.sampRepeat : this.sampClamp;
-    const prevView = this.prev.tex.createView();
-
-    // 5) canvas pass: clear -> warp -> queued sprite/wave draws
-    {
-      const pass = enc.beginRenderPass({
         colorAttachments: [{
-          view: this.target.views[0], loadOp: "clear", storeOp: "store",
+          view: this.flip1View,
+          loadOp: "clear", storeOp: "store",
           clearValue: { r: 0, g: 0, b: 0, a: 1 },
         }],
       });
-      // warp
+      pass.setPipeline(this.flipPipeline);
+      pass.setBindGroup(0, bg);
+      pass.draw(3);
+      pass.end();
+      this.passTrace.push("flip-prev");
+    }
+
+    // Steps 6-8: cleared render pass on the current framebuffer.
+    // Warp samples flip1 (the y-flipped previous frame); sprites draw
+    // afterwards into the same current framebuffer.
+    {
+      const pass = enc.beginRenderPass({
+        colorAttachments: [{
+          view: this.target.views[0],
+          loadOp: "clear", storeOp: "store",
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+        }],
+      });
       const warpBg = dev.createBindGroup({
         layout: this.warpPipeline.getBindGroupLayout(0),
         entries: [
           { binding: 0, resource: { buffer: this.warpUni } },
           { binding: 1, resource: mainSamp },
-          { binding: 2, resource: prevView },
+          { binding: 2, resource: this.flip1View },
         ],
       });
       pass.setPipeline(this.warpPipeline);
@@ -1086,18 +1231,17 @@ export class MilkPipeline {
       pass.setVertexBuffer(2, this.warpColBuf);
       pass.setIndexBuffer(this.warpIdxBuf, "uint16");
       pass.drawIndexed(this.warpIndices.length);
+      this.passTrace.push("warp");
 
-      // queued draws in order
       const lineBgs = new Map<GPUBuffer, GPUBindGroup>();
       const lineBg = (uniBuf: GPUBuffer, pipeline: GPURenderPipeline) => {
-        const key = uniBuf;
-        let bg = lineBgs.get(key);
+        let bg = lineBgs.get(uniBuf);
         if (!bg) {
           bg = dev.createBindGroup({
             layout: pipeline.getBindGroupLayout(0),
             entries: [{ binding: 0, resource: { buffer: uniBuf } }],
           });
-          lineBgs.set(key, bg);
+          lineBgs.set(uniBuf, bg);
         }
         return bg;
       };
@@ -1108,8 +1252,6 @@ export class MilkPipeline {
           pass.setBindGroup(0, lineBg(d.thick ? this.lineUni : this.lineUniNoThick, pipeline));
           pass.setVertexBuffer(0, this.canvasVertBuf!, lineOff);
           for (let inst = 0; inst < d.instances; inst++) {
-            // line strips must not connect across instances; issue per-
-            // instance draws with firstInstance to select the offset
             pass.draw(d.count, 1, d.first, inst);
           }
         } else if (d.kind === "dots") {
@@ -1123,14 +1265,14 @@ export class MilkPipeline {
           pass.setBindGroup(0, bg);
           pass.setVertexBuffer(0, this.canvasVertBuf!, dotOff);
           pass.draw(6, d.count, 0, d.first);
-        } else { // shape-fill
+        } else {
           const pipeline = this.shapePipelines[d.blend];
           pass.setPipeline(pipeline);
           const bg = dev.createBindGroup({
             layout: pipeline.getBindGroupLayout(0),
             entries: [
               { binding: 0, resource: mainSamp },
-              { binding: 1, resource: prevView },
+              { binding: 1, resource: this.flip1View },
             ],
           });
           pass.setBindGroup(0, bg);
@@ -1139,24 +1281,52 @@ export class MilkPipeline {
         }
       }
       pass.end();
+      this.passTrace.push("sprites");
     }
 
-    // 6) composite to screen (witnessed renderToScreen non-FXAA: clear +
-    // alpha blend + comp grid reading targetTexture)
+    // Step 9: explicit y-flip of the current framebuffer into flip2 so
+    // composite reads a y-corrected source per projectM's second flip.
     {
-      const view = this.renderer.currentTextureView();
+      const bg = dev.createBindGroup({
+        layout: this.flipPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: this.sampClamp },
+          { binding: 1, resource: this.target.views[0] },
+        ],
+      });
       const pass = enc.beginRenderPass({
         colorAttachments: [{
-          view, loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          view: this.flip2View,
+          loadOp: "clear", storeOp: "store",
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
         }],
       });
+      pass.setPipeline(this.flipPipeline);
+      pass.setBindGroup(0, bg);
+      pass.draw(3);
+      pass.end();
+      this.passTrace.push("flip-current");
+    }
+
+    // Step 10: legacy composite writes into the previous offscreen
+    // framebuffer per projectM `finalComposite.Draw` — NOT directly to
+    // the presentation surface. Composite samples flip2 (the y-flipped
+    // current) via its binding-2 texture.
+    {
       const bg = dev.createBindGroup({
         layout: this.compPipeline.getBindGroupLayout(0),
         entries: [
           { binding: 0, resource: { buffer: this.compUni } },
           { binding: 1, resource: mainSamp },
-          { binding: 2, resource: this.target.tex.createView() },
+          { binding: 2, resource: this.flip2View },
         ],
+      });
+      const pass = enc.beginRenderPass({
+        colorAttachments: [{
+          view: this.prev.views[0],
+          loadOp: "clear", storeOp: "store",
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+        }],
       });
       pass.setPipeline(this.compPipeline);
       pass.setBindGroup(0, bg);
@@ -1165,9 +1335,54 @@ export class MilkPipeline {
       pass.setIndexBuffer(this.compIdxBuf, "uint16");
       pass.drawIndexed(this.compIndexCount);
       pass.end();
+      this.passTrace.push("legacy-composite");
+    }
+
+    // Step 11: projectM's legacy correction flip fires only when
+    // FinalComposite has no shader — PHOSPHENE's COMP_WGSL is the
+    // shader-composite equivalent, so the correction flip is a no-op
+    // here. The `legacy-correction-flip?` trace stage is intentionally
+    // omitted when the correction is not required.
+
+    // Step 12: swap current and previous framebuffer identities AFTER
+    // composite completes.
+    {
+      const t = this.target;
+      this.target = this.prev;
+      this.prev = t;
+      this.passTrace.push("swap");
+    }
+
+    // Step 13: present the post-swap current framebuffer to the screen
+    // through a dedicated presentation pass.
+    {
+      const bg = dev.createBindGroup({
+        layout: this.presentPipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: this.sampClamp },
+          { binding: 1, resource: this.target.views[0] },
+        ],
+      });
+      const pass = enc.beginRenderPass({
+        colorAttachments: [{
+          view: this.renderer.currentTextureView(),
+          loadOp: "clear", storeOp: "store",
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+        }],
+      });
+      pass.setPipeline(this.presentPipeline);
+      pass.setBindGroup(0, bg);
+      pass.draw(3);
+      pass.end();
+      this.passTrace.push("present");
     }
 
     dev.queue.submit([enc.finish()]);
+
+    // Step 14: mark the first-frame state complete only after the
+    // submitted sequence has been enqueued.
+    this.isFirstFrame = false;
+    this.lastPassTrace = [...this.passTrace];
   }
 
   /* --------------------------- CPU generators --------------------------- */
