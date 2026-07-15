@@ -26,6 +26,7 @@
 
 import { Renderer } from "./renderer";
 import { MilkPresetRunner, makeMulberry32, RecordingMilkRng, REGS, type Pool, type MilkRng } from "../core/milk-runner";
+import { MilkSession } from "./milk-session";
 import {
   GraphScene, GraphNode, MilkWaveNode, MilkShapeNode,
   UnsupportedNodeError, unsupportedFeatures, validateGraph,
@@ -497,18 +498,16 @@ export class MilkPipeline {
    *  MilkRng when a specific seeded stream is required (e.g. E2E
    *  validation aligned to the instrumented oracle). */
   readonly rng: RecordingMilkRng;
-  /** wave_mode of the previous preset. Butterchurn's Renderer holds
-   *  `this.prevPreset` across load boundaries and injects
-   *  `prevPreset.baseVals.wave_mode` into the new preset's baseVals
-   *  (rendering_renderer.js:194). PHOSPHENE has no session concept
-   *  that owns the previous preset yet; a future session-level manager
-   *  must set this before load(). Default 0 matches butterchurn's
-   *  blank-preset initial state (wave_mode of the blankPreset used
-   *  before the first preset is loaded — rendering_renderer.js:164-179). */
-  prevPresetWaveMode = 0;
+  /** Session-level state owner. Holds prev-preset lifecycle, blend
+   *  state, per-frame RNG for `rand_frame`, and (in future iterations)
+   *  the timing accumulators, blur cascade GPU pipeline, noise
+   *  textures, and image slots. Butterchurn's `Renderer` class
+   *  (rendering_renderer.js) is the source pattern this mirrors. */
+  readonly session: MilkSession;
   constructor(private readonly renderer: Renderer, rng?: MilkRng) {
     const inner = rng ?? makeMulberry32(0x5eed1e55);
     this.rng = new RecordingMilkRng(inner);
+    this.session = new MilkSession();
   }
 
   /* ------------------------------ loading ------------------------------ */
@@ -575,16 +574,14 @@ export class MilkPipeline {
       aspectx: this.invAspectx, aspecty: this.invAspecty,
       pixelsx: this.width, pixelsy: this.height,
     };
-    // Renderer-injected keys: butterchurn's Renderer mutates the new
-    // preset's baseVals BEFORE constructing the equation runner (see
-    // rendering_renderer.js:194 for old_wave_mode). PHOSPHENE has no
-    // session-level prev-preset lifecycle yet, so we inject with the
-    // butterchurn initial-state value (wave_mode of the blank preset
-    // = 0). Documented as an unresolved boundary in
-    // docs/milkdrop-execution-model.md §2 (Preset lifecycle).
+    // Preset transition: session records the swap and captures the
+    // previous preset's wave_mode so the caller (this code) can inject
+    // it as `old_wave_mode` into the new preset's baseValues
+    // (butterchurn rendering_renderer.js:194).
+    this.session.beginPresetLoad(0);
     const injectedBaseValues = {
       ...frameNode.baseValues,
-      old_wave_mode: this.prevPresetWaveMode,
+      old_wave_mode: this.session.prevPresetWaveMode,
     };
     this.runner = new MilkPresetRunner({
       baseValues: injectedBaseValues,
@@ -607,6 +604,7 @@ export class MilkPipeline {
         baseValues: s.baseValues, initEel: s.initCode, frameEel: s.perFrame,
       })),
     }, loadGlobals, this.rng);
+    this.session.installRunner(this.runner);
     this.regVars = {};
     this.oldWaveMode = 0;
 
@@ -906,13 +904,19 @@ export class MilkPipeline {
           this.lastMdVSFrame = mdVSFrame;
           // Compute the shader-input contract from the post-per-frame
           // state so external consumers (a future graph-path shader
-          // translator) can read a coherent contract each frame. The
-          // fields the pipeline cannot populate from source-witnessed
-          // state (mip stats, rand_frame, 24 rotation matrices) stay
-          // null; the consumer must refuse presets that read them.
-          this.lastShaderContract = buildShaderContract(
+          // translator) can read a coherent contract each frame.
+          const contract = buildShaderContract(
             mdVSFrame, runner.randPreset, this.width, this.height,
           );
+          // Populate randFrame from the session's per-frame RNG draw.
+          // Butterchurn draws 4 Math.random() per shader invocation
+          // (butterchurn.js:3836 warp, :4532 comp); PHOSPHENE draws
+          // once per session frame and shares the value between warp
+          // and comp so both shaders see the same random 4-vector
+          // this frame. The consumer that reads randFrame relies on
+          // an owner; MilkSession is that owner.
+          contract.randFrame = this.session.nextRandFrame(this.rng);
+          this.lastShaderContract = contract;
           break;
         }
         case "milk-warp": {
