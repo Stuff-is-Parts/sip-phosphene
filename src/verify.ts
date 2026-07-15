@@ -1,10 +1,12 @@
 import { Renderer } from "./gpu/renderer";
+import { GraphExecutor } from "./gpu/graph-executor";
 import { ModEngine } from "./core/mods";
 import { meshWarpFor } from "./core/meshwarp";
 import { particlesFor } from "./core/particles";
+import { compileSceneToGraph } from "./core/graph-compile";
 import { parseMilk, milkToScene } from "./import/milk";
 import { parseP9c, p9ToScene } from "./import/p9";
-import { STAGES, type AudioFeatures, type Scene } from "./core/types";
+import { normalizeScene, STAGES, type AudioFeatures, type Scene } from "./core/types";
 
 /**
  * Render-verification harness: the driver (scripts/verify-corpus.mjs) feeds
@@ -186,6 +188,81 @@ window.__verifyP9 = async (base64, name) => {
   } catch (err) {
     return { ok: false, errors: ["import threw: " + ((err as Error).message ?? String(err)).slice(0, 300)], reports: [] };
   }
+};
+
+/* -------- native-equivalence mode (legacy path vs graph executor) ------ */
+// The driver loads a native scene through ONE of the two paths per page
+// session (clean renderer state per path), renders identical frame
+// sequences with identical injected audio, and compares screenshots.
+// See scripts/equivalence-native.mjs; gate: COMPATIBILITY-GOAL.md /
+// continuation assignment completion gate 1.
+
+declare global {
+  interface Window {
+    __equivLoad(sceneJson: string, path: "legacy" | "graph"): Promise<Verdict>;
+    __equivFrame(t: number, features: AudioFeatures): boolean;
+  }
+}
+
+let equivPath: "legacy" | "graph" = "legacy";
+let equivScene: Scene | null = null;
+let equivMw: ReturnType<typeof meshWarpFor> = null;
+let equivPs: ReturnType<typeof particlesFor> = null;
+let equivExecutor: GraphExecutor | null = null;
+
+window.__equivLoad = async (sceneJson, path) => {
+  try {
+    equivPath = path;
+    const raw = JSON.parse(sceneJson);
+    const scene = normalizeScene(raw);
+    if (path === "graph") {
+      equivExecutor = new GraphExecutor(renderer);
+      const g = compileSceneToGraph(scene);
+      const { errors } = await equivExecutor.load(g);
+      if (errors.length) return { ok: false, errors, reports: [] };
+      return { ok: true, errors: [], reports: [] };
+    }
+    // legacy path: the exact flow the product uses
+    mods.reset();
+    const errors: string[] = [];
+    for (const stage of STAGES) {
+      const res = await renderer.compileStage(stage, scene.layers[stage].code, 0);
+      if (!res.ok) errors.push(`${stage}: ${res.diagnostics[0]?.message ?? "compile failed"}`);
+    }
+    const passResults = await renderer.setPasses(0, scene.passes ?? []);
+    passResults.forEach((r, i) => {
+      if (!r.ok) errors.push(`pass${i}: ${r.diagnostics[0]?.message ?? "compile failed"}`);
+    });
+    const meshRes = await renderer.setMesh(0, scene.mesh ?? null);
+    if (meshRes && !meshRes.ok) errors.push(`mesh compile failed`);
+    renderer.setParticles(0, scene.particles?.count ?? 0);
+    if (errors.length) return { ok: false, errors, reports: [] };
+    equivScene = scene;
+    equivMw = meshWarpFor(scene);
+    equivPs = particlesFor(scene);
+    return { ok: true, errors: [], reports: [] };
+  } catch (err) {
+    return { ok: false, errors: [String((err as Error).message).slice(0, 300)], reports: [] };
+  }
+};
+
+window.__equivFrame = (t, features) => {
+  const audio: AudioFeatures = {
+    ...features,
+    spec: new Float32Array(features.spec),
+    wave: new Float32Array(features.wave),
+  };
+  if (equivPath === "graph") {
+    if (!equivExecutor) return false;
+    equivExecutor.frame(t, audio);
+    return true;
+  }
+  if (!equivScene) return false;
+  const p = mods.evaluate(equivScene, renderer.stageParams(0), audio, t);
+  renderer.setWarpMesh(0, equivMw ? equivMw.evaluate(mods.exprSnapshot(), t) : null);
+  if (equivPs) renderer.writeParticles(0, equivPs.update(audio, t));
+  renderer.frame(t, audio, p);
+  return true;
 };
 
 const canvas = document.getElementById("stage") as HTMLCanvasElement;
