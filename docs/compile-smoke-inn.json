@@ -1,12 +1,13 @@
 {
   "kind": "milk",
+  "measures": "compilation and lit output under synthetic inputs only — NOT fidelity evidence; see COMPATIBILITY-GOAL.md",
   "total": 3,
   "buckets": {
-    "pass": 0,
     "black": 0,
     "compile-fail": 3,
     "gpu-error": 0,
-    "parse-fail": 0
+    "parse-fail": 0,
+    "lit": 0
   },
   "failures": [
     {

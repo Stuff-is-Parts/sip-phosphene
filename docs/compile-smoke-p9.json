@@ -1,12 +1,13 @@
 {
   "kind": "p9",
+  "measures": "compilation and lit output under synthetic inputs only — NOT fidelity evidence; see COMPATIBILITY-GOAL.md",
   "total": 247,
   "buckets": {
-    "pass": 239,
     "black": 8,
     "compile-fail": 0,
     "gpu-error": 0,
-    "parse-fail": 0
+    "parse-fail": 0,
+    "lit": 239
   },
   "failures": [
     {

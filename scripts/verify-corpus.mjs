@@ -1,6 +1,11 @@
-// Render-verifies corpus files end to end on the real GPU: import, compile
-// every stage, render frames with synthetic audio, screenshot, and bucket
-// each file as parse-fail / compile-fail / gpu-error / black / pass.
+// Compile-smoke diagnostic over a scene corpus: import, compile every stage,
+// render frames with synthetic audio, screenshot, and bucket each file as
+// parse-fail / compile-fail / gpu-error / black / lit.
+//
+// This measures compilation and lit output ONLY. It is NOT fidelity
+// evidence: a "lit" scene produced pixels under synthetic inputs — nothing
+// here compares against the source engine's rendering. Fidelity is
+// established solely by reference validation per COMPATIBILITY-GOAL.md.
 // Usage: node scripts/verify-corpus.mjs <p9|milk> <dir> [limit] [reportPath]
 import { spawn } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -80,7 +85,7 @@ function litRatio(buf) {
   return lit / total;
 }
 
-const buckets = { pass: 0, black: 0, "compile-fail": 0, "gpu-error": 0, "parse-fail": 0 };
+const buckets = { lit: 0, black: 0, "compile-fail": 0, "gpu-error": 0, "parse-fail": 0 };
 const failures = [];
 const browser = await puppeteer.launch({
   executablePath: browserPath, headless: true,
@@ -139,7 +144,7 @@ try {
         buckets.black++;
         failures.push({ file: name, bucket: "black", detail: "no lit pixels after 8 frames" });
       } else {
-        buckets.pass++;
+        buckets.lit++;
       }
     }
     done++;
@@ -150,8 +155,15 @@ try {
   preview.kill("SIGKILL");
 }
 
-const report = { kind, total: files.length, buckets, failures };
-const out = reportPath ?? `docs/render-verify-${kind}.json`;
+const report = {
+  kind,
+  measures: "compilation and lit output under synthetic inputs only — NOT fidelity evidence; see COMPATIBILITY-GOAL.md",
+  total: files.length,
+  buckets,
+  failures,
+};
+const out = reportPath ?? `docs/compile-smoke-${kind}.json`;
 writeFileSync(out, JSON.stringify(report, null, 2));
-console.log("FINAL", JSON.stringify(buckets));
-console.log(`report: ${out} (${failures.length} failures listed)`);
+console.log("DIAGNOSTICS", JSON.stringify(buckets));
+console.log("(compile/runtime/lit-output diagnostics only — not fidelity evidence)");
+console.log(`report: ${out} (${failures.length} non-lit files listed)`);

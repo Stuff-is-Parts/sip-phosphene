@@ -1,4 +1,4 @@
-// Bucket a render-verify report's failures into classes for the fix loop.
+// Bucket a compile-smoke report's failures into classes for the fix loop.
 import { readFileSync } from "node:fs";
 const r = JSON.parse(readFileSync(process.argv[process.argv.length - 1], "utf8"));
 const classes = {};

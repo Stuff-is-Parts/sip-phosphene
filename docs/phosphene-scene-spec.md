@@ -70,11 +70,22 @@ persists between frames. Routes sharing one program run it once per frame.
 
 ## Interop
 
-- **Plane9** (`.p9c`): FROM PLANE9… parses the container, ports the GLSL,
-  carries `credit`/`license` through (stock corpus is CC BY-NC-SA).
-- **MilkDrop** (`.milk`): FROM MILKDROP… maps preset base values + per-frame
-  equations onto `expr` routes and the `warpUV`/`waveLine` render templates.
-  MilkDrop 2 HLSL shader blocks are detected and reported, not executed.
+Faithful conversion of Plane9 scenes and MilkDrop presets is governed by
+[`COMPATIBILITY-GOAL.md`](../COMPATIBILITY-GOAL.md); no current import path
+meets that standard.
+
+- **Plane9** (`.p9c`): FROM PLANE9… extracts the first Shader node's fragment
+  GLSL onto a fullscreen stage and carries `credit`/`license` through (stock
+  corpus is CC BY-NC-SA). The scene's node graph, connections, vertex
+  shaders, meshes, cameras, and additional shaders are not translated — the
+  result approximates neither Plane9's execution model nor its rendering.
+- **MilkDrop** (`.milk`): FROM MILKDROP… maps a subset of preset base values
+  and the per-frame/per-pixel equations onto `expr` routes, a warp mesh, and
+  generic `warpUV`/`waveLine`/`sdNgon` render templates; HLSL shader blocks
+  are transpiled to WGSL where the compiler accepts them. Custom-wave
+  per-point equations, waves/shapes beyond two, most preset variables, the
+  blur cascade, noise textures, and MilkDrop's state semantics are not
+  reproduced — the result does not reproduce MilkDrop's rendering pipeline.
 
 ## Capability blocks (all optional; absent field = base behavior)
 
