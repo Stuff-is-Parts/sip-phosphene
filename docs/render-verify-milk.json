@@ -2,45 +2,15 @@
   "kind": "milk",
   "total": 1000,
   "buckets": {
-    "pass": 939,
-    "black": 61,
+    "pass": 965,
+    "black": 35,
     "compile-fail": 0,
     "gpu-error": 0,
     "parse-fail": 0
   },
   "failures": [
     {
-      "file": "Dancer\\Glowsticks\\298 nz+.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Dancer\\Glowsticks\\Mig_014_version2.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Dancer\\Infect Mirror\\Stahlregen & fiShbRaiN + Geiss + Optics - Alien Gods (Glowing)_1.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Dancer\\Infect\\LuxXx - Ain't Life a Motherfucker iii.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
       "file": "Dancer\\Murky\\EVET - Ball Lightning 1 --- Isosceles edit2.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Drawing\\Explosions\\Zylot - Paint Spill (Music Reactive Paint Mix) nz+ quescience flux hate.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Drawing\\Explosions\\i am only here to die slowly in pain there is great peace in this surrender.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
@@ -55,17 +25,12 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
+      "file": "Drawing\\Liquid Mirror\\gwadeloag - phusillyty nz+.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
       "file": "Drawing\\Liquid\\amigo otsego.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Drawing\\Liquid\\sorry money blaq aeinn ov ngreen globules.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Drawing\\Trails Mirror\\414 bowel rebranding pr skinned to the teeth loadus morons who don't think things are going to collapse.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
@@ -75,27 +40,7 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Drawing\\Trails\\The NG + martin + Flexi - witchcraft (When Lines Get Desperate) --- Isosceles edit.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Drawing\\Trails\\Tripgnosis - Diffused Mana Pattern.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Drawing\\Trails\\fishbrain and flexi - lovecraft [seafood] --- Isosceles edit.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
       "file": "Drawing\\Trails\\stbenge - dripping_piles_B greatfuel.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Drawing\\Trails\\suksma + flexi geiss rovastar roosta demonld shifter - dr horicon willn't ignore - lexicolon.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
@@ -140,47 +85,17 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Geometric\\Sphere Wild\\suksma - 3125 legislative pig's orbitael minimass - lard orifi.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
       "file": "Geometric\\Stripes Dance\\Martin - beamer code 04h.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Geometric\\Tunnel Morph\\fishbrain and flexi - box of tricks 18 [moebius transformation + polar transformation = bipolar transformation] --- Isosceles edit.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Geometric\\Tunnel Spheres\\Ft AdamFX Preset Pack - martin - glassball dance in the basal ganglion - cranial bitch.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Geometric\\Wire Circles\\Hexcollie - Hedgehog dreams3.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Geometric\\Wire Flower\\Stahlregen & EoS + Geiss + Phat + yin - Gaping Hole (Multicolor Glow)_2.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Geometric\\Wire Grid\\suksma - bobby grackel.milk",
+      "file": "Geometric\\Wire Spiral\\suksma - exploit, with me, the fishies - pig.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Particles\\Blobby\\only glimpses of the reality you once knew - what good is a drug if you can't turn it's effects on and o.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Particles\\Swarm\\$$$ Royal - Mashup (489).milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
@@ -210,11 +125,6 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Reaction\\Feedback\\hmm, so a 4d vortex would manifest in 3d how.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
       "file": "Reaction\\Liquid Blobby\\Redi Jedi - this is my brain on milk(drop the habbit) - shiafu roam3- rnz flacc.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
@@ -225,7 +135,7 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Reaction\\Liquid Closeup\\i'm sorry, but this is just fucked up - malecular malitance.milk",
+      "file": "Reaction\\Liquid Closeup\\Zylot - Forboding Skies - meds.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
@@ -235,27 +145,7 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Reaction\\Liquid Ripples\\EoS_Phat technicolor E breather B - couldn't not.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Reaction\\Liquid Ripples\\Flexi - color drops [jelly attempt].milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
       "file": "Reaction\\Liquid Ripples\\Rovastar + Che - Asylum Animations seo a2313312314.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Reaction\\Liquid Ripples\\TonyMilkdrop - Magellan's Nebula [Flexi - fancy + $this shall not retain] --- Isosceles edit.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Reaction\\Liquid Simmering\\LuxXx - Hurty Soul I.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
@@ -280,37 +170,17 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Sparkle\\Explosions\\suksma - mtn,flx - flacc - choilan - duncan dodo boid dna kodak whore nz.milk",
+      "file": "Sparkle\\Explosions\\suksma - geiss + dotes - holiday hidden in plain sight clown.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Sparkle\\Explosions\\suksma - mtn,flx - flacc.milk",
+      "file": "Sparkle\\Explosions\\suksma - shape instance exp 3 - bulloxain - flacc - sth.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Sparkle\\Jewel\\goody + martin - crystal palace - schizotoxin - the wild iris bloom - 16 iterations5.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Sparkle\\Mass Circles\\suksma - i contribute nothing to anything --- Isosceles edit.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Waveform\\Spectrum\\suksma - ed geining hateops - flx shibbalibbadi nz.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Waveform\\Wire Circular\\Fvese and Zylot - Snowflake Like (Midnight Twinkle mix) malalol remix3.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Waveform\\Wire Circular\\Rism - Circle.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     }

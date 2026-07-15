@@ -129,6 +129,12 @@ export class Parser {
   parseStmt(): Stmt {
     const t = this.peek();
     if (this.takeOp(";")) return { s: "expr", v: { e: "num", text: "0", isInt: true, line: t.line }, line: t.line };
+    // Compound statement `{ ... }` — used by GLSL for block-scoping and by
+    // bindEngine's _voronoi call rewrite to emit a self-contained
+    // struct-return + assignment sequence.
+    if (this.isOp("{")) {
+      return { s: "block", body: this.parseBlock(), line: t.line };
+    }
     if (t.kind === "ident") {
       switch (t.text) {
         case "if": {

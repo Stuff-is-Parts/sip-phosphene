@@ -55,7 +55,8 @@ export type Stmt =
   | { s: "ret"; v: Expr | null; line: number }
   | { s: "break"; line: number }
   | { s: "continue"; line: number }
-  | { s: "incdec"; op: string; target: Expr; line: number };
+  | { s: "incdec"; op: string; target: Expr; line: number }
+  | { s: "block"; body: Stmt[]; line: number };
 
 export interface FnDecl {
   name: string;

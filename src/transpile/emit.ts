@@ -417,6 +417,12 @@ export class Emitter {
         const one = t.ty.k === "i32" ? "1" : "1.0";
         return `${ind}${t.code} = ${t.code} ${x.op === "++" ? "+" : "-"} ${one};`;
       }
+      case "block": {
+        this.scopes.push({});
+        const body = x.body.map((s) => this.stmt(s, ind + "  ")).join("\n");
+        this.scopes.pop();
+        return `${ind}{\n${body}\n${ind}}`;
+      }
     }
   }
 
