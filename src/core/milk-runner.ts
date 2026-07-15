@@ -115,6 +115,17 @@ export const MILK_BASE_DEFAULTS: Record<string, number> = {
   cx: 0.5, cy: 0.5, dx: 0, dy: 0, warp: 1, sx: 1, sy: 1,
   ob_size: 0.01, ob_r: 0, ob_g: 0, ob_b: 0, ob_a: 0,
   ib_size: 0.01, ib_r: 0.25, ib_g: 0.25, ib_b: 0.25, ib_a: 0,
+  // Renderer-injected before the equation runner is constructed
+  // (butterchurn rendering_renderer.js:194 sets
+  // `preset.baseVals.old_wave_mode = prevPreset.baseVals.wave_mode`).
+  // Presets like the basic-waveform blender at
+  // rendering_waves_basicWaveform.js:87 read mdVSFrame.old_wave_mode.
+  // PHOSPHENE has no preset-blending model yet, so the runner starts
+  // every preset with the butterchurn initial-state value (0) — the
+  // wave_mode of a hypothetical prev preset that ran with defaults.
+  // Per-session prev-preset tracking is an unresolved boundary (see
+  // docs/semantic-inventory-milkdrop.md §3 Renderer-injected keys).
+  old_wave_mode: 0,
 };
 
 export const MILK_SHAPE_DEFAULTS: Record<string, number> = {

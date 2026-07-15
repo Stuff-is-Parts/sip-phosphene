@@ -383,6 +383,16 @@ class Parser {
           const [c, th, el] = [args[0], args[1], args[2]];
           return (e) => (Math.abs(c(e)) > EPSILON ? (th ? th(e) : 0) : (el ? el(e) : 0));
         }
+        // rand / randint look up FUNCS at run time — not parse time —
+        // because Program.run() patches FUNCS.rand and FUNCS.randint with
+        // the closure's seeded stream, and a value captured at parse time
+        // would still point at the original Math.random-based version. A
+        // direct semantic test at tests/milk-runner.test.ts pins that the
+        // seeded stream reaches EEL rand() from Program.setRng().
+        if (t.text === "rand" || t.text === "randint") {
+          const name = t.text;
+          return (e) => FUNCS[name](...args.map((a) => a(e)));
+        }
         return (e) => fn(...args.map((a) => a(e)));
       }
       const name = t.text;

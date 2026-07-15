@@ -3,187 +3,185 @@
 ## Goal
 
 Convert Plane9 scenes and MilkDrop presets into editable, portable,
-PHOSPHENE-native graphs that execute the source formats' defined semantics
+PHOSPHENE-native graphs that reproduce the source formats' defined behavior
 without approximation, omission, or foreign-runtime playback.
 
-Converted scenes must run entirely through PHOSPHENE's native execution
-model. Original engines and authoritative reimplementations may be used as
-references for understanding source behavior. They must not be used at
-runtime and must not be treated as automated validation oracles that steer
-implementation by rendered-output similarity.
+Converted scenes must execute entirely through PHOSPHENE's native graph
+execution model. The graph must preserve the source structure closely enough
+that imported behavior remains visible, editable, saveable, reloadable, and
+portable.
 
-## Architecture
-
-PHOSPHENE uses one native execution model capable of representing:
+PHOSPHENE must use one native execution model capable of representing:
 
 - native PHOSPHENE scenes;
 - MilkDrop's complete preset pipeline;
 - Plane9's complete node-graph execution model.
 
-Do not create permanent parallel runtimes for the three systems.
-
-Existing simple PHOSPHENE authoring structures may remain as shorthand over
-the unified execution model.
+Permanent parallel runtimes for the three systems are not acceptable.
+Existing PHOSPHENE authoring structures may remain as shorthand over the
+unified model.
 
 ## Source Authority
 
-MilkDrop behavior is derived from released MilkDrop and projectM source
-code (evidence retained under `docs/evidence/`), including the Butterchurn
-JavaScript reimplementation where its source carries witnessed behavior.
+Behavior must be derived from authoritative evidence, in this order.
 
-Plane9 behavior is derived from:
+### MilkDrop
 
-- `.p9c` scene graphs, ports, values, connections, assets, and shaders;
-- extracted DLL string tables and helper libraries (`fixtures/plane9/`);
-- official Plane9 documentation and developer material;
-- corpus-wide evidence;
-- controlled observations of the installed engine where necessary to
-  determine node behavior no other evidence resolves.
+1. Released MilkDrop source and format documentation.
+2. projectM source where it implements or documents MilkDrop behavior.
+3. Butterchurn source as a secondary corroborating implementation.
+4. Controlled runtime observations only where the published sources leave a
+   material ambiguity.
 
-## Method
+### Plane9
 
-Work proceeds format-by-format through the same sequence for each subsystem:
+1. `.p9c` scene graphs, ports, values, connections, assets, and shaders.
+2. Retained Plane9 binaries, helper libraries, shader libraries, string
+   tables, and other extracted implementation evidence.
+3. Official Plane9 documentation and developer material.
+4. Corpus-wide structural evidence.
+5. Targeted observation of the installed engine where no retained evidence
+   resolves the behavior.
 
-1. **Inventory** — enumerate every source-file field, node type, port,
-   expression, shader, resource, and connection that appears in the corpus
-   or that the source runtime defines. Record each item in a semantic
-   inventory living alongside the parser and executor.
-2. **Determine behavior** — for each item, cite the authoritative source
-   that defines its behavior (specific file and function in
-   Butterchurn/projectM for MilkDrop; specific DLL string, helper
-   function, or observed native behavior for Plane9). Where no evidence
-   exists, mark the item unresolved and refuse to implement it.
-3. **Represent** — express each item explicitly in the PHOSPHENE graph
-   representation so the source structure is visible and editable.
-4. **Implement** — port each item into the native executor with behavior
-   traceable to the cited source. Nothing is approximated to fit a
-   simpler PHOSPHENE structure.
-5. **Test** — assert exact semantics through direct checks (see
-   Correctness Standard below). Add tests before or with the
-   implementation.
+Pinned source snapshots may be retained for research and citation. They must
+not become runtime dependencies.
 
-Complete MilkDrop semantics include equation lifecycle, variable
-persistence, random draw order, audio processing, warp mesh, custom
-shapes, custom waves, motion vectors, decay, feedback, blur, noise,
-composite, and shader translation.
+When authoritative sources disagree, the conflict must be documented and
+resolved from stronger evidence. Missing knowledge must remain explicit; it
+must never be filled with plausible behavior.
 
-Complete Plane9 semantics include node behavior, expressions, shaders,
-CPU dataflow, audio nodes, textures, render targets, transforms,
-instancing, and render state.
+## Exactness Standard
 
-Unify both under one native graph execution model. Editable and portable
-output remains the required product. Replace the product path with the
-unified path only after semantic coverage is complete for the subsystem
-in question.
+Exact reproduction means preserving the source-defined:
+
+- parsed fields, defaults, nodes, ports, resources, and connections;
+- initialization, state, persistence, and update lifecycles;
+- expressions, random behavior, audio processing, and timing;
+- generated geometry, uniforms, transforms, and instancing;
+- shader behavior and helper-library semantics;
+- execution and pass order;
+- textures, render targets, feedback, sampling, and auxiliary resources;
+- blend, depth, raster, and other render state.
+
+Exactness does not mean forcing pixel identity between different graphics
+APIs, drivers, or numerical paths. Rendered similarity is neither the target
+nor proof of correctness.
+
+Nothing may be flattened, silently omitted, or aesthetically approximated to
+fit an inadequate PHOSPHENE abstraction. The graph and executor must be
+extended when the source behavior requires it.
+
+## Implementation Rule
+
+For each source behavior:
+
+1. Determine what the source runtime actually does.
+2. Represent that behavior explicitly in the PHOSPHENE graph.
+3. Implement it in the native executor.
+4. Verify it with a direct, reliable semantic check.
+5. Record unresolved or unsupported behavior explicitly until it is
+   implemented.
+
+Research, representation, implementation, and testing may proceed together.
+Semantic inventories are tracking aids, not work-unit boundaries,
+prerequisites, phases, or authority to stop.
+
+During development, behavior whose semantics are not yet established must be
+refused rather than approximated. The project is not complete while ordinary
+source-defined behavior remains unsupported.
+
+## Validation Rule
+
+Validation must test the behavior itself, not its approximate visual result.
+
+Valid checks include direct assertions over:
+
+- parsed structures and defaults;
+- state before and after controlled execution steps;
+- variable and buffer lifecycles;
+- random draw order and values;
+- audio, timing, and equation results;
+- generated geometry and uniforms;
+- shader translation on controlled inputs;
+- pass and resource ordering;
+- render-target and feedback transitions;
+- texture and sampler behavior;
+- blend, depth, raster, and other pipeline state;
+- graph save, reload, and portable re-execution.
+
+Expected results must be derived from authoritative source semantics or
+retained direct evidence. A second implementation that merely repeats the
+same assumptions is not an independent oracle.
+
+Use exact equality where the source and representation permit it. Any
+floating-point tolerance must be justified by the specific rounding or
+precision path being tested.
+
+A small rendered smoke check may catch gross integration failures such as a
+blank frame, missing pass, or inverted output. Screenshots, SSIM, visual
+ranking, and full-scene output matching are not fidelity gates and must not
+drive implementation.
+
+Parsing, compilation, execution, corpus coverage, and visible pixels alone
+are not evidence of compatibility.
+
+## Completion Condition
+
+The assignment is complete only when:
+
+- native PHOSPHENE scenes, MilkDrop presets, and Plane9 scenes execute through
+  the unified native graph model;
+- all source-defined behavior required by the accepted formats is represented
+  and implemented;
+- direct semantic tests cover the implemented behavior and pass;
+- no supported behavior depends on the original engine at runtime;
+- imported graphs remain editable, saveable, reloadable, and portable;
+- unsupported behavior is limited to genuinely malformed or externally
+  unresolvable input and is identified with direct evidence;
+- the product uses the completed native graph path;
+- the complete build and test suite passes from a clean checkout.
+
+Partial subsystem success, parser coverage, lit pixels, visual resemblance,
+commit count, or progress documentation do not satisfy completion.
 
 ## Execution Standard
 
 Complete the assigned goal in one pull.
 
-The model has no authority to reduce scope, divide the work, declare
-partial completion sufficient, or move work into future phases, tasks,
-roadmaps, or follow-up pulls.
+The model has no authority to reduce scope, divide the assignment into future
+phases or pulls, or declare partial completion sufficient. Only the user may
+change the goal or authorize incomplete delivery.
 
-Only the user may change the assigned goal or authorize incomplete
-delivery.
+Commits and pushes are durability operations, not stopping points, approval
+checkpoints, phase boundaries, or occasions for progress reports. After each
+durability operation, continue the assignment.
 
-An unavailable external dependency may prevent the specific work that
-requires it, but does not authorize stopping. Complete all remaining work
-and report the unresolved dependency with direct evidence.
+Task size, a useful checkpoint, a completed subsystem, a self-defined work
+window, or the availability of another invocation are not reasons to stop.
 
-## Correctness Standard
-
-A conversion is complete for a given item only when it:
-
-- produces editable PHOSPHENE-native data for that item;
-- has no runtime dependency on the original engine;
-- executes the source-defined behavior for that item;
-- has a direct semantic test that pins the behavior — the required test
-  forms are enumerated below;
-- explicitly rejects source items whose behavior has not been established
-  from evidence, rather than approximating them.
-
-The valid direct-semantic-test forms are:
-
-| Concern | Direct semantic test |
-|---|---|
-| Parsed representation | assert the parsed data structure exactly matches the source file's declared fields, defaults, and connections for a known input |
-| Defaults and initialization | assert initial pool state contains every source-defined default at the source-defined value |
-| Variable lifecycle | assert user variables persist across frames per the source rule (init-defined keys persist; frame-first-assigned keys do not) with a controlled per-frame check |
-| Random behavior | assert the seeded RNG produces the source-witnessed draw sequence at each context boundary (visualizer construction, preset load, per-frame stages) |
-| Audio processing | assert audio band, level, and time state match butterchurn's chain for a controlled synthetic PCM input at every processed frame |
-| Equation results | assert the pool state after a fixed program run matches the source runtime's pool state for that program and input |
-| Generated geometry | assert warp UVs, custom-shape vertex buffers, custom-wave vertex buffers, and motion-vector line lists match witnessed source math for controlled inputs |
-| Uniforms and pass ordering | assert graph.order and per-pass uniform packing match the source-defined sequence and value set |
-| Render targets and feedback | assert front/back rotation, sampler configuration, and feedback semantics match the source rule per pass |
-| Shader translation | assert the WGSL translation of each source shader form (MilkDrop 2 warp/comp shaders, glsl-p9 forms) produces the expected output for controlled sample-point inputs |
-| Blend, depth, raster state | assert per-node pipeline state matches the source-declared enum values |
-
-Screenshots are not a semantic test. A rendered comparison may exist as
-an integration smoke check that catches gross wiring failures (missing
-pass, wrong orientation, blank output). It is not an acceptance gate,
-does not drive per-item implementation decisions, and does not count as
-evidence of fidelity.
-
-Every direct semantic test cites the source location it verifies against,
-either inline in the test or in the cited item's inventory row.
-
-Validation tolerance is defined per test form and committed before the
-implementation it governs. Numerical tests use exact equality by default;
-floating-point tolerances that admit anything above float epsilon require
-an explicit justification tied to the specific rounding path.
-
-## Hard Rules
-
-- Never invent missing semantics, bindings, constants, inputs, helpers,
-  or fallback behavior.
-- Never substitute plausible output for source-equivalent behavior.
-- Never treat parsing, compilation, execution, corpus coverage, or
-  rendered similarity as evidence of fidelity.
-- The only compatibility progress metric is source-witnessed direct
-  semantic coverage.
-- Never flatten source behavior merely to fit an inadequate PHOSPHENE
-  structure.
-- Never substitute foreign-engine playback for native conversion.
-- Reuse existing code only when its behavior is independently supported
-  by a semantic test.
-- Missing knowledge remains explicit and unsupported until resolved by
-  evidence.
-- Do not implement a source item before its semantic inventory row and
-  its direct semantic test exist.
-- Do not expand rendered-comparison infrastructure. Retain only a small
-  integration smoke check for gross wiring failures.
+Stopping before completion is justified only when a specific external action
+is indispensable and cannot be performed with the available tools. Before
+claiming such a dependency, exhaust reasonable research, implementation,
+instrumentation, command-line, and targeted-observation alternatives; retain
+the direct evidence; and identify the precise action required.
 
 ## Repository Authority
 
-The repository is the sole authority for current project state, but not
-every statement stored in it is authoritative.
+The repository is the authority for current project state, but prose inside
+it is not automatically authoritative.
 
-Current state is determined from:
+Current state must be determined from:
 
 - executable source;
-- direct-semantic tests and their actual results;
+- direct semantic tests and their actual results;
+- retained authoritative source evidence;
 - source fixtures and corpora;
-- semantic inventories citing authoritative source locations;
-- explicit unsupported conditions.
+- semantic inventories;
+- explicit refusal paths.
 
-Comments, documentation, commit messages, prior model summaries,
-historical reports, and rendered-comparison outputs are claims only. They
-must not override executable evidence, direct semantic tests, or
-authoritative source material.
+Comments, inventories, documentation, commit messages, status reports, and
+prior model summaries are claims. They must not override executable evidence
+or authoritative source material.
 
-Known-false or misleading repository artifacts are corrected or removed
-when discovered. They are not preserved as historical project guidance.
-
-## Model Hydration
-
-Before acting:
-
-1. Read this document.
-2. Inspect the current repository, tests, fixtures, corpora, and
-   semantic inventories.
-3. Read the authoritative sources governing the assigned subsystem.
-4. Treat prior summaries, status reports, commit messages, comments,
-   and model claims as untrusted unless independently supported.
-5. Perform the assigned work without inventing behavior, redefining
-   success, or converting unfinished implementation into prose deferral.
+Known-false or misleading artifacts must be corrected or removed when
+discovered.
