@@ -1,124 +1,98 @@
 /**
  * MilkSession — the session-lifetime owner of state that outlives any
- * single preset, matching the boundary butterchurn's Renderer class
- * draws (rendering_renderer.js:57 constructor). The Renderer object
- * holds current + previous presets, blend state, timing accumulators,
- * per-shader RNG-derived values, and the render resources
- * (framebuffers, blur cascade, noise, image slots).
+ * single preset. Matches the boundary projectM's `Renderer` object
+ * draws (docs/evidence/projectm/MilkdropPreset.cpp `RenderFrame`
+ * signature and companion state).
  *
- * PHOSPHENE previously had NO session-level owner. MilkPipeline was
- * per-preset, which meant no `prevPreset.baseVals.wave_mode` was
- * accessible at load, no per-frame `rand_frame` had a genuine owner,
- * and blend state could not exist at all. This class introduces the
- * missing owner.
+ * Owned state:
  *
- * Scope of this iteration:
- *
- * - `loadPreset(runner)` — records the preset transition, retains the
- *   PREVIOUS runner's `wave_mode` for the caller to inject as
- *   `old_wave_mode` into the next preset's baseValues at construction
- *   time, and starts blend timing (butterchurn.js:2381-2388).
- * - `nextRandFrame(rng)` — returns four fresh 4-vector components
- *   drawn from the provided `MilkRng`, matching butterchurn's
- *   `Math.random() × 4` calls at butterchurn.js:3836 (warp) and :4532
- *   (comp) but with the RNG owner explicit. Butterchurn draws per
- *   shader invocation; PHOSPHENE draws once per session frame so a
- *   shader-visible contract carries one committed set.
- * - `beginFrame() / endFrame()` — mark frame boundaries; a future
- *   iteration will move the calcTimeAndFPS timing state here.
- *
- * Not yet owned by this iteration and refused when needed:
- *
- * - Rotation matrices (rot_s/d/f/vf/uf/rand × 4). Butterchurn does
- *   not upload these to its warp/comp shaders (butterchurn.js:3372
- *   and :4321 uniform blocks omit them entirely). They are a
- *   projectM/original-MilkDrop header spec item; PHOSPHENE's shader
- *   contract keeps them null and any consumer that requires them
- *   must refuse.
- * - Prev-frame mip statistics (mip_x/y/xy/avg). Butterchurn does not
- *   upload these either. Same status.
- * - Six-pass blur cascade GPU pipeline. The shaders and math are
- *   ported at src/gpu/milk-blur.ts; the render pipeline that
- *   allocates the six targets and chains the H+V passes each frame
- *   is a subsequent iteration.
- * - Static noise textures and named-image resources. Fixed content
- *   from MilkdropNoise.cpp; not yet uploaded.
- *
- * A full-cascade MilkDrop 2 shader preset still refuses at
- * MilkPipeline.load() until every input above is available. */
+ * - Current + previous MilkPresetRunner (for the equation streams).
+ * - Current + previous MilkShaderInstance for warp AND comp shaders
+ *   independently — each with its own persistent `rand_preset` and
+ *   rotation state per docs/evidence/projectm/MilkdropShader.cpp.
+ * - Blend timing: `blendDuration`, `blendStartTime`, `blendProgress`,
+ *   `blending`. `MilkPipeline.load(blendTime)` plumbs the real value.
+ * - Timing accumulators: `time`, `frameNum`, `fps`. `MilkPipeline.frame`
+ *   invokes `beginFrame(elapsed)` each frame.
+ * - Independent RNG domains: `shaderRng` for shader-instance per-invocation
+ *   draws (`rand_frame` and the four fully-random rotation slots) and
+ *   `noiseRng` for the noise-texture generator. Neither consumes nor
+ *   shifts the preset equation RNG stream.
+ * - Session-lifetime noise texture data, generated on demand from
+ *   `noiseRng` per NOISE_TEX_SPECS.
+ */
 
-import { type MilkPresetRunner } from "../core/milk-runner";
-import { type MilkRng } from "../core/milk-runner";
+import { type MilkPresetRunner, makeMulberry32, type MilkRng } from "../core/milk-runner";
+import { MilkShaderInstance } from "./milk-shader-instance";
+import { NOISE_TEX_SPECS, createNoiseTex, createNoiseVolTex } from "./milk-noise";
+
+const NOISE_RNG_SEED = 0xA110CADD;
+const SHADER_RNG_SEED = 0xC0DEBEEF;
 
 export class MilkSession {
-  /** The runner for the preset currently being rendered. `null` before
-   *  the first `loadPreset` call. */
   currentRunner: MilkPresetRunner | null = null;
-  /** The runner for the preset being blended out. `null` before the
-   *  second `loadPreset` call (butterchurn initializes both to the
-   *  blank preset — PHOSPHENE keeps null to make the pre-first-preset
-   *  state explicit rather than pretending a blank is active). */
   prevRunner: MilkPresetRunner | null = null;
 
-  /** `wave_mode` value the NEXT `loadPreset` must inject as
+  /** Warp and comp shader instances for the current preset. */
+  warpShader: MilkShaderInstance | null = null;
+  compShader: MilkShaderInstance | null = null;
+  /** Prior-preset shader instances retained through the blend. */
+  prevWarpShader: MilkShaderInstance | null = null;
+  prevCompShader: MilkShaderInstance | null = null;
+
+  /** `wave_mode` value the next preset load will inject as
    *  `old_wave_mode` into the incoming preset's baseValues. Butterchurn
-   *  reads `prevPreset.baseVals.wave_mode` at rendering_renderer.js:194.
-   *  Value 0 = butterchurn's blankPreset default (see
-   *  rendering_renderer.js:164-179), which is the correct initial
-   *  state before any preset has ever been loaded. */
+   *  reads `prevPreset.baseVals.wave_mode` at `rendering_renderer.js:194`
+   *  and projectM handles the same equivalent transition. Initial value 0
+   *  matches both engines' pre-first-load state. */
   prevPresetWaveMode = 0;
 
-  /** Blend state — mirrors butterchurn's Renderer fields
-   *  (rendering_renderer.js:72-75, 355-361). `blendDuration = 0`
-   *  means no blending is active. */
   blending = false;
   blendStartTime = 0;
   blendDuration = 0;
   blendProgress = 0;
 
-  /** Session time and frame counter — updated by `beginFrame(elapsed)`.
-   *  Butterchurn owns these at rendering_renderer.js:65-71 and
-   *  advances them in calcTimeAndFPS at :353. The MilkPresetRunner
-   *  can read `time`, `frame`, `fps` from `globals`; the session is
-   *  the source of truth for the values it hands the runner. */
   time = 0;
   frameNum = 0;
   fps = 30;
 
-  /** Draw a fresh 4-vector for the shader-visible `rand_frame` uniform
-   *  using the provided RNG. Butterchurn calls Math.random() four
-   *  times at each shader `renderQuadTexture` invocation
-   *  (butterchurn.js:3836 warp, :4532 comp). PHOSPHENE draws once per
-   *  session frame and hands the same vector to all shader
-   *  invocations that frame — the value the source draws IS just
-   *  four random numbers, and matching source behavior means using a
-   *  session-owned RNG rather than four uncoordinated draws per
-   *  invocation. */
-  nextRandFrame(rng: MilkRng): [number, number, number, number] {
-    return [rng.next(), rng.next(), rng.next(), rng.next()];
+  /** RNG for shader per-invocation draws (`rand_frame` + the four
+   *  fully-random rotation slots at slots 20..23 of `MilkdropShader`).
+   *  Independent stream — does not consume the preset equation RNG. */
+  readonly shaderRng: MilkRng;
+  /** RNG for noise-texture generation. Independent from both the
+   *  preset equation RNG and the shader RNG per COMPATIBILITY-GOAL.md
+   *  and projectM's `std::default_random_engine` per-call construction
+   *  in MilkdropNoise.cpp. */
+  readonly noiseRng: MilkRng;
+
+  private readonly noiseCache = new Map<string, Uint8Array>();
+
+  constructor(shaderRng?: MilkRng, noiseRng?: MilkRng) {
+    this.shaderRng = shaderRng ?? makeMulberry32(SHADER_RNG_SEED);
+    this.noiseRng = noiseRng ?? makeMulberry32(NOISE_RNG_SEED);
   }
 
-  /** Record the transition from the current preset to a new one.
-   *  Butterchurn's `loadPreset` at rendering_renderer.js:183-239
-   *  performs the semantic equivalent:
-   *
-   *  1. `blending = true; blendStartTime = time; blendDuration =
-   *     blendTime; blendProgress = 0`.
-   *  2. `prevPresetEquationRunner = presetEquationRunner`.
-   *  3. `prevPreset = preset; preset = newPreset`.
-   *  4. `preset.baseVals.old_wave_mode = prevPreset.baseVals.wave_mode`.
-   *  5. Construct the new runner.
-   *
-   *  This class handles steps 1-3 and computes step 4's value. The
-   *  runner construction (step 5) is the caller's responsibility
-   *  because it needs the injected baseValues. The caller then calls
-   *  `installRunner(newRunner)` to complete the transition. */
+  /** Draw a fresh 4-vector for the shader-visible `rand_frame` uniform.
+   *  projectM's `MilkdropShader::LoadVariables` calls `floatRand()`
+   *  four times AT EACH shader variable-load — not once per frame.
+   *  Callers invoke this per shader draw, so warp and comp receive
+   *  distinct random 4-vectors, matching projectM behavior. */
+  nextRandFrame(rng?: MilkRng): [number, number, number, number] {
+    const r = rng ?? this.shaderRng;
+    return [r.next(), r.next(), r.next(), r.next()];
+  }
+
+  /** Record the transition to a new preset. Captures the previous
+   *  preset's `wave_mode` for `old_wave_mode` injection and starts
+   *  blend timing. `blendTime` is the requested blend duration in
+   *  seconds; the caller (MilkPipeline.load) plumbs the real value
+   *  rather than hardcoding zero. */
   beginPresetLoad(blendTime: number): void {
-    // Capture the wave_mode of what will become the previous preset
-    // BEFORE the swap so the caller can inject it into the new
-    // preset's baseValues.
     this.prevPresetWaveMode = this.currentRunner?.baseVals?.wave_mode ?? 0;
     this.prevRunner = this.currentRunner;
+    this.prevWarpShader = this.warpShader;
+    this.prevCompShader = this.compShader;
     this.blending = blendTime > 0 && this.currentRunner !== null;
     this.blendStartTime = this.time;
     this.blendDuration = blendTime;
@@ -132,15 +106,20 @@ export class MilkSession {
     this.currentRunner = runner;
   }
 
+  /** Install the new preset's warp and comp shader instances.
+   *  MilkPipeline calls this after constructing both instances (each
+   *  seeded from a fresh RNG stream so `rand_preset` and the persistent
+   *  rotation state match projectM's per-`MilkdropShader` construction
+   *  pattern). */
+  installShaders(warp: MilkShaderInstance, comp: MilkShaderInstance): void {
+    this.warpShader = warp;
+    this.compShader = comp;
+  }
+
   /** Advance session timing per frame. `elapsed` is the elapsed
-   *  seconds since the previous frame (the caller measures this).
-   *  Butterchurn's `calcTimeAndFPS` at rendering_renderer.js:336-378
-   *  integrates `time += 1/fps` and damps `fps` toward the running
-   *  average from `timeHist`; PHOSPHENE will move that logic into
-   *  MilkSession in a future iteration. For now this class only
-   *  tracks `frameNum` and `time` with a passthrough increment so
-   *  callers that need to advance session time can. Blend progress
-   *  advances by the same elapsed value. */
+   *  seconds since the previous frame; `MilkPipeline.frame` computes
+   *  it from `1 / mdVSFrame.fps` when the caller does not supply an
+   *  explicit value. Blend progress advances by the same increment. */
   beginFrame(elapsed: number): void {
     this.frameNum += 1;
     this.time += elapsed;
@@ -151,5 +130,21 @@ export class MilkSession {
         this.blendProgress = 1;
       }
     }
+  }
+
+  /** Return the pixel data for one of the six shader-visible noise
+   *  textures, generating it lazily from `noiseRng` on first access.
+   *  Subsequent calls with the same spec name return the cached data
+   *  so the noise stream is drawn once per session per texture. */
+  noiseFor(name: (typeof NOISE_TEX_SPECS)[number]["name"]): Uint8Array {
+    const cached = this.noiseCache.get(name);
+    if (cached) return cached;
+    const spec = NOISE_TEX_SPECS.find((s) => s.name === name);
+    if (!spec) throw new Error(`unknown noise texture: ${name}`);
+    const data = spec.kind === "2d"
+      ? createNoiseTex(spec.size, spec.zoom, this.noiseRng)
+      : createNoiseVolTex(spec.size, spec.zoom, this.noiseRng);
+    this.noiseCache.set(name, data);
+    return data;
   }
 }

@@ -27,6 +27,7 @@
 import { Renderer } from "./renderer";
 import { MilkPresetRunner, makeMulberry32, RecordingMilkRng, REGS, type Pool, type MilkRng } from "../core/milk-runner";
 import { MilkSession } from "./milk-session";
+import { MilkShaderInstance, type Mat4 } from "./milk-shader-instance";
 import {
   GraphScene, GraphNode, MilkWaveNode, MilkShapeNode,
   UnsupportedNodeError, unsupportedFeatures, validateGraph,
@@ -45,29 +46,31 @@ export interface MilkFrameData {
   freqArrayR: Float32Array | number[];
 }
 
-/** MilkDrop-2 shader resource contract. Every field maps to a
- *  `PresetShaderHeaderGlsl330.inc` uniform bank (see
- *  docs/milkdrop-execution-model.md §11A-§11E and
- *  docs/evidence/projectm/PresetShaderHeaderGlsl330.inc). The pipeline
- *  populates the contract from the Runner (`rand_preset`, q1..q32,
- *  audio-derived values) and the session/Renderer layer (`rand_frame`,
- *  rotation-matrix accumulators, mip stats from prev-frame texture,
- *  noise textures, image slots, blur cascade textures). The transpiler
- *  consumes the contract as its uniform-input surface; a value that
- *  the pipeline cannot populate from source-witnessed state must NOT
- *  be synthesized — the containing preset must refuse at load. */
+/** MilkDrop-2 shader resource contract — one instance per shader
+ *  invocation. Maps directly to `PresetShaderHeaderGlsl330.inc`'s
+ *  uniform bank. Populated per invocation from a `MilkShaderInstance`
+ *  (which owns `rand_preset` and the persistent rotation state) plus
+ *  the session's per-invocation RNG for `rand_frame` and the four
+ *  fully-random rotation slots. `mip_x` / `mip_y` / `mip_avg` are
+ *  logarithms of viewport dimensions per projectM
+ *  `MilkdropShader::LoadVariables`.
+ *
+ *  Every field is source-defined and required: presets referencing any
+ *  shader uniform can be uploaded to the shader without null-guarding
+ *  by the transpiler. */
 export interface MilkShaderContract {
-  /** _c2.x-w. time, fps, frame come from the Renderer's timing loop
-   *  (rendering_renderer.js:353-378). `progress` in butterchurn is a
-   *  supertext-progress value (butterchurn.js:2846) that is NOT the
-   *  same as the projectM preset progress the header spec mentions.
-   *  Butterchurn does not upload `progress` as a shader uniform in
-   *  its warp/comp shader source (butterchurn.js:3372, 4321 uniform
-   *  block does not include it). Marked null until a source-witnessed
-   *  owner + upload path is identified; a shader that reads `progress`
-   *  must refuse until then. */
+  /** Which shader instance built this contract. Warp and comp
+   *  contracts differ in `randPreset` and the persistent rotation
+   *  state per projectM `MilkdropShader` constructor. */
+  kind: "warp" | "comp";
+  /** _c2.x-w. time, fps, frame come from the Renderer's timing loop.
+   *  `progress` is the runtime supertext-progress value — projectM
+   *  supplies it via `renderContext.progress`; upstream data does
+   *  not yet track it in PHOSPHENE, so `progress` stays 0 for now
+   *  and the caller may substitute a real value when preset
+   *  playhead progress is threaded through. */
   time: number; fps: number; frame: number;
-  progress: number | null;
+  progress: number;
   /** _c3.xyzw = bass/mid/treb/vol; _c4.xyzw = *_att. */
   bass: number; mid: number; treb: number; vol: number;
   bassAtt: number; midAtt: number; trebAtt: number; volAtt: number;
@@ -75,15 +78,16 @@ export interface MilkShaderContract {
   aspect: [number, number, number, number];
   /** _c7 texsize: xy = (w,h), zw = (1/w, 1/h). */
   texsize: [number, number, number, number];
-  /** Per-preset random 4-vector, drawn once at preset load
-   *  (rendering_renderer.js:88-89 via the seeded stream). */
+  /** Per-preset random 4-vector from `MilkShaderInstance.randPreset`.
+   *  Warp and comp instances hold distinct values per projectM's
+   *  per-`MilkdropShader` `floatRand()` constructor draws. */
   randPreset: [number, number, number, number];
-  /** Per-frame random 4-vector, regenerated each frame from the
-   *  session-level per-frame RNG draws. `null` until a session-level
-   *  Renderer owns the per-frame RNG stream — a shader that reads
-   *  rand_frame must refuse. Do not supply zeros or synthesized
-   *  values here. */
-  randFrame: [number, number, number, number] | null;
+  /** Per-invocation random 4-vector. Drawn FRESH each time
+   *  `LoadVariables` is invoked in projectM — not shared across warp
+   *  and comp within a frame. `MilkPipeline.frame` calls
+   *  `session.nextRandFrame(session.shaderRng)` per contract build,
+   *  and each shader instance's contract receives its own draw. */
+  randFrame: [number, number, number, number];
   /** q1..q32 from the runner's post-per-frame mdVSFrame, packed into
    *  8 float4 banks _qa.._qh. */
   qBanks: [
@@ -92,38 +96,41 @@ export interface MilkShaderContract {
     [number, number, number, number], [number, number, number, number],
     [number, number, number, number], [number, number, number, number],
   ];
-  /** _c8, _c9 (roam_cos, roam_sin) = 0.5 + 0.5 * cos/sin(time *
-   *  float4(~0.3, ~1.3, ~5, ~20)). Owner: Renderer, computed inline
-   *  from `time`. */
+  /** _c8, _c9 (fast roam) — projectM frequencies 0.329, 1.293, 5.070,
+   *  20.051 with phase offsets 1.2, 3.9, 2.5, 5.4. */
   roamCos: [number, number, number, number];
   roamSin: [number, number, number, number];
-  /** _c10, _c11 (slow_roam_cos, slow_roam_sin) using
-   *  float4(~0.005, ~0.008, ~0.013, ~0.022). */
+  /** _c10, _c11 (slow roam) — projectM frequencies 0.0050, 0.0085,
+   *  0.0133, 0.0217 with phase offsets 2.7, 5.3, 4.5, 3.8. */
   slowRoamCos: [number, number, number, number];
   slowRoamSin: [number, number, number, number];
-  /** _c12.xyz = mip_x, mip_y, mip_avg from prev-frame main texture
-   *  statistics (Renderer computes; PHOSPHENE has no source-correct
-   *  implementation yet — must remain unpopulated until it does). */
-  mipX: number | null; mipY: number | null; mipAvg: number | null;
-  /** _c6.zw = blur1_min, blur1_max; _c13.xy = blur2_*; _c13.zw =
-   *  blur3_*. Values are derived by `getBlurValues(mdVSFrame)` from
-   *  the preset's `b1n`/`b1x`/`b2n`/`b2x`/`b3n`/`b3x` per
-   *  butterchurn.js:3030-3070 with the source's min-distance clamp
-   *  (fMinDist = 0.1) plus the level 2/3 recursion that clamps each
-   *  level's range within the previous level's range. */
+  /** _c12.xyz — mip values per projectM
+   *  `MilkdropShader::LoadVariables`:
+   *  `mipX = log2(viewportW)`, `mipY = log2(viewportH)`,
+   *  `mipAvg = 0.5 * (mipX + mipY)`. NOT statistics of the previous
+   *  frame image — projectM computes them once per invocation from
+   *  the viewport dimensions, so `MilkPipeline` sets them here from
+   *  the current pixel size. */
+  mipX: number; mipY: number; mipAvg: number;
+  /** Blur ranges via projectM `BlurTexture::GetSafeBlurMinMaxValues`
+   *  clamping (docs/evidence/projectm/BlurTexture.cpp lines
+   *  `GetSafeBlurMinMaxValues`). The min-distance clamp and level 2/3
+   *  recursion produce values that may differ from raw preset inputs;
+   *  downstream uploads use the clamped values. */
   blur1Min: number; blur1Max: number;
   blur2Min: number; blur2Max: number;
   blur3Min: number; blur3Max: number;
-  /** 24 float4x3 rotation matrices (rot_s/d/f/vf/uf/rand × 4). Owner:
-   *  Renderer accumulators updated per frame. `null` until PHOSPHENE
-   *  implements the rotation-state manager; presets that read any of
-   *  these fields must refuse when they are null. */
-  rotStatic: readonly Float32Array[] | null;   // rot_s1..rot_s4
-  rotDynamic: readonly Float32Array[] | null;  // rot_d1..rot_d4
-  rotFast: readonly Float32Array[] | null;     // rot_f1..rot_f4
-  rotVeryFast: readonly Float32Array[] | null; // rot_vf1..rot_vf4
-  rotUltraFast: readonly Float32Array[] | null; // rot_uf1..rot_uf4
-  rotPerFrame: readonly Float32Array[] | null; // rot_rand1..rot_rand4
+  /** 24 4x4 rotation matrices per projectM
+   *  `MilkdropShader::LoadVariables`. Slots 0..19 use persistent
+   *  translations, rotation centers, and speeds; slots 20..23 draw
+   *  fresh values per invocation from the session shader RNG. Groups
+   *  of 4 map to (rot_s, rot_d, rot_f, rot_vf, rot_uf, rot_rand). */
+  rotStatic: readonly Mat4[];    // rot_s1..rot_s4 (slots 0..3)
+  rotDynamic: readonly Mat4[];   // rot_d1..rot_d4 (slots 4..7)
+  rotFast: readonly Mat4[];      // rot_f1..rot_f4 (slots 8..11)
+  rotVeryFast: readonly Mat4[];  // rot_vf1..rot_vf4 (slots 12..15)
+  rotUltraFast: readonly Mat4[]; // rot_uf1..rot_uf4 (slots 16..19)
+  rotPerFrame: readonly Mat4[];  // rot_rand1..rot_rand4 (slots 20..23)
 }
 
 /** Blur-range clamp math ported verbatim from butterchurn's
@@ -441,14 +448,22 @@ export class MilkPipeline {
   /** Most recent post-per-frame mdVSFrame pool (populated after each
    *  frame() call). Read-only for external consumers. */
   lastMdVSFrame: Pool | null = null;
-  /** Most recent shader-input contract, computed from the runner's
-   *  post-per-frame state and the pipeline's session values at the end
-   *  of each frame() call. `null` before the first frame runs. A
-   *  future graph-path shader translator reads this. Contract fields
-   *  the pipeline cannot populate from source-witnessed state (mip
-   *  stats, rand_frame, 24 rotation matrices) stay null; the consumer
-   *  must refuse presets that read them. */
-  lastShaderContract: MilkShaderContract | null = null;
+  /** Most recent WARP shader contract — one full, source-defined
+   *  MilkShaderContract per frame. Every field is populated from
+   *  projectM-authoritative sources: `randPreset` from
+   *  `session.warpShader.randPreset`, `randFrame` from a fresh
+   *  `session.nextRandFrame` draw, `mipX/Y/Avg` from `log2` of
+   *  viewport dimensions, and all 24 rotation matrices from the
+   *  warp shader instance. */
+  lastWarpContract: MilkShaderContract | null = null;
+  /** Most recent COMP shader contract — same shape, populated from
+   *  `session.compShader`. Warp and comp receive independent
+   *  `randFrame` draws per invocation, matching projectM's per-
+   *  `MilkdropShader::LoadVariables` `floatRand()` calls. */
+  lastCompContract: MilkShaderContract | null = null;
+  /** Alias to `lastWarpContract` for callers that only want the warp
+   *  contract. */
+  get lastShaderContract(): MilkShaderContract | null { return this.lastWarpContract; }
   private regVars: Pool = {};
   private waveNodes: MilkWaveNode[] = [];
   private shapeNodes: MilkShapeNode[] = [];
@@ -512,7 +527,7 @@ export class MilkPipeline {
 
   /* ------------------------------ loading ------------------------------ */
 
-  async load(g: GraphScene): Promise<{ errors: string[] }> {
+  async load(g: GraphScene, blendTime = 0): Promise<{ errors: string[] }> {
     validateGraph(g);
     const unsupported = unsupportedFeatures(g);
     if (unsupported.length) throw new UnsupportedNodeError(unsupported);
@@ -576,9 +591,10 @@ export class MilkPipeline {
     };
     // Preset transition: session records the swap and captures the
     // previous preset's wave_mode so the caller (this code) can inject
-    // it as `old_wave_mode` into the new preset's baseValues
-    // (butterchurn rendering_renderer.js:194).
-    this.session.beginPresetLoad(0);
+    // it as `old_wave_mode` into the new preset's baseValues per
+    // projectM `MilkdropPreset::RenderFrame` prev-frame state
+    // convention. `blendTime` plumbs the real requested duration.
+    this.session.beginPresetLoad(blendTime);
     const injectedBaseValues = {
       ...frameNode.baseValues,
       old_wave_mode: this.session.prevPresetWaveMode,
@@ -588,10 +604,6 @@ export class MilkPipeline {
       initEel: frameNode.initCode, frameEel: frameNode.perFrame, pixelEel: warpNode.perPixel,
       waves: this.waveNodes.map((w) => {
         if (w.index === undefined) {
-          // Custom waves always carry a source index (wavecode_N N)
-          // through parseMilkComplete → milkToGraph; the filter above
-          // narrows to `n.custom === true`. An undefined here is an
-          // importer bug that must not silently default to 0.
           throw new UnsupportedGraphError([`milk-wave(${w.id}):custom without source index`]);
         }
         return {
@@ -605,6 +617,14 @@ export class MilkPipeline {
       })),
     }, loadGlobals, this.rng);
     this.session.installRunner(this.runner);
+    // Construct one MilkShaderInstance per shader kind. projectM
+    // creates two `MilkdropShader` objects per preset (warp + comp);
+    // each draws its own `rand_preset` and persistent rotation state.
+    // PHOSPHENE draws from the session shader RNG so the streams are
+    // reproducible.
+    const warpInstance = new MilkShaderInstance("warp", this.session.shaderRng);
+    const compInstance = new MilkShaderInstance("comp", this.session.shaderRng);
+    this.session.installShaders(warpInstance, compInstance);
     this.regVars = {};
     this.oldWaveMode = 0;
 
@@ -853,10 +873,18 @@ export class MilkPipeline {
 
   /* ------------------------------- frame -------------------------------- */
 
-  frame(g: GraphScene, data: MilkFrameData): void {
+  frame(g: GraphScene, data: MilkFrameData, elapsed?: number): void {
     const runner = this.runner;
     if (!runner) throw new Error("no preset loaded");
     const dev = this.device;
+
+    // Advance session timing. Butterchurn's `calcTimeAndFPS`
+    // (rendering_renderer.js:353-378) and projectM's equivalent both
+    // integrate `time += 1/fps`. The caller may supply an explicit
+    // elapsed value; the default derives from the frame globals' fps.
+    const fpsForStep = data.globals.fps ?? 30;
+    const step = elapsed ?? (1 / (fpsForStep > 0 ? fpsForStep : 30));
+    this.session.beginFrame(step);
 
     const timeL = Array.from(data.timeArrayL as ArrayLike<number>);
     const timeR = Array.from(data.timeArrayR as ArrayLike<number>);
@@ -896,27 +924,27 @@ export class MilkPipeline {
       if (!n) continue;
       switch (n.kind) {
         case "milk-frame": {
-          // Frame equations run here — using THIS node's baseValues and
-          // EEL programs — not before the dispatch loop. Regs merged
-          // from the previous frame's per-pixel pool.
           frameGlobals = { ...data.globals, ...this.regVars };
           mdVSFrame = runner.runFrameEquations(frameGlobals);
           this.lastMdVSFrame = mdVSFrame;
-          // Compute the shader-input contract from the post-per-frame
-          // state so external consumers (a future graph-path shader
-          // translator) can read a coherent contract each frame.
-          const contract = buildShaderContract(
-            mdVSFrame, runner.randPreset, this.width, this.height,
+          // Build ONE full contract per shader kind, per projectM's
+          // per-`MilkdropShader::LoadVariables` invocation model. The
+          // two contracts share `mipX/Y/Avg` (derived from viewport)
+          // and `qBanks`/`aspect`/`texsize` (derived from mdVSFrame),
+          // but differ in `randPreset` (per-instance persistent) and
+          // `randFrame` (drawn fresh at each invocation from the
+          // session shader RNG).
+          const warpInstance = this.session.warpShader;
+          const compInstance = this.session.compShader;
+          if (!warpInstance || !compInstance) {
+            throw new Error("session shader instances missing after load");
+          }
+          this.lastWarpContract = buildShaderContract(
+            warpInstance, mdVSFrame, this.width, this.height, this.session,
           );
-          // Populate randFrame from the session's per-frame RNG draw.
-          // Butterchurn draws 4 Math.random() per shader invocation
-          // (butterchurn.js:3836 warp, :4532 comp); PHOSPHENE draws
-          // once per session frame and shares the value between warp
-          // and comp so both shaders see the same random 4-vector
-          // this frame. The consumer that reads randFrame relies on
-          // an owner; MilkSession is that owner.
-          contract.randFrame = this.session.nextRandFrame(this.rng);
-          this.lastShaderContract = contract;
+          this.lastCompContract = buildShaderContract(
+            compInstance, mdVSFrame, this.width, this.height, this.session,
+          );
           break;
         }
         case "milk-warp": {
@@ -1681,33 +1709,46 @@ export class MilkPipeline {
   }
 }
 
-/** Build the source-derivable portion of the MilkDrop-2 shader
- *  resource contract from the runner's post-per-frame state and the
- *  session's `randPreset` + `roam` uniforms. Session-owned uniforms
- *  that PHOSPHENE has not implemented yet (rand_frame, mip stats,
- *  the 24 rotation matrices) are set to `null`. Presets whose shader
- *  reads any null field must refuse at load — no fallback synthesis.
- *  Source: docs/milkdrop-execution-model.md §11A-§11E. */
+/** Build one MilkShaderContract for the given shader instance.
+ *  Populated fully per projectM `MilkdropShader::LoadVariables`:
+ *  `randPreset` from the instance, `randFrame` from a fresh session
+ *  shader-RNG draw, `mipX/Y/Avg` from `log2` of viewport dimensions,
+ *  and all 24 rotation matrices from the instance's per-invocation
+ *  build. `progress` is 0 until upstream data threads a real value
+ *  through. Sources retained at docs/evidence/projectm/MilkdropShader.cpp
+ *  and docs/evidence/projectm/BlurTexture.cpp. */
 export function buildShaderContract(
+  instance: MilkShaderInstance,
   mdVSFrame: Pool,
-  randPreset: readonly number[],
   texsizeX: number,
   texsizeY: number,
+  session: MilkSession,
 ): MilkShaderContract {
   const aspectXY = texsizeY > texsizeX ? texsizeX / texsizeY : 1;
   const aspectYX = texsizeX > texsizeY ? texsizeY / texsizeX : 1;
   const time = mdVSFrame.time ?? 0;
   const q = (idx: number): number => mdVSFrame[`q${idx}`] ?? 0;
   const { blurMins, blurMaxs } = getBlurValues(mdVSFrame);
+  // projectM: mipX = log2(viewportW), mipY = log2(viewportH),
+  // mipAvg = 0.5 * (mipX + mipY). Not previous-frame image statistics.
+  const mipX = Math.log2(texsizeX);
+  const mipY = Math.log2(texsizeY);
+  const mipAvg = 0.5 * (mipX + mipY);
+  // Build all 24 rotation matrices per projectM
+  // `MilkdropShader::LoadVariables`. Slots 20..23 draw from the
+  // session shader RNG; slots 0..19 use the instance's persistent
+  // state combined with the current time.
+  const matrices = instance.buildRotationMatrices(time, session.shaderRng);
   return {
+    kind: instance.kind,
     time,
     fps: mdVSFrame.fps ?? 30,
     frame: mdVSFrame.frame ?? 0,
-    // butterchurn's warp/comp shader uniform block (butterchurn.js:3372,
-    // 4321) does not include a `progress` uniform; the value the shader
-    // header spec calls `progress` has no source-witnessed upload path
-    // in butterchurn. Null forces refusal for shaders that read it.
-    progress: null,
+    // projectM uploads renderContext.progress; PHOSPHENE has no
+    // preset-playhead progress input yet, so this stays 0 until
+    // upstream data supplies it. The value is a required number
+    // rather than nullable — a shader referencing it reads 0.
+    progress: 0,
     bass: mdVSFrame.bass ?? 0,
     mid: mdVSFrame.mid ?? 0,
     treb: mdVSFrame.treb ?? 0,
@@ -1718,11 +1759,12 @@ export function buildShaderContract(
     volAtt: ((mdVSFrame.bass_att ?? 1) + (mdVSFrame.mid_att ?? 1) + (mdVSFrame.treb_att ?? 1)) / 3,
     aspect: [aspectXY, aspectYX, 1 / aspectXY, 1 / aspectYX],
     texsize: [texsizeX, texsizeY, 1 / texsizeX, 1 / texsizeY],
-    randPreset: [randPreset[0] ?? 0, randPreset[1] ?? 0, randPreset[2] ?? 0, randPreset[3] ?? 0],
-    // randFrame owner is the session-level Renderer's per-frame RNG.
-    // Until that session state exists, null forces refusal — no zero
-    // fallback.
-    randFrame: null,
+    randPreset: [instance.randPreset[0], instance.randPreset[1],
+                 instance.randPreset[2], instance.randPreset[3]],
+    // Fresh randFrame per invocation — projectM draws four
+    // `floatRand()` at each `LoadVariables`, and warp/comp thus
+    // receive DIFFERENT random 4-vectors within the same frame.
+    randFrame: session.nextRandFrame(session.shaderRng),
     qBanks: [
       [q(1), q(2), q(3), q(4)],
       [q(5), q(6), q(7), q(8)],
@@ -1733,47 +1775,42 @@ export function buildShaderContract(
       [q(25), q(26), q(27), q(28)],
       [q(29), q(30), q(31), q(32)],
     ],
+    // projectM fast-roam frequencies + phase offsets from
+    // MilkdropShader.cpp `LoadVariables`.
     roamCos: [
-      0.5 + 0.5 * Math.cos(time * 0.3),
-      0.5 + 0.5 * Math.cos(time * 1.3),
-      0.5 + 0.5 * Math.cos(time * 5),
-      0.5 + 0.5 * Math.cos(time * 20),
+      0.5 + 0.5 * Math.cos(time * 0.329 + 1.2),
+      0.5 + 0.5 * Math.cos(time * 1.293 + 3.9),
+      0.5 + 0.5 * Math.cos(time * 5.070 + 2.5),
+      0.5 + 0.5 * Math.cos(time * 20.051 + 5.4),
     ],
     roamSin: [
-      0.5 + 0.5 * Math.sin(time * 0.3),
-      0.5 + 0.5 * Math.sin(time * 1.3),
-      0.5 + 0.5 * Math.sin(time * 5),
-      0.5 + 0.5 * Math.sin(time * 20),
+      0.5 + 0.5 * Math.sin(time * 0.329 + 1.2),
+      0.5 + 0.5 * Math.sin(time * 1.293 + 3.9),
+      0.5 + 0.5 * Math.sin(time * 5.070 + 2.5),
+      0.5 + 0.5 * Math.sin(time * 20.051 + 5.4),
     ],
     slowRoamCos: [
-      0.5 + 0.5 * Math.cos(time * 0.005),
-      0.5 + 0.5 * Math.cos(time * 0.008),
-      0.5 + 0.5 * Math.cos(time * 0.013),
-      0.5 + 0.5 * Math.cos(time * 0.022),
+      0.5 + 0.5 * Math.cos(time * 0.0050 + 2.7),
+      0.5 + 0.5 * Math.cos(time * 0.0085 + 5.3),
+      0.5 + 0.5 * Math.cos(time * 0.0133 + 4.5),
+      0.5 + 0.5 * Math.cos(time * 0.0217 + 3.8),
     ],
     slowRoamSin: [
-      0.5 + 0.5 * Math.sin(time * 0.005),
-      0.5 + 0.5 * Math.sin(time * 0.008),
-      0.5 + 0.5 * Math.sin(time * 0.013),
-      0.5 + 0.5 * Math.sin(time * 0.022),
+      0.5 + 0.5 * Math.sin(time * 0.0050 + 2.7),
+      0.5 + 0.5 * Math.sin(time * 0.0085 + 5.3),
+      0.5 + 0.5 * Math.sin(time * 0.0133 + 4.5),
+      0.5 + 0.5 * Math.sin(time * 0.0217 + 3.8),
     ],
-    // Mip statistics from the previous main texture — the Renderer
-    // computes them via a downsampled sample of the prev frame.
-    // PHOSPHENE does not compute them yet. Null blocks any preset
-    // shader that reads mip_x/y/avg.
-    mipX: null, mipY: null, mipAvg: null,
-    // Blur ranges via source-witnessed getBlurValues clamping
-    // (butterchurn.js:3030-3070). The min-distance clamp and level 2/3
-    // recursion produce values that may differ from the raw b1n/b1x
-    // etc. inputs; downstream uploads MUST use these clamped values,
-    // not the raw preset fields.
+    mipX, mipY, mipAvg,
     blur1Min: blurMins[0], blur1Max: blurMaxs[0],
     blur2Min: blurMins[1], blur2Max: blurMaxs[1],
     blur3Min: blurMins[2], blur3Max: blurMaxs[2],
-    // Rotation matrices — Renderer-owned accumulators regenerated
-    // per frame at multiple frequencies. Not implemented yet.
-    rotStatic: null, rotDynamic: null, rotFast: null,
-    rotVeryFast: null, rotUltraFast: null, rotPerFrame: null,
+    rotStatic:    [matrices[0],  matrices[1],  matrices[2],  matrices[3]],
+    rotDynamic:   [matrices[4],  matrices[5],  matrices[6],  matrices[7]],
+    rotFast:      [matrices[8],  matrices[9],  matrices[10], matrices[11]],
+    rotVeryFast:  [matrices[12], matrices[13], matrices[14], matrices[15]],
+    rotUltraFast: [matrices[16], matrices[17], matrices[18], matrices[19]],
+    rotPerFrame:  [matrices[20], matrices[21], matrices[22], matrices[23]],
   };
 }
 

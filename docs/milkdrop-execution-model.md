@@ -48,110 +48,166 @@ Runner's. The Runner sees only what the Renderer hands it via
 
 ## 1. Frame pipeline order
 
-Sources:
-- Butterchurn `rendering_renderer.js` `render()` [fetched verbatim from
-  `node_modules/butterchurn/lib/butterchurn.js:2716-2858`]. This is the
-  primary source PHOSPHENE follows because it is available as retrieved
-  source text; every stage below is cited by line number.
-- projectM `MilkdropPreset.cpp` `RenderFrame()` — NOT currently retained
-  as source text under `docs/evidence/projectm/`. Any prior claim about
-  projectM's order was second-hand and unverifiable. See §1C below.
+Sources (COMPATIBILITY-GOAL.md §Source-Authority order: MilkDrop
+original → projectM → butterchurn):
 
-### 1A. Butterchurn render() order (verbatim)
+- projectM `MilkdropPreset::RenderFrame()` [retained at
+  `docs/evidence/projectm/MilkdropPreset.cpp`]. This is the AUTHORITATIVE
+  source for PHOSPHENE's default execution path. Every stage in §1A
+  below cites it.
+- Butterchurn `rendering_renderer.js` `render()` [retained at
+  `docs/evidence/butterchurn/`]. Secondary — used only as a named
+  "butterchurn" compatibility profile when a preset explicitly needs
+  butterchurn-specific pipeline order. Discussed in §1D.
 
-The stages fire in this exact sequence per line numbers in
-`node_modules/butterchurn/lib/butterchurn.js`:
+### 1A. projectM RenderFrame() order (authoritative)
 
-1. `calcTimeAndFPS(elapsedTime)` then `frameNum += 1` (2724-2725).
-2. Audio: `updateAudio` if audioLevels arg provided, else `sampleAudio()`
-   (2727-2731).
-3. `audioLevels.updateAudioLevels(fps, frameNum)` (2733).
-4. `globalVars` built: frame, time, fps, bass/mid/treb + _att, meshx/y,
-   aspectx/y (INV forms — `invAspectx/invAspecty`), pixelsx/y (=
-   texsizeX/Y). `gmegabuf` attached. `regVars` from previous frame's
-   per-pixel merged in (2734-2754).
-5. `presetEquationRunner.runFrameEquations(globalVars)` → `mdVSFrame`
-   (2755-2756).
-6. `runPixelEquations(preset, mdVSFrame, runVertEQs, false)` → writes
-   `warpUVs` + `warpColor` and captures the final vertex pool as
-   `this.mdVSVertex` (2757).
-7. `regVars` picked from `mdVSVertex` and merged back into `globalVars`
-   for wave/shape unit calls later this frame (2758-2759).
-8. If `blending`: run the previous preset's frame + pixel equations on
-   `prevGlobalVars`, compute `mdVSFrameMixed` via `mixFrameEquations`
-   (2762-2768); else `mdVSFrameMixed = mdVSFrame`.
-9. **Framebuffer swap**: `[targetTexture, prevTexture]` and their
-   framebuffers swap. Then `prevTexture` gets a mipmap update. Then
-   `targetFrameBuffer` binds and clears. Blend enabled (2770-2782).
-10. `getBlurValues(mdVSFrameMixed)` → `{blurMins, blurMaxs}` (2784-2786).
-    See §12A below for the exact clamping semantics.
-11. **Warp shader** (`warpShader.renderQuadTexture`) samples `prevTexture`
-    + `blurTexture1/2/3`, writes to `targetTexture` via the currently
-    bound target framebuffer (2789 non-blend / 2790-2793 blend two-pass).
-12. **Blur cascade update** IF `numBlurPasses > 0`: `blurShader1`
-    samples `targetTexture` (the just-warped result); `blurShader2`
-    samples `blurTexture1`; `blurShader3` samples `blurTexture2`
-    (2795-2807). Then target framebuffer is re-bound (2807).
-13. **Motion vectors** drawn onto `targetTexture`:
-    `motionVectors.drawMotionVectors(mdVSFrameMixed, warpUVs)` (2810).
-    Butterchurn draws them on the CURRENT target after warp+blur, not
-    on the previous frame before warp.
-14. Custom shapes (all four slots, in index order; blending sends both
-    presets' shapes with per-preset opacity) (2812-2816).
-15. Custom waveforms (same rule) (2818-2822).
-16. During blend, previous preset's shapes and waves are ALSO drawn on
-    the current target with `1 - blendProgress` opacity (2824-2836).
-17. `basicWaveform.drawBasicWaveform` (2838).
-18. `darkenCenter.drawDarkenCenter` (2839).
-19. `outerBorder.drawBorder` then `innerBorder.drawBorder` (2840-2843).
-20. Title text if `supertext.startTime >= 0` (2845-2850).
-21. `mdVSFrame`, `mdVSFrameMixed`, `globalVars` saved onto `this`
-    (2854-2856).
-22. `renderToScreen()` — comp shader draws `targetTexture` + blur
-    textures to the presentation surface (2857 → 2860-2865).
+The stages fire in this exact sequence per `MilkdropPreset::RenderFrame`:
 
-Custom shapes/waves and basic waveform draw ONTO `targetTexture`; they
-persist into next frame's feedback because next frame will swap
-`targetTexture ↔ prevTexture` and read from `prevTexture` in step 11.
-Composite output does not feed back.
+1. Store audio data and render context on state; resize framebuffer and
+   motion-vector UV map if the viewport changed (marking `isFirstFrame`
+   after resize).
+2. Set `mainTexture` to the previous framebuffer's color-0 attachment
+   for the equation code's read reference.
+3. **`PerFrameUpdate`**: load per-frame state variables, execute the
+   per-frame code, load per-frame Q variables, and clamp `gamma`
+   (0..8) and `echo_zoom` (0.001..1000).
+4. `glViewport(0, 0, viewportSizeX, viewportSizeY)`.
+5. **Bind the previous framebuffer**. This is the surface the next two
+   draws target.
+6. **Motion vectors** — `MotionVectors::Draw` renders the motion-vector
+   grid ONTO the previous frame's color-0 attachment. Skipped on the
+   first frame after init or resize.
+7. **Previous-frame y-flip** — `flipTexture.Draw` copies the previous
+   framebuffer's color-0 attachment into a y-flipped intermediate
+   texture. `mainTexture` is reassigned to the flipped result so
+   subsequent draws sample the y-flipped previous frame.
+8. **Bind the current framebuffer**. Attach the motion-vector UV map
+   to color slot 1 so the per-pixel mesh writes both the warped
+   result (slot 0) and its per-vertex UV output (slot 1).
+9. **Per-pixel mesh warp** — `PerPixelMesh::Draw` warps the y-flipped
+   previous frame through the warp shader into the current framebuffer's
+   color-0 attachment.
+10. Detach the motion-vector UV map from color slot 1.
+11. **Blur cascade update** — `blurTexture.Update` re-runs the H/V pass
+    chain over the six sequential targets (three H intermediates + three
+    V outputs). See §12 for exact semantics.
+12. **Sprites** — every custom shape (`shape->Draw()`), every custom
+    waveform (`wave->Draw(perFrameContext)`), and the default waveform
+    (`waveform.Draw(perFrameContext)`) draw ONTO the current
+    framebuffer's color-0 attachment.
+13. **Darken-center** — `darkenCenter.Draw()` fires when
+    `perFrameContext.darken_center > 0`.
+14. **Borders** — `border.Draw(perFrameContext)` draws the inner and
+    outer borders per the per-frame context.
+15. **Final y-flip** — `flipTexture.Draw` copies the current
+    framebuffer's color-0 attachment into a fresh y-flipped intermediate;
+    `mainTexture` is reassigned to that flipped result.
+16. **Final composite** — bind read=current, draw=previous, and run
+    `finalComposite.Draw(state, perFrameContext)`. This writes the
+    composited image into the previous framebuffer.
+17. **Legacy y-flip** — if `finalComposite` has no composite shader
+    (old-school non-shader path), `flipTexture.Draw` is invoked one
+    more time to flip the previous framebuffer's color-0 attachment
+    back onto itself (source: "old-school effects are still upside down").
+18. **Framebuffer swap AFTER composite** — `std::swap(currentFrameBuffer,
+    previousFrameBuffer)`. The composited image now sits in what will
+    be the `previousFrameBuffer` next frame, and the freshly-freed
+    surface becomes the next `currentFrameBuffer` warp target.
+19. Clear `isFirstFrame`.
 
-### 1B. What "framebuffer swap" means (position matters)
+`OutputTexture()` returns the current framebuffer's color-0 attachment
+AFTER the swap — this is the composited image just written in step 16
+(the swap made "current" the surface that just received the composite).
 
-Butterchurn's swap fires BEFORE the warp draw (step 9), so warp writes
-to what will become next frame's `prevTexture`. My previous statement
-"Framebuffer swap (current ↔ previous)" as step 12 (last) was wrong —
-the swap is first, not last. This is corrected in §1A above.
+### 1B. Where projectM diverges from butterchurn
 
-### 1C. projectM / original MilkDrop reconciliation status
+The projectM order above differs from butterchurn's `render()` in three
+load-bearing places:
 
-Retained evidence at `docs/evidence/projectm/` currently contains only
-`PerPixelMesh.cpp`, `PresetShaderHeaderGlsl330.inc`,
-`projectm-warp-fragment.frag`, `projectm-warp-vertex.vert`, and
-`README.md`. `MilkdropPreset.cpp` `RenderFrame()` is NOT retained.
+- **Motion vectors** — projectM draws them on the previous frame
+  BEFORE warp (step 6); butterchurn draws them on the current warp
+  target AFTER warp and blur.
+- **Framebuffer swap** — projectM swaps AFTER composite (step 18);
+  butterchurn swaps BEFORE warp so the warp writes into what will
+  become the next frame's `prevTexture`.
+- **Explicit previous-frame y-flip** — projectM performs an explicit
+  y-flip pass (step 7) before warp because it renders OpenGL Y-up;
+  butterchurn handles the coordinate convention inline in its warp
+  vertex shader.
 
-The two implementations may differ on:
+Under COMPATIBILITY-GOAL.md §Source-Authority these divergences are
+NOT reconciliations for PHOSPHENE to average — projectM authority
+governs the default `.milk` execution path. Butterchurn behavior may
+remain only under an explicitly named `butterchurn` compatibility
+profile in the graph model (see §1D). PHOSPHENE never silently mixes
+the two orders.
 
-- **Motion vector placement**: butterchurn draws onto the warp-target
-  (post-warp, pre-composite). projectM's `RenderFrame()` was previously
-  claimed to draw onto the prev-texture (pre-warp), but that claim
-  cannot be verified from retained evidence. Until `MilkdropPreset.cpp`
-  is retained, PHOSPHENE follows butterchurn's placement — the source
-  it CAN verify — and this reconciliation is an open question rather
-  than a silent choice.
-- **Framebuffer y-flip**: projectM has been claimed to y-flip the
-  previous frame before warp (`m_flipTexture`) because it renders in
-  OpenGL Y-up while MilkDrop's per-vertex UV math assumes D3D
-  convention. Butterchurn does not perform an explicit y-flip pass; its
-  warp vertex shader handles the coordinate convention inline. This
-  cannot be verified against projectM without retaining `MilkdropPreset.cpp`.
-- **Motion vector edge behavior** (§8) uses butterchurn's grid math
-  which is source-verifiable.
+### 1C. Preset lifecycle in projectM
 
-Per COMPATIBILITY-GOAL.md source priority (MilkDrop → projectM →
-butterchurn), if `MilkdropPreset.cpp` is retained and its behavior
-differs from butterchurn's, PHOSPHENE MUST support both orders
-explicitly (either by executor mode-switch or by two graph forms), not
-silently choose butterchurn. Missing knowledge stays explicit.
+Source: `docs/evidence/projectm/MilkdropPreset.cpp` `Initialize` and
+`InitializePreset`. Two-phase construction:
+
+1. Constructor stores the file path, initializes the per-frame and
+   per-pixel contexts with the state's global memory and register
+   pool, and calls `Load` which parses the preset file and delegates
+   to `InitializePreset`.
+2. `InitializePreset` creates the offscreen render surfaces (two color
+   attachments = "main image 1" and "main image 2"), loads state
+   variables from the parsed file, registers built-in variables for
+   both contexts, constructs four `CustomWaveform` and four
+   `CustomShape` objects, and preloads warp + composite shader text.
+3. `Initialize` (called by the renderer once a render context is
+   available) records the render context on state, initializes the
+   blur texture, loads the static shaders, compiles the equation code
+   and runs the init expressions, allocates framebuffer color
+   attachments at the correct viewport size, and compiles the warp
+   and composite shader instances via `PerPixelMesh::CompileWarpShader`
+   and `FinalComposite::CompileCompositeShader`.
+
+Blend timing is renderer-owned in projectM (the `Renderer` class holds
+the blend duration and progress); PHOSPHENE's `MilkSession`
+(`src/gpu/milk-session.ts`) fills the same role — see §1E.
+
+### 1D. Butterchurn compatibility profile (secondary)
+
+Butterchurn behavior is retained only as a NAMED compatibility profile.
+When (and only when) a graph explicitly carries a `"butterchurn"`
+profile marker will PHOSPHENE apply butterchurn's swap-before-warp and
+motion-vectors-after-blur order. The default `.milk` execution path
+uses the projectM order in §1A. Preset content alone does not identify
+which profile — the graph must be explicit, per COMPATIBILITY-GOAL.md
+Hard Rules.
+
+Butterchurn `render()` order (retained for reference, NOT the default):
+
+1. `calcTimeAndFPS`, `frameNum += 1` (butterchurn.js:2724-2725).
+2. Framebuffer swap `[targetTexture, prevTexture]` (2770-2782).
+3. Warp shader writes to `targetTexture` (2789).
+4. Blur cascade update (2795-2807).
+5. Motion vectors drawn on `targetTexture` after warp+blur (2810).
+6. Sprites, waves, waveform (2812-2822).
+7. Darken-center, borders, title text (2839-2850).
+8. `renderToScreen()` — comp shader draws `targetTexture` (2857).
+
+### 1E. PHOSPHENE session ownership boundary
+
+`src/gpu/milk-session.ts` (`MilkSession`) owns everything the projectM
+`Renderer` object owns:
+
+- Current + previous `MilkPresetRunner` for the equation streams.
+- Current + previous `MilkShaderInstance` for warp AND comp shaders
+  independently — matches projectM's separate `MilkdropShader` objects
+  each with its own `rand_preset` and 20 persistent rotation slots.
+- Blend timing (`blendDuration`, `blendStartTime`, `blendProgress`,
+  `blending`). `MilkPipeline.load(blendTime)` plumbs the real value.
+- Timing accumulators (`time`, `frameNum`, `fps`). `MilkPipeline.frame`
+  advances them via `session.beginFrame(elapsed)` each frame.
+- Independent RNG domains: `shaderRng` for per-invocation shader
+  draws and `noiseRng` for noise-texture generation. Neither consumes
+  nor shifts the preset equation RNG.
+- Session-lifetime noise texture data via `session.noiseFor(name)`,
+  generated lazily from `noiseRng` per NOISE_TEX_SPECS.
 
 ## 1B. Preset lifecycle and blending
 
