@@ -24,9 +24,16 @@ import { ssimColor, meanAbsError } from "./lib/ssim.mjs";
 
 const out = process.argv[2] ?? "docs/fidelity-milk-e2e.json";
 const filter = process.argv[3] ?? "";
+// Committed acceptance tolerances (COMPATIBILITY-GOAL.md):
+// - visual: min per-channel color SSIM >= 0.80 at every capture frame.
+// - equation state: per-key relative error <= 1e-6 at every frame for
+//   every executable preset. A missing PHOSPHENE key, an unexpected
+//   nonfinite value, or a numeric divergence above tolerance FAILS the
+//   equation-state gate (the two gates are reported independently — a
+//   preset can pass visual and fail equation state or vice versa).
 const SSIM_TOLERANCE = 0.80;
+const EQ_STATE_TOLERANCE = 1e-6;
 const SEED = 0x5eed1e55;
-const GLOBAL_TOL = 1e-2; // end-to-end drift tolerance for equation-state comparison per frame
 
 console.log("building current source...");
 execSync("npm run build", { stdio: "inherit" });
@@ -75,9 +82,19 @@ try {
 
     const page = await browser.newPage();
     let frames;
-    // Per-preset worst equation-state drift (populated inside the try
-    // block; declared here so the report row can read it after).
+    // Per-preset accumulators — declared here (before the try) so the
+    // finally-block cleanup does not close over uninitialized state
+    // and the post-try aggregation reads the actual per-preset values.
     let worstDrift = { key: null, frame: -1, err: 0, ours: 0, oracle: 0 };
+    let visualPassPersist = false;
+    let equationStatePassPersist = false;
+    let comparedFramesPersist = 0;
+    let comparedKeysPersist = 0;
+    let equationStateFailsPersist = 0;
+    let missingKeysPersist = [];
+    let extraKeysPersist = [];
+    let nonfiniteKeysPersist = [];
+    let failSamplePersist = [];
     try {
       await page.setViewport({ width: W, height: H });
       await page.evaluateOnNewDocument((seed) => {
@@ -115,41 +132,99 @@ try {
       }
       frames = [];
       mkdirSync(`reference/milk-phosphene-e2e/${entry.slug}`, { recursive: true });
-      // Per-frame equation-state divergence tracker: reads PHOSPHENE's
-      // derived globals + post-equation mdVSFrame from __milkE2EState()
-      // and compares against oracle globalVars/mdVSFrame from the
-      // fixture. Recorded per preset with the worst relative error.
+      // Per-frame equation-state divergence GATE. For every oracle
+      // globalVars key AND every oracle mdVSFrame key we require PHOSPHENE
+      // to expose a corresponding value within tolerance. A missing key
+      // in PHOSPHENE's state, an unexpected NaN/Infinity, or a numeric
+      // divergence above tolerance is recorded as a failure — the state
+      // is not considered "equivalent" just because the finite shared
+      // keys happened to match.
       const relErr = (a, b) => {
         if (a === b) return 0;
+        if (!Number.isFinite(a) && !Number.isFinite(b)) {
+          // Both nonfinite: NaN vs NaN is a match, +/-Inf vs +/-Inf is a
+          // match, mismatched nonfinite categories diverge.
+          if (Number.isNaN(a) && Number.isNaN(b)) return 0;
+          if (a === b) return 0; // +Inf===+Inf, -Inf===-Inf
+          return Infinity;
+        }
         if (!Number.isFinite(a) || !Number.isFinite(b)) return Infinity;
         return Math.abs(a - b) / Math.max(1e-6, Math.abs(b));
       };
+      // Per-preset accumulators.
+      let comparedFrames = 0;
+      let comparedKeys = 0;
+      let equationStatePasses = 0;
+      let equationStateFailsCount = 0;
+      const missingKeys = new Set();
+      const extraKeys = new Set();
+      const nonfiniteKeys = new Set();
+      const perKeyWorst = new Map(); // key -> {frame, err, ours, oracle}
+      const failSample = []; // first N per-key failures for diagnosis
+      const FAIL_SAMPLE_MAX = 8;
       for (let f = 0; f < fixture.globalVars.length; f++) {
         const { c, l, r } = audioFrame(f);
         await page.evaluate(
           (pcm) => window.__milkFrameE2E(pcm),
           { c: Array.from(c), l: Array.from(l), r: Array.from(r) },
         );
-        // Read back PHOSPHENE's derived state and compare per key.
         const state = await page.evaluate(() => window.__milkE2EState());
-        if (state) {
-          const oracleGlobals = fixture.globalVars[f];
-          for (const k of Object.keys(state.globals)) {
-            if (!(k in oracleGlobals)) continue;
-            const e = relErr(state.globals[k], oracleGlobals[k]);
-            if (e > worstDrift.err) {
-              worstDrift = { key: `globals.${k}`, frame: f, err: e, ours: state.globals[k], oracle: oracleGlobals[k] };
+        if (!state) {
+          // PHOSPHENE produced no state for this frame — count the whole
+          // frame as an equation-state failure and continue.
+          equationStateFailsCount++;
+          continue;
+        }
+        comparedFrames++;
+        const oracleGlobals = fixture.globalVars[f];
+        const oracleFrame = fixture.mdVSFrame?.[String(f)];
+        const compareSurface = (surfaceName, oracle, ours) => {
+          if (!oracle) return;
+          for (const [k, oracleVal] of Object.entries(oracle)) {
+            const key = `${surfaceName}.${k}`;
+            comparedKeys++;
+            const oursVal = ours?.[k];
+            if (oursVal === undefined) {
+              missingKeys.add(key);
+              equationStateFailsCount++;
+              if (failSample.length < FAIL_SAMPLE_MAX) {
+                failSample.push({ frame: f, key, reason: "missing", oracle: oracleVal });
+              }
+              continue;
+            }
+            if (!Number.isFinite(oursVal) && Number.isFinite(oracleVal)) {
+              nonfiniteKeys.add(key);
+              equationStateFailsCount++;
+              if (failSample.length < FAIL_SAMPLE_MAX) {
+                failSample.push({ frame: f, key, reason: "nonfinite", ours: oursVal, oracle: oracleVal });
+              }
+              continue;
+            }
+            const err = relErr(oursVal, oracleVal);
+            const cur = perKeyWorst.get(key);
+            if (!cur || err > cur.err) perKeyWorst.set(key, { frame: f, err, ours: oursVal, oracle: oracleVal });
+            if (err > EQ_STATE_TOLERANCE) {
+              equationStateFailsCount++;
+              if (failSample.length < FAIL_SAMPLE_MAX) {
+                failSample.push({ frame: f, key, reason: "tolerance",
+                  err: Number(err.toExponential(3)), ours: oursVal, oracle: oracleVal });
+              }
+            } else {
+              equationStatePasses++;
             }
           }
-          const oracleFrame = fixture.mdVSFrame[String(f)];
-          if (oracleFrame) {
-            for (const [k, oracleVal] of Object.entries(oracleFrame)) {
-              if (!(k in state.mdVSFrame)) continue;
-              const e = relErr(state.mdVSFrame[k], oracleVal);
-              if (e > worstDrift.err) {
-                worstDrift = { key: `mdVSFrame.${k}`, frame: f, err: e, ours: state.mdVSFrame[k], oracle: oracleVal };
-              }
+          if (ours) {
+            for (const k of Object.keys(ours)) {
+              if (!(k in oracle)) extraKeys.add(`${surfaceName}.${k}`);
             }
+          }
+        };
+        compareSurface("globals", oracleGlobals, state.globals);
+        compareSurface("mdVSFrame", oracleFrame, state.mdVSFrame);
+        // Track worst drift across ALL keys (globals + mdVSFrame).
+        for (const [key, entry] of perKeyWorst) {
+          if (entry.err > worstDrift.err) {
+            worstDrift = { key, frame: entry.frame, err: entry.err, ours: entry.ours, oracle: entry.oracle };
           }
         }
         if (CAPTURE_FRAMES.includes(f)) {
@@ -169,20 +244,52 @@ try {
           });
         }
       }
-      void GLOBAL_TOL;
+      // Two independent gates: visual (SSIM) and equation state
+      // (per-key tolerance). Each is a hard pass/fail — neither is
+      // aggregated into the other, both surface on the report row.
+      const visualPass = frames.length > 0 && frames.every((fr) => fr.ssimMinChannel >= SSIM_TOLERANCE);
+      const equationStatePass = equationStateFailsCount === 0 &&
+                                missingKeys.size === 0 &&
+                                nonfiniteKeys.size === 0;
+      visualPassPersist = visualPass;
+      equationStatePassPersist = equationStatePass;
+      comparedFramesPersist = comparedFrames;
+      comparedKeysPersist = comparedKeys;
+      equationStateFailsPersist = equationStateFailsCount;
+      missingKeysPersist = [...missingKeys].slice(0, 32);
+      extraKeysPersist = [...extraKeys].slice(0, 32);
+      nonfiniteKeysPersist = [...nonfiniteKeys].slice(0, 32);
+      failSamplePersist = failSample;
     } finally {
       await page.close();
     }
-    const allMatch = frames.every((fr) => fr.ssimMinChannel >= SSIM_TOLERANCE);
-    if (allMatch) validated++;
+    const overallPass = visualPassPersist && equationStatePassPersist;
+    if (overallPass) validated++;
     else diverged++;
     results.push({
       preset: entry.file,
-      status: allMatch ? "VALIDATED" : "diverged",
+      status: overallPass ? "VALIDATED" : "diverged",
+      gates: {
+        visual: visualPassPersist ? "PASS" : "FAIL",
+        equationState: equationStatePassPersist ? "PASS" : "FAIL",
+      },
       frames,
+      equationState: {
+        comparedFrames: comparedFramesPersist,
+        comparedKeys: comparedKeysPersist,
+        failsCount: equationStateFailsPersist,
+        missingKeys: missingKeysPersist,
+        extraKeys: extraKeysPersist,
+        nonfiniteKeys: nonfiniteKeysPersist,
+        failSample: failSamplePersist,
+        tolerance: EQ_STATE_TOLERANCE,
+      },
       worstEquationDrift: worstDrift.err > 0 ? { ...worstDrift, err: Number(worstDrift.err.toExponential(3)) } : null,
     });
-    console.log(`${allMatch ? "VALID" : "  div"} ${frames.map((fr) => fr.ssimMinChannel.toFixed(2)).join(" ")}  ${entry.file.slice(0, 60)}`);
+    const visTag = visualPassPersist ? "vis" : "VIS";
+    const eqTag = equationStatePassPersist ? "eq" : "EQ";
+    console.log(`${overallPass ? "VALID" : "  div"} [${visTag}/${eqTag}] ` +
+      `${frames.map((fr) => fr.ssimMinChannel.toFixed(2)).join(" ")}  ${entry.file.slice(0, 56)}`);
   }
 } finally {
   await browser.close();
@@ -197,27 +304,63 @@ for (const r of results) {
     unsupportedByFeature[key] = (unsupportedByFeature[key] || 0) + 1;
   }
 }
-const executable = results.length - unsupported - loadFailed - skipped;
+// Executable = presets that actually ran the pipeline and produced a
+// frame set. `results` already excludes fixture failures (`entry.error`
+// short-circuit above increments skipped without pushing to results), so
+// executable derives from run outcomes, not from subtracting skipped a
+// second time from results.length.
+const executable = validated + diverged;
+const totalCorpusPresets = manifest.presets.length;
+const fixtureConvertFailures = skipped;
+const presetsTested = results.length;
+const refused = unsupported;
+// Two-gate aggregation across the executable set: how many executables
+// passed the visual gate independent of equation state, and vice versa.
+let visualPassCount = 0, equationStatePassCount = 0;
+for (const r of results) {
+  if (r.status !== "VALIDATED" && r.status !== "diverged") continue;
+  if (r.gates?.visual === "PASS") visualPassCount++;
+  if (r.gates?.equationState === "PASS") equationStatePassCount++;
+}
+// Balance assertions — refuse to write a report that does not add up.
+const assert = (cond, msg) => { if (!cond) throw new Error(`count balance: ${msg}`); };
+assert(totalCorpusPresets === fixtureConvertFailures + presetsTested,
+  `total=${totalCorpusPresets} != fixture-failed(${fixtureConvertFailures}) + tested(${presetsTested})`);
+assert(presetsTested === refused + loadFailed + executable,
+  `tested=${presetsTested} != refused(${refused}) + load-failed(${loadFailed}) + executable(${executable})`);
+assert(executable === validated + diverged,
+  `executable=${executable} != validated(${validated}) + diverged(${diverged})`);
 const report = {
-  measures: "END-TO-END MilkDrop fidelity: PHOSPHENE derives its own audio levels + frame globals + EEL evaluations + rendering from only the .milk source + PCM + committed seed. Compared per RGB channel against the oracle's screenshots.",
+  measures: "END-TO-END MilkDrop fidelity: PHOSPHENE derives its own audio levels + frame globals + EEL evaluations + rendering from only the .milk source + PCM + committed seed. Two independent gates per executable preset — visual (SSIM per capture frame) and equation state (per-key relative error per frame). Overall status = both gates pass.",
   path: "graph milk path (milkToGraph -> MilkPipeline dispatched per-node from graph.order); no oracle values injected.",
   commitSha: COMMIT_SHA,
-  tolerance: { ssim: SSIM_TOLERANCE, metric: "min per-channel color SSIM" },
+  gates: {
+    visual: { metric: "min per-channel color SSIM", tolerance: SSIM_TOLERANCE, rule: "every capture frame, every channel" },
+    equationState: {
+      metric: "relative error per oracle key per frame",
+      tolerance: EQ_STATE_TOLERANCE,
+      rule: "every executable preset, every frame, every oracle key must be present, finite where oracle is finite, and within tolerance",
+    },
+  },
   captureFrames: CAPTURE_FRAMES,
   counts: {
-    totalCorpusPresets: manifest.presets.length,
-    presetsTested: results.length,
+    totalCorpusPresets,
+    fixtureConvertFailures,
+    presetsTested,
+    refused,
+    loadFailed,
     executable,
     validatedExecutable: validated,
     divergedExecutable: diverged,
+    visualGatePassExecutable: visualPassCount,
+    equationStateGatePassExecutable: equationStatePassCount,
     unsupportedByFeature,
-    fixtureConvertFailures: skipped,
-    loadFailed,
   },
-  presetsTested: results.length,
-  validated, diverged, loadFailed, unsupportedShaderPresets: unsupported, fixtureConvertFailures: skipped,
   results,
 };
 writeFileSync(out, JSON.stringify(report, null, 2));
-console.log(`\nE2E VALIDATED ${validated}/${results.length} (diverged ${diverged}, unsupported ${unsupported}, load-failed ${loadFailed})`);
+console.log(`\ncorpus ${totalCorpusPresets} = fixture-failed ${fixtureConvertFailures} + tested ${presetsTested}`);
+console.log(`tested ${presetsTested} = refused ${refused} + load-failed ${loadFailed} + executable ${executable}`);
+console.log(`executable ${executable} = validated ${validated} (both gates) + diverged ${diverged} (either gate)`);
+console.log(`gate detail: visual PASS ${visualPassCount}/${executable}, equation-state PASS ${equationStatePassCount}/${executable}`);
 console.log(`report: ${out}`);

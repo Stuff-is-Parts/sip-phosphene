@@ -266,6 +266,11 @@ declare global {
       globals: Record<string, number>;
       mdVSFrame: Record<string, number>;
     } | null;
+    /** Snapshot the accumulated rand()/randint() draws PHOSPHENE has
+     *  made since the last snapshot. Cleared on read. Compare position-
+     *  by-position against the oracle's __refRandTrace fixture entries
+     *  to prove random-expression stream alignment. */
+    __milkE2ERandTrace(): { seq: number; context: string; value: number }[];
   }
 }
 
@@ -278,6 +283,8 @@ const E2E_PIXELS_Y = 600;
 const E2E_GRID_X = 48;
 const E2E_GRID_Y = 36;
 
+let e2eFrameCounter = 0;
+
 window.__milkLoadE2E = async (text, name) => {
   let phase = "parse";
   try {
@@ -286,10 +293,17 @@ window.__milkLoadE2E = async (text, name) => {
     const { graph } = milkToGraph(parsed);
     phase = "pipeline";
     e2ePipeline = new MilkPipeline(renderer);
+    // Tag the runner's random-stream context so every draw made during
+    // load (rand_start + rand_preset + init_eqs + init-time frame_eqs
+    // + wave/shape init) is recorded under "load". The driver reads the
+    // trace via __milkE2ERandTrace() and compares against the oracle's
+    // preset-load randTrace slice.
+    e2ePipeline.rng.setContext("load");
     const { errors } = await e2ePipeline.load(graph);
     e2eGraph = graph;
     e2eModel = new OracleFrameModel(); // fresh audio+time state per preset
     e2eLastGlobals = null;
+    e2eFrameCounter = 0;
     return { ok: errors.length === 0, errors, reports: [] };
   } catch (err) {
     if (err instanceof UnsupportedGraphError) {
@@ -301,6 +315,11 @@ window.__milkLoadE2E = async (text, name) => {
 
 window.__milkFrameE2E = (pcm) => {
   if (!e2ePipeline || !e2eGraph || !e2eModel) return false;
+  // Tag the runner's random-stream context so per-frame draws
+  // (frame_eqs + pixel_eqs + wave frame/point + shape frame) are
+  // recorded under "frame:N" for this frame.
+  e2ePipeline.rng.setContext(`frame:${e2eFrameCounter}`);
+  e2eFrameCounter++;
   // Step the shared audio+time model with the injected PCM.
   const step = e2eModel.step(pcm.c, pcm.l, pcm.r, 1 / 30);
   // Build the globals PHOSPHENE hands to its runner — same aspect
@@ -342,6 +361,11 @@ window.__milkE2EState = () => {
     if (typeof v === "number" && Number.isFinite(v)) mdVSFrame[k] = v;
   }
   return { globals: { ...e2eLastGlobals }, mdVSFrame };
+};
+
+window.__milkE2ERandTrace = () => {
+  if (!e2ePipeline) return [];
+  return e2ePipeline.rng.snapshotAndReset();
 };
 
 /* -------- native-equivalence mode (legacy path vs graph executor) ------ */

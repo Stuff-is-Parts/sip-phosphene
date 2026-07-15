@@ -25,18 +25,40 @@
   let visualizer = null;
   let lastTime = 0;
 
+  // Random-stream instrumentation. The oracle draws entropy from the
+  // seeded Math.random at several distinct points — visualizer
+  // construction, preset load (rand_start + rand_preset), EEL
+  // initialization inside per-preset init_eqs, and per-frame EEL
+  // (frame/pixel/wave/shape). The current context tag is set by the
+  // driver via __refSetRandContext(name) so each recorded draw carries
+  // which surface consumed it; the trace can then be compared against
+  // PHOSPHENE's own equation-visible rand() stream to prove alignment.
+  const randTrace = [];
+  let randContext = "unknown";
+  let randSeq = 0;
+  window.__refSetRandContext = function (name) { randContext = String(name); };
+  window.__refRandTrace = function () {
+    return randTrace.map((r) => ({ seq: r.seq, context: r.context, value: r.value }));
+  };
+  window.__refResetRandTrace = function () { randTrace.length = 0; randSeq = 0; };
+
   // COMMITTED SEED protocol: Butterchurn has no built-in deterministic
   // mode; a seeded PRNG over Math.random makes every internal draw
   // deterministic. The driver calls __refReseed(seed) independently
   // before EACH preset load so per-preset streams are identical
   // regardless of how much entropy earlier presets consumed.
+  //
+  // The seeded stream also feeds the trace recorder so every draw the
+  // oracle makes is captured with its context tag.
   window.__refReseed = function (seed) {
     let s = seed | 0;
     Math.random = () => {
       s |= 0; s = (s + 0x6d2b79f5) | 0;
       let t = Math.imul(s ^ (s >>> 15), 1 | s);
       t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      const v = ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      randTrace.push({ seq: randSeq++, context: randContext, value: v });
+      return v;
     };
     return true;
   };

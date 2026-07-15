@@ -89,6 +89,14 @@ try {
       // Independent per-preset reseed (the committed protocol): page
       // startup may consume entropy; the preset stream starts here.
       await page.evaluate((seed) => window.__refReseed(seed), ORACLE_SEED);
+      // Random-stream instrumentation: reset the trace and tag the
+      // upcoming draws as visualizer construction + preset load. When
+      // the oracle draws rand_start (4) + rand_preset (4) during the
+      // preset-init phase, those go under the "load" context;
+      // subsequent per-frame draws (frame/pixel/wave/shape EEL) get
+      // re-tagged before __refFrame calls.
+      await page.evaluate(() => window.__refResetRandTrace());
+      await page.evaluate(() => window.__refSetRandContext("load"));
       const init = await page.evaluate(
         (t, w, h) => window.__refLoadMilkSource(t, w, h), text, W, H);
       if (!init.ok) {
@@ -100,9 +108,28 @@ try {
       const dir = `reference/milk/${slug}`;
       mkdirSync(dir, { recursive: true });
       const perFrameGlobals = [];
+      // Full post-per-frame mdVSFrame captured for EVERY frame, not
+      // only screenshot frames — the equation-state gate at
+      // validate-milk-e2e.mjs compares per-key per-frame, so every
+      // frame needs the oracle state to compare against.
       const mdVSFrames = {};
+      // Snapshot the random-trace produced during preset load (visualizer
+      // construction + preset conversion + rand_start + rand_preset +
+      // init_eqs + init-time frame_eqs). This lets a validator compare
+      // PHOSPHENE's preset-load draw sequence against the oracle's
+      // witnessed order and values. The trace is reset after snapshot
+      // so per-frame draws are captured separately.
+      const loadRandTrace = await page.evaluate(() => window.__refRandTrace());
+      await page.evaluate(() => window.__refResetRandTrace());
+      // Per-frame random-trace slices: draws made during frame f
+      // (frame_eqs + pixel_eqs + wave frame/point + shape frame). The
+      // context tag reflects the frame index so the validator can
+      // slice by frame and compare against PHOSPHENE's own draw
+      // sequence.
+      const frameRandTraces = [];
       for (let f = 0; f <= TOTAL_FRAMES; f++) {
         const { c, l, r } = audioFrame(f);
+        await page.evaluate((tag) => window.__refSetRandContext(tag), `frame:${f}`);
         // Frame time (f+1)/FPS: the page derives elapsed = dt from the
         // previous call, so EVERY frame including the first gets elapsed
         // = 1/FPS. An elapsed of 0 is falsy and butterchurn falls back to
@@ -115,13 +142,17 @@ try {
         );
         const state = await page.evaluate(() => window.__refState());
         perFrameGlobals.push(state.globalVars);
+        mdVSFrames[f] = state.mdVSFrame;
+        const trace = await page.evaluate(() => window.__refRandTrace());
+        if (trace.length) frameRandTraces.push({ frame: f, draws: trace });
+        await page.evaluate(() => window.__refResetRandTrace());
         if (CAPTURE_FRAMES.includes(f)) {
-          mdVSFrames[f] = state.mdVSFrame;
           writeFileSync(`${dir}/frame-${f}.png`, await page.screenshot({ type: "png" }));
         }
       }
       writeFileSync(`${dir}/frames.json`, JSON.stringify({
         globalVars: perFrameGlobals, mdVSFrame: mdVSFrames,
+        randTrace: { load: loadRandTrace, frames: frameRandTraces },
       }));
       ok++;
       manifest.push({ file: rel, sha256, slug, frames: CAPTURE_FRAMES, size: [W, H] });

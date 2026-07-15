@@ -25,7 +25,7 @@
  */
 
 import { Renderer } from "./renderer";
-import { MilkPresetRunner, makeMulberry32, REGS, type Pool, type MilkRng } from "../core/milk-runner";
+import { MilkPresetRunner, makeMulberry32, RecordingMilkRng, REGS, type Pool, type MilkRng } from "../core/milk-runner";
 import {
   GraphScene, GraphNode, MilkWaveNode, MilkShapeNode,
   UnsupportedNodeError, unsupportedFeatures, validateGraph,
@@ -349,14 +349,17 @@ export class MilkPipeline {
 
   private canvasVertBuf: GPUBuffer | null = null;
 
-  /** RNG stream fed to the runner; committed seed by default so every
-   *  preset execution is reproducible without external Math.random
-   *  patching. Callers may pass an explicit MilkRng when a specific
-   *  seeded stream is required (e.g. E2E validation aligned to the
-   *  instrumented oracle). */
-  private readonly rng: MilkRng;
+  /** RNG stream fed to the runner, wrapped in a RecordingMilkRng so
+   *  every draw is captured with its context tag for stream-alignment
+   *  validation against the oracle's witnessed randTrace. The committed
+   *  seed is used by default so every preset execution is reproducible
+   *  without external Math.random patching; callers may pass an explicit
+   *  MilkRng when a specific seeded stream is required (e.g. E2E
+   *  validation aligned to the instrumented oracle). */
+  readonly rng: RecordingMilkRng;
   constructor(private readonly renderer: Renderer, rng?: MilkRng) {
-    this.rng = rng ?? makeMulberry32(0x5eed1e55);
+    const inner = rng ?? makeMulberry32(0x5eed1e55);
+    this.rng = new RecordingMilkRng(inner);
   }
 
   /* ------------------------------ loading ------------------------------ */
@@ -382,24 +385,21 @@ export class MilkPipeline {
     if (g.nodes.some((n) => n.kind === "milk-blur")) {
       refused.push("milk-blur (blur cascade consumed only by unimplemented shaders)");
     }
-    // Refuse — do not approximate — semantics that are not exact:
-    // - perPixelInit: the oracle runs per-pixel init once at preset load
-    //   inside a per-vertex context and its outputs feed the very first
-    //   per_pixel run (butterchurn presetEquationRunner.js — the current
-    //   MilkPresetRunner does not model that init separately, so any
-    //   preset carrying non-empty per_pixel_init MUST refuse.
-    // - gmegabuf sharing: exact behavior requires a single shared 1M-cell
-    //   array visible to preset, pixel, wave, and shape contexts within
-    //   a single frame (butterchurn presetEquationRunner.js:
-    //   this.gmegabuf = new Array(1048576).fill(0); mdVSBase.gmegabuf =
-    //   this.gmegabuf). Current expr.ts stores @gmb keys in per-context
-    //   pools that are only merged post-hoc, which is not sharing —
-    //   detect and refuse.
+    // gmegabuf: cross-context shared 1M-cell array is now real — the
+    // runner allocates a single Float64Array(1048576) at construction
+    // and every compiled Program (preset init/frame/pixel + each wave
+    // + each shape) writes and reads through it (src/core/expr.ts
+    // GMEGABUF_HOLDER swap-and-restore + milk-runner.ts sharedGmegabuf).
+    // The usesGmegabuf detector stays as a debug aid (kept exported
+    // for tests), but gmegabuf presence no longer refuses execution.
+    void usesGmegabuf;
+    // perPixelInit still refused: the oracle runs it once at preset
+    // load inside a per-vertex context and its outputs feed the very
+    // first per_pixel run (butterchurn presetEquationRunner.js). The
+    // current MilkPresetRunner does not model that init separately,
+    // so any preset carrying non-empty per_pixel_init MUST refuse.
     if (warpNode && warpNode.kind === "milk-warp" && warpNode.perPixelInit && warpNode.perPixelInit.trim().length > 0) {
       refused.push("milk-warp:perPixelInit (per-vertex init lifecycle not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)");
-    }
-    if (usesGmegabuf(g)) {
-      refused.push("gmegabuf (cross-context shared 1M-cell buffer not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)");
     }
     if (refused.length) throw new UnsupportedGraphError(refused);
     if (!frameNode || frameNode.kind !== "milk-frame") throw new Error("unreachable");

@@ -197,7 +197,24 @@ for (const r of results) {
     unsupportedByFeature[key] = (unsupportedByFeature[key] || 0) + 1;
   }
 }
-const executable = results.length - unsupported - loadFailed - skipped;
+// Executable = presets that actually ran through the pipeline and produced
+// a frame set. `results` already excludes fixture failures (those short-
+// circuited at `if (entry.error) skipped++`), so executable is derived
+// from the run outcomes, not from subtracting skipped a second time.
+const executable = validated + diverged;
+const totalCorpusPresets = manifest.presets.length;
+const fixtureConvertFailures = skipped;
+const presetsTested = results.length;
+const refused = unsupported;
+// Count-balance assertions — a report cannot be written unless every
+// relationship holds. Prevents the mis-accounting the earlier reports had.
+const assert = (cond, msg) => { if (!cond) throw new Error(`count balance: ${msg}`); };
+assert(totalCorpusPresets === fixtureConvertFailures + presetsTested,
+  `total=${totalCorpusPresets} != fixture-failed(${fixtureConvertFailures}) + tested(${presetsTested})`);
+assert(presetsTested === refused + loadFailed + executable,
+  `tested=${presetsTested} != refused(${refused}) + load-failed(${loadFailed}) + executable(${executable})`);
+assert(executable === validated + diverged,
+  `executable=${executable} != validated(${validated}) + diverged(${diverged})`);
 const report = {
   measures: "reference-validated fidelity of the GRAPH MILK PATH (MilkPipeline on WebGPU) vs the seeded Butterchurn oracle: identical corpus source file (sha256-verified), oracle per-frame globals, oracle audio chain; gate = SSIM >= tolerance on EVERY RGB channel at every capture frame",
   path: "graph milk path (milkToGraph -> MilkPipeline); presets refusing at load carry their exact feature list",
@@ -205,19 +222,20 @@ const report = {
   tolerance: { ssim: SSIM_TOLERANCE, metric: "min per-channel color SSIM", rule: "every capture frame, every channel; committed before implementation per COMPATIBILITY-GOAL.md" },
   captureFrames: CAPTURE_FRAMES,
   counts: {
-    totalCorpusPresets: manifest.presets.length,
-    presetsTested: results.length,
+    totalCorpusPresets,
+    fixtureConvertFailures,
+    presetsTested,
+    refused,
+    loadFailed,
     executable,
     validatedExecutable: validated,
     divergedExecutable: diverged,
     unsupportedByFeature,
-    fixtureConvertFailures: skipped,
-    loadFailed,
   },
-  presetsTested: results.length,
-  validated, diverged, loadFailed, unsupportedShaderPresets: unsupported, fixtureConvertFailures: skipped,
   results,
 };
 writeFileSync(out, JSON.stringify(report, null, 2));
-console.log(`\nVALIDATED ${validated}/${results.length} (diverged ${diverged}, load-failed ${loadFailed}, unsupported ${unsupported}, fixture-convert-failed ${skipped})`);
+console.log(`\ncorpus ${totalCorpusPresets} = fixture-failed ${fixtureConvertFailures} + tested ${presetsTested}`);
+console.log(`tested ${presetsTested} = refused ${refused} + load-failed ${loadFailed} + executable ${executable}`);
+console.log(`executable ${executable} = validated ${validated} + diverged ${diverged}`);
 console.log(`report: ${out}`);

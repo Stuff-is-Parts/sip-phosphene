@@ -25,6 +25,19 @@ export interface Program {
    *  seeded stream once; every call to rand()/randint() during any
    *  subsequent run() draws from that stream in program-source order. */
   setRng(fn: () => number): void;
+  /** Install the shared 1M-cell gmegabuf storage (witnessed butterchurn
+   *  presetEquationRunner.js: `this.gmegabuf = new Array(1048576).fill(0);
+   *  mdVSBase.gmegabuf = this.gmegabuf`). Every gmegabuf(i) read/write
+   *  in this Program flows through the shared array; passing null (the
+   *  default) falls back to per-pool storage which does not cross
+   *  context boundaries. Every program in one preset execution
+   *  (preset init/frame/pixel + each wave/shape init/frame/point)
+   *  receives the same Float64Array so the sharing is real. */
+  setGmegabuf(arr: Float64Array | null): void;
+  /** True when the program's source references gmegabuf (compile-time
+   *  detection). Runners consult this to decide whether the shared
+   *  array must be installed before run(). */
+  readonly usesGmegabuf: boolean;
 }
 
 type Node = (env: Record<string, number>) => number;
@@ -77,6 +90,16 @@ const FUNCS: Record<string, (...a: number[]) => number> = {
 /** megabuf/gmegabuf cells live in the env under a store prefix. */
 const BUF_PREFIX: Record<string, string> = { megabuf: "@mb", gmegabuf: "@gmb" };
 
+/** Module-scope holder for the currently active shared gmegabuf array.
+ *  Programs sharing storage (preset+pixel+wave+shape within one frame)
+ *  install the same Float64Array via setGmegabuf(); Program.run()
+ *  swaps this holder to the Program's array on entry and restores on
+ *  exit, so nested run() calls (which do not happen today but could
+ *  in the future) do not corrupt each other. Only one Program runs at
+ *  a time in the current architecture, so the swap-and-restore is
+ *  correct and cheap. */
+const GMEGABUF_HOLDER: { current: Float64Array | null } = { current: null };
+
 interface Token { kind: "num" | "ident" | "op"; text: string; pos: number }
 
 function tokenize(src: string): Token[] {
@@ -127,6 +150,11 @@ function tokenize(src: string): Token[] {
 class Parser {
   private p = 0;
   readonly assigns = new Set<string>();
+  /** Set when the parser emits at least one gmegabuf read or write.
+   *  Programs that touch gmegabuf require a shared Float64Array installed
+   *  via Program.setGmegabuf(...) before run(); the runner uses this
+   *  flag to decide whether to install the preset-wide shared array. */
+  usesGmegabuf = false;
   constructor(private toks: Token[]) {}
 
   private peek(o = 0): Token | undefined { return this.toks[this.p + o]; }
@@ -281,21 +309,62 @@ class Parser {
         if (t.text === "loop") return this.parseLoop();
         if (t.text === "while") return this.parseWhile();
         if (BUF_PREFIX[t.text]) {
+          const isG = t.text === "gmegabuf";
+          if (isG) this.usesGmegabuf = true;
           const prefix = BUF_PREFIX[t.text];
           const idx = this.parseExpr();
           this.expectOp(")");
           // floor indexing (witnessed converter: megabuf[Math.floor(i)]);
-          // store form composes inside if()/exec2() args like assignment
+          // store form composes inside if()/exec2() args like assignment.
+          //
+          // For gmegabuf: read/write flows through the shared 1M-cell
+          // Float64Array owned by the runner and installed via
+          // Program.setGmegabuf(). Every program in a preset execution
+          // (preset init/frame/pixel + waves + shapes) receives the same
+          // array so writes made in one context are visible to reads
+          // made in another within the same frame — witnessed oracle
+          // behavior (presetEquationRunner.js mdVSBase.gmegabuf shared
+          // across all runtime instances). Indexes floored and clamped to
+          // [0, 1048575]; out-of-range indexes silently discard writes
+          // and return 0 on read (matches oracle behavior).
+          //
+          // For megabuf: stays per-pool via string-keyed cells.
           const opTok = this.peek();
           const compound = opTok && Parser.COMPOUND[opTok.text];
-          if (compound || (opTok?.kind === "op" && opTok.text === "=")) {
+          const write = compound || (opTok?.kind === "op" && opTok.text === "=");
+          if (write) {
             this.p++;
             const value = this.parseExpr();
+            if (isG) {
+              return (e) => {
+                const arr = GMEGABUF_HOLDER.current;
+                const i = Math.floor(idx(e));
+                if (arr && i >= 0 && i < arr.length) {
+                  const v = compound ? compound(arr[i], value(e)) : value(e);
+                  arr[i] = v;
+                  return v;
+                }
+                // Fallback path when no shared array is installed —
+                // per-pool store, matching pre-shared behavior.
+                const key = prefix + i;
+                const v = compound ? compound(e[key] ?? 0, value(e)) : value(e);
+                e[key] = v;
+                return v;
+              };
+            }
             return (e) => {
               const key = prefix + Math.floor(idx(e));
               const v = compound ? compound(e[key] ?? 0, value(e)) : value(e);
               e[key] = v;
               return v;
+            };
+          }
+          if (isG) {
+            return (e) => {
+              const arr = GMEGABUF_HOLDER.current;
+              const i = Math.floor(idx(e));
+              if (arr && i >= 0 && i < arr.length) return arr[i];
+              return e[prefix + i] ?? 0;
             };
           }
           return (e) => e[prefix + Math.floor(idx(e))] ?? 0;
@@ -386,22 +455,33 @@ export function compile(src: string): Program {
   // rewriting the parser, we temporarily patch FUNCS during run(). The
   // patch is scoped to synchronous execution: nested run() calls on
   // different programs restore the outer's rand on exit.
+  // Per-Program shared gmegabuf pointer. Programs sharing storage
+  // (preset init/frame/pixel + waves + shapes) receive the same array;
+  // Programs run in isolation stay null. Run() swaps GMEGABUF_HOLDER
+  // for the duration of execution so gmegabuf reads/writes hit the
+  // installed array.
+  let sharedGmegabuf: Float64Array | null = null;
   const program: Program = {
     assigns: [...parser.assigns],
+    usesGmegabuf: parser.usesGmegabuf,
     setRng(fn) { rng = fn; },
+    setGmegabuf(arr) { sharedGmegabuf = arr; },
     run(env) {
       const prevRand = FUNCS.rand;
       const prevRandInt = FUNCS.randint;
+      const prevGmegabuf = GMEGABUF_HOLDER.current;
       FUNCS.rand = (x) => {
         const xf = Math.floor(x);
         return xf < 1 ? rng() : rng() * xf;
       };
       FUNCS.randint = (x) => Math.floor(FUNCS.rand(x));
+      GMEGABUF_HOLDER.current = sharedGmegabuf;
       try {
         for (const s of stmts) s(env);
       } finally {
         FUNCS.rand = prevRand;
         FUNCS.randint = prevRandInt;
+        GMEGABUF_HOLDER.current = prevGmegabuf;
       }
     },
   };

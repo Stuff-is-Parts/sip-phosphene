@@ -59,6 +59,44 @@ export function makeMulberry32(seed: number): MilkRng {
   };
 }
 
+/** A recorded rand()/randint() draw — captured for stream alignment
+ *  against the instrumented Butterchurn oracle (reference/butterchurn-ref.html
+ *  __refRandTrace / __refSetRandContext). Each draw carries its
+ *  monotonic sequence number, the context tag the caller set when the
+ *  draw fired, and the value returned. Traces are compared position by
+ *  position so an off-by-one in draw order surfaces immediately. */
+export interface RandDraw {
+  seq: number;
+  context: string;
+  value: number;
+}
+
+/** A recording MilkRng that wraps another MilkRng, capturing every
+ *  draw so equation-visible rand()/randint() call sequences can be
+ *  compared against the oracle's witnessed stream. */
+export class RecordingMilkRng implements MilkRng {
+  private seq = 0;
+  private context = "unknown";
+  private trace: RandDraw[] = [];
+  constructor(private readonly inner: MilkRng) {}
+  setContext(name: string): void { this.context = name; }
+  next(): number {
+    const value = this.inner.next();
+    this.trace.push({ seq: this.seq++, context: this.context, value });
+    return value;
+  }
+  /** Snapshot the accumulated trace and clear the buffer so subsequent
+   *  draws start a new slice. */
+  snapshotAndReset(): RandDraw[] {
+    const out = this.trace;
+    this.trace = [];
+    this.seq = 0;
+    return out;
+  }
+  /** Peek at the accumulated trace without clearing. */
+  snapshot(): RandDraw[] { return this.trace.slice(); }
+}
+
 /* --- witnessed default tables (visualizer.js baseValsDefaults etc.) --- */
 
 export const MILK_BASE_DEFAULTS: Record<string, number> = {
@@ -162,11 +200,21 @@ export interface MilkPresetDef {
   shapes: MilkUnitDef[];
 }
 
-function compileOrNull(src: string | undefined, errors: string[], what: string, rng?: () => number): Program | null {
+function compileOrNull(
+  src: string | undefined, errors: string[], what: string,
+  rng?: () => number, sharedGmegabuf?: Float64Array,
+): Program | null {
   if (!src || !src.trim()) return null;
   try {
     const p = compile(src);
     if (rng) p.setRng(rng);
+    // Every program in one preset execution shares the same 1M-cell
+    // Float64Array so writes made by one context are visible to reads
+    // in another within the same frame (witnessed presetEquationRunner
+    // this.gmegabuf shared across all runtime instances). Programs that
+    // do not touch gmegabuf still receive the array — the swap-and-
+    // restore in Program.run is O(1) so unconditional install is free.
+    if (sharedGmegabuf) p.setGmegabuf(sharedGmegabuf);
     return p;
   } catch (e) {
     errors.push(`${what}: ${(e as Error).message}`);
@@ -181,6 +229,13 @@ export class MilkPresetRunner {
    *  comp hue base, rand_preset the shader uniforms. */
   randStart: number[] = [0, 0, 0, 0];
   randPreset: number[] = [0, 0, 0, 0];
+  /** Shared 1M-cell gmegabuf storage handed to every compiled Program in
+   *  this preset execution — the write in preset-frame becomes visible
+   *  in per-pixel, per-wave, and per-shape reads within the same frame
+   *  (witnessed butterchurn presetEquationRunner.js `this.gmegabuf =
+   *  new Array(1048576).fill(0)` + `mdVSBase.gmegabuf = this.gmegabuf`
+   *  where mdVSBase is spread into every unit pool). */
+  readonly gmegabuf: Float64Array = new Float64Array(1048576);
   private readonly initProg: Program | null;
   private readonly frameProg: Program | null;
   readonly pixelProg: Program | null;
@@ -215,10 +270,11 @@ export class MilkPresetRunner {
     // Every draw goes through `rng.next()` — no Math.random dependency.
     // Callers commit an explicit seeded MilkRng (see makeMulberry32).
     const rand = () => this.rng.next();
+    const shared = this.gmegabuf;
     this.baseVals = { ...MILK_BASE_DEFAULTS, ...mapMilkKeys(def.baseValues, "main") };
-    this.initProg = compileOrNull(def.initEel, this.errors, "init", rand);
-    this.frameProg = compileOrNull(def.frameEel, this.errors, "per-frame", rand);
-    this.pixelProg = compileOrNull(def.pixelEel, this.errors, "per-pixel", rand);
+    this.initProg = compileOrNull(def.initEel, this.errors, "init", rand, shared);
+    this.frameProg = compileOrNull(def.frameEel, this.errors, "per-frame", rand, shared);
+    this.pixelProg = compileOrNull(def.pixelEel, this.errors, "per-pixel", rand, shared);
 
     // Renderer initialization entropy: rand_start (4 draws) then
     // rand_preset (4 draws), witnessed in butterchurn visualizer.js
@@ -265,7 +321,7 @@ export class MilkPresetRunner {
       const pool: Pool = { ...baseVals, ...globals };
       const nonUserWaveKeys = [...QS, ...TS, ...REGS, ...Object.keys(pool)];
       Object.assign(pool, this.mdVSQAfterFrame, this.mdVSRegs);
-      const initProg = compileOrNull(wave.initEel, this.errors, `wave${i} init`, () => this.rng.next());
+      const initProg = compileOrNull(wave.initEel, this.errors, `wave${i} init`, () => this.rng.next(), shared);
       if (initProg) {
         initProg.run(pool);
         this.mdVSRegs = pick(pool, REGS);
@@ -276,8 +332,8 @@ export class MilkPresetRunner {
       const userKeys = omitKeys(pool, nonUserWaveKeys);
       this.waveUserKeys.push(userKeys);
       this.waveFrameMaps.push(pick(pool, userKeys));
-      this.waveFrameProgs.push(compileOrNull(wave.frameEel, this.errors, `wave${i} per-frame`, () => this.rng.next()));
-      this.wavePointProgs.push(compileOrNull(wave.pointEel, this.errors, `wave${i} per-point`, () => this.rng.next()));
+      this.waveFrameProgs.push(compileOrNull(wave.frameEel, this.errors, `wave${i} per-frame`, () => this.rng.next(), shared));
+      this.wavePointProgs.push(compileOrNull(wave.pointEel, this.errors, `wave${i} per-point`, () => this.rng.next(), shared));
     });
 
     def.shapes.forEach((shape, i) => {
@@ -294,7 +350,7 @@ export class MilkPresetRunner {
       const pool: Pool = { ...baseVals, ...globals };
       const nonUserShapeKeys = [...QS, ...TS, ...REGS, ...Object.keys(pool)];
       Object.assign(pool, this.mdVSQAfterFrame, this.mdVSRegs);
-      const initProg = compileOrNull(shape.initEel, this.errors, `shape${i} init`, () => this.rng.next());
+      const initProg = compileOrNull(shape.initEel, this.errors, `shape${i} init`, () => this.rng.next(), shared);
       if (initProg) {
         initProg.run(pool);
         this.mdVSRegs = pick(pool, REGS);
@@ -305,7 +361,7 @@ export class MilkPresetRunner {
       const userKeys = omitKeys(pool, nonUserShapeKeys);
       this.shapeUserKeys.push(userKeys);
       this.shapeFrameMaps.push(pick(pool, userKeys));
-      this.shapeFrameProgs.push(compileOrNull(shape.frameEel, this.errors, `shape${i} per-frame`, () => this.rng.next()));
+      this.shapeFrameProgs.push(compileOrNull(shape.frameEel, this.errors, `shape${i} per-frame`, () => this.rng.next(), shared));
     });
   }
 
