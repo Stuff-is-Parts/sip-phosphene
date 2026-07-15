@@ -80,7 +80,7 @@ export function mathBuiltins(): Record<string, Builtin> {
     const one = h.ty.k === "vec" ? `vec${h.ty.n}f(1.0)` : "1.0";
     return { code: `clamp(${h.args[0].code}, ${zero}, ${one})`, ty: h.ty };
   };
-  b.mul = (args, line, e) => {
+  b.mul = (args, line, _e) => {
     if (args.length !== 2) throw err("mul expects 2 args", line);
     const [a, c] = args;
     const ty = a.ty.k === "mat" && c.ty.k === "vec" ? c.ty

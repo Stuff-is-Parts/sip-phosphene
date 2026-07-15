@@ -18,8 +18,19 @@ const RESERVED = new Set([
 function prepare(glsl: string): { helpers: string; main: string } {
   let src = glsl.replace(/\r\n/g, "\n");
   src = src.replace(/\/\*[\s\S]*?\*\//g, "");
+  // stray-character tolerance: '/' outside comments (line-splice residue) drops
+  src = src.replace(/;\s*\/(?=\s*[a-zA-Z_])/g, "; ");
   src = src.replace(/VERTEXOUTPUT\s*\{[^}]*\}/, "");
-  src = src.replace(/#ifdef\s+VERTEX[\s\S]*?#endif/, "");
+  // GLSL brace initializers: vec3 x = {a,b,c}  ->  vec3 x = vec3(a,b,c)
+  src = src.replace(/\b(vec2|vec3|vec4|ivec2|ivec3|ivec4|mat2|mat3|mat4)(\s+\w+\s*=\s*)\{([^{}]*)\}/g,
+    (_m, ty: string, mid: string, body: string) => `${ty}${mid}${ty}(${body})`);
+  // GLSL array-constructor syntax: int dither[64] = int[64](...)  ->
+  // int dither[64] = array<i32,64>(...) — WGSL form the parser accepts
+  src = src.replace(/=\s*(int|float)\s*\[\s*(\d+)\s*\]\s*\(/g, "= $1[$2]__ctor(");
+  // strip #ifdef VERTEX blocks (which are between #ifdef VERTEX ... #endif
+  // and may nest with #else) — a simple regex plus a fallback for #else
+  src = src.replace(/#ifdef\s+VERTEX[\s\S]*?#endif/g, "");
+  src = src.replace(/#ifdef\s+VERTEX[\s\S]*?#else([\s\S]*?)#endif/g, "$1");
   const fm = /#ifdef\s+FRAGMENT([\s\S]*?)#endif/.exec(src);
   if (!fm) throw new Error("no FRAGMENT section found");
   const frag = fm[1];
@@ -50,6 +61,10 @@ function bindEngine(src: string): string {
   s = s.replace(/\b_rotate\s*\(/g, "p9rot(");
   s = s.replace(/\bsi\.tex\b/g, "p9uv");
   s = s.replace(/\bsi\.diffuse\b/g, "p9diffuse");
+  // per-vertex varyings the scene doesn't drive; typed-correct defaults
+  s = s.replace(/\bsi\.(normal|vnormal)\b/g, "p9normal");
+  s = s.replace(/\bsi\.(vpos|pos|worldPos|wPos)\b/g, "p9wpos");
+  s = s.replace(/\bsi\.(view|viewDir|vdir)\b/g, "p9view");
   s = s.replace(/\bsi\.\w+\b/g, "p9diffuse");
   s = s.replace(/\bgTime\b/g, "p9time");
   s = s.replace(/\bgFrameNr\b/g, "(p9time * 60.0)");
@@ -61,12 +76,15 @@ function bindEngine(src: string): string {
   s = s.replace(/\bgTargetSize\b/g, "p9res");
   s = s.replace(/\bgViewPosition\b/g, "vec3(0.0, 0.0, 4.33)");
   s = s.replace(/\bgViewDirection\b/g, "vec3(0.0, 0.0, -1.0)");
+  // panoramic sampling (must run before the generic sampler-arg strip)
+  s = s.replace(/\b_texturePanoramic(Lod)?\s*\(\s*\w+\s*,\s*/g, "p9pano(");
   s = s.replace(/\btexelFetch\s*\(\s*\w+\s*,\s*/g, "p9texel(");
   s = s.replace(/\btexture(Lod|2D)?\s*\(\s*\w+\s*,\s*/g, "p9tex(");
-  // helper fns taking sampler params: strip the param and, after the
-  // texture-call mapping above, any remaining sampler-name arguments
+  // helper fns taking sampler params: strip the param and any remaining
+  // sampler-name arguments (unless already consumed by a texture rewrite)
   s = s.replace(/\bsampler([23]D|Cube)\s+\w+\s*,\s*/g, "");
   s = s.replace(/\(\s*(gTexture\d|gPermutation\w*|gNoise\w*)\s*,\s*/g, "(");
+  s = s.replace(/\bgTexture\d\b/g, "img(vec2f(0.0))"); // bare uses become neutral
   s = s.replace(/\boColor\b/g, "p9out");
   return s;
 }
@@ -124,6 +142,16 @@ vec3 _lightBlinnPhong(vec3 normal, vec3 lightDir, vec3 viewDir, vec3 diffuseCol)
   float atten = clamp(1.0 - dist / max(lightRadius, 0.001), 0.0, 1.0);
   return _lightDirectional(diffuseAlbedo, specularAlbedo, normal, roughness, lightColor, lightDir, viewDir) * atten * atten;
 }`],
+  ["_cubicpulse", `float _cubicpulse(float c, float w, float x) {
+  x = abs(x - c);
+  if (x > w) return 0.0;
+  x = x / w;
+  return 1.0 - x * x * (3.0 - 2.0 * x);
+}`],
+  ["_brightnessSaturationContrast", `vec3 _brightnessSaturationContrast(vec3 col, float brt, float sat, float con) {
+  vec3 grey = vec3(dot(col, vec3(0.299, 0.587, 0.114)));
+  return ((mix(grey, col, sat) - vec3(0.5)) * con + vec3(0.5)) * brt;
+}`],
   ["_blendScreen", `vec3 _blendScreen(vec3 a, vec3 b) {
   return vec3(1.0) - (vec3(1.0) - a) * (vec3(1.0) - b);
 }`],
@@ -159,8 +187,7 @@ export function glslToRender(glsl: string): { body: string; warnings: string[] }
   const warnings: string[] = [];
   const { helpers, main } = prepare(glsl);
   let src = bindEngine(helpers + "\n" + main);
-  // panoramic sampling: sampler arg drops, direction becomes an img lookup
-  src = src.replace(/\b_texturePanoramic(Lod)?\s*\([^,()]*,\s*/g, "p9pano(");
+  // pano was already substituted in bindEngine before the sampler strip
   src = src.replace(/\bgZNear\b/g, "0.1");
   src = src.replace(/\bgZFar\b/g, "100.0");
   // inject clean-room stdlib helpers the scene calls but doesn't define,
@@ -187,6 +214,7 @@ export function glslToRender(glsl: string): { body: string; warnings: string[] }
     p9uv: vec(2), p9time: F32, p9diffuse: vec(4), p9res: vec(2),
     p9fragcoord: vec(4), p9out: vec(4),
     p9gIn1: vec(3), p9gIn2: vec(3), p9gIn3: vec(3),
+    p9normal: vec(3), p9wpos: vec(3), p9view: vec(3),
   };
 
   const builtins = mathBuiltins();
@@ -249,6 +277,9 @@ var<private> p9diffuse : vec4f;
 var<private> p9gIn1 : vec3f;
 var<private> p9gIn2 : vec3f;
 var<private> p9gIn3 : vec3f;
+var<private> p9normal : vec3f;
+var<private> p9wpos : vec3f;
+var<private> p9view : vec3f;
 var<private> p9out : vec4f;
 ` + (helperCode ? helperCode + "\n" : "") +
     `fn render(c : Ctx) -> vec3f {
@@ -260,6 +291,9 @@ var<private> p9out : vec4f;
   p9gIn1 = vec3f(0.4, 0.0, 0.3);
   p9gIn2 = vec3f(0.2, 0.5, 0.1);
   p9gIn3 = vec3f(0.1, 0.3, 0.6);
+  p9normal = vec3f(0.0, 0.0, 1.0);
+  p9wpos = vec3f(c.uv * 2.0 - vec2f(1.0), 0.0);
+  p9view = vec3f(0.0, 0.0, -1.0);
   p9out = vec4f(0.0);
 ${body}
   return p9out.rgb * c.intensity;

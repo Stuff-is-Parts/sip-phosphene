@@ -2,9 +2,9 @@
   "kind": "p9",
   "total": 252,
   "buckets": {
-    "pass": 196,
+    "pass": 199,
     "black": 23,
-    "compile-fail": 33,
+    "compile-fail": 30,
     "gpu-error": 0,
     "parse-fail": 0
   },
@@ -52,7 +52,7 @@
     {
       "file": "Music\\Music Tunnel.p9c",
       "bucket": "compile-fail",
-      "detail": "import threw: Cannot read properties of undefined (reading 'ty')"
+      "detail": "import threw: missing value in coerce (line 14)"
     },
     {
       "file": "Music\\Music star.p9c",
@@ -62,22 +62,17 @@
     {
       "file": "Music\\Spectrum Ocean.p9c",
       "bucket": "compile-fail",
-      "detail": "import threw: Cannot read properties of undefined (reading 'ty')"
+      "detail": "import threw: missing value in coerce (line 12)"
     },
     {
       "file": "Music\\Spectrum Radar.p9c",
       "bucket": "compile-fail",
-      "detail": "import threw: Cannot read properties of undefined (reading 'ty')"
+      "detail": "import threw: missing value in coerce (line 11)"
     },
     {
       "file": "Music\\Spectrum sparks.p9c",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Nature\\Earth.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: unexpected '{' (line 7)"
     },
     {
       "file": "Nature\\Explosion.p9c",
@@ -90,14 +85,9 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Nature\\Sunset.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: unknown function '_texturePanoramic' (line 141)"
-    },
-    {
       "file": "Nature\\The Cave.p9c",
       "bucket": "compile-fail",
-      "detail": "import threw: unexpected '/' (line 96)"
+      "detail": "import threw: unexpected end of block (line 116)"
     },
     {
       "file": "Other\\Balls of metal.p9c",
@@ -140,14 +130,9 @@
       "detail": "import threw: vec3 constructor got 6 components (line 71)"
     },
     {
-      "file": "Particle\\It is coming for you.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: unknown function '_cubicpulse' (line 37)"
-    },
-    {
       "file": "Postprocessing\\Bayer 8 Matrix Dithering BW.p9c",
       "bucket": "compile-fail",
-      "detail": "import threw: expected ';', found '(' (line 7)"
+      "detail": "import threw: expected ';', found '__ctor' (line 7)"
     },
     {
       "file": "Postprocessing\\BlackAndWhite.p9c",
@@ -262,12 +247,12 @@
     {
       "file": "Transition\\Swirl Transition.p9c",
       "bucket": "compile-fail",
-      "detail": "import threw: unknown identifier 'gTexture1' (line 31)"
+      "detail": "import threw: unknown function 'img' (line 31)"
     },
     {
       "file": "Transition\\Wave Transition.p9c",
       "bucket": "compile-fail",
-      "detail": "import threw: unknown identifier 'gTexture1' (line 24)"
+      "detail": "import threw: unknown function 'img' (line 24)"
     },
     {
       "file": "Tunnel\\Boxy.p9c",

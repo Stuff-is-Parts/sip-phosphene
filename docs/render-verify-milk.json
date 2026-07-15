@@ -2,8 +2,8 @@
   "kind": "milk",
   "total": 1000,
   "buckets": {
-    "pass": 902,
-    "black": 59,
+    "pass": 904,
+    "black": 57,
     "compile-fail": 39,
     "gpu-error": 0,
     "parse-fail": 0
@@ -67,17 +67,17 @@
     {
       "file": "Dancer\\Swarm\\martin - sphery tales slow version nz+.milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at http://localhost:4197/assets/types-DA0_xv2U.js:3:3544\n    at Object.run (http://loc"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:3544 |     at Object.run (http:"
     },
     {
       "file": "Drawing\\Explosions Mirror\\chris grease organiq stymied parchment phlossidite logos holographeme poach legsce.milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at http://localhost:4197/assets/types-DA0_xv2U.js:3:3544\n    at Object.run (http://loc"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:3544 |     at Object.run (http:"
     },
     {
       "file": "Drawing\\Explosions Mirror\\fiShbRaiN - witchcraft (metropolish remix) - test - tillex  - waqx xtrong en la ngoadzchple.milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at http://localhost:4197/assets/types-DA0_xv2U.js:3:3544\n    at Object.run (http://loc"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:3544 |     at Object.run (http:"
     },
     {
       "file": "Drawing\\Explosions\\Zylot - Paint Spill (Music Reactive Paint Mix) nz+ quescience flux hate.milk",
@@ -87,7 +87,7 @@
     {
       "file": "Drawing\\Explosions\\fiShbRaiN - witchcraft (metropolish remix) - test - tillex  - expert at pretending to survive gentle unseen incausitive.milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at http://localhost:4197/assets/types-DA0_xv2U.js:3:3544\n    at Object.run (http://loc"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:3544 |     at Object.run (http:"
     },
     {
       "file": "Drawing\\Explosions\\i am only here to die slowly in pain there is great peace in this surrender.milk",
@@ -187,22 +187,22 @@
     {
       "file": "Fractal\\Mandelbox\\3D function draw template [flexi's learning by doing session 04].milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272\n    at http://localhost:4197/"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272 |     at http://localhost:"
     },
     {
       "file": "Fractal\\Mandelbox\\martin - frosty caves.milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272\n    at http://localhost:4197/"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272 |     at http://localhost:"
     },
     {
       "file": "Fractal\\Mandelbox\\martin - mandelbox explorer - wreck diver nz+ kgnumbrephul qonqoars ov aengel.milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272\n    at http://localhost:4197/"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272 |     at http://localhost:"
     },
     {
       "file": "Fractal\\Mandelbox\\martin - mandelbox stepper.milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272\n    at e (http://localhost:41"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272 |     at e (http://localho"
     },
     {
       "file": "Fractal\\Nested Dancer\\toroidal pulse metatronic black tree sweet smell of rotting love.milk",
@@ -232,7 +232,7 @@
     {
       "file": "Geometric\\City\\martin - city lights v2 c.milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272\n    at http://localhost:4197/"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272 |     at http://localhost:"
     },
     {
       "file": "Geometric\\Cube Fly\\Benjam and Zylot - Tie-Dye Supernova (Sunspots Mix) - praise martin and flexi forever nz+ latter night.milk",
@@ -267,7 +267,7 @@
     {
       "file": "Geometric\\Sphere Wild\\suksma - selectron validumb blegula auralsect qripple baron.milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at http://localhost:4197/assets/types-DA0_xv2U.js:3:3544\n    at Object.run (http://loc"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:3544 |     at Object.run (http:"
     },
     {
       "file": "Geometric\\Stripes Dance\\Martin - beamer code 04h.milk",
@@ -277,7 +277,7 @@
     {
       "file": "Geometric\\Tunnel Fans\\amandio c - feeling well 4.milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2588)\n    at http://localhost:4"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2588) |     at http://localh"
     },
     {
       "file": "Geometric\\Tunnel Spheres\\Ft AdamFX Preset Pack - martin - glassball dance in the basal ganglion - cranial bitch.milk",
@@ -302,12 +302,12 @@
     {
       "file": "Geometric\\Wire Spiral\\Stahlregen - Squared^2 (Rainbow colored spiral Solarized).milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2583)\n    at e (http://localhos"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2583) |     at e (http://loc"
     },
     {
       "file": "Hypnotic\\Polar Static\\xtramartin (1).milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272\n    at http://localhost:4197/"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272 |     at http://localhost:"
     },
     {
       "file": "Particles\\Orbit\\skipper skipper kiss me hard - thank god for martin nitorami - a rip in mommy's underwear roams.milk",
@@ -317,22 +317,22 @@
     {
       "file": "Particles\\Spaz\\Martin - Pixies Party (Hakan mash-up) 6-11.milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2583)\n    at http://localhost:4"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2583) |     at http://localh"
     },
     {
       "file": "Particles\\Spaz\\Martin - Pixies Party (Hakan mash-up) 6-9.milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2583)\n    at http://localhost:4"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2583) |     at http://localh"
     },
     {
       "file": "Particles\\Spaz\\martin - pixies party.milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2583)\n    at http://localhost:4"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2583) |     at http://localh"
     },
     {
       "file": "Particles\\Swarm\\$$$ Royal - Mashup (489).milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2681)\n    at e (http://localhos"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2681) |     at e (http://loc"
     },
     {
       "file": "Particles\\Swarm\\fewgasm drugged by kenyans nz+ nandgasm vs topological transform dynamics.milk",
@@ -402,7 +402,7 @@
     {
       "file": "Reaction\\Liquid Ripples\\flexi - target practice-5-liquid-2.milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272\n    at http://localhost:4197/"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272 |     at http://localhost:"
     },
     {
       "file": "Reaction\\Liquid Simmering\\LuxXx - Hurty Soul I.milk",
@@ -435,17 +435,7 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Sparkle\\Explosions\\fleekus flokus - violent and insane homicidal air molecules - beat code experiment2 gss nz.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
       "file": "Sparkle\\Explosions\\orb - inferno - burnt to a crisp - ngdothz rnz.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Sparkle\\Explosions\\suksma - geiss + dotes - holiday hidden in plain sight clown.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
@@ -497,7 +487,7 @@
     {
       "file": "Waveform\\Wire Flat Double\\MegalomaGreg + ShadowHarlequin - Ambitions [SH's hue_seizure remix].milk",
       "bucket": "compile-fail",
-      "detail": "import threw: TypeError: o is not a function\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288)\n    at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:1986)\n    at e (http://localhos"
+      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:1986) |     at e (http://loc"
     }
   ]
 }

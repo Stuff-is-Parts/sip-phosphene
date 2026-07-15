@@ -74,6 +74,7 @@ export class Emitter {
 
   /** Coerce a value to a target type, inserting casts/splats. */
   coerce(v: Val, want: Ty, line: number): Val {
+    if (!v || !v.ty) throw err("missing value in coerce", line);
     if (tyEq(v.ty, want)) return v;
     if (want.k === "f32" && v.ty.k === "i32") return { code: `f32(${v.code})`, ty: F32 };
     if (want.k === "i32" && v.ty.k === "f32") return { code: `i32(${v.code})`, ty: I32 };
@@ -237,6 +238,7 @@ export class Emitter {
       throw err(`unknown function '${name}'`, line);
     }
     const args = argExprs.map((a) => this.expr(a));
+    if (args.some((a) => !a || !a.ty)) throw err(`'${name}' got a malformed argument`, line);
     const byArity = sigs.filter((s) => s.params.length === args.length);
     if (!byArity.length) throw err(`'${name}' has no ${args.length}-arg overload`, line);
     // exact-type overload wins; otherwise first coercible one
