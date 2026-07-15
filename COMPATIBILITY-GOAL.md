@@ -54,6 +54,20 @@ Execute in this order:
 7. Accept each subsystem only after it passes its pre-existing reference
    validation.
 
+## Execution Standard
+
+Complete the assigned goal in one pull.
+
+The model has no authority to reduce scope, divide the work, declare partial
+completion sufficient, or move work into future phases, tasks, roadmaps, or
+follow-up pulls.
+
+Only the user may change the assigned goal or authorize incomplete delivery.
+
+An unavailable external dependency may prevent the specific work that
+requires it, but does not authorize stopping. Complete all remaining work and
+report the unresolved dependency with direct evidence.
+
 ## Correctness Standard
 
 A conversion is complete only when it:
