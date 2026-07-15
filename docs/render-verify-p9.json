@@ -1,88 +1,18 @@
 {
   "kind": "p9",
-  "total": 252,
+  "total": 247,
   "buckets": {
-    "pass": 211,
-    "black": 24,
-    "compile-fail": 17,
+    "pass": 239,
+    "black": 8,
+    "compile-fail": 0,
     "gpu-error": 0,
     "parse-fail": 0
   },
   "failures": [
     {
-      "file": "Cell\\Mellow.p9c",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Clock\\Shadow Clock.p9c",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Cube\\Evil Box.p9c",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
       "file": "Cube\\Flip Flop.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: expected ';', found '(' (line 44)"
-    },
-    {
-      "file": "Cube\\Hollow Cube.p9c",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Cube\\Inside Cube.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: expected ';', found '(' (line 84)"
-    },
-    {
-      "file": "Music\\Monster spectrum.p9c",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Music\\Music star.p9c",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Music\\Spectrum sparks.p9c",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Nature\\Explosion.p9c",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Nature\\Falling Snow.p9c",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Nature\\The Cave.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: unexpected end of block (line 116)"
-    },
-    {
-      "file": "Other\\Balls of metal.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: unexpected '{' (line 44)"
-    },
-    {
-      "file": "Other\\Black.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: no Shader node — this scene is built entirely from engine nodes and must be re-authored"
-    },
-    {
-      "file": "Other\\Color Cycle.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: no Shader node — this scene is built entirely from engine nodes and must be re-authored"
     },
     {
       "file": "Other\\Fuzzy Target.p9c",
@@ -90,32 +20,7 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Other\\Sea Of Bricks.p9c",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Other\\Shatter Monitor.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: cannot convert vec3f to f32 (line 43)"
-    },
-    {
-      "file": "Particle\\Color waves.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: vec3 constructor got 6 components (line 71)"
-    },
-    {
-      "file": "Postprocessing\\Bayer 8 Matrix Dithering BW.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: expected ';', found '__ctor' (line 7)"
-    },
-    {
-      "file": "Postprocessing\\BlackAndWhite.p9c",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Postprocessing\\Embos.p9c",
+      "file": "Particle\\Glow worms.p9c",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
@@ -125,47 +30,7 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Postprocessing\\Invert Gray.p9c",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Postprocessing\\Invert.p9c",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Postprocessing\\Shatter Scene.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: cannot convert vec3f to f32 (line 25)"
-    },
-    {
-      "file": "Psychedelic\\HypnoToad.p9c",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Special\\NewSceneTemplates\\Clear.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: no Shader node — this scene is built entirely from engine nodes and must be re-authored"
-    },
-    {
-      "file": "Special\\NewSceneTemplates\\RenderObject.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: no Shader node — this scene is built entirely from engine nodes and must be re-authored"
-    },
-    {
       "file": "Special\\TransitionFromExample.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: expected ';', found '(' (line 44)"
-    },
-    {
-      "file": "Text\\Awesomeness.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: no Shader node — this scene is built entirely from engine nodes and must be re-authored"
-    },
-    {
-      "file": "Things\\Flowerbox.p9c",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
@@ -175,42 +40,12 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Things\\Spiky.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: expected ';', found '(' (line 49)"
-    },
-    {
       "file": "Things\\Twisted.p9c",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Transition\\Swirl Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: 'SampleWithBorder' has no 3-arg overload (line 31)"
-    },
-    {
-      "file": "Transition\\Wave Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: 'SampleWithBorder' has no 3-arg overload (line 24)"
-    },
-    {
-      "file": "Tunnel\\Boxy.p9c",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Tunnel\\Gateway.p9c",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
       "file": "Tunnel\\ReliefTunnel.p9c",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Tunnel\\TopAndBottom.p9c",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     }

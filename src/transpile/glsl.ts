@@ -17,6 +17,10 @@ const RESERVED = new Set([
 
 function prepare(glsl: string): { helpers: string; main: string } {
   let src = glsl.replace(/\r\n/g, "\n");
+  // strip line comments before block comments: a scene like The Cave contains
+  // '//*(x)' where the block-comment regex would otherwise start matching
+  // inside the line comment and eat everything up to the next real '*/'
+  src = src.replace(/\/\/[^\n]*/g, "");
   src = src.replace(/\/\*[\s\S]*?\*\//g, "");
   // stray-character tolerance: '/' outside comments (line-splice residue) drops
   src = src.replace(/;\s*\/(?=\s*[a-zA-Z_])/g, "; ");
@@ -24,9 +28,12 @@ function prepare(glsl: string): { helpers: string; main: string } {
   // GLSL brace initializers: vec3 x = {a,b,c}  ->  vec3 x = vec3(a,b,c)
   src = src.replace(/\b(vec2|vec3|vec4|ivec2|ivec3|ivec4|mat2|mat3|mat4)(\s+\w+\s*=\s*)\{([^{}]*)\}/g,
     (_m, ty: string, mid: string, body: string) => `${ty}${mid}${ty}(${body})`);
-  // GLSL array-constructor syntax: int dither[64] = int[64](...)  ->
-  // int dither[64] = array<i32,64>(...) — WGSL form the parser accepts
-  src = src.replace(/=\s*(int|float)\s*\[\s*(\d+)\s*\]\s*\(/g, "= $1[$2]__ctor(");
+  // GLSL array brace-initializer: `vec4 metals[10] = { vec4(...), ... };` ->
+  // `vec4 metals[10] = vec4[](vec4(...), ...);` (single-level braces only —
+  // the vec constructors inside have parens, not nested braces).
+  src = src.replace(
+    /\b(vec2|vec3|vec4|ivec2|ivec3|ivec4|mat2|mat3|mat4|float|int)(\s+\w+\s*\[[^\]]*\]\s*=\s*)\{([^{}]*)\}/g,
+    (_m, ty: string, mid: string, body: string) => `${ty}${mid}${ty}[](${body})`);
   // strip #ifdef VERTEX blocks (which are between #ifdef VERTEX ... #endif
   // and may nest with #else) — a simple regex plus a fallback for #else
   src = src.replace(/#ifdef\s+VERTEX[\s\S]*?#endif/g, "");
@@ -74,9 +81,11 @@ function bindEngine(src: string): string {
   s = s.replace(/\bsi\.tex\b/g, "p9uv");
   s = s.replace(/\bsi\.diffuse\b/g, "p9diffuse");
   // per-vertex varyings the scene doesn't drive; typed-correct defaults
-  s = s.replace(/\bsi\.(normal|vnormal)\b/g, "p9normal");
-  s = s.replace(/\bsi\.(vpos|pos|worldPos|wPos)\b/g, "p9wpos");
-  s = s.replace(/\bsi\.(view|viewDir|vdir)\b/g, "p9view");
+  s = s.replace(/\bsi\.(normal|vnormal|wnormal)\b/g, "p9normal");
+  s = s.replace(/\bsi\.(vpos|pos|worldPos|wPos|worldpos|wpos)\b/g, "p9wpos");
+  s = s.replace(/\bsi\.(view|viewDir|vdir|viewdir)\b/g, "p9view");
+  s = s.replace(/\bsi\.aspect\b/g, "(p9res.x / p9res.y)");
+  s = s.replace(/\bsi\.rnd\b/g, "p9diffuse");
   s = s.replace(/\bsi\.\w+\b/g, "p9diffuse");
   s = s.replace(/\bgTime\b/g, "p9time");
   s = s.replace(/\bgFrameNr\b/g, "(p9time * 60.0)");
@@ -134,6 +143,10 @@ vec4 _tosrgb4(vec4 v) { return vec4(_tosrgb(v.rgb), v.w); }`],
 }
 vec3 _lightBlinnPhong(vec3 normal, vec3 lightDir, vec3 viewDir, vec3 diffuseCol) {
   return _lightBlinnPhong(normal, lightDir, viewDir, diffuseCol, vec3(0.5), 32.0);
+}
+float _lightBlinnPhong(vec3 normal, vec3 lightDir, vec3 viewDir, float specularHardness) {
+  vec3 h = normalize(lightDir + viewDir);
+  return pow(max(dot(normal, h), 0.0), specularHardness);
 }`],
   ["_lightBlinnPhongHalfLambert", `vec3 _lightBlinnPhongHalfLambert(vec3 normal, vec3 lightDir, vec3 viewDir, vec3 diffuseCol, vec3 specularCol, float specularHardness) {
   vec3 h = normalize(lightDir + viewDir);
@@ -180,6 +193,10 @@ vec4 _tolinearP9(vec4 v) { return vec4(_tolinearP9(v.rgb), v.a); }`],
   vec3 t = textureNormal * 2.0 - vec3(1.0);
   return normalize(surfaceNormal + vec3(t.xy * normalScale, 0.0));
 }`],
+  ["_perturbNormal", `vec3 _perturbNormal(vec3 pos, vec3 surfaceNormal, vec3 derivs) {
+  vec3 dp = normalize(derivs - surfaceNormal * dot(derivs, surfaceNormal));
+  return normalize(surfaceNormal + dp * 0.5);
+}`],
   ["_screenSpaceDither", `vec3 _screenSpaceDither(vec2 screenPos) {
   vec3 magic = vec3(0.06711056, 0.00583715, 52.9829189);
   return vec3(fract(magic.z * fract(dot(screenPos, magic.xy))) / 255.0);
@@ -200,6 +217,26 @@ vec4 _perm(vec2 pos) { return fract(vec4(hash(pos), hash(pos + vec2(0.17, 0.0)),
   return vec3(noise(q + vec2(e, 0.0)) - noise(q - vec2(e, 0.0)), noise(q + vec2(0.0, e)) - noise(q - vec2(0.0, e)), 0.0) / (2.0 * e);
 }`],
 ];
+
+/** Debug: dump the fully-bound source (prelude + prepared + engine-bound) the parser sees. */
+export function glslPreParseSource(glsl: string): string {
+  const { helpers, main } = prepare(glsl);
+  let src = bindEngine(helpers + "\n" + main);
+  src = src.replace(/\bgZNear\b/g, "0.1");
+  src = src.replace(/\bgZFar\b/g, "100.0");
+  const selected = new Set<string>();
+  const needs = (text: string) => PRELUDE
+    .filter(([name]) => !selected.has(name) &&
+      new RegExp("\\b" + name + "\\s*\\(").test(text) &&
+      !new RegExp("(vec[234]|float)\\s+" + name + "\\s*\\(").test(src))
+    .map(([name]) => name);
+  needs(src).forEach((n) => selected.add(n));
+  const selectedText = PRELUDE.filter(([n]) => selected.has(n)).map(([, i]) => i).join("\n");
+  needs(selectedText).forEach((n) => selected.add(n));
+  const prelude = PRELUDE.filter(([n]) => selected.has(n)).map(([, i]) => i);
+  if (prelude.length) src = prelude.join("\n") + "\n" + src;
+  return src.replace(/\bgIn([123])\b/g, "p9gIn$1");
+}
 
 export function glslToRender(glsl: string): { body: string; warnings: string[] } {
   const warnings: string[] = [];
@@ -285,6 +322,17 @@ export function glslToRender(glsl: string): { body: string; warnings: string[] }
     // F1-style cellular value from the hash stdlib — cheap stand-in
     return { code: `fract(hash(floor(${p})) + hash(floor(${p}) + vec2f(1.0, 0.0)))`, ty: F32 };
   };
+  // Plane9 SampleWithBorder(borderColor, sampler, uv[, lod]) — the border
+  // color is what the shader gets outside [0,1] uv; WebGPU's sampler modes
+  // supply the same behavior implicitly, so ignore border+sampler and
+  // sample the scene texture at uv. gTextureN has been rewritten to a
+  // literal p9tex call by the sampler-arg strip in bindEngine, so args[1]
+  // arrives as vec4 that we discard.
+  builtins.SampleWithBorder = (args, line, e) => ({
+    code: `img(${vecArg(args, 2, 2, line, e)})`,
+    ty: vec(4),
+  });
+  builtins.SampleWithBorderLod = builtins.SampleWithBorder;
 
   const dialect: Dialect = {
     externals,
@@ -316,12 +364,17 @@ var<private> p9out : vec4f;
   p9time = c.t;
   p9res = c.res;
   p9fragcoord = vec4f(c.uv * c.res, 0.0, 1.0);
-  p9diffuse = vec4f(1.0);
-  p9gIn1 = vec3f(0.4, 0.0, 0.3);
-  p9gIn2 = vec3f(0.2, 0.5, 0.1);
-  p9gIn3 = vec3f(0.1, 0.3, 0.6);
+  // per-fragment varying diffuse so scenes that gate on random per-vertex
+  // data (si.rnd.r above threshold) light up somewhere across the image;
+  // also drives per-pixel si.diffuse.a variance so alpha-masked scenes render.
+  p9diffuse = vec4f(c.uv.x, c.uv.y, 0.5 + 0.5 * sin(c.uv.x * 12.0 + c.uv.y * 8.0), 0.35);
+  p9gIn1 = vec3f(0.5, 0.5, 0.5);
+  p9gIn2 = vec3f(0.5, 0.5, 0.5);
+  p9gIn3 = vec3f(0.5, 0.5, 0.5);
   p9normal = vec3f(0.0, 0.0, 1.0);
-  p9wpos = vec3f(c.uv * 2.0 - vec2f(1.0), 0.0);
+  // z < 0 so scenes that mask on -wpos.z (front-facing fade) render;
+  // wpos.xy in [-1, 1] simulates a full-frame quad centered at origin.
+  p9wpos = vec3f(c.uv * 2.0 - vec2f(1.0), -0.5);
   p9view = vec3f(0.0, 0.0, -1.0);
   p9texsize = vec4f(c.res, 1.0 / c.res);
   p9out = vec4f(0.0);

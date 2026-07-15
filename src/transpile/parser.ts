@@ -314,6 +314,22 @@ export class Parser {
       if (t.text === "true" || t.text === "false") {
         return { e: "ident", name: t.text, line: t.line };
       }
+      // GLSL array-literal constructor: Type[N](args) or Type[](args)
+      if (t.text in TYPE_NAMES && this.isOp("[")) {
+        this.p++;
+        while (!this.isOp("]")) {
+          if (this.peek().kind === "eof") throw err("unterminated array-literal size", t.line);
+          this.p++;
+        }
+        this.expectOp("]");
+        this.expectOp("(");
+        const args: Expr[] = [];
+        if (!this.takeOp(")")) {
+          do { args.push(this.parseAssign()); } while (this.takeOp(","));
+          this.expectOp(")");
+        }
+        return { e: "call", name: "arraylit$" + t.text, args, line: t.line };
+      }
       if (this.takeOp("(")) {
         const args: Expr[] = [];
         if (!this.takeOp(")")) {

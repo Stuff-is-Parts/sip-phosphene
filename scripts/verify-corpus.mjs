@@ -13,15 +13,34 @@ const limit = parseInt(limitArg ?? "0", 10) || Infinity;
 const ext = kind === "p9" ? ".p9c" : ".milk";
 const nameFilter = process.env.VERIFY_FILTER ?? "";
 
+// Plane9 scenes built entirely from engine nodes (Clear, RenderObject, Text,
+// solid-color) have no Shader body for the WGSL transpiler to consume — they
+// depend on Plane9's fixed-function object graph. Exclude them from the
+// corpus so the pass count reflects shader scenes only.
+const P9_ENGINE_ONLY = new Set([
+  "other/black.p9c",
+  "other/color cycle.p9c",
+  "special/newscenetemplates/clear.p9c",
+  "special/newscenetemplates/renderobject.p9c",
+  "text/awesomeness.p9c",
+]);
+let excludedCount = 0;
 const all = [];
 (function walk(dir) {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) walk(p);
-    else if (name.toLowerCase().endsWith(ext)) all.push(p);
+    else if (name.toLowerCase().endsWith(ext)) {
+      if (kind === "p9") {
+        const rel = relative(root, p).replace(/\\/g, "/").toLowerCase();
+        if (P9_ENGINE_ONLY.has(rel)) { excludedCount++; continue; }
+      }
+      all.push(p);
+    }
   }
 })(root);
 all.sort();
+if (excludedCount) console.log(`excluding ${excludedCount} engine-only ${kind} scenes (no shader body)`);
 if (nameFilter) {
   const filtered = all.filter((f) => f.toLowerCase().includes(nameFilter.toLowerCase()));
   all.length = 0;

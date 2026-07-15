@@ -35,11 +35,17 @@ export const WGSL_RESERVED = new Set([
   "case", "default", "break", "continue", "return", "discard", "struct",
   "texture", "sampler", "uniform", "bitcast", "enable", "override", "ptr",
   "ref", "type", "alias", "smoothstep", "distance", "noise",
-  // WGSL reserved for future use: `from`, `import`, `enum`, plus a handful
-  // of shader identifiers scenes reuse as locals
+  // WGSL keywords + reserved-for-future-use words scenes reuse as locals
   "from", "import", "enum", "class", "trait", "impl", "using",
   "atomic", "shared", "workgroup", "handle", "material", "vertex", "fragment",
   "compute", "device", "storage", "read", "write", "read_write",
+  "final", "static", "precise", "precision", "layout", "mut", "mutable",
+  "self", "super", "this", "throw", "try", "catch", "new", "delete",
+  "private", "public", "protected", "interface", "module", "package",
+  "extern", "register", "virtual", "volatile", "inline", "typedef",
+  "typename", "union", "explicit", "friend", "namespace", "operator",
+  "template", "typeid", "typeof", "asm", "auto", "goto", "sizeof",
+  "readonly", "writeonly", "invariant", "buffer", "resource",
 ]);
 
 const CTOR: Record<string, Ty> = {
@@ -127,6 +133,16 @@ export class Emitter {
       }
       case "member": {
         const obj = this.expr(x.obj);
+        // scalar splat swizzle: some scenes write `f.xxx` to broadcast a
+        // scalar to a vector, which is a GLSL non-standard extension. Accept
+        // when every char in the swizzle is the same first-component name.
+        if ((obj.ty.k === "f32" || obj.ty.k === "i32") &&
+            /^([xrs])\1{0,3}$/.test(x.name)) {
+          const v = obj.ty.k === "i32" ? { code: `f32(${obj.code})`, ty: F32 } : obj;
+          const n = x.name.length;
+          if (n === 1) return v;
+          return { code: `vec${n}f(${v.code})`, ty: vec(n as 2 | 3 | 4) };
+        }
         if (obj.ty.k !== "vec") throw err(`'.${x.name}' on non-vector ${wgslTy(obj.ty)}`, x.line);
         const len = x.name.length;
         if (!/^[xyzwrgbastpq]+$/.test(x.name) || len > 4) throw err(`bad swizzle '.${x.name}'`, x.line);
@@ -216,6 +232,18 @@ export class Emitter {
   }
 
   private call(name: string, argExprs: Expr[], line: number): Val {
+    // GLSL array-literal constructor: `Type[N](args)` produced by the parser
+    if (name.startsWith("arraylit$")) {
+      const tyName = name.slice("arraylit$".length);
+      const elemTy = CTOR[tyName];
+      if (!elemTy) throw err(`array literal of unknown type '${tyName}'`, line);
+      const args = argExprs.map((a) => this.coerce(this.expr(a), elemTy, line));
+      const wgslElem = wgslTy(elemTy);
+      return {
+        code: `array<${wgslElem}, ${args.length}>(${args.map((a) => a.code).join(", ")})`,
+        ty: { k: "arr", of: elemTy, n: args.length },
+      };
+    }
     // constructors
     if (name in CTOR) {
       const want = CTOR[name];
@@ -225,13 +253,33 @@ export class Emitter {
       }
       if (want.k === "vec") {
         if (args.length === 1) return this.coerce(this.toF32(args[0], line), want, line);
+        // Emitted parts, one per source arg; track how many scalar components
+        // each contributes so we can truncate excess (visual-code tolerance:
+        // scene substitutions may inflate an arg from scalar to vec when an
+        // engine var expands, and the render should still produce something).
         let total = 0;
-        const parts = args.map((a) => {
-          if (a.ty.k === "vec") { total += a.ty.n; return a.code; }
-          total += 1;
-          return this.toF32(a, line).code;
-        });
-        if (total !== want.n) throw err(`vec${want.n} constructor got ${total} components`, line);
+        const parts: string[] = [];
+        let overflow = false;
+        for (const a of args) {
+          if (total >= want.n) { overflow = true; break; }
+          if (a.ty.k === "vec") {
+            const need = want.n - total;
+            if (a.ty.n <= need) { parts.push(a.code); total += a.ty.n; }
+            else {
+              // narrow this vec to exactly the components we still need
+              const sw = "xyzw".slice(0, need);
+              parts.push(`(${a.code}).${sw}`);
+              total = want.n;
+              overflow = true;
+              break;
+            }
+          } else {
+            parts.push(this.toF32(a, line).code);
+            total += 1;
+          }
+        }
+        if (total < want.n) throw err(`vec${want.n} constructor got ${total} components`, line);
+        void overflow;
         return { code: `vec${want.n}f(${parts.join(", ")})`, ty: want };
       }
       // matrices: columns or scalars
@@ -241,22 +289,51 @@ export class Emitter {
     }
     // user functions first: a scene redefining noise() wins over the intrinsic
     const sigs = this.fnSigs.get(name);
+    const builtin = this.dialect.builtins[name];
     if (!sigs) {
-      const b = this.dialect.builtins[name];
-      if (b) return b(argExprs.map((a) => this.expr(a)), line, this);
+      if (builtin) return builtin(argExprs.map((a) => this.expr(a)), line, this);
       throw err(`unknown function '${name}'`, line);
     }
     const args = argExprs.map((a) => this.expr(a));
     if (args.some((a) => !a || !a.ty)) throw err(`'${name}' got a malformed argument`, line);
     const byArity = sigs.filter((s) => s.params.length === args.length);
-    if (!byArity.length) throw err(`'${name}' has no ${args.length}-arg overload`, line);
-    // exact-type overload wins; otherwise first coercible one
-    const exact = byArity.find((s) => s.params.every((p, i) => tyEq(p, args[i].ty)));
-    const pick = exact ?? byArity.find((s) => {
+    // Fall through to builtin when the user function has no matching arity:
+    // presets that name a helper the scene author replaced only in some
+    // branches (SampleWithBorder call with 3 args when the def has 4 after
+    // sampler-arg strip) should still resolve to the intrinsic.
+    if (!byArity.length) {
+      if (builtin) return builtin(args, line, this);
+      throw err(`'${name}' has no ${args.length}-arg overload`, line);
+    }
+    // exact-type overload wins; otherwise pick the one with the lowest
+    // coercion cost (same-category — scalar-to-scalar, vec-of-same-n — beats
+    // cross-category — scalar-to-vec, vec-to-scalar). Without this the first
+    // coercible overload wins and vec3-returning branches steal calls that
+    // should route to float-returning ones purely by declaration order.
+    const scoreOverload = (s: FnSig): number => {
+      let cost = 0;
+      for (let i = 0; i < s.params.length; i++) {
+        const p = s.params[i];
+        const a = args[i].ty;
+        if (tyEq(p, a)) continue;
+        // scalar↔scalar cheap; vec-same-size cheap; else expensive
+        const bothScalar = (p.k === "f32" || p.k === "i32" || p.k === "bool") &&
+                           (a.k === "f32" || a.k === "i32" || a.k === "bool");
+        const bothVecSameN = p.k === "vec" && a.k === "vec" && p.n === a.n;
+        cost += bothScalar || bothVecSameN ? 1 : 10;
+      }
+      return cost;
+    };
+    const coercible = byArity.filter((s) => {
       try { s.params.forEach((p, i) => this.coerce(args[i], p, line)); return true; }
       catch { return false; }
     });
-    if (!pick) throw err(`no matching overload for '${name}'`, line);
+    if (!coercible.length) {
+      if (builtin) return builtin(args, line, this);
+      throw err(`no matching overload for '${name}'`, line);
+    }
+    coercible.sort((a, b) => scoreOverload(a) - scoreOverload(b));
+    const pick = coercible[0];
     const coerced = args.map((a, i) => this.coerce(a, pick.params[i], line).code);
     return { code: `${pick.mangled}(${coerced.join(", ")})`, ty: pick.ret };
   }
@@ -267,13 +344,23 @@ export class Emitter {
     switch (x.s) {
       case "decl":
         return x.names.map(({ name, init }) => {
-          this.declare(name, x.ty);
+          let ty = x.ty;
+          // unsized array declarations (`vec3 lightCol[] = vec3[3](...)`)
+          // carry an empty-string length; infer from the initializer.
+          if (init && ty.k === "arr" && (ty.n === "" || ty.n === 0)) {
+            const iv = this.expr(init);
+            if (iv.ty.k === "arr") ty = iv.ty;
+            this.declare(name, ty);
+            const n = this.dialect.rename(name);
+            return `${ind}var ${n} : ${wgslTy(ty)} = ${iv.code};`;
+          }
+          this.declare(name, ty);
           const n = this.dialect.rename(name);
           if (init) {
-            const v = this.coerce(this.expr(init), x.ty, x.line);
-            return `${ind}var ${n} : ${wgslTy(x.ty)} = ${v.code};`;
+            const v = this.coerce(this.expr(init), ty, x.line);
+            return `${ind}var ${n} : ${wgslTy(ty)} = ${v.code};`;
           }
-          return `${ind}var ${n} : ${wgslTy(x.ty)};`;
+          return `${ind}var ${n} : ${wgslTy(ty)};`;
         }).join("\n");
       case "expr": {
         if (x.v.e === "assign") return this.assign(x.v, ind);
@@ -345,6 +432,14 @@ export class Emitter {
   }
 
   private assign(x: Extract<Expr, { e: "assign" }>, ind: string): string {
+    // Chained assignment `c1 = c2 = expr` — WGSL forbids assignment as an
+    // expression, so unroll into two statements: assign inner first, then
+    // outer to the inner's target.
+    if (x.value.e === "assign") {
+      const inner = this.assign(x.value, ind);
+      const rebuilt: Extract<Expr, { e: "assign" }> = { ...x, value: x.value.target };
+      return `${inner}\n${this.assign(rebuilt, ind)}`;
+    }
     const target = x.target;
     // swizzle store: v.xyz = e  — WGSL forbids multi-component swizzle writes
     if (target.e === "member" && target.name.length > 1) {
