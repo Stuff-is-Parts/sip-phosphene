@@ -115,18 +115,17 @@ export const MILK_BASE_DEFAULTS: Record<string, number> = {
   cx: 0.5, cy: 0.5, dx: 0, dy: 0, warp: 1, sx: 1, sy: 1,
   ob_size: 0.01, ob_r: 0, ob_g: 0, ob_b: 0, ob_a: 0,
   ib_size: 0.01, ib_r: 0.25, ib_g: 0.25, ib_b: 0.25, ib_a: 0,
-  // Renderer-injected before the equation runner is constructed
-  // (butterchurn rendering_renderer.js:194 sets
-  // `preset.baseVals.old_wave_mode = prevPreset.baseVals.wave_mode`).
-  // Presets like the basic-waveform blender at
-  // rendering_waves_basicWaveform.js:87 read mdVSFrame.old_wave_mode.
-  // PHOSPHENE has no preset-blending model yet, so the runner starts
-  // every preset with the butterchurn initial-state value (0) — the
-  // wave_mode of a hypothetical prev preset that ran with defaults.
-  // Per-session prev-preset tracking is an unresolved boundary (see
-  // docs/semantic-inventory-milkdrop.md §3 Renderer-injected keys).
-  old_wave_mode: 0,
 };
+// NOTE: `old_wave_mode` is renderer-owned, not preset-default. Butterchurn
+// injects it in rendering_renderer.js:194 (`preset.baseVals.old_wave_mode
+// = prevPreset.baseVals.wave_mode`) before constructing the equation
+// runner. The value belongs to a session-level prev-preset lifecycle
+// (butterchurn Renderer holds `this.prevPreset` and `this.blending`
+// state across load boundaries). PHOSPHENE has no such session model
+// yet, so the caller — MilkPipeline for now — must supply the value via
+// def.baseValues at preset load, not the runner via MILK_BASE_DEFAULTS.
+// See docs/milkdrop-execution-model.md §2 (Preset lifecycle) and
+// docs/semantic-inventory-milkdrop.md §2 (Renderer-injected baseVals row).
 
 export const MILK_SHAPE_DEFAULTS: Record<string, number> = {
   enabled: 0, sides: 4, additive: 0, thickoutline: 0, textured: 0,
@@ -196,6 +195,12 @@ const omitKeys = (pool: Pool, keys: readonly string[]): string[] => {
  *  They ride along in pools like ordinary keys. */
 
 export interface MilkUnitDef {
+  /** Source-file index (`wavecode_N_*` / `shapecode_N_*` N). Butterchurn
+   *  addresses waves/shapes by source index at rendering_renderer.js and
+   *  keeps fixed 4-slot arrays indexed 0..3; PHOSPHENE must preserve the
+   *  source index so wavecode_2 alone (with 0/1/3 absent) reaches slot 2
+   *  and dispatches under its correct id. */
+  index: number;
   baseValues: Record<string, number>;
   initEel?: string;
   frameEel?: string;
@@ -260,22 +265,29 @@ export class MilkPresetRunner {
   private mdVSFrameMap: Pool = {};
   mdVSQAfterFrame: Pool = {};
 
-  readonly waveEnabled: boolean[] = [];
-  private wavePools: Pool[] = [];
-  private waveTInits: Pool[] = [];
-  private waveUserKeys: string[][] = [];
-  private waveFrameMaps: Pool[] = [];
-  private waveFrameProgs: (Program | null)[] = [];
-  private wavePointProgs: (Program | null)[] = [];
-  readonly waveBaseVals: Pool[] = [];
+  // Wave and shape state keyed by SOURCE INDEX (wavecode_N / shapecode_N),
+  // not by array position. Butterchurn's Renderer holds fixed 4-slot arrays
+  // indexed by source index at rendering_renderer.js:139-149; a preset
+  // enabling only wavecode_2 fills slot 2 and leaves 0/1/3 empty. PHOSPHENE
+  // matches that addressing so MilkPipeline dispatch can pass n.index
+  // (the source index carried through parseMilkComplete + milkToGraph) and
+  // hit the correct unit even for sparse presets.
+  readonly waveEnabled = new Map<number, boolean>();
+  private wavePools = new Map<number, Pool>();
+  private waveTInits = new Map<number, Pool>();
+  private waveUserKeys = new Map<number, string[]>();
+  private waveFrameMaps = new Map<number, Pool>();
+  private waveFrameProgs = new Map<number, Program | null>();
+  private wavePointProgs = new Map<number, Program | null>();
+  readonly waveBaseVals = new Map<number, Pool>();
 
-  readonly shapeEnabled: boolean[] = [];
-  private shapePools: Pool[] = [];
-  private shapeTInits: Pool[] = [];
-  private shapeUserKeys: string[][] = [];
-  private shapeFrameMaps: Pool[] = [];
-  private shapeFrameProgs: (Program | null)[] = [];
-  readonly shapeBaseVals: Pool[] = [];
+  readonly shapeEnabled = new Map<number, boolean>();
+  private shapePools = new Map<number, Pool>();
+  private shapeTInits = new Map<number, Pool>();
+  private shapeUserKeys = new Map<number, string[]>();
+  private shapeFrameMaps = new Map<number, Pool>();
+  private shapeFrameProgs = new Map<number, Program | null>();
+  readonly shapeBaseVals = new Map<number, Pool>();
 
   constructor(def: MilkPresetDef, globals: Pool, private readonly rng: MilkRng) {
     // Every draw goes through `rng.next()` — no Math.random dependency.
@@ -318,16 +330,19 @@ export class MilkPresetRunner {
     this.mdVSRegs = pick(this.mdVSFrame, REGS);
 
     // Units: initialized once, with init-time qAfterFrame (witnessed).
-    def.waves.forEach((wave, i) => {
+    // Each unit is keyed by its SOURCE INDEX (wave.index, shape.index)
+    // rather than array position, matching butterchurn's slot addressing.
+    for (const wave of def.waves) {
+      const i = wave.index;
       const baseVals = { ...MILK_WAVE_DEFAULTS, ...mapMilkKeys(wave.baseValues, "wave") };
-      this.waveBaseVals.push(baseVals);
+      this.waveBaseVals.set(i, baseVals);
       const enabled = baseVals.enabled !== 0;
-      this.waveEnabled.push(enabled);
+      this.waveEnabled.set(i, enabled);
       if (!enabled) {
-        this.wavePools.push({}); this.waveTInits.push({});
-        this.waveUserKeys.push([]); this.waveFrameMaps.push({});
-        this.waveFrameProgs.push(null); this.wavePointProgs.push(null);
-        return;
+        this.wavePools.set(i, {}); this.waveTInits.set(i, {});
+        this.waveUserKeys.set(i, []); this.waveFrameMaps.set(i, {});
+        this.waveFrameProgs.set(i, null); this.wavePointProgs.set(i, null);
+        continue;
       }
       const pool: Pool = { ...baseVals, ...globals };
       const nonUserWaveKeys = [...QS, ...TS, ...REGS, ...Object.keys(pool)];
@@ -338,25 +353,26 @@ export class MilkPresetRunner {
         this.mdVSRegs = pick(pool, REGS);
         Object.assign(pool, baseVals); // witnessed: base vals reset after init
       }
-      this.wavePools.push(pool);
-      this.waveTInits.push(pick(pool, TS));
+      this.wavePools.set(i, pool);
+      this.waveTInits.set(i, pick(pool, TS));
       const userKeys = omitKeys(pool, nonUserWaveKeys);
-      this.waveUserKeys.push(userKeys);
-      this.waveFrameMaps.push(pick(pool, userKeys));
-      this.waveFrameProgs.push(compileOrNull(wave.frameEel, this.errors, `wave${i} per-frame`, () => this.rng.next(), shared));
-      this.wavePointProgs.push(compileOrNull(wave.pointEel, this.errors, `wave${i} per-point`, () => this.rng.next(), shared));
-    });
+      this.waveUserKeys.set(i, userKeys);
+      this.waveFrameMaps.set(i, pick(pool, userKeys));
+      this.waveFrameProgs.set(i, compileOrNull(wave.frameEel, this.errors, `wave${i} per-frame`, () => this.rng.next(), shared));
+      this.wavePointProgs.set(i, compileOrNull(wave.pointEel, this.errors, `wave${i} per-point`, () => this.rng.next(), shared));
+    }
 
-    def.shapes.forEach((shape, i) => {
+    for (const shape of def.shapes) {
+      const i = shape.index;
       const baseVals = { ...MILK_SHAPE_DEFAULTS, ...mapMilkKeys(shape.baseValues, "shape") };
-      this.shapeBaseVals.push(baseVals);
+      this.shapeBaseVals.set(i, baseVals);
       const enabled = baseVals.enabled !== 0;
-      this.shapeEnabled.push(enabled);
+      this.shapeEnabled.set(i, enabled);
       if (!enabled) {
-        this.shapePools.push({}); this.shapeTInits.push({});
-        this.shapeUserKeys.push([]); this.shapeFrameMaps.push({});
-        this.shapeFrameProgs.push(null);
-        return;
+        this.shapePools.set(i, {}); this.shapeTInits.set(i, {});
+        this.shapeUserKeys.set(i, []); this.shapeFrameMaps.set(i, {});
+        this.shapeFrameProgs.set(i, null);
+        continue;
       }
       const pool: Pool = { ...baseVals, ...globals };
       const nonUserShapeKeys = [...QS, ...TS, ...REGS, ...Object.keys(pool)];
@@ -367,13 +383,13 @@ export class MilkPresetRunner {
         this.mdVSRegs = pick(pool, REGS);
         Object.assign(pool, baseVals); // witnessed: base vals reset after init
       }
-      this.shapePools.push(pool);
-      this.shapeTInits.push(pick(pool, TS));
+      this.shapePools.set(i, pool);
+      this.shapeTInits.set(i, pick(pool, TS));
       const userKeys = omitKeys(pool, nonUserShapeKeys);
-      this.shapeUserKeys.push(userKeys);
-      this.shapeFrameMaps.push(pick(pool, userKeys));
-      this.shapeFrameProgs.push(compileOrNull(shape.frameEel, this.errors, `shape${i} per-frame`, () => this.rng.next(), shared));
-    });
+      this.shapeUserKeys.set(i, userKeys);
+      this.shapeFrameMaps.set(i, pick(pool, userKeys));
+      this.shapeFrameProgs.set(i, compileOrNull(shape.frameEel, this.errors, `shape${i} per-frame`, () => this.rng.next(), shared));
+    }
   }
 
   /** Per-frame preset equations (witnessed runFrameEquations). `globals`
@@ -390,28 +406,29 @@ export class MilkPresetRunner {
   /** Unit per-frame pool assembly (witnessed generateWaveform /
    *  drawCustomShape: {mdVSWaves[i], frameMapWaves[i], qAfterFrame,
    *  tInits[i], globalVars}); the frame program is NOT run here — the
-   *  wave generator runs it (shapes run it per instance). */
+   *  wave generator runs it (shapes run it per instance). The `i`
+   *  argument is a SOURCE INDEX (wavecode_N N), not an array position. */
   waveFramePool(i: number, globals: Pool): Pool {
     return {
-      ...this.wavePools[i], ...this.waveFrameMaps[i],
-      ...this.mdVSQAfterFrame, ...this.waveTInits[i], ...globals,
+      ...(this.wavePools.get(i) ?? {}), ...(this.waveFrameMaps.get(i) ?? {}),
+      ...this.mdVSQAfterFrame, ...(this.waveTInits.get(i) ?? {}), ...globals,
     };
   }
 
   runWaveFrame(i: number, pool: Pool): void {
-    this.waveFrameProgs[i]?.run(pool);
+    this.waveFrameProgs.get(i)?.run(pool);
   }
   runWavePoint(i: number, pool: Pool): void {
-    this.wavePointProgs[i]?.run(pool);
+    this.wavePointProgs.get(i)?.run(pool);
   }
-  hasWavePoint(i: number): boolean { return this.wavePointProgs[i] !== null; }
+  hasWavePoint(i: number): boolean { return this.wavePointProgs.get(i) != null; }
 
   /** Persist unit user vars after per-point (witnessed: "this needs to be
    *  after per point"); megabuf cells (@-prefixed) ride along. */
   saveWaveFrame(i: number, pool: Pool): void {
-    const map = pick(pool, this.waveUserKeys[i]);
+    const map = pick(pool, this.waveUserKeys.get(i) ?? []);
     for (const k of Object.keys(pool)) if (k.startsWith("@")) map[k] = pool[k];
-    this.waveFrameMaps[i] = map;
+    this.waveFrameMaps.set(i, map);
   }
 
   /** Per-vertex (per-pixel) equations + warp UV computation — port of the
@@ -505,20 +522,21 @@ export class MilkPresetRunner {
     return v;
   }
 
+  /** Shape per-frame pool assembly. `i` is a SOURCE INDEX. */
   shapeFramePool(i: number, globals: Pool): Pool {
     return {
-      ...this.shapePools[i], ...this.shapeFrameMaps[i],
-      ...this.mdVSQAfterFrame, ...this.shapeTInits[i], ...globals,
+      ...(this.shapePools.get(i) ?? {}), ...(this.shapeFrameMaps.get(i) ?? {}),
+      ...this.mdVSQAfterFrame, ...(this.shapeTInits.get(i) ?? {}), ...globals,
     };
   }
 
   runShapeFrame(i: number, pool: Pool): void {
-    this.shapeFrameProgs[i]?.run(pool);
+    this.shapeFrameProgs.get(i)?.run(pool);
   }
 
   saveShapeFrame(i: number, pool: Pool): void {
-    const map = pick(pool, this.shapeUserKeys[i]);
+    const map = pick(pool, this.shapeUserKeys.get(i) ?? []);
     for (const k of Object.keys(pool)) if (k.startsWith("@")) map[k] = pool[k];
-    this.shapeFrameMaps[i] = map;
+    this.shapeFrameMaps.set(i, map);
   }
 }

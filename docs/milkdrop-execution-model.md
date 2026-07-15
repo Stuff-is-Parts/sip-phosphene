@@ -11,6 +11,41 @@ Citations marked [fetched] were retrieved and quoted during derivation;
 should be re-verified against the file before implementation of that
 subsystem relies on an exact constant not shown here.
 
+## 0. Renderer vs. Equation Runner (ownership boundary)
+
+Sources: `rendering_renderer.js` [fetched] plus
+`equations_presetEquationRunner.js` [fetched, verbatim quotes at
+`docs/evidence/butterchurn/`].
+
+Two distinct owners:
+
+- **Renderer** (butterchurn's `Renderer` class, `rendering_renderer.js`) —
+  the session-lifetime object. Holds `preset`, `prevPreset`, the two
+  `PresetEquationRunner` instances (current + previous, kept alive during
+  blend), `blending` / `blendStartTime` / `blendDuration` /
+  `blendProgress`, GL framebuffers and textures (`prevTexture`,
+  `targetTexture`, `compTexture`, `blurTexture1/2/3`), the three
+  `blurShader1/2/3` chains, four fixed `customWaveforms[0..3]` and
+  `customShapes[0..3]` slots plus their `prev` counterparts, the
+  `noise`/`image`/`titleText`/`darkenCenter`/`innerBorder`/`outerBorder`/
+  `motionVectors`/`resampleShader`/`blendPattern` resources, and the
+  timing state (`time`, `frameNum`, `fps`, `timeHist`, `presetTime`,
+  `lastTime`).
+- **Equation Runner** (`PresetEquationRunner` class,
+  `equations_presetEquationRunner.js`) — the per-preset object. Owns
+  `mdVS`, `mdVSQInit`, `mdVSRegs`, `mdVSFrame`, `mdVSFrameMap`,
+  `mdVSQAfterFrame`, `mdVSUserKeys`, per-unit maps
+  (`mdVSWaves`/`mdVSTWaveInits`/`mdVSUserKeysWaves`/`mdVSFrameMapWaves`
+  and the same for shapes), `gmegabuf` (`new Array(1048576).fill(0)`),
+  and the per-preset `rand_start` / `rand_preset` Float32Arrays.
+
+Any behavior that reads state from before the current preset was loaded
+(`old_wave_mode` from `prevPreset.baseVals.wave_mode`,
+`prevPresetEquationRunner` outputs during blend, `numBlurPasses`
+computed from the two shaders) is the Renderer's responsibility, not the
+Runner's. The Runner sees only what the Renderer hands it via
+`globalVars` + `preset.baseVals` at construction.
+
 ## 1. Frame pipeline order
 
 Source: `MilkdropPreset.cpp` `RenderFrame()` [fetched]. Exact stage order:
@@ -31,6 +66,53 @@ Source: `MilkdropPreset.cpp` `RenderFrame()` [fetched]. Exact stage order:
 
 Waves/shapes draw ONTO the warped canvas (they persist into the next
 frame's feedback); composite output does not feed back.
+
+## 1B. Preset lifecycle and blending
+
+Source: `rendering_renderer.js` `loadPreset()` [fetched, lines 183-239].
+
+Sequence when a new preset arrives at `loadPreset(preset, blendTime)`:
+
+1. `this.blendPattern.createBlendPattern()` — the blend mask (a
+   procedural pattern) is generated fresh.
+2. Blending flags: `this.blending = true`; `this.blendStartTime =
+   this.time`; `this.blendDuration = blendTime`; `this.blendProgress =
+   0`.
+3. `this.prevPresetEquationRunner = this.presetEquationRunner` — the
+   OLD runner is retained, not destroyed. It continues to run
+   `runFrameEquations` on the current audio each frame during the blend
+   so the two rendered images can be crossfaded.
+4. `this.prevPreset = this.preset` — same for the preset payload.
+5. `this.preset = preset` — install the new payload.
+6. `this.preset.baseVals.old_wave_mode = this.prevPreset.baseVals.wave_mode`
+   — the ONLY renderer-injected key. Presets whose per-frame code reads
+   `old_wave_mode` (like basic-waveform blender at
+   `rendering_waves_basicWaveform.js:87`) get the previous preset's
+   `wave_mode` this way.
+7. `this.presetTime = this.time` — the new preset's per-preset time
+   origin.
+8. Fresh `globalVars` are computed from current audio + timing.
+9. `this.presetEquationRunner = new PresetEquationRunner(this.preset,
+   globalVars, params)` — the new runner is constructed. The mutation
+   at step 6 already landed on `this.preset.baseVals`, so the new
+   runner's `mdVS` spread picks it up.
+10. `this.regVars = this.presetEquationRunner.mdVSRegs` — the renderer
+    tracks regs at Renderer level (not runner) so they can flow into
+    the runner's `globalVars` on next-frame calls.
+11. Swap `warpShader` ↔ `prevWarpShader`, `compShader` ↔ `prevCompShader`
+    so the OLD shaders keep running on the previous-preset image
+    during blend. Update the shader texts on the (new) `warpShader`
+    and `compShader` instances via `updateShader(warpText)` /
+    `updateShader(compText)`.
+12. Compute `numBlurPasses = max(getHighestBlur(warpText),
+    getHighestBlur(compText))` — the blur-cascade length is a
+    PER-PRESET decision the Renderer makes, not the graph parser.
+
+Blending termination: `calcTimeAndFPS` updates `blendProgress =
+(time - blendStartTime) / blendDuration`, and `blending = false` when
+progress crosses 1.0. The final rendered frame during blend is
+`blendMask * newImage + (1 - blendMask) * prevImage`; the mask is the
+per-pixel blend pattern from `blendPattern.createBlendPattern`.
 
 ## 2. Equation contexts and variable lifecycle
 
@@ -170,29 +252,120 @@ Sources: `FinalComposite.cpp`, `VideoEcho.cpp`, `Filters.cpp` [fetched].
   - solarize: (0, 1-dst) then (dst, 1) additive combination.
   - invert: (1-dst, 0).
 
-## 11. Warp/comp shaders (MilkDrop 2 presets)
+## 11. Warp/comp shaders (MilkDrop 2 presets) — full resource contract
 
-Source: `PresetShaderHeaderGlsl330.inc` [fetched verbatim, full text in
-session record; re-fetch at implementation]. Key contract:
+Source: `PresetShaderHeaderGlsl330.inc` [fetched verbatim in
+`docs/evidence/projectm/PresetShaderHeaderGlsl330.inc`]. Read every
+character; this section catalogs the exact contract PHOSPHENE's
+transpiler and executor must honor.
 
-- `GetMain(uv)`/`GetPixel(uv)` = `tex2D(sampler_main, uv).xyz`.
-- `GetBlur1(uv)` = `tex2D(sampler_blur1, uv).xyz * _c5.x + _c5.y`;
-  Blur2 uses `_c5.z/_c5.w`; Blur3 uses `_c6.x/_c6.y`.
-- `lum(x) = dot(x, float3(0.32, 0.49, 0.29))`.
-- Samplers: `sampler_{fw|fc|pw|pc}_main` (filter linear|point × wrap
-  repeat|clamp, decoded from the 2-char prefix), `sampler_main` =
-  fw default; blur1/2/3; noise_lq (256², zoom 1), noise_lq_lite (32²),
-  noise_mq (256², zoom 4), noise_hq (256², zoom 8), noisevol_lq (32³),
-  noisevol_hq (32³, zoom 4) — sizes/zoom from `MilkdropNoise.cpp`
-  [fetched]. Noise = uniform random bytes (range 256 at zoom 1, 216
-  zoomed) cubically interpolated between lattice points.
-- Uniforms: time, fps, frame, progress, bass/mid/treb/vol + _att,
-  q1..q32 (as _qa.._qh), aspect (xy mult, zw inverse), texsize
-  (w,h,1/w,1/h), rand_preset (4 per-preset randoms), rand_frame,
-  roam_cos/sin, slow_roam_cos/sin, mip_x/y/xy/avg, blurN_min/max,
-  20 float4x3 rotation matrices (rot_s/d/f/vf/uf/rand 1-4).
-- Warp shader input: uv (warped), uv_orig, rad, ang; comp shader input:
-  uv, rad, ang, hue_shader.
+### 11A. Uniform bank layout (float4 vectors, projectM canonical)
+
+| Uniform | Purpose | Aliases from `#define` |
+|---|---|---|
+| `rand_frame` | Random 4-vector, refreshed per frame | — |
+| `rand_preset` | Random 4-vector, once per preset load | — |
+| `_c0` | Aspect: `.xy` = multiplier for aspect-aware fullscreen paste, `.zw` = inverse | `aspect` = `_c0` |
+| `_c1`, `_c2`, `_c3`, `_c4` | `_c2.x=time`, `_c2.y=fps`, `_c2.z=frame`, `_c2.w=progress`; `_c3.xyzw=bass/mid/treb/vol`; `_c4.xyzw=bass_att/mid_att/treb_att/vol_att`; `_c1` reserved | see `time`/`fps`/`frame`/`progress`/`bass`/`mid`/`treb`/`vol`/`_att` `#define`s |
+| `_c5` | `.xy` = scale,bias for `GetBlur1`; `.zw` = scale,bias for `GetBlur2` | — |
+| `_c6` | `.xy` = scale,bias for `GetBlur3`; `.zw` = blur1_min, blur1_max | `blur1_min = _c6.z`, `blur1_max = _c6.w` |
+| `_c7` | `.xy ≈ (texsizeX, texsizeY)`; `.zw ≈ (1/texsizeX, 1/texsizeY)` | `texsize = _c7` |
+| `_c8`, `_c9` | `0.5 + 0.5 * cos/sin(time * float4(~0.3, ~1.3, ~5, ~20))` | `roam_cos = _c8`, `roam_sin = _c9` |
+| `_c10`, `_c11` | `0.5 + 0.5 * cos/sin(time * float4(~0.005, ~0.008, ~0.013, ~0.022))` | `slow_roam_cos = _c10`, `slow_roam_sin = _c11` |
+| `_c12` | `.x = mip_x` (#across), `.y = mip_y` (#down), `.z = mip_avg`, `.w` unused | `mip_x`, `mip_y`, `mip_xy = _c12.xy`, `mip_avg = _c12.z` |
+| `_c13` | `.xy` = blur2_min, blur2_max; `.zw` = blur3_min, blur3_max | `blur2_min`, `blur2_max`, `blur3_min`, `blur3_max` |
+| `_qa..._qh` | 8 float4 banks holding q1..q32 in the natural layout | `q1 = _qa.x`, ..., `q32 = _qh.w` |
+| `rot_s1..rot_s4` | 4 static float4x3 rotations, randomized once at preset load, minor translation < 1 | — |
+| `rot_d1..rot_d4` | 4 slowly-changing dynamic rotations | — |
+| `rot_f1..rot_f4` | 4 faster-changing rotations | — |
+| `rot_vf1..rot_vf4` | 4 very-fast rotations | — |
+| `rot_uf1..rot_uf4` | 4 ultra-fast rotations | — |
+| `rot_rand1..rot_rand4` | 4 rotations regenerated every frame | — |
+
+**Every one of the 24 4x3 rotation matrices is a projectM-owned uniform
+uploaded from the Renderer's rotation-state accumulators. Presets read
+them via the `#define`d aliases.** The transpiler must expose all 24 as
+inputs, not synthesize any of them.
+
+### 11B. Samplers and GetBlur macros
+
+Sampler naming decodes a 3-char filter+wrap prefix (see
+`TextureManager::ExtractTextureSettings` and the header's
+`#define sampler_FC_main sampler_fc_main` etc.):
+
+| Prefix | Filter | Wrap |
+|---|---|---|
+| `fw` / `wf` | linear | repeat |
+| `fc` / `cf` | linear | clamp |
+| `pw` / `wp` | point | repeat |
+| `pc` / `cp` | point | clamp |
+
+`sampler_main` = `sampler_fw_main` (linear + repeat) by default.
+`sampler_blur1`, `sampler_blur2`, `sampler_blur3` sample the three
+blur-cascade output textures. Macros:
+
+```
+#define GetMain(uv)  (tex2D(sampler_main,uv).xyz)
+#define GetPixel(uv) (tex2D(sampler_main,uv).xyz)
+#define GetBlur1(uv) (tex2D(sampler_blur1,uv).xyz*_c5.x + _c5.y)
+#define GetBlur2(uv) (tex2D(sampler_blur2,uv).xyz*_c5.z + _c5.w)
+#define GetBlur3(uv) (tex2D(sampler_blur3,uv).xyz*_c6.x + _c6.y)
+#define lum(x)       (dot(x,float3(0.32,0.49,0.29)))
+```
+
+The GetBlurN macros multiply the sampled compressed value by
+scale/bias — the blur cascade stores range-compressed data (per §12)
+and the shader must decompress on read.
+
+### 11C. Noise textures (MilkDrop-owned, fixed content)
+
+Source: `MilkdropNoise.cpp` [fetched earlier]. The Renderer owns six
+noise textures; the transpiler must expose them as inputs, not
+synthesize them:
+
+| Name | Size | Zoom |
+|---|---|---|
+| `sampler_noise_lq` | 256² | 1 |
+| `sampler_noise_lq_lite` | 32² | 1 |
+| `sampler_noise_mq` | 256² | 4 |
+| `sampler_noise_hq` | 256² | 8 |
+| `sampler_noisevol_lq` | 32³ | 1 |
+| `sampler_noisevol_hq` | 32³ | 4 |
+
+Content: uniform random bytes (range 256 at zoom 1, 216 for zoomed
+variants) with cubic interpolation between lattice points. These are
+static — generated once per Renderer construction, never mutated.
+
+### 11D. Extra images
+
+`sampler_pw_image_N` and friends bind the Renderer's image-slot content
+(`imageTextures.js`). Loaded via `renderer.loadExtraImages(imageData)`;
+the transpiler must resolve `sampler_pw_image_N` to whatever the
+Renderer has bound in slot N.
+
+### 11E. Warp vs. comp entry differences
+
+- Warp shader input: `uv` (post-warp), `uv_orig` (pre-warp), `rad`,
+  `ang` in the current-fragment space.
+- Comp shader input: `uv`, `rad`, `ang`, `hue_shader` (a per-fragment
+  vec3 delivered by the composite mesh's per-vertex color).
+- Warp output writes into the CANVAS target (the next warped frame);
+  comp output writes into the COMPOSITE target that reaches the screen.
+
+### 11F. Rewrite-target semantics
+
+Presets can freely mutate any of the shader-visible uniforms in HLSL
+because projectM uses `#define` aliases, not read-only bindings. The
+transpiler must:
+
+1. Emit every uniform as a WGSL module-scope `<private>` var so writes
+   compile.
+2. Initialize each private from its Renderer-supplied value at the top
+   of the entry function.
+3. Preserve the projectM output convention: warp presets read `ret`
+   after the preset body runs and write it to the color attachment
+   (with optional min/max against `sampler_main`); comp presets do the
+   same without the sampler max.
 
 ## 12. Blur cascade
 
@@ -238,3 +411,36 @@ wave_brighten, ob_size, ob_r/g/b/a, ib_size, ib_r/g/b/a, mv_r/g/b/a,
 mv_x (0..64), mv_y (0..48), mv_l (0..5), mv_dx, mv_dy, decay, gamma,
 echo_zoom, echo_alpha, echo_orient, darken_center, wrap, invert,
 brighten, darken, solarize, monitor, q1..q32.
+
+## 15. Current PHOSPHENE HLSL-transpiler fabrications (catalog for
+##     source-correct replacement)
+
+Source-cited catalog of every fabricated value in
+`src/transpile/hlsl.ts` at HEAD `be688a9`, with the source-correct
+behavior identified per §0-§14. Each row is a work item; none of these
+values may reach the executor while their listed source is unmet. The
+transpiler must accept these values as inputs from the Renderer/graph
+executor and stop synthesizing them.
+
+| Line | Fabricated | Should come from | Correct source |
+|---|---|---|---|
+| 251-252 | `q1..q8` from `mdQ1()..mdQ8()`, `q9..q32 = 0` | Runner's post-per-frame `mdVSFrame.q1..q32` (§2) | `equations_presetEquationRunner.js:105` (`mdVSQAfterFrame`) |
+| 281-282 | `frame = c.rawT * 60.0`, `fps = 60.0` | Renderer's `this.frameNum` and `this.fps` (§0, §1B step 8) | `rendering_renderer.js:65-67, 353-377` |
+| 285 | `rand_preset = vec4f(0.42, 0.71, 0.13, 0.88)` | Runner's `mdVS.rand_preset` (Float32Array of 4 seeded draws) | `equations_presetEquationRunner.js:89` |
+| 286 | `rand_frame = fract(vec4f(sin(rawT*91.7), ...))` | Renderer's per-frame regenerated `rand_frame` (4 fresh Math.random()) | `PresetShaderHeaderGlsl330.inc` line 5 (`rand_frame updated each frame`) |
+| 287-290 | `roam_cos`, `roam_sin`, `slow_roam_cos`, `slow_roam_sin` computed inline from `rawT` | Renderer-uploaded `_c8`, `_c9`, `_c10`, `_c11` uniform values computed from `this.time` (§11A) | `PresetShaderHeaderGlsl330.inc` lines 17-23 |
+| 293-295 | `blur1_min = 0, blur1_max = 1` (baseline defaults) | Preset-supplied `blur1_min` / `blur1_max` from `mdVSFrame` per §12; presets can assign them in `per_frame` code | Header `#define blur1_min _c6.z`, `blur1_max _c6.w` |
+| 297-298 | `mip_x = 0.5, mip_y = 0.5, mip_xy = vec2f(0.5), mip_avg = 0.5` | Renderer's mip statistics from the previous-frame main texture (see `_c12` uniform per §11A) | Requires prev-frame texture sampling at Renderer level |
+| 145-169 | `mdgetblur1/2/3` = 5-tap Gaussian over main framebuffer | Sample from the ACTUAL blur cascade texture (blur1/2/3 output) with the `_c5.xy`/`_c5.zw`/`_c6.xy` scale/bias decompression per §12 | `rendering_shaders_blur_blur.js`; blurN target textures owned by Renderer |
+| 172-177 | `mdtex_blur1/2/3` fallback to `sampleFn` (main texture) | Sample from blur target texture | Same |
+| 179-206 | Noise textures synthesized via `hash()` function | Renderer-owned MilkdropNoise textures per §11C | `MilkdropNoise.cpp` fixed-content textures |
+| 225 | Warp shader output: `max(ret, srcTex(c.uv))` | Warp shader writes `ret` verbatim to the color target; the `max` against sampler_main is NOT in projectM's warp fragment (`projectm-warp-fragment.frag`) | Verify at `docs/evidence/projectm/projectm-warp-fragment.frag` |
+| — | 24 rotation matrices `rot_s1..rot_rand4` | Renderer-owned rotation accumulators (16 dynamic + 4 rand-per-frame + 4 static) | Not currently exposed by the transpiler at all |
+
+The correct fix pattern for all rows: extend `MilkFrameData` (the
+per-frame input the pipeline hands the runner) with a
+`shaderContract: MilkShaderContract` field carrying the full uniform
+set the Renderer would own. The transpiler emits reads from that
+contract; the pipeline populates it from the runner + session state.
+Until each row's source is available, its refusal remains at pipeline
+load time — approximation is not a valid substitute.

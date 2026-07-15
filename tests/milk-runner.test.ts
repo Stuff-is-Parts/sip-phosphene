@@ -88,6 +88,57 @@ describe("MilkPresetRunner — runtime defaults exhaustive against butterchurn s
   });
 });
 
+describe("MilkPresetRunner — source-indexed unit storage", () => {
+  // Butterchurn's Renderer holds fixed 4-slot arrays for waves and shapes,
+  // indexed by source index (rendering_renderer.js:139-149). A preset
+  // enabling only wavecode_2 or shapecode_2 leaves slots 0, 1, 3 empty
+  // and hits slot 2. PHOSPHENE preserves that addressing: waveEnabled
+  // and shapeEnabled are keyed by source index, and the pipeline
+  // dispatches under n.index without needing to compact.
+  it("keys waveEnabled by source index, not array position", () => {
+    const runner = new MilkPresetRunner(emptyDef({
+      waves: [
+        // Only wavecode_2 is present; the array has one entry with
+        // source index 2. The runner must expose enabled@2, not @0.
+        { index: 2, baseValues: { enabled: 1 }, initEel: "", frameEel: "", pointEel: "" },
+      ],
+    }), globals(), rng());
+    expect(runner.waveEnabled.get(2)).toBe(true);
+    expect(runner.waveEnabled.get(0)).toBeUndefined();
+    expect(runner.waveEnabled.get(1)).toBeUndefined();
+  });
+
+  it("keys shapeEnabled by source index, not array position", () => {
+    const runner = new MilkPresetRunner(emptyDef({
+      shapes: [
+        { index: 3, baseValues: { enabled: 1 }, initEel: "", frameEel: "" },
+      ],
+    }), globals(), rng());
+    expect(runner.shapeEnabled.get(3)).toBe(true);
+    expect(runner.shapeEnabled.get(0)).toBeUndefined();
+  });
+
+  it("does not carry old_wave_mode in MILK_BASE_DEFAULTS", async () => {
+    // Butterchurn injects old_wave_mode into preset.baseVals at
+    // rendering_renderer.js:194 as a renderer-owned value, not a runtime
+    // default. MilkPresetRunner must NOT synthesize it via defaults —
+    // that would let the runner produce a value without the owning
+    // prev-preset lifecycle. Callers supply it explicitly through
+    // def.baseValues (MilkPipeline.load does this now).
+    const { MILK_BASE_DEFAULTS } = await import("../src/core/milk-runner");
+    expect("old_wave_mode" in MILK_BASE_DEFAULTS).toBe(false);
+  });
+
+  it("still accepts caller-supplied old_wave_mode via def.baseValues", () => {
+    const runner = new MilkPresetRunner(
+      emptyDef({ baseValues: { old_wave_mode: 7 } }),
+      globals(), rng(),
+    );
+    runner.runFrameEquations(globals());
+    expect(runner.mdVSFrame.old_wave_mode).toBe(7);
+  });
+});
+
 describe("MilkPresetRunner — seeded random draw order", () => {
   // Butterchurn PresetEquationRunner.initializeEquations at
   // equations_presetEquationRunner.js:88-89 fills rand_start[0..3] then

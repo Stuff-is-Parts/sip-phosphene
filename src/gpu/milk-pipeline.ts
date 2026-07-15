@@ -358,6 +358,15 @@ export class MilkPipeline {
    *  MilkRng when a specific seeded stream is required (e.g. E2E
    *  validation aligned to the instrumented oracle). */
   readonly rng: RecordingMilkRng;
+  /** wave_mode of the previous preset. Butterchurn's Renderer holds
+   *  `this.prevPreset` across load boundaries and injects
+   *  `prevPreset.baseVals.wave_mode` into the new preset's baseVals
+   *  (rendering_renderer.js:194). PHOSPHENE has no session concept
+   *  that owns the previous preset yet; a future session-level manager
+   *  must set this before load(). Default 0 matches butterchurn's
+   *  blank-preset initial state (wave_mode of the blankPreset used
+   *  before the first preset is loaded — rendering_renderer.js:164-179). */
+  prevPresetWaveMode = 0;
   constructor(private readonly renderer: Renderer, rng?: MilkRng) {
     const inner = rng ?? makeMulberry32(0x5eed1e55);
     this.rng = new RecordingMilkRng(inner);
@@ -427,13 +436,35 @@ export class MilkPipeline {
       aspectx: this.invAspectx, aspecty: this.invAspecty,
       pixelsx: this.width, pixelsy: this.height,
     };
+    // Renderer-injected keys: butterchurn's Renderer mutates the new
+    // preset's baseVals BEFORE constructing the equation runner (see
+    // rendering_renderer.js:194 for old_wave_mode). PHOSPHENE has no
+    // session-level prev-preset lifecycle yet, so we inject with the
+    // butterchurn initial-state value (wave_mode of the blank preset
+    // = 0). Documented as an unresolved boundary in
+    // docs/milkdrop-execution-model.md §2 (Preset lifecycle).
+    const injectedBaseValues = {
+      ...frameNode.baseValues,
+      old_wave_mode: this.prevPresetWaveMode,
+    };
     this.runner = new MilkPresetRunner({
-      baseValues: frameNode.baseValues,
+      baseValues: injectedBaseValues,
       initEel: frameNode.initCode, frameEel: frameNode.perFrame, pixelEel: warpNode.perPixel,
-      waves: this.waveNodes.map((w) => ({
-        baseValues: w.baseValues, initEel: w.initCode, frameEel: w.perFrame, pointEel: w.perPoint,
-      })),
+      waves: this.waveNodes.map((w) => {
+        if (w.index === undefined) {
+          // Custom waves always carry a source index (wavecode_N N)
+          // through parseMilkComplete → milkToGraph; the filter above
+          // narrows to `n.custom === true`. An undefined here is an
+          // importer bug that must not silently default to 0.
+          throw new UnsupportedGraphError([`milk-wave(${w.id}):custom without source index`]);
+        }
+        return {
+          index: w.index,
+          baseValues: w.baseValues, initEel: w.initCode, frameEel: w.perFrame, pointEel: w.perPoint,
+        };
+      }),
       shapes: this.shapeNodes.map((s) => ({
+        index: s.index,
         baseValues: s.baseValues, initEel: s.initCode, frameEel: s.perFrame,
       })),
     }, loadGlobals, this.rng);
@@ -1068,7 +1099,7 @@ export class MilkPipeline {
     // wrap the original per-index body in an IIFE so the diff stays
     // small; the forEach becomes a single-iteration call
     ((): void => {
-      if (!runner.shapeEnabled[i]) return;
+      if (!runner.shapeEnabled.get(i)) return;
       const pool = runner.shapeFramePool(i, globals);
       const base = { ...pool };
       const numInst = clamp(pool.num_inst, 1, 1024);
@@ -1143,7 +1174,7 @@ export class MilkPipeline {
   ): void {
     const runner = this.runner!;
     ((): void => {
-      if (!runner.waveEnabled[i]) return;
+      if (!runner.waveEnabled.get(i)) return;
       const pool = runner.waveFramePool(i, globals);
       runner.runWaveFrame(i, pool);
       let samples = "samples" in pool ? pool.samples : MAX_SAMPLES;
