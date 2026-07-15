@@ -235,12 +235,37 @@ export interface MilkMotionVectorsNode extends NodeBase {
   target: TextureRef;
 }
 
-/** Blur cascade update after warp (semantics doc §12); levels = highest
- *  GetBlurN referenced by the preset's shaders (0 = unused). */
+/** Blur cascade update after warp (semantics doc §12). Butterchurn's
+ *  Renderer holds three chained blur shaders (blurShader1/2/3) each of
+ *  which does one H + one V separable Gaussian pass onto a downsampled
+ *  render target. Shaders reference the cascade output textures as
+ *  `sampler_blur1/2/3` and decompress the range with the per-level
+ *  scale/bias in `_c5.xy`/`_c5.zw`/`_c6.xy` uniforms. This node names:
+ *
+ *  - `source`: the input texture the cascade samples (canvas post-warp).
+ *  - `levels`: the highest `GetBlurN` referenced by the preset shaders
+ *    (0 = unused, and blur cascade fires N times to produce blur1..N).
+ *  - `blurTargets`: the source-defined output texture references the
+ *    executor writes at each level. `blur1Target` = the level the
+ *    shaders see as sampler_blur1 (half-resolution); etc. When
+ *    `levels < 3`, higher targets stay unpopulated.
+ *
+ *  Level shape per rendering_renderer.js:102 (`blurRatios`):
+ *    blur1 target = 0.5 × main resolution
+ *    blur2 target = 0.25 × main resolution  (0.5 × blur1)
+ *    blur3 target = 0.125 × main resolution (0.5 × blur2)
+ *
+ *  Scale/bias unpack per BlurTexture.cpp (docs/milkdrop-execution-model.md
+ *  §12): the executor packs each level's dynamic range into 8-bit storage
+ *  and uploads (scale, bias) so the shader can decompress via
+ *  `sample * scale + bias`. */
 export interface MilkBlurNode extends NodeBase {
   kind: "milk-blur";
   levels: 0 | 1 | 2 | 3;
   source: TextureRef;
+  blur1Target?: TextureRef;
+  blur2Target?: TextureRef;
+  blur3Target?: TextureRef;
 }
 
 /** Outer+inner borders drawn onto the canvas (semantics doc §9). */
