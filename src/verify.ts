@@ -106,8 +106,61 @@ declare global {
     __ready: boolean;
     __verifyMilk(text: string, name: string): Promise<Verdict>;
     __verifyP9(base64: string, name: string): Promise<Verdict>;
+    __refLoadMilk(text: string, name: string): Promise<Verdict>;
+    __refFrame(t: number, features: AudioFeatures): boolean;
   }
 }
+
+/* ------------- reference-validation mode (fidelity harness) ------------ */
+// The driver injects EXACT per-frame audio features (computed by the
+// documented MilkDrop audio model from the shared deterministic PCM) and
+// exact frame times, mirroring the Butterchurn oracle inputs; it
+// screenshots at the shared capture frames and compares against the
+// reference fixtures. See scripts/validate-milk.mjs.
+
+let refScene: Scene | null = null;
+let refMw: ReturnType<typeof meshWarpFor> = null;
+
+window.__refLoadMilk = async (text, name) => {
+  let phase = "parse";
+  try {
+    const preset = parseMilk(text, name);
+    phase = "toScene";
+    const { scene } = milkToScene(preset);
+    phase = "compile";
+    mods.reset();
+    const errors: string[] = [];
+    for (const stage of STAGES) {
+      const res = await renderer.compileStage(stage, scene.layers[stage].code, 0);
+      if (!res.ok) errors.push(`${stage}: ${res.diagnostics[0]?.message ?? "compile failed"}`);
+    }
+    const passResults = await renderer.setPasses(0, scene.passes ?? []);
+    passResults.forEach((r, i) => {
+      if (!r.ok) errors.push(`pass${i}: ${r.diagnostics[0]?.message ?? "compile failed"}`);
+    });
+    await renderer.setMesh(0, scene.mesh ?? null);
+    renderer.setParticles(0, scene.particles?.count ?? 0);
+    if (errors.length) return { ok: false, errors, reports: [] };
+    refScene = scene;
+    refMw = meshWarpFor(scene);
+    return { ok: true, errors: [], reports: [] };
+  } catch (err) {
+    return { ok: false, errors: [`${phase} threw: ${(err as Error).message}`.slice(0, 300)], reports: [] };
+  }
+};
+
+window.__refFrame = (t, features) => {
+  if (!refScene) return false;
+  const audio: AudioFeatures = {
+    ...features,
+    spec: new Float32Array(features.spec),
+    wave: new Float32Array(features.wave),
+  };
+  const p = mods.evaluate(refScene, renderer.stageParams(0), audio, t);
+  renderer.setWarpMesh(0, refMw ? refMw.evaluate(mods.exprSnapshot(), t) : null);
+  renderer.frame(t, audio, p);
+  return true;
+};
 
 window.__verifyMilk = async (text, name) => {
   let phase = "parse";

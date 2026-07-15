@@ -1,0 +1,1189 @@
+{
+  "measures": "reference-validated fidelity: SSIM vs Butterchurn oracle renders under identical deterministic audio and frame times",
+  "tolerance": {
+    "ssim": 0.8,
+    "rule": "every capture frame must reach tolerance; committed before implementation per COMPATIBILITY-GOAL.md"
+  },
+  "captureFrames": [
+    30,
+    90,
+    180,
+    300
+  ],
+  "pairsTested": 45,
+  "validated": 0,
+  "diverged": 45,
+  "compileFailed": 0,
+  "results": [
+    {
+      "preset": "$$$ Royal - Mashup (197)",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.1247,
+          "meanAbsError": 66.34
+        },
+        {
+          "frame": 90,
+          "ssim": 0.134,
+          "meanAbsError": 67.52
+        },
+        {
+          "frame": 180,
+          "ssim": 0.124,
+          "meanAbsError": 80.95
+        },
+        {
+          "frame": 300,
+          "ssim": 0.068,
+          "meanAbsError": 83.4
+        }
+      ]
+    },
+    {
+      "preset": "$$$ Royal - Mashup (220)",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.059,
+          "meanAbsError": 188.44
+        },
+        {
+          "frame": 90,
+          "ssim": 0.1016,
+          "meanAbsError": 111.46
+        },
+        {
+          "frame": 180,
+          "ssim": 0.1546,
+          "meanAbsError": 83.05
+        },
+        {
+          "frame": 300,
+          "ssim": 0.1313,
+          "meanAbsError": 94.36
+        }
+      ]
+    },
+    {
+      "preset": "_Geiss - Desert Rose 2",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.0537,
+          "meanAbsError": 46.62
+        },
+        {
+          "frame": 90,
+          "ssim": 0.203,
+          "meanAbsError": 25.11
+        },
+        {
+          "frame": 180,
+          "ssim": 0.3207,
+          "meanAbsError": 19.21
+        },
+        {
+          "frame": 300,
+          "ssim": 0.4206,
+          "meanAbsError": 18.09
+        }
+      ]
+    },
+    {
+      "preset": "_Mig_049",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.4116,
+          "meanAbsError": 42.76
+        },
+        {
+          "frame": 90,
+          "ssim": 0.1301,
+          "meanAbsError": 67.14
+        },
+        {
+          "frame": 180,
+          "ssim": 0.0924,
+          "meanAbsError": 87.52
+        },
+        {
+          "frame": 300,
+          "ssim": 0.2541,
+          "meanAbsError": 35.92
+        }
+      ]
+    },
+    {
+      "preset": "Aderrasi - Potion of Spirits",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.4585,
+          "meanAbsError": 114.97
+        },
+        {
+          "frame": 90,
+          "ssim": 0.5683,
+          "meanAbsError": 66.99
+        },
+        {
+          "frame": 180,
+          "ssim": 0.6823,
+          "meanAbsError": 99.45
+        },
+        {
+          "frame": 300,
+          "ssim": 0.5414,
+          "meanAbsError": 100.25
+        }
+      ]
+    },
+    {
+      "preset": "An AdamFX n Martin Infusion 2 flexi - Why The Sky Looks Diffrent Today - AdamFx n Martin Infusion - Tack Tile Disfunction B",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.2488,
+          "meanAbsError": 78.53
+        },
+        {
+          "frame": 90,
+          "ssim": 0.1892,
+          "meanAbsError": 82.62
+        },
+        {
+          "frame": 180,
+          "ssim": 0.2116,
+          "meanAbsError": 76.3
+        },
+        {
+          "frame": 300,
+          "ssim": 0.3682,
+          "meanAbsError": 82.28
+        }
+      ]
+    },
+    {
+      "preset": "cope + martin - mother-of-pearl",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.3537,
+          "meanAbsError": 68.93
+        },
+        {
+          "frame": 90,
+          "ssim": 0.2946,
+          "meanAbsError": 69.68
+        },
+        {
+          "frame": 180,
+          "ssim": 0.2705,
+          "meanAbsError": 63.28
+        },
+        {
+          "frame": 300,
+          "ssim": 0.1264,
+          "meanAbsError": 48.06
+        }
+      ]
+    },
+    {
+      "preset": "Cope - The Neverending Explosion of Red Liquid Fire",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.4967,
+          "meanAbsError": 33.21
+        },
+        {
+          "frame": 90,
+          "ssim": 0.6381,
+          "meanAbsError": 26.43
+        },
+        {
+          "frame": 180,
+          "ssim": 0.6533,
+          "meanAbsError": 28.58
+        },
+        {
+          "frame": 300,
+          "ssim": 0.6513,
+          "meanAbsError": 28.9
+        }
+      ]
+    },
+    {
+      "preset": "Eo.S. + Phat - cubetrace - v2",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.4228,
+          "meanAbsError": 35.95
+        },
+        {
+          "frame": 90,
+          "ssim": 0.396,
+          "meanAbsError": 32.27
+        },
+        {
+          "frame": 180,
+          "ssim": 0.3636,
+          "meanAbsError": 32.25
+        },
+        {
+          "frame": 300,
+          "ssim": 0.3432,
+          "meanAbsError": 32.47
+        }
+      ]
+    },
+    {
+      "preset": "Eo.S. + Zylot - skylight (Stained Glass Majesty mix)",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.1303,
+          "meanAbsError": 165.33
+        },
+        {
+          "frame": 90,
+          "ssim": 0.0753,
+          "meanAbsError": 137.07
+        },
+        {
+          "frame": 180,
+          "ssim": 0.0781,
+          "meanAbsError": 129.98
+        },
+        {
+          "frame": 300,
+          "ssim": 0.1314,
+          "meanAbsError": 119.13
+        }
+      ]
+    },
+    {
+      "preset": "Eo.S. - glowsticks v2 05 and proton lights (+Krash′s beat code) _Phat_remix02b",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.355,
+          "meanAbsError": 113.17
+        },
+        {
+          "frame": 90,
+          "ssim": 0.0349,
+          "meanAbsError": 207.62
+        },
+        {
+          "frame": 180,
+          "ssim": 0.0256,
+          "meanAbsError": 209.79
+        },
+        {
+          "frame": 300,
+          "ssim": 0.1463,
+          "meanAbsError": 195.91
+        }
+      ]
+    },
+    {
+      "preset": "fiShbRaiN + Flexi - witchcraft 2.0",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.1159,
+          "meanAbsError": 123.48
+        },
+        {
+          "frame": 90,
+          "ssim": 0.204,
+          "meanAbsError": 68.4
+        },
+        {
+          "frame": 180,
+          "ssim": 0.2562,
+          "meanAbsError": 39.42
+        },
+        {
+          "frame": 300,
+          "ssim": 0.2006,
+          "meanAbsError": 73.17
+        }
+      ]
+    },
+    {
+      "preset": "Flexi + stahlregen - jelly showoff parade",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.695,
+          "meanAbsError": 63.36
+        },
+        {
+          "frame": 90,
+          "ssim": 0.5807,
+          "meanAbsError": 103.65
+        },
+        {
+          "frame": 180,
+          "ssim": 0.2767,
+          "meanAbsError": 140.72
+        },
+        {
+          "frame": 300,
+          "ssim": 0.1709,
+          "meanAbsError": 111.33
+        }
+      ]
+    },
+    {
+      "preset": "flexi - bouncing balls [double mindblob neon mix]",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.3237,
+          "meanAbsError": 85.6
+        },
+        {
+          "frame": 90,
+          "ssim": 0.2348,
+          "meanAbsError": 92.23
+        },
+        {
+          "frame": 180,
+          "ssim": 0.4879,
+          "meanAbsError": 82.02
+        },
+        {
+          "frame": 300,
+          "ssim": 0.4455,
+          "meanAbsError": 54.05
+        }
+      ]
+    },
+    {
+      "preset": "Flexi - mindblob [shiny mix]",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.1174,
+          "meanAbsError": 87.21
+        },
+        {
+          "frame": 90,
+          "ssim": 0.0755,
+          "meanAbsError": 127.12
+        },
+        {
+          "frame": 180,
+          "ssim": 0.0394,
+          "meanAbsError": 165.28
+        },
+        {
+          "frame": 300,
+          "ssim": 0.0345,
+          "meanAbsError": 187.08
+        }
+      ]
+    },
+    {
+      "preset": "flexi - patternton, district of media, capitol of the united abstractions of fractopia",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.4636,
+          "meanAbsError": 159.88
+        },
+        {
+          "frame": 90,
+          "ssim": 0.443,
+          "meanAbsError": 153.89
+        },
+        {
+          "frame": 180,
+          "ssim": 0.2156,
+          "meanAbsError": 144.46
+        },
+        {
+          "frame": 300,
+          "ssim": 0.134,
+          "meanAbsError": 144.47
+        }
+      ]
+    },
+    {
+      "preset": "Flexi - smashing fractals [acid etching mix]",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.1909,
+          "meanAbsError": 100.03
+        },
+        {
+          "frame": 90,
+          "ssim": 0.1419,
+          "meanAbsError": 83.08
+        },
+        {
+          "frame": 180,
+          "ssim": 0.1442,
+          "meanAbsError": 70.17
+        },
+        {
+          "frame": 300,
+          "ssim": 0.1308,
+          "meanAbsError": 76.75
+        }
+      ]
+    },
+    {
+      "preset": "Flexi - truly soft piece of software - this is generic texturing (Jelly) ",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.124,
+          "meanAbsError": 32
+        },
+        {
+          "frame": 90,
+          "ssim": 0.129,
+          "meanAbsError": 31.82
+        },
+        {
+          "frame": 180,
+          "ssim": 0.1064,
+          "meanAbsError": 40.26
+        },
+        {
+          "frame": 300,
+          "ssim": 0.1646,
+          "meanAbsError": 39.94
+        }
+      ]
+    },
+    {
+      "preset": "flexi - what is the matrix",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.2125,
+          "meanAbsError": 78.71
+        },
+        {
+          "frame": 90,
+          "ssim": 0.2042,
+          "meanAbsError": 94.98
+        },
+        {
+          "frame": 180,
+          "ssim": 0.0641,
+          "meanAbsError": 119.24
+        },
+        {
+          "frame": 300,
+          "ssim": 0.0612,
+          "meanAbsError": 107.2
+        }
+      ]
+    },
+    {
+      "preset": "Flexi, fishbrain, Geiss + Martin - tokamak witchery",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.1167,
+          "meanAbsError": 63.55
+        },
+        {
+          "frame": 90,
+          "ssim": 0.1565,
+          "meanAbsError": 62.89
+        },
+        {
+          "frame": 180,
+          "ssim": 0.1108,
+          "meanAbsError": 78.37
+        },
+        {
+          "frame": 300,
+          "ssim": 0.1704,
+          "meanAbsError": 98.34
+        }
+      ]
+    },
+    {
+      "preset": "Geiss - Cauldron - painterly 2 (saturation remix)",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.0606,
+          "meanAbsError": 129.19
+        },
+        {
+          "frame": 90,
+          "ssim": 0.2732,
+          "meanAbsError": 71.18
+        },
+        {
+          "frame": 180,
+          "ssim": 0.3378,
+          "meanAbsError": 64.71
+        },
+        {
+          "frame": 300,
+          "ssim": 0.2118,
+          "meanAbsError": 82.35
+        }
+      ]
+    },
+    {
+      "preset": "Geiss - Reaction Diffusion 2",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.085,
+          "meanAbsError": 80.35
+        },
+        {
+          "frame": 90,
+          "ssim": 0.0286,
+          "meanAbsError": 107.79
+        },
+        {
+          "frame": 180,
+          "ssim": 0.0303,
+          "meanAbsError": 143.06
+        },
+        {
+          "frame": 300,
+          "ssim": 0.0512,
+          "meanAbsError": 144.51
+        }
+      ]
+    },
+    {
+      "preset": "Geiss - Spiral Artifact",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.0076,
+          "meanAbsError": 234.55
+        },
+        {
+          "frame": 90,
+          "ssim": 0.0981,
+          "meanAbsError": 187
+        },
+        {
+          "frame": 180,
+          "ssim": 0.0001,
+          "meanAbsError": 245.25
+        },
+        {
+          "frame": 300,
+          "ssim": 0.0001,
+          "meanAbsError": 255
+        }
+      ]
+    },
+    {
+      "preset": "Goody - The Wild Vort",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.262,
+          "meanAbsError": 103.94
+        },
+        {
+          "frame": 90,
+          "ssim": 0.187,
+          "meanAbsError": 78.44
+        },
+        {
+          "frame": 180,
+          "ssim": 0.1404,
+          "meanAbsError": 95.51
+        },
+        {
+          "frame": 300,
+          "ssim": 0.2246,
+          "meanAbsError": 77.46
+        }
+      ]
+    },
+    {
+      "preset": "high-altitude basket unraveling - singh grooves nitrogen argon nz+",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.7084,
+          "meanAbsError": 18.36
+        },
+        {
+          "frame": 90,
+          "ssim": 0.6715,
+          "meanAbsError": 30.4
+        },
+        {
+          "frame": 180,
+          "ssim": 0.733,
+          "meanAbsError": 29.01
+        },
+        {
+          "frame": 300,
+          "ssim": 0.6708,
+          "meanAbsError": 32.6
+        }
+      ]
+    },
+    {
+      "preset": "martin + flexi - diamond cutter [prismaticvortex.com] - camille - i wish i wish i wish i was constrained",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.0233,
+          "meanAbsError": 63.14
+        },
+        {
+          "frame": 90,
+          "ssim": 0.0256,
+          "meanAbsError": 63.27
+        },
+        {
+          "frame": 180,
+          "ssim": 0.0264,
+          "meanAbsError": 62.6
+        },
+        {
+          "frame": 300,
+          "ssim": 0.0247,
+          "meanAbsError": 61.91
+        }
+      ]
+    },
+    {
+      "preset": "martin - angel flight",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.1334,
+          "meanAbsError": 56.06
+        },
+        {
+          "frame": 90,
+          "ssim": 0.1173,
+          "meanAbsError": 50.59
+        },
+        {
+          "frame": 180,
+          "ssim": 0.127,
+          "meanAbsError": 41.4
+        },
+        {
+          "frame": 300,
+          "ssim": 0.1528,
+          "meanAbsError": 41.2
+        }
+      ]
+    },
+    {
+      "preset": "martin - another kind of groove",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.4133,
+          "meanAbsError": 16.58
+        },
+        {
+          "frame": 90,
+          "ssim": 0.3817,
+          "meanAbsError": 17.14
+        },
+        {
+          "frame": 180,
+          "ssim": 0.3634,
+          "meanAbsError": 18.92
+        },
+        {
+          "frame": 300,
+          "ssim": 0.3231,
+          "meanAbsError": 26.47
+        }
+      ]
+    },
+    {
+      "preset": "martin - castle in the air",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.0004,
+          "meanAbsError": 126.13
+        },
+        {
+          "frame": 90,
+          "ssim": 0.0005,
+          "meanAbsError": 124.09
+        },
+        {
+          "frame": 180,
+          "ssim": 0.0005,
+          "meanAbsError": 123.83
+        },
+        {
+          "frame": 300,
+          "ssim": 0.0004,
+          "meanAbsError": 127.06
+        }
+      ]
+    },
+    {
+      "preset": "martin - chain breaker",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.6687,
+          "meanAbsError": 14.82
+        },
+        {
+          "frame": 90,
+          "ssim": 0.4757,
+          "meanAbsError": 15.69
+        },
+        {
+          "frame": 180,
+          "ssim": 0.4175,
+          "meanAbsError": 19.96
+        },
+        {
+          "frame": 300,
+          "ssim": 0.6189,
+          "meanAbsError": 20.33
+        }
+      ]
+    },
+    {
+      "preset": "martin - disco mix 4",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.1447,
+          "meanAbsError": 36.78
+        },
+        {
+          "frame": 90,
+          "ssim": 0.2607,
+          "meanAbsError": 36.38
+        },
+        {
+          "frame": 180,
+          "ssim": 0.1282,
+          "meanAbsError": 59.32
+        },
+        {
+          "frame": 300,
+          "ssim": 0.2502,
+          "meanAbsError": 36.06
+        }
+      ]
+    },
+    {
+      "preset": "martin - frosty caves 2",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.8788,
+          "meanAbsError": 1.14
+        },
+        {
+          "frame": 90,
+          "ssim": 0.6768,
+          "meanAbsError": 6.11
+        },
+        {
+          "frame": 180,
+          "ssim": 0.3582,
+          "meanAbsError": 11.66
+        },
+        {
+          "frame": 300,
+          "ssim": 0.854,
+          "meanAbsError": 1.54
+        }
+      ]
+    },
+    {
+      "preset": "martin - ghost city",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.0834,
+          "meanAbsError": 161.41
+        },
+        {
+          "frame": 90,
+          "ssim": 0.0827,
+          "meanAbsError": 174.53
+        },
+        {
+          "frame": 180,
+          "ssim": 0.0973,
+          "meanAbsError": 165.77
+        },
+        {
+          "frame": 300,
+          "ssim": 0.0726,
+          "meanAbsError": 163.16
+        }
+      ]
+    },
+    {
+      "preset": "martin - infinity (2010 update)",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.1559,
+          "meanAbsError": 137.62
+        },
+        {
+          "frame": 90,
+          "ssim": 0.2945,
+          "meanAbsError": 62.19
+        },
+        {
+          "frame": 180,
+          "ssim": 0.0529,
+          "meanAbsError": 76.96
+        },
+        {
+          "frame": 300,
+          "ssim": 0.0259,
+          "meanAbsError": 79.22
+        }
+      ]
+    },
+    {
+      "preset": "martin - reflections on black tiles",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.6615,
+          "meanAbsError": 15.55
+        },
+        {
+          "frame": 90,
+          "ssim": 0.6734,
+          "meanAbsError": 16
+        },
+        {
+          "frame": 180,
+          "ssim": 0.6553,
+          "meanAbsError": 18.2
+        },
+        {
+          "frame": 300,
+          "ssim": 0.6754,
+          "meanAbsError": 15.81
+        }
+      ]
+    },
+    {
+      "preset": "martin - witchcraft reloaded",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.7571,
+          "meanAbsError": 14.24
+        },
+        {
+          "frame": 90,
+          "ssim": 0.7388,
+          "meanAbsError": 15.46
+        },
+        {
+          "frame": 180,
+          "ssim": 0.6691,
+          "meanAbsError": 18.38
+        },
+        {
+          "frame": 300,
+          "ssim": 0.7418,
+          "meanAbsError": 14.46
+        }
+      ]
+    },
+    {
+      "preset": "Milk Artist At our Best - FED - SlowFast Ft AdamFX n Martin - HD CosmoFX",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.0843,
+          "meanAbsError": 145.13
+        },
+        {
+          "frame": 90,
+          "ssim": 0.1313,
+          "meanAbsError": 137.27
+        },
+        {
+          "frame": 180,
+          "ssim": 0.1297,
+          "meanAbsError": 135.41
+        },
+        {
+          "frame": 300,
+          "ssim": 0.1566,
+          "meanAbsError": 109.92
+        }
+      ]
+    },
+    {
+      "preset": "ORB - Waaa",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.1479,
+          "meanAbsError": 110.02
+        },
+        {
+          "frame": 90,
+          "ssim": 0.134,
+          "meanAbsError": 113.94
+        },
+        {
+          "frame": 180,
+          "ssim": 0.1636,
+          "meanAbsError": 105.59
+        },
+        {
+          "frame": 300,
+          "ssim": 0.1088,
+          "meanAbsError": 125.94
+        }
+      ]
+    },
+    {
+      "preset": "Rovastar + Loadus + Geiss - FractalDrop (Triple Mix)",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.0259,
+          "meanAbsError": 143.08
+        },
+        {
+          "frame": 90,
+          "ssim": 0.0166,
+          "meanAbsError": 156.64
+        },
+        {
+          "frame": 180,
+          "ssim": 0.0125,
+          "meanAbsError": 160.55
+        },
+        {
+          "frame": 300,
+          "ssim": 0.0275,
+          "meanAbsError": 152.46
+        }
+      ]
+    },
+    {
+      "preset": "Rovastar - Oozing Resistance",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.1834,
+          "meanAbsError": 149.2
+        },
+        {
+          "frame": 90,
+          "ssim": 0.1997,
+          "meanAbsError": 101.52
+        },
+        {
+          "frame": 180,
+          "ssim": 0.2876,
+          "meanAbsError": 115.97
+        },
+        {
+          "frame": 300,
+          "ssim": 0.381,
+          "meanAbsError": 91.71
+        }
+      ]
+    },
+    {
+      "preset": "sawtooth grin roam",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.2195,
+          "meanAbsError": 30.43
+        },
+        {
+          "frame": 90,
+          "ssim": 0.1459,
+          "meanAbsError": 95.28
+        },
+        {
+          "frame": 180,
+          "ssim": 0.1613,
+          "meanAbsError": 46.1
+        },
+        {
+          "frame": 300,
+          "ssim": 0.2432,
+          "meanAbsError": 49.31
+        }
+      ]
+    },
+    {
+      "preset": "shifter - dark tides bdrv mix 2",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.3386,
+          "meanAbsError": 104.2
+        },
+        {
+          "frame": 90,
+          "ssim": 0.0695,
+          "meanAbsError": 124.11
+        },
+        {
+          "frame": 180,
+          "ssim": 0.015,
+          "meanAbsError": 120.65
+        },
+        {
+          "frame": 300,
+          "ssim": 0.0402,
+          "meanAbsError": 123.68
+        }
+      ]
+    },
+    {
+      "preset": "suksma - uninitialized variabowl (hydroponic chronic)",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.242,
+          "meanAbsError": 118.48
+        },
+        {
+          "frame": 90,
+          "ssim": 0.1369,
+          "meanAbsError": 120.41
+        },
+        {
+          "frame": 180,
+          "ssim": 0.1113,
+          "meanAbsError": 107.36
+        },
+        {
+          "frame": 300,
+          "ssim": 0.0545,
+          "meanAbsError": 121.31
+        }
+      ]
+    },
+    {
+      "preset": "suksma - vector exp 1 - couldn′t not",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.0413,
+          "meanAbsError": 83.33
+        },
+        {
+          "frame": 90,
+          "ssim": 0.0294,
+          "meanAbsError": 74.12
+        },
+        {
+          "frame": 180,
+          "ssim": 0.0253,
+          "meanAbsError": 94.47
+        },
+        {
+          "frame": 300,
+          "ssim": 0.0728,
+          "meanAbsError": 71.77
+        }
+      ]
+    },
+    {
+      "preset": "yin - 191 - Temporal singularities",
+      "status": "diverged",
+      "frames": [
+        {
+          "frame": 30,
+          "ssim": 0.1648,
+          "meanAbsError": 14.23
+        },
+        {
+          "frame": 90,
+          "ssim": 0.3522,
+          "meanAbsError": 28.71
+        },
+        {
+          "frame": 180,
+          "ssim": 0.1159,
+          "meanAbsError": 15.43
+        },
+        {
+          "frame": 300,
+          "ssim": 0.1262,
+          "meanAbsError": 25.39
+        }
+      ]
+    }
+  ]
+}
