@@ -14,8 +14,8 @@
       "treb_att"
     ]
   },
-  "presets": 2,
-  "validated": 2,
+  "presets": 97,
+  "validated": 97,
   "diverged": 0,
   "results": [
     {
@@ -31,7 +31,1147 @@
       }
     },
     {
-      "preset": "Hypnotic\\Illusion\\amandio c, flexi, martin - Op illusions - curved1.milk",
+      "preset": "Dancer\\Blobby Mirror\\suksma - veiny texture of your m gloves - you can change everything if you can change the mind,.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Dancer\\Comet Mirror\\EoS + Phat - chasers 13 sentinel 189 nz+ shifting through manyanas.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Dancer\\Comet\\LuxXx - Daily Data (alien seed deposite).milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Dancer\\Glowsticks Mirror\\268.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Dancer\\Glowsticks Mirror\\EoS - glowsticks v2 05 and proton lights (+Krash's beat code) _Phat_remix08.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Dancer\\Glowsticks\\EoS - angleform 2_Phat_Decay_Edit_v2Throw_water music response 2way bumper.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Dancer\\Glowsticks\\Tripgnosis - GoldenGlowstick.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Dancer\\Infect\\LuxXx - blurrpy rainbow matrix.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Dancer\\Lasers\\rce-ordinary - microscopic things (crosslinking mix) - splice leg stain.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Dancer\\Orbit\\EoS - glowsticks v2 04 music minimal - ghosts nz+7.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Dancer\\Shapes\\suksma - busier than a one-legged man in a non-existence contest.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Dancer\\Wake Mirror\\377.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Drawing\\Dunes\\LuxXx - Melt down the Engine i nz+.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Drawing\\Explosions\\Zylot - Paint Spill (Music Reactive Paint Mix) nz+ awful universe of all things being circumlocutes.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Drawing\\Explosions\\mboanaphithe.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Drawing\\Explosions\\stbenge - dripping_piles_B gained outside of mistranslation (dare rid vs tour ying) fixatives.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Drawing\\Fractal\\suksma - dreaming and dmt is the plant foreman observes and troubleshoots major employee and mechanical problems.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Drawing\\Growth\\suksma - chemosynthetic nosferatu - automating transformation with b n s3 - claim form fsh shf flx obl roam3,2 nz+ take rydberg m.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Drawing\\Liquid Mirror\\suksma - chemosynthetic nosferatu - automating transformation with biochrome nostril suppositories2 nz+.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Drawing\\Liquid\\fiShbRaiN + Flexi - witchcraft unleashed [00 the template] + shifter - turing tape - tarah phwormbs - d3.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Drawing\\Liquid\\suksma - chemosynthetic nosferatu - automating transformation with b n s3 - claim form fsh shf flx nz+ christ a lien pistil nardram.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Drawing\\Trails Mirror\\New Creation Sensation -  AdamFx,Flexi,Amandio c n Martin - Star to Another World ft Hexocollie,ShadowH,Geiss Bewitchcrafted A.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Drawing\\Trails Mirror\\suksma - feeling retry.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Drawing\\Trails\\martin + stahlregen - martin in da mash 4 nz+ compeckts system of agitation.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Fractal\\Core Mirror\\Cope - fractal explorer 122.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Fractal\\Core\\LuxXx - Starfield A.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Fractal\\Lattice Mirror\\$$$ Royal - Mashup (30).milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Fractal\\Lattice\\Geiss - Swirlie 5.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Fractal\\Loops\\EVET - The Id Machine 2.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Fractal\\Nested Circle\\EoS - Apocalypse D_ImFuckedUP_2.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Fractal\\Nested Circle\\PieturP - sides_betterSeries2_absurd.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Fractal\\Nested Dancer\\EoS - random 06B.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Fractal\\Nested Ellipse\\suksma - squasm minor plot frugal koonut kalifee.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Fractal\\Nested Spiral\\Phat_Aderrasi - Chromatic Abyss (the other side)_Dope.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Fractal\\Nested Spiral\\suksma - tetraxectsual aeliaen kkuhltz --- Isosceles edit08.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Fractal\\Nested Square\\ORB - Windmill and Water.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Fractal\\Radial\\suksma - Fvese - MV Fun 3 - completely juiced by presses - lattice crowded by infinite space.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Geometric\\City\\martin - city lights v2(1).milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Geometric\\Monster\\martin - attack of the beast [flexi's plasma + glass lens mix].milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Geometric\\Sphere Wild\\amandio c - green machinery 1a hell if i could nz+2 why not, right3 utter qosmiq phailre ov mbrusce li.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Geometric\\Sphere Wild\\suksma - everyone's opinion is infinitely differennt - 1-ret roam3.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Geometric\\Squares\\suksma - pus on my cat - hate shade.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Geometric\\Tunnel Spheres\\Martin n AdamFX - Hardcore Mix Collision in Myself ft Stahlregen .milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Geometric\\Wire Circles\\goody - second collaboration (ps2-0) - #1.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Geometric\\Wire Grid\\suksma + flexi geiss rovastar roosta demonld shifter - dr horicon willn't ignore dr fuqduqwen.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Geometric\\Wire Morph\\shifter - lazerspecs.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Geometric\\Wire Spiral\\Zylot - Spiral (Hypnotic)_Phat_Fourish_Spiral_Mix_Beta6 EoS warp edit 3.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Geometric\\Wire Trace\\EoS + Phat - CAT Scan (Nirvana).milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Hypnotic\\Polar Mirror\\GreatWho + Flexi - Lasershow [bipolar stranger party].milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Hypnotic\\Polar Static\\TonyMilkdrop - Tricolors [Flexi - gettogether + multiverse] --- Isosceles edit.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Hypnotic\\Polar Warp\\flexi - grind my glitch up [334].milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Particles\\Crystal\\shifter - plasmic fact - witholding, with-a holding, widdaholting - voyeurulant roam3 enormous hog pig nz+.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Particles\\Points Trails\\$$$ Royal - Mashup (340).milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Particles\\Points\\EoS - pointfield 09 the gases beyond 85b 3d_v2.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Particles\\Swarm\\$$$ Royal - Mashup (60).milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Reaction\\Contagion\\Flexi - emergencey 2 --- Isosceles edit6d warp invert.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Reaction\\Feedback\\$$$ Royal - Mashup (452).milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Reaction\\Feedback\\flexi - splatter effects 17 the wave, a google love story written in decay roam3-2 .milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Reaction\\Growth\\you're right, i would rather be alive - my only goal is to find out if i can tap the vacuum - i fucking .milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Reaction\\Liquid Blobby\\shifter + Flexi - liquid circuitry from the oblivion hive rw4 nz+ cancellation of everything please.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Reaction\\Liquid Blobby\\various - whirygig03 - flx rigidigeridoolittle' - reconsidering life in terms of loving how bizarre it is.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Reaction\\Liquid Gradient\\Bmelgren - Acid Iris.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Reaction\\Liquid Gradient\\suksma - 'witty' drone performing for titty cakes , everyone's impressed apparently.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Reaction\\Liquid Ripples\\Flexi - crush ice 39.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Reaction\\Liquid Ripples\\Rovastar - Ritual Halostar.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Reaction\\Liquid Ripples\\buxom xuxum sluxtxphuxnx.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Reaction\\Liquid Ripples\\stop being so smart and placing differential equations in shaders.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Reaction\\Liquid Ripples\\when i first mixed this, i loved it, now, because of your existence, i fucking hate it - life itself is  --- Isosceles edit.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Reaction\\Liquid Windy\\phat + EoS - Bass_responce_Red_Movements_Disorienting nebula3 aaa.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Reaction\\Rorschach\\$$$ Royal - Mashup (131).milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Reaction\\Rorschach\\NeW Adam Master Mashup FX 2 Geiss - Reaction Diffusion 34 + Geiss and Zylot + Shifter + Nil + Work with lines .milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Reaction\\Viscera\\sone' ovaembiasche' instantaneousle' cliche' novelte' nz+.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Sparkle\\Explosions\\Goody + martin - crystal palace - Schizotoxin - The Wild Iris Bloom - mess2 nz+ mechanize.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Sparkle\\Explosions\\craving 'spinach man' action figures suppositoric nutrition - burial at ornans.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Sparkle\\Explosions\\suksma - chernobyl pie for dessert - more lateral shade of masueality.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Sparkle\\Explosions\\suksma - fear and loathing in provo orem - fleshhooks.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Sparkle\\Explosions\\total hackville flacc crap nz+.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Sparkle\\Glimmer\\118.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Sparkle\\Mass Circles\\suksma - broadcloak rnz.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Sparkle\\Mass Squares\\suksma - dotes hostile undertake - can't even remember her name2.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Supernova\\Burst\\$$$ Royal - Mashup (392).milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Supernova\\Burst\\suksma - pen space - log smell (automate credit or fuck off).milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Supernova\\Radiate\\$$$ Royal - Mashup (20).milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Supernova\\Radiate\\amandio c - dark side of the sun 2.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Waveform\\Spectrum\\beta106i - Potion of Ink - mrt cope n777.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Waveform\\Spectrum\\suksma - ed geining hateops - flx palette massacrow.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Waveform\\Spectrum\\suksma - negative infinity for not flinching - dyst3.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Waveform\\Wire Circular\\Halfbreak - Chemical Artistry 1.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Waveform\\Wire Circular\\faintling --- Isosceles edit.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Waveform\\Wire Flat Double\\Serge mashup002.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Waveform\\Wire Flat\\Stahlregen & Geiss - Down the Drain_2.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Waveform\\Wire Mirror\\Geiss - Confetti (Kaleidoscope Mix) (color saturation boosted).milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Waveform\\Wire Rising\\Goody - Need.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Waveform\\Wire Spirograph\\Fumbling_Foo, Martin, Orb, Flexi - Star Forge v7 (HAKAN mash-up) 2-55 [mixwithv6v1bass] remade7d [[pixel theme]] 0-7 v2 {more active}.milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Waveform\\Wire Tangle\\Geiss - Cauldron - Tendrils (saturation remix).milk",
+      "frames": 302,
+      "status": "MATCHES-ORACLE",
+      "worst": {
+        "key": "fps",
+        "frame": 250,
+        "err": 3.758e-15,
+        "ours": 30.252103634683735,
+        "oracle": 30.25210363468362
+      }
+    },
+    {
+      "preset": "Waveform\\Wire Tangle\\Rovastar - Hyperspace.milk",
       "frames": 302,
       "status": "MATCHES-ORACLE",
       "worst": {
