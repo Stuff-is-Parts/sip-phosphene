@@ -144,10 +144,45 @@ export interface UnsupportedNode extends NodeBase {
  *     stage needs; the executor implements them from that document or
  *     refuses) --- */
 
+/** The preset's single per-frame evaluation: init once, per-frame each
+ *  frame, q1..q32 reset to the init snapshot every frame
+ *  (docs/milkdrop-execution-model.md §2). All stage nodes read the
+ *  resulting variable environment. baseValues carries EVERY numeric value
+ *  from the preset file verbatim — no selection. */
+export interface MilkFrameNode extends NodeBase {
+  kind: "milk-frame";
+  initCode: string;
+  perFrame: string;
+  baseValues: Record<string, number>;
+}
+
+/** Motion vector grid drawn onto the previous frame before warp
+ *  (pipeline stage 2; semantics doc §8). Values (mv_*) come from the
+ *  frame env. */
+export interface MilkMotionVectorsNode extends NodeBase {
+  kind: "milk-motion-vectors";
+  target: TextureRef;
+}
+
+/** Blur cascade update after warp (semantics doc §12); levels = highest
+ *  GetBlurN referenced by the preset's shaders (0 = unused). */
+export interface MilkBlurNode extends NodeBase {
+  kind: "milk-blur";
+  levels: 0 | 1 | 2 | 3;
+  source: TextureRef;
+}
+
+/** Outer+inner borders drawn onto the canvas (semantics doc §9). */
+export interface MilkBorderNode extends NodeBase {
+  kind: "milk-border";
+  target: TextureRef;
+}
+
 export interface MilkWarpNode extends NodeBase {
   kind: "milk-warp";
-  /** Per-frame + per-pixel programs and motion defaults. */
-  perFrame: string; perPixel: string; initCode: string;
+  /** Per-pixel (per-vertex) program; frame env comes from milk-frame. */
+  perPixel: string;
+  perPixelInit: string;
   gridX: number; gridY: number;
   warpShader?: ShaderSource; // MilkDrop 2 warp shader if present
   source: TextureRef; target: TextureRef;
@@ -157,7 +192,10 @@ export interface MilkWaveNode extends NodeBase {
   kind: "milk-wave";
   custom: boolean;
   index?: number;               // custom wave index
-  initCode?: string; perFrame?: string; perPoint?: string;
+  initCode?: string;
+  perFrame?: string;
+  /** Per-point equation program (custom waves; semantics doc §6). */
+  perPoint?: string;
   baseValues: Record<string, number>;
   target: TextureRef;
 }
@@ -186,6 +224,7 @@ export type GraphNode =
   | TargetNode | ClearNode | DrawFullscreenNode | DrawMeshNode
   | CpuExprNode | AudioNode | TextureNode | CopyNode | PresentNode
   | UnsupportedNode
+  | MilkFrameNode | MilkMotionVectorsNode | MilkBlurNode | MilkBorderNode
   | MilkWarpNode | MilkWaveNode | MilkShapeNode | MilkCompositeNode;
 
 /* ------------------------------- scene -------------------------------- */
@@ -237,7 +276,10 @@ export function validateGraph(g: GraphScene): void {
       case "present": targetRef(n.source, n.id); break;
       case "milk-warp": targetRef(n.source, n.id); targetRef(n.target, n.id); break;
       case "milk-wave":
-      case "milk-shape": targetRef(n.target, n.id); break;
+      case "milk-shape":
+      case "milk-border":
+      case "milk-motion-vectors": targetRef(n.target, n.id); break;
+      case "milk-blur": targetRef(n.source, n.id); break;
       case "milk-composite": targetRef(n.source, n.id); targetRef(n.target, n.id); break;
       default: break;
     }

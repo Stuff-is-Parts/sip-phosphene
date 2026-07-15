@@ -113,7 +113,7 @@ export function compileSceneToGraph(scene: Scene): GraphScene {
   if (scene.warpMesh) {
     nodes.push({
       kind: "milk-warp", id: "warpMesh",
-      perFrame: "", perPixel: scene.warpMesh, initCode: "",
+      perPixel: scene.warpMesh, perPixelInit: "",
       gridX: 64, gridY: 48,
       source: "tCanvas", target: "tCanvas",
       origin: { format: "phosphene", type: "capability:warpMesh" },
