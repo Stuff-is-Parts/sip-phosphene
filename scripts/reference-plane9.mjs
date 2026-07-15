@@ -29,7 +29,7 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, resolve } from "node:path";
 
 const PLANE9_EXE = String.raw`C:\Program Files (x86)\Plane9\Plane9.exe`;
 const SCENES_ROOT = String.raw`scenes/plane9/scenes`;
@@ -87,7 +87,7 @@ const slugOf = (p) => relative(SCENES_ROOT, p).replace(/\.p9c$/i, "")
 const manifest = { fixture: FIXTURE, silenceAudio: SILENCE_MP3, scenes: [] };
 for (const p9c of selected) {
   const slug = slugOf(p9c);
-  const absScene = require("node:path").resolve(p9c);
+  const absScene = resolve(p9c);
   const playlistPath = join(REF_ROOT, "playlists", `${slug}.p9p`);
   const moviePath = join(REF_ROOT, "movies", `${slug}.mp4`);
   // Single-scene playlist: Plane9 loads the top item and stays there
@@ -95,7 +95,7 @@ for (const p9c of selected) {
   const playlist = `<?xml version="1.0" encoding="UTF-8"?>
 <Plane9>
     <Playlist ActiveSceneFile="${absScene}" StudioPlaylist="0"/>
-    <Record Width="${FIXTURE.width}" Height="${FIXTURE.height}" FPS="${FIXTURE.fps}" ScreenScale="1" MusicFile="${require("node:path").resolve(SILENCE_MP3)}" OutputFile="${require("node:path").resolve(moviePath)}"/>
+    <Record Width="${FIXTURE.width}" Height="${FIXTURE.height}" FPS="${FIXTURE.fps}" ScreenScale="1" MusicFile="${resolve(SILENCE_MP3)}" OutputFile="${resolve(moviePath)}"/>
     <Scenes>
         <Scene File="${absScene}"/>
     </Scenes>
@@ -104,8 +104,8 @@ for (const p9c of selected) {
   writeFileSync(playlistPath, playlist);
   const args = [
     "-movie",
-    "-filename", require("node:path").resolve(playlistPath),
-    "-moviefile", require("node:path").resolve(moviePath),
+    "-filename", resolve(playlistPath),
+    "-moviefile", resolve(moviePath),
     "-w", String(FIXTURE.width),
     "-h", String(FIXTURE.height),
     "-rttscale", String(FIXTURE.rttScale),
@@ -116,7 +116,7 @@ for (const p9c of selected) {
     "-transitiontime", String(FIXTURE.transitionTime),
     "-sceneminruntime", String(FIXTURE.sceneMinRuntime),
     "-scenemaxruntime", String(FIXTURE.sceneMaxRuntime),
-    "-song", require("node:path").resolve(SILENCE_MP3),
+    "-song", resolve(SILENCE_MP3),
   ];
   console.log(`[${manifest.scenes.length + 1}/${selected.length}] ${slug}`);
   try {

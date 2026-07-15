@@ -239,6 +239,28 @@ const TARGET_FORMAT: GPUTextureFormat = "rgba8unorm";
 
 interface MilkTarget { tex: GPUTexture; views: GPUTextureView[]; mipCount: number }
 
+/** True when any EEL program in the graph references gmegabuf. Since
+ *  our per-context pools store gmegabuf writes but do not share cells
+ *  cross-context within a frame, presets touching gmegabuf cannot be
+ *  faithfully executed today. */
+function usesGmegabuf(g: GraphScene): boolean {
+  const re = /\bgmegabuf\s*\(/;
+  for (const n of g.nodes) {
+    if (n.kind === "milk-frame" && (re.test(n.initCode) || re.test(n.perFrame))) return true;
+    if (n.kind === "milk-warp" && (re.test(n.perPixel) || re.test(n.perPixelInit))) return true;
+    if (n.kind === "milk-wave") {
+      if (n.initCode && re.test(n.initCode)) return true;
+      if (n.perFrame && re.test(n.perFrame)) return true;
+      if (n.perPoint && re.test(n.perPoint)) return true;
+    }
+    if (n.kind === "milk-shape") {
+      if (n.initCode && re.test(n.initCode)) return true;
+      if (n.perFrame && re.test(n.perFrame)) return true;
+    }
+  }
+  return false;
+}
+
 /** A queued primitive draw for the canvas pass. */
 interface CanvasDraw {
   kind: "line-strip" | "line-list" | "dots" | "shape-fill";
@@ -326,6 +348,25 @@ export class MilkPipeline {
     }
     if (g.nodes.some((n) => n.kind === "milk-blur")) {
       refused.push("milk-blur (blur cascade consumed only by unimplemented shaders)");
+    }
+    // Refuse — do not approximate — semantics that are not exact:
+    // - perPixelInit: the oracle runs per-pixel init once at preset load
+    //   inside a per-vertex context and its outputs feed the very first
+    //   per_pixel run (butterchurn presetEquationRunner.js — the current
+    //   MilkPresetRunner does not model that init separately, so any
+    //   preset carrying non-empty per_pixel_init MUST refuse.
+    // - gmegabuf sharing: exact behavior requires a single shared 1M-cell
+    //   array visible to preset, pixel, wave, and shape contexts within
+    //   a single frame (butterchurn presetEquationRunner.js:
+    //   this.gmegabuf = new Array(1048576).fill(0); mdVSBase.gmegabuf =
+    //   this.gmegabuf). Current expr.ts stores @gmb keys in per-context
+    //   pools that are only merged post-hoc, which is not sharing —
+    //   detect and refuse.
+    if (warpNode && warpNode.kind === "milk-warp" && warpNode.perPixelInit && warpNode.perPixelInit.trim().length > 0) {
+      refused.push("milk-warp:perPixelInit (per-vertex init lifecycle not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)");
+    }
+    if (usesGmegabuf(g)) {
+      refused.push("gmegabuf (cross-context shared 1M-cell buffer not yet implemented — refused per COMPATIBILITY-GOAL.md Hard Rules)");
     }
     if (refused.length) throw new UnsupportedGraphError(refused);
     if (!frameNode || frameNode.kind !== "milk-frame") throw new Error("unreachable");

@@ -132,9 +132,13 @@ export interface MilkPresetDef {
   shapes: MilkUnitDef[];
 }
 
-function compileOrNull(src: string | undefined, errors: string[], what: string): Program | null {
+function compileOrNull(src: string | undefined, errors: string[], what: string, rng?: () => number): Program | null {
   if (!src || !src.trim()) return null;
-  try { return compile(src); } catch (e) {
+  try {
+    const p = compile(src);
+    if (rng) p.setRng(rng);
+    return p;
+  } catch (e) {
     errors.push(`${what}: ${(e as Error).message}`);
     return null;
   }
@@ -179,9 +183,9 @@ export class MilkPresetRunner {
 
   constructor(def: MilkPresetDef, globals: Pool, private readonly rand: () => number = Math.random) {
     this.baseVals = { ...MILK_BASE_DEFAULTS, ...mapMilkKeys(def.baseValues, "main") };
-    this.initProg = compileOrNull(def.initEel, this.errors, "init");
-    this.frameProg = compileOrNull(def.frameEel, this.errors, "per-frame");
-    this.pixelProg = compileOrNull(def.pixelEel, this.errors, "per-pixel");
+    this.initProg = compileOrNull(def.initEel, this.errors, "init", this.rand);
+    this.frameProg = compileOrNull(def.frameEel, this.errors, "per-frame", this.rand);
+    this.pixelProg = compileOrNull(def.pixelEel, this.errors, "per-pixel", this.rand);
 
     // (witnessed: mdVS = {baseVals, mdVSBase}; rand_start then
     // rand_preset each consume 4 draws at init; the values feed the comp
@@ -224,7 +228,7 @@ export class MilkPresetRunner {
       const pool: Pool = { ...baseVals, ...globals };
       const nonUserWaveKeys = [...QS, ...TS, ...REGS, ...Object.keys(pool)];
       Object.assign(pool, this.mdVSQAfterFrame, this.mdVSRegs);
-      const initProg = compileOrNull(wave.initEel, this.errors, `wave${i} init`);
+      const initProg = compileOrNull(wave.initEel, this.errors, `wave${i} init`, this.rand);
       if (initProg) {
         initProg.run(pool);
         this.mdVSRegs = pick(pool, REGS);
@@ -235,8 +239,8 @@ export class MilkPresetRunner {
       const userKeys = omitKeys(pool, nonUserWaveKeys);
       this.waveUserKeys.push(userKeys);
       this.waveFrameMaps.push(pick(pool, userKeys));
-      this.waveFrameProgs.push(compileOrNull(wave.frameEel, this.errors, `wave${i} per-frame`));
-      this.wavePointProgs.push(compileOrNull(wave.pointEel, this.errors, `wave${i} per-point`));
+      this.waveFrameProgs.push(compileOrNull(wave.frameEel, this.errors, `wave${i} per-frame`, this.rand));
+      this.wavePointProgs.push(compileOrNull(wave.pointEel, this.errors, `wave${i} per-point`, this.rand));
     });
 
     def.shapes.forEach((shape, i) => {
@@ -253,7 +257,7 @@ export class MilkPresetRunner {
       const pool: Pool = { ...baseVals, ...globals };
       const nonUserShapeKeys = [...QS, ...TS, ...REGS, ...Object.keys(pool)];
       Object.assign(pool, this.mdVSQAfterFrame, this.mdVSRegs);
-      const initProg = compileOrNull(shape.initEel, this.errors, `shape${i} init`);
+      const initProg = compileOrNull(shape.initEel, this.errors, `shape${i} init`, this.rand);
       if (initProg) {
         initProg.run(pool);
         this.mdVSRegs = pick(pool, REGS);
@@ -264,7 +268,7 @@ export class MilkPresetRunner {
       const userKeys = omitKeys(pool, nonUserShapeKeys);
       this.shapeUserKeys.push(userKeys);
       this.shapeFrameMaps.push(pick(pool, userKeys));
-      this.shapeFrameProgs.push(compileOrNull(shape.frameEel, this.errors, `shape${i} per-frame`));
+      this.shapeFrameProgs.push(compileOrNull(shape.frameEel, this.errors, `shape${i} per-frame`, this.rand));
     });
   }
 

@@ -19,6 +19,12 @@ export interface Program {
   run(env: Record<string, number>): void;
   /** Variables the program assigns (for routing outputs). */
   assigns: string[];
+  /** Install a dedicated RNG stream for rand()/randint(). Programs that
+   *  do not call setRng use Math.random. Runners committing a
+   *  deterministic seed (aligned to an instrumented oracle) install the
+   *  seeded stream once; every call to rand()/randint() during any
+   *  subsequent run() draws from that stream in program-source order. */
+  setRng(fn: () => number): void;
 }
 
 type Node = (env: Record<string, number>) => number;
@@ -42,6 +48,10 @@ const FUNCS: Record<string, (...a: number[]) => number> = {
   int: Math.floor, frac: (x) => x - Math.floor(x),
   min: Math.min, max: Math.max,
   sqr: (x) => x * x,
+  // rand/randint are overridden by compile()'s per-Program closure so
+  // each Program can carry its own deterministic RNG stream. The FUNCS
+  // entries here are fallbacks (Math.random) used only before compile
+  // wires up the per-Program rand — never reached in practice.
   rand: (x) => {
     const xf = Math.floor(x);
     return xf < 1 ? Math.random() : Math.random() * xf;
@@ -367,10 +377,33 @@ class Parser {
 export function compile(src: string): Program {
   const parser = new Parser(tokenize(src));
   const stmts = parser.parseStmts(false);
-  return {
+  // Per-Program RNG closure: rand/randint draw from this function so
+  // every Program can be given its own seeded stream. Default is
+  // Math.random until setRng installs a committed stream.
+  let rng: () => number = Math.random;
+  // The parser generated nodes that call FUNCS.rand / FUNCS.randint on
+  // this shared module-scope table. To bind them per-Program without
+  // rewriting the parser, we temporarily patch FUNCS during run(). The
+  // patch is scoped to synchronous execution: nested run() calls on
+  // different programs restore the outer's rand on exit.
+  const program: Program = {
     assigns: [...parser.assigns],
+    setRng(fn) { rng = fn; },
     run(env) {
-      for (const s of stmts) s(env);
+      const prevRand = FUNCS.rand;
+      const prevRandInt = FUNCS.randint;
+      FUNCS.rand = (x) => {
+        const xf = Math.floor(x);
+        return xf < 1 ? rng() : rng() * xf;
+      };
+      FUNCS.randint = (x) => Math.floor(FUNCS.rand(x));
+      try {
+        for (const s of stmts) s(env);
+      } finally {
+        FUNCS.rand = prevRand;
+        FUNCS.randint = prevRandInt;
+      }
     },
   };
+  return program;
 }

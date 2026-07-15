@@ -35,10 +35,26 @@ export class P9ImportError extends Error {}
 /* --------------------------- source parsing --------------------------- */
 
 /** Port value is the RAW source string (no numeric coercion — the string
- *  is the lossless typed form; consumers parse explicitly). */
-export interface P9Port { id: string; value: string | undefined }
-export interface P9Node { type: string; id: string; ports: Map<string, P9Port> }
-export interface P9Connection { fromNode: string; fromPort: string; toNode: string; toPort: string }
+ *  is the lossless typed form; consumers parse explicitly).
+ *
+ *  `attributes` carries EVERY XML attribute on `<Port>` verbatim (keyed
+ *  by attribute name without the '@' prefix). No known-field selection:
+ *  the interpreter reads what it recognizes, but the record preserves
+ *  the source. */
+export interface P9Port { id: string; value: string | undefined; attributes: Record<string, string> }
+export interface P9Node {
+  type: string; id: string;
+  ports: Map<string, P9Port>;
+  /** Every XML attribute on `<Node>` verbatim. Currently `Type` and
+   *  `Name` are the only attributes witnessed corpus-wide, but the
+   *  record admits any future addition without a code change. */
+  attributes: Record<string, string>;
+}
+export interface P9Connection {
+  fromNode: string; fromPort: string; toNode: string; toPort: string;
+  /** Every XML attribute on `<Connection>` verbatim (Out/In today). */
+  attributes: Record<string, string>;
+}
 export interface P9SceneXml {
   name: string; author: string; desc: string; license: string; licenseText: string;
   tags: string;
@@ -49,6 +65,11 @@ export interface P9SceneXml {
   rootAttributes: Record<string, string>;
   nodes: Map<string, P9Node>;
   connections: P9Connection[];
+  /** The complete decoded scene.xml text carried alongside the
+   *  interpreted record so downstream tools can rebuild anything the
+   *  interpreter dropped (COMPATIBILITY-GOAL.md Hard Rules: source
+   *  behavior must never be silently lost). */
+  rawXml: string;
 }
 
 export function parseP9SceneXml(buf: ArrayBuffer, filename: string): P9SceneXml {
@@ -72,15 +93,25 @@ export function parseP9SceneXml(buf: ArrayBuffer, filename: string): P9SceneXml 
     if (k.startsWith("@")) rootAttributes[k.slice(1)] = String(root[k]);
   }
 
+  const collectAttrs = (obj: Record<string, unknown>): Record<string, string> => {
+    const out: Record<string, string> = {};
+    for (const k of Object.keys(obj)) {
+      if (k.startsWith("@")) out[k.slice(1)] = String(obj[k]);
+    }
+    return out;
+  };
+
   const nodes = new Map<string, P9Node>();
   for (const n of root.Nodes?.Node ?? []) {
-    const type = String(n["@Type"] ?? "");
+    const attrs = collectAttrs(n);
+    const type = attrs.Type ?? "";
     // Node identity is @Name; connection refs are "Name.Port" (census).
-    const id = String(n["@Name"] ?? "");
+    const id = attrs.Name ?? "";
     if (!type || !id) throw new P9ImportError(`node missing Type/Name (${type}/${id})`);
     const ports = new Map<string, P9Port>();
     for (const p of n.Port ?? []) {
-      const pid = String(p["@Id"] ?? "");
+      const portAttrs = collectAttrs(p);
+      const pid = portAttrs.Id ?? "";
       // Attribute form <Port Value="..."/> or element form
       // <Port><Value>...</Value></Port> (witnessed: multiline shader /
       // expression text uses the element form).
@@ -90,16 +121,17 @@ export function parseP9SceneXml(buf: ArrayBuffer, filename: string): P9SceneXml 
         : el !== undefined && el !== null
           ? (typeof el === "object" ? String(el["#text"] ?? "") : String(el))
           : undefined;
-      ports.set(pid, { id: pid, value });
+      ports.set(pid, { id: pid, value, attributes: portAttrs });
     }
-    nodes.set(id, { type, id, ports });
+    nodes.set(id, { type, id, ports, attributes: attrs });
   }
 
   const connections: P9Connection[] = [];
   for (const c of root.Connections?.Connection ?? []) {
-    const [fromNode, fromPort] = splitRef(String(c["@Out"] ?? ""));
-    const [toNode, toPort] = splitRef(String(c["@In"] ?? ""));
-    connections.push({ fromNode, fromPort, toNode, toPort });
+    const cAttrs = collectAttrs(c);
+    const [fromNode, fromPort] = splitRef(cAttrs.Out ?? "");
+    const [toNode, toPort] = splitRef(cAttrs.In ?? "");
+    connections.push({ fromNode, fromPort, toNode, toPort, attributes: cAttrs });
   }
 
   const licenseEl = root.License;
@@ -114,6 +146,7 @@ export function parseP9SceneXml(buf: ArrayBuffer, filename: string): P9SceneXml 
     warmupTime: parseFloat(rootAttributes.WarmupTime ?? "0") || 0,
     rootAttributes,
     nodes, connections,
+    rawXml: xml,
   };
 }
 
@@ -586,8 +619,10 @@ export function p9ToGraph(src: P9SceneXml): P9GraphImport {
   }
   for (const nn of nodes) if (nn.kind === "present" && !ordered.has(nn.id)) order.push(nn.id);
 
-  // Lossless source record: every node, every port with its RAW source
-  // string, every connection, plus scene-level attributes and metadata.
+  // Lossless source record: every attribute on every node, port, and
+  // connection carried generically (interpreter reads what it knows;
+  // record preserves the source), plus the complete scene.xml text for
+  // any capability the interpreter has not yet learned.
   const sourceRecord = {
     format: "plane9" as const,
     sceneAttributes: { ...src.rootAttributes },
@@ -595,14 +630,21 @@ export function p9ToGraph(src: P9SceneXml): P9GraphImport {
       Author: src.author, Desc: src.desc, Tags: src.tags,
       LicenseType: src.license, LicenseText: src.licenseText,
     },
+    rawSource: src.rawXml,
     nodes: [...src.nodes.values()].map((n) => ({
       type: n.type, id: n.id,
+      attributes: { ...n.attributes },
       ports: [...n.ports.values()].map((p) => ({
         id: p.id,
         value: p.value === undefined ? null : p.value,
+        attributes: { ...p.attributes },
       })),
     })),
-    connections: src.connections.map((c) => ({ ...c })),
+    connections: src.connections.map((c) => ({
+      fromNode: c.fromNode, fromPort: c.fromPort,
+      toNode: c.toNode, toPort: c.toPort,
+      attributes: { ...c.attributes },
+    })),
   };
 
   const graph: GraphScene = {

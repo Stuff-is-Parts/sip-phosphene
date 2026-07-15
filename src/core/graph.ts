@@ -304,10 +304,12 @@ export type GraphNode =
 
 /** Complete preserved source structure: every source node with every port
  *  and its RAW source-text value (no numeric coercion — the original
- *  string is the typed value's lossless form), every connection, and the
- *  scene-level attributes/metadata elements of the source file
- *  (COMPATIBILITY-GOAL.md: no source node, port, connection, or scene
- *  attribute may be omitted). */
+ *  string is the typed value's lossless form), every connection, the
+ *  scene-level attributes/metadata elements, and the complete original
+ *  source-file text (Plane9 scene.xml). Consumers may re-derive any
+ *  interpretation from the raw text if a future capability needs a
+ *  field the interpreter dropped (COMPATIBILITY-GOAL.md: no source
+ *  behavior may be silently lost). */
 export interface SourceRecord {
   format: "plane9" | "milkdrop";
   /** Root-element attributes verbatim (Plane9: FormatVersion, Id,
@@ -317,11 +319,27 @@ export interface SourceRecord {
   /** Root metadata elements verbatim (Plane9: Author, Desc, Tags,
    *  License text + Type attribute). */
   sceneMeta?: Record<string, string>;
+  /** Complete unparsed source-file text as decoded from the container.
+   *  Present when the source format is text-based (Plane9 scene.xml).
+   *  MilkDrop uses `nodes` since its file has no XML tree. */
+  rawSource?: string;
   nodes: {
     type: string; id: string;
-    ports: { id: string; value: string | null }[];
+    /** Every attribute on the source node verbatim (Plane9: Type/Name;
+     *  admits any future attribute without a schema change). */
+    attributes?: Record<string, string>;
+    ports: {
+      id: string; value: string | null;
+      /** Every attribute on the source port verbatim (Plane9: Id/Value;
+       *  admits any future attribute without a schema change). */
+      attributes?: Record<string, string>;
+    }[];
   }[];
-  connections: { fromNode: string; fromPort: string; toNode: string; toPort: string }[];
+  connections: {
+    fromNode: string; fromPort: string; toNode: string; toPort: string;
+    /** Every attribute on the source connection verbatim. */
+    attributes?: Record<string, string>;
+  }[];
 }
 
 export interface GraphScene {
