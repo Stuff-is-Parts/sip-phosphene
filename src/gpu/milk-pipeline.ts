@@ -32,9 +32,10 @@ import {
 } from "../core/graph";
 import { UnsupportedGraphError } from "./graph-executor";
 
-/** Per-frame injected inputs: the oracle-validated global variables plus
- *  the processed audio arrays (AudioProcessor outputs; witnessed chain
- *  ported in scripts/lib/milk-audio-model.mjs). */
+/** Per-frame injected inputs: the frame globals plus the processed audio
+ *  arrays produced by src/core/milk-audio.ts (the TS port of butterchurn's
+ *  AudioProcessor + AudioLevels + calcTimeAndFPS chain, evidence at
+ *  docs/evidence/butterchurn/). */
 export interface MilkFrameData {
   globals: Pool; // frame,time,fps,bass..treb_att,meshx..pixelsy
   timeArrayL: Int8Array | number[];

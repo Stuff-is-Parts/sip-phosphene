@@ -59,12 +59,12 @@ export function makeMulberry32(seed: number): MilkRng {
   };
 }
 
-/** A recorded rand()/randint() draw — captured for stream alignment
- *  against the instrumented Butterchurn oracle (reference/butterchurn-ref.html
- *  __refRandTrace / __refSetRandContext). Each draw carries its
- *  monotonic sequence number, the context tag the caller set when the
- *  draw fired, and the value returned. Traces are compared position by
- *  position so an off-by-one in draw order surfaces immediately. */
+/** A recorded rand()/randint() draw. Each draw carries its monotonic
+ *  sequence number, the context tag the caller set when the draw fired,
+ *  and the value returned. Semantic tests compare a captured trace
+ *  position by position against the expected draw order derived from
+ *  authoritative source (butterchurn's PresetEquationRunner and the
+ *  MilkDrop source it ports). */
 export interface RandDraw {
   seq: number;
   context: string;
@@ -73,7 +73,7 @@ export interface RandDraw {
 
 /** A recording MilkRng that wraps another MilkRng, capturing every
  *  draw so equation-visible rand()/randint() call sequences can be
- *  compared against the oracle's witnessed stream. */
+ *  compared against the source-witnessed expected stream. */
 export class RecordingMilkRng implements MilkRng {
   private seq = 0;
   private context = "unknown";
