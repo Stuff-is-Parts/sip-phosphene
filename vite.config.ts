@@ -7,6 +7,7 @@ export default defineConfig({
   base: "./",
   build: {
     target: "es2022",
+    sourcemap: true,
     rollupOptions: {
       input: {
         index: resolve(__dirname, "index.html"),

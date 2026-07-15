@@ -64,13 +64,19 @@ async function renderScene(scene: Scene, reports: string[]): Promise<Verdict> {
   const ps = particlesFor(scene);
   if (mw?.error) reports.push(`warp mesh skipped: ${mw.error}`);
   if (ps?.error) reports.push(`particles skipped: ${ps.error}`);
-  for (let f = 0; f < 8; f++) {
-    const t = 0.4 + f * 0.18;
-    const audio = syntheticAudio(t);
-    const p = mods.evaluate(scene, renderer.stageParams(0), audio, t);
-    renderer.setWarpMesh(0, mw ? mw.evaluate(mods.exprSnapshot(), t) : null);
-    if (ps) renderer.writeParticles(0, ps.update(audio, t));
-    renderer.frame(t, audio, p);
+  try {
+    for (let f = 0; f < 8; f++) {
+      const t = 0.4 + f * 0.18;
+      const audio = syntheticAudio(t);
+      const p = mods.evaluate(scene, renderer.stageParams(0), audio, t);
+      renderer.setWarpMesh(0, mw ? mw.evaluate(mods.exprSnapshot(), t) : null);
+      if (ps) renderer.writeParticles(0, ps.update(audio, t));
+      renderer.frame(t, audio, p);
+    }
+  } catch (err) {
+    const e = err as Error;
+    const stack = (e.stack ?? e.message ?? String(e)).split("\n").slice(0, 6).join(" | ");
+    return { ok: false, errors: [`frame threw: ${stack}`.slice(0, 400)], reports };
   }
   return { ok: true, errors, reports };
 }
@@ -84,18 +90,29 @@ declare global {
 }
 
 window.__verifyMilk = async (text, name) => {
-  const preset = parseMilk(text, name);
-  const { scene, report } = milkToScene(preset);
-  return renderScene(scene, report);
+  let phase = "parse";
+  try {
+    const preset = parseMilk(text, name);
+    phase = "toScene";
+    const { scene, report } = milkToScene(preset);
+    phase = "render";
+    return await renderScene(scene, report);
+  } catch (err) {
+    return { ok: false, errors: [`${phase} threw: ${(err as Error).message}`.slice(0, 300)], reports: [] };
+  }
 };
 
 window.__verifyP9 = async (base64, name) => {
-  const bin = atob(base64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  const p9 = parseP9c(bytes.buffer, name);
-  const { scene, report } = p9ToScene(p9);
-  return renderScene(scene, report);
+  try {
+    const bin = atob(base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const p9 = parseP9c(bytes.buffer, name);
+    const { scene, report } = p9ToScene(p9);
+    return await renderScene(scene, report);
+  } catch (err) {
+    return { ok: false, errors: ["import threw: " + ((err as Error).message ?? String(err)).slice(0, 300)], reports: [] };
+  }
 };
 
 const canvas = document.getElementById("stage") as HTMLCanvasElement;

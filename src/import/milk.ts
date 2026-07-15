@@ -1,5 +1,6 @@
 import { compile } from "../core/expr";
-import { normalizeScene, type ModRoute, type Scene } from "../core/types";
+import { normalizeScene, type ModRoute, type Scene, type ScenePass } from "../core/types";
+import { hlslToBody } from "../transpile/hlsl";
 
 /**
  * MilkDrop .milk preset importer. Parses the INI-style preset format
@@ -203,6 +204,18 @@ export function milkToScene(m: MilkPreset): { scene: Scene; report: string[] } {
       });
     }
   }
+  // q1..q8: per-frame q-variables routed into the shaders (HLSL reads them)
+  for (let i = 1; i <= 8; i++) {
+    paramLines.push(paramLine(`mdQ${i}`, -1000, 1000, 0));
+    if (coreOk) {
+      custom[`mdQ${i}`] = 0;
+      mods.push({
+        target: `mdQ${i}`, source: "expr", gain: 1, base: 0,
+        expr: program, readVar: `q${i}`,
+        ...(m.perFrameInit ? { init: m.perFrameInit } : {}),
+      });
+    }
+  }
 
   // --- custom waves and shapes: namespaced equation envs, own param sets
   const addUnits = (
@@ -273,12 +286,34 @@ export function milkToScene(m: MilkPreset): { scene: Scene; report: string[] } {
   const warpLookup = m.perPixel
     ? `let wuv = c.uv + meshOff(c.uv);`
     : `let wuv = warpUV(c.uv, mdZoom(), mdRot(), vec2f(mdDx(), mdDy()), mdWarp(), c.t);`;
-  const POST_BODY = paramBlock + `fn render(c : Ctx) -> vec3f {
+  let POST_BODY = paramBlock + `fn render(c : Ctx) -> vec3f {
   ${warpLookup}
   var col = prevTex(wuv) * mdDecay();
   col = max(col, srcTex(c.uv));
   return col;
 }`;
+  const passes: ScenePass[] = [];
+
+  // MilkDrop 2 shaders: transpile HLSL to WGSL; the parametric warp remains
+  // the fallback when a shader uses constructs the compiler rejects
+  if (m.warpShader) {
+    try {
+      const { body } = hlslToBody(m.warpShader, "warp");
+      POST_BODY = paramBlock + body;
+      report.push("warp HLSL transpiled");
+    } catch (err) {
+      report.push(`warp HLSL fell back to parametric warp (${(err as Error).message})`);
+    }
+  }
+  if (m.compShader) {
+    try {
+      const { body } = hlslToBody(m.compShader, "comp");
+      passes.push({ id: "comp", code: paramBlock + body });
+      report.push("comp HLSL transpiled");
+    } catch (err) {
+      report.push(`comp HLSL skipped (${(err as Error).message})`);
+    }
+  }
 
   const BG_BODY = `fn render(c : Ctx) -> vec3f { return vec3f(0.0); }`;
 
@@ -294,14 +329,12 @@ export function milkToScene(m: MilkPreset): { scene: Scene; report: string[] } {
       report.push(`per-pixel equations skipped (${(err as Error).message})`);
     }
   }
-  if (m.warpShader) report.push("MilkDrop 2 warp HLSL present — AI translation offered on compile");
-  if (m.compShader) report.push("MilkDrop 2 comp HLSL present — direct composite used instead");
-
   const scene = normalizeScene({
     name: m.name.toUpperCase(),
     layers: { bg: { code: BG_BODY }, fg: { code: FG_BODY }, post: { code: POST_BODY } },
     custom,
     mods,
+    ...(passes.length ? { passes } : {}),
     ...(warpMesh ? { warpMesh } : {}),
     credit: `ported from a MilkDrop preset: ${m.name}`,
     license: "preset equations © original author",

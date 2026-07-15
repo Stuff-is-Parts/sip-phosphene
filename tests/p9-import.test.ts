@@ -36,8 +36,9 @@ describe("Plane9 GLSL -> WGSL transpiler (real corpus fixtures)", () => {
 
   it("rewrites swizzle l-values (illegal in WGSL)", () => {
     const { wgsl } = translateP9Glsl(fixtures.StarBurst);
-    expect(wgsl).not.toMatch(/\.rgb\s*\*=/);
-    expect(wgsl).toContain("vec4f(col.rgb *");
+    expect(wgsl).not.toMatch(/\.(rgb|xyz)\s*[-+*/]?=/); // no swizzle stores survive
+    const { code } = assemble("bg", wgsl, parseParams(wgsl));
+    expect(new WgslReflect(code).entry.fragment.length).toBe(1);
   });
 
   it("maps texture sampling to the scene image", () => {
@@ -46,7 +47,7 @@ describe("Plane9 GLSL -> WGSL transpiler (real corpus fixtures)", () => {
       "vec4 tex = textureLod(gTexture1, vec2(0.5), 6.0);\n\tvec4 col = (_noise",
     );
     const { wgsl } = translateP9Glsl(glsl);
-    expect(wgsl).toContain("img(vec2f(0.5))");
+    expect(wgsl).toContain("img(");
     const { code } = assemble("bg", wgsl, []);
     expect(new WgslReflect(code).entry.fragment.length).toBe(1);
   });

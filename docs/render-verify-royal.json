@@ -1,0 +1,12 @@
+{
+  "kind": "milk",
+  "total": 1,
+  "buckets": {
+    "pass": 1,
+    "black": 0,
+    "compile-fail": 0,
+    "gpu-error": 0,
+    "parse-fail": 0
+  },
+  "failures": []
+}

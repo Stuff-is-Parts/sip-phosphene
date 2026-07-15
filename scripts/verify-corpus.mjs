@@ -11,6 +11,7 @@ import { PNG } from "pngjs";
 const [kind, root, limitArg, reportPath] = process.argv.slice(2);
 const limit = parseInt(limitArg ?? "0", 10) || Infinity;
 const ext = kind === "p9" ? ".p9c" : ".milk";
+const nameFilter = process.env.VERIFY_FILTER ?? "";
 
 const all = [];
 (function walk(dir) {
@@ -21,6 +22,11 @@ const all = [];
   }
 })(root);
 all.sort();
+if (nameFilter) {
+  const filtered = all.filter((f) => f.toLowerCase().includes(nameFilter.toLowerCase()));
+  all.length = 0;
+  all.push(...filtered);
+}
 // stratified selection: even spread across the sorted corpus
 const files = [];
 const step = Math.max(1, Math.floor(all.length / Math.min(limit, all.length)));
@@ -34,11 +40,12 @@ const EDGE_PATHS = [
 const browserPath = EDGE_PATHS.find((p) => existsSync(p));
 if (!browserPath) { console.error("no Edge found"); process.exit(1); }
 
+const PORT = process.env.VERIFY_PORT ?? "4193";
 const preview = spawn(process.execPath, [
-  "node_modules/vite/bin/vite.js", "preview", "--port", "4193", "--strictPort",
+  "node_modules/vite/bin/vite.js", "preview", "--port", PORT, "--strictPort",
 ], { stdio: "pipe" });
 await new Promise((resolve, reject) => {
-  preview.stdout.on("data", (d) => { if (String(d).includes("4193")) resolve(); });
+  preview.stdout.on("data", (d) => { if (String(d).includes(PORT)) resolve(); });
   preview.on("exit", () => reject(new Error("vite preview exited early")));
   setTimeout(() => reject(new Error("vite preview did not start")), 15000);
 });
@@ -68,13 +75,21 @@ try {
     if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) gpuErrors.push(m.text());
   });
   page.on("pageerror", (e) => gpuErrors.push(String(e)));
-  await page.goto("http://localhost:4193/verify.html", { waitUntil: "networkidle2", timeout: 20000 });
-  await page.waitForFunction(() => window.__ready === true, { timeout: 20000 });
+  const isolateEvery = parseInt(process.env.VERIFY_ISOLATE ?? "0", 10) || 0;
+  let pageAge = 0;
+  const openPage = async () => {
+    await page.goto(`http://localhost:${PORT}/verify.html`, { waitUntil: "networkidle2", timeout: 20000 });
+    await page.waitForFunction(() => window.__ready === true, { timeout: 20000 });
+    pageAge = 0;
+  };
+  await openPage();
 
   let done = 0;
   for (const f of files) {
     const name = relative(root, f);
     gpuErrors = [];
+    if (isolateEvery && pageAge >= isolateEvery) await openPage();
+    pageAge++;
     let verdict;
     try {
       if (kind === "p9") {

@@ -2,77 +2,22 @@
   "kind": "p9",
   "total": 252,
   "buckets": {
-    "pass": 95,
-    "black": 11,
-    "compile-fail": 141,
+    "pass": 196,
+    "black": 23,
+    "compile-fail": 33,
     "gpu-error": 0,
-    "parse-fail": 5
+    "parse-fail": 0
   },
   "failures": [
     {
-      "file": "Abstract\\Beyond The Stars.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: no matching call to 'length(vec2<f32>, vec3<f32>)'\n\n2 candidate functions:\n • 'length(vecN<T>  ✓ ) -> T' where:\n      ✗  overload expects 1 argument, call passed 2 arguments\n      ✓  'T' is 'abstr"
-    },
-    {
-      "file": "Abstract\\Blue Particles.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: type mismatch for argument 1 in call to 'img', expected 'vec2<f32>', got 'f32'"
-    },
-    {
-      "file": "Abstract\\Color Beams.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: no matching overload for 'operator / (vec2<f32>, i32)'\n\n4 candidate operators:\n • 'operator / (vecN<T>  ✓ , vecN<T>  ✗ ) -> vecN<T>' where:\n      ✓  'T' is 'abstract-float', 'abstract-int', 'f32',"
-    },
-    {
-      "file": "Abstract\\Colors.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected '=' for assignment"
-    },
-    {
-      "file": "Abstract\\Gradient.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: type mismatch for argument 1 in call to 'noise', expected 'vec2<f32>', got 'vec3<f32>'"
-    },
-    {
-      "file": "Abstract\\Light Worms.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: return statement type must match its function return type, returned 'void', expected 'vec3<f32>'"
-    },
-    {
-      "file": "Abstract\\Mirror Tunnel.p9c",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Abstract\\Noise Warp.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected '=' for assignment"
-    },
-    {
-      "file": "Abstract\\Ribbon Dance.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved call target '_bump'"
-    },
-    {
-      "file": "Abstract\\Rorschach.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: too many arguments in call to 'fbm', expected 1, got 2"
-    },
-    {
       "file": "Abstract\\Watercolor.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gTexture1Size'"
-    },
-    {
-      "file": "Cell\\Around And Around.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected '=' for assignment"
+      "detail": "bg: invalid vector swizzle member"
     },
     {
       "file": "Cell\\Mellow.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected ';' for variable declaration"
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Clock\\Shadow Clock.p9c",
@@ -80,109 +25,24 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Cube\\Box sketch.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved call target '_rand'"
-    },
-    {
-      "file": "Cube\\Color Cube.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected '{' for if statement"
-    },
-    {
-      "file": "Cube\\Cube Driver.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected ';' for variable declaration"
-    },
-    {
-      "file": "Cube\\Cube Floor.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
-    },
-    {
-      "file": "Cube\\Cube waves.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
-    },
-    {
-      "file": "Cube\\Cuber.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
-    },
-    {
       "file": "Cube\\Evil Box.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: too many arguments in call to 'ridge', expected 1, got 2"
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Cube\\Flip Flop.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: expected '=' for assignment"
-    },
-    {
-      "file": "Cube\\Glow Cubes.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: return statement type must match its function return type, returned 'void', expected 'vec3<f32>'"
+      "detail": "import threw: expected ';', found '(' (line 42)"
     },
     {
       "file": "Cube\\Hollow Cube.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected ';' for variable declaration"
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Cube\\Inside Cube.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: expected '=' for assignment"
-    },
-    {
-      "file": "Cube\\Mirror Cube.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
-    },
-    {
-      "file": "DemoScene\\Metaballs.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
-    },
-    {
-      "file": "DemoScene\\ToonKnot.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
-    },
-    {
-      "file": "Fractals\\FractalSponge.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected ')'"
-    },
-    {
-      "file": "Fractals\\Truchet Tentacles.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected '=' for 'const' declaration"
-    },
-    {
-      "file": "Game\\Roller.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
-    },
-    {
-      "file": "Gears\\Gears 2d.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected ';' for variable declaration"
-    },
-    {
-      "file": "Gears\\Gears 3d.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected ';' for variable declaration"
-    },
-    {
-      "file": "Line\\In a spiders web.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: no matching overload for 'operator * (vec4<f32>, vec3<f32>)'\n\n9 candidate operators:\n • 'operator * (vecN<T>  ✓ , vecN<T>  ✗ ) -> vecN<T>' where:\n      ✓  'T' is 'abstract-float', 'abstract-int', "
-    },
-    {
-      "file": "Line\\Waves of sin.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved call target '_liftGammaGain'"
+      "detail": "import threw: expected ';', found '(' (line 84)"
     },
     {
       "file": "Music\\Monster spectrum.p9c",
@@ -192,7 +52,7 @@
     {
       "file": "Music\\Music Tunnel.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: no matching overload for 'operator + (vec4<f32>, vec3<f32>)'\n\n5 candidate operators:\n • 'operator + (vecN<T>  ✓ , vecN<T>  ✗ ) -> vecN<T>' where:\n      ✓  'T' is 'abstract-float', 'abstract-int', "
+      "detail": "import threw: Cannot read properties of undefined (reading 'ty')"
     },
     {
       "file": "Music\\Music star.p9c",
@@ -200,24 +60,14 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Music\\Solar Eclipse.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: type mismatch for argument 1 in call to 'img', expected 'vec2<f32>', got 'f32'"
-    },
-    {
-      "file": "Music\\Sound Along A Wire.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected '=' for 'const' declaration"
-    },
-    {
       "file": "Music\\Spectrum Ocean.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: too few arguments in call to 'p9hsv2rgb', expected 3, got 1"
+      "detail": "import threw: Cannot read properties of undefined (reading 'ty')"
     },
     {
       "file": "Music\\Spectrum Radar.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: too few arguments in call to 'p9hsv2rgb', expected 3, got 1"
+      "detail": "import threw: Cannot read properties of undefined (reading 'ty')"
     },
     {
       "file": "Music\\Spectrum sparks.p9c",
@@ -225,24 +75,14 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Nature\\Asteroids In Space.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
-    },
-    {
-      "file": "Nature\\Cloud Flight.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'p9gIn2'"
-    },
-    {
       "file": "Nature\\Earth.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: missing initializer for 'const' declaration"
+      "detail": "import threw: unexpected '{' (line 7)"
     },
     {
       "file": "Nature\\Explosion.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: no matching overload for 'operator + (vec4<f32>, vec3<f32>)'\n\n5 candidate operators:\n • 'operator + (vecN<T>  ✓ , vecN<T>  ✗ ) -> vecN<T>' where:\n      ✓  'T' is 'abstract-float', 'abstract-int', "
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Nature\\Falling Snow.p9c",
@@ -250,69 +90,29 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Nature\\Fire.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved call target '_fbmfast'"
-    },
-    {
-      "file": "Nature\\Fireball.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected ';' for variable declaration"
-    },
-    {
-      "file": "Nature\\Foggy.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: too many arguments in call to 'ridge', expected 1, got 2"
-    },
-    {
-      "file": "Nature\\NightSpirits.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: no matching call to 'length(vec2<f32>, vec3<f32>)'\n\n2 candidate functions:\n • 'length(vecN<T>  ✓ ) -> T' where:\n      ✗  overload expects 1 argument, call passed 2 arguments\n      ✓  'T' is 'abstr"
-    },
-    {
-      "file": "Nature\\Sun.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: no matching overload for 'operator / (abstract-float, i32)'\n\n4 candidate operators:\n • 'operator / (T  ✓ , T  ✗ ) -> T' where:\n      ✓  'T' is 'abstract-float', 'abstract-int', 'f32', 'i32', 'u32'"
-    },
-    {
       "file": "Nature\\Sunset.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
+      "detail": "import threw: unknown function '_texturePanoramic' (line 141)"
     },
     {
       "file": "Nature\\The Cave.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: expected '=' for 'const' declaration"
-    },
-    {
-      "file": "Nature\\Wave Machine.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gl_PointCoord'"
-    },
-    {
-      "file": "Nature\\Wind Farm.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected ';' for variable declaration"
+      "detail": "import threw: unexpected '/' (line 96)"
     },
     {
       "file": "Other\\Balls of metal.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: expected '=' for assignment"
+      "detail": "import threw: unexpected '{' (line 42)"
     },
     {
       "file": "Other\\Black.p9c",
-      "bucket": "parse-fail",
-      "detail": "Error: no Shader node — this scene is built entirely from engine nodes and must be re-authored"
+      "bucket": "compile-fail",
+      "detail": "import threw: no Shader node — this scene is built entirely from engine nodes and must be re-authored"
     },
     {
       "file": "Other\\Color Cycle.p9c",
-      "bucket": "parse-fail",
-      "detail": "Error: no Shader node — this scene is built entirely from engine nodes and must be re-authored"
-    },
-    {
-      "file": "Other\\Defense grid.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: no matching overload for 'operator + (vec4<f32>, vec3<f32>)'\n\n5 candidate operators:\n • 'operator + (vecN<T>  ✓ , vecN<T>  ✗ ) -> vecN<T>' where:\n      ✓  'T' is 'abstract-float', 'abstract-int', "
+      "detail": "import threw: no Shader node — this scene is built entirely from engine nodes and must be re-authored"
     },
     {
       "file": "Other\\Fuzzy Target.p9c",
@@ -322,152 +122,52 @@
     {
       "file": "Other\\Glass Field.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: unexpected token"
+      "detail": "import threw: cannot convert vec3f to f32 (line 6)"
     },
     {
       "file": "Other\\Sea Of Bricks.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: too many arguments in call to 'ridge', expected 1, got 2"
-    },
-    {
-      "file": "Other\\Searchlight.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: type mismatch for argument 1 in call to 'noise', expected 'vec2<f32>', got 'vec3<f32>'"
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Other\\Shatter Monitor.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
-    },
-    {
-      "file": "Other\\Sphere Mixer.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved call target '_stepaa'"
-    },
-    {
-      "file": "Other\\Stargate Event Horizon.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected '=' for 'const' declaration"
-    },
-    {
-      "file": "Other\\Though The Noise.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: type mismatch for argument 1 in call to 'noise', expected 'vec2<f32>', got 'vec3<f32>'"
-    },
-    {
-      "file": "Other\\Tv Noise.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved call target '_rand'"
+      "detail": "import threw: cannot convert vec3f to f32 (line 43)"
     },
     {
       "file": "Particle\\Color waves.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: expected '=' for assignment"
-    },
-    {
-      "file": "Particle\\Glow worms.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
-    },
-    {
-      "file": "Particle\\Gold dust.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gl_PointCoord'"
+      "detail": "import threw: vec3 constructor got 6 components (line 71)"
     },
     {
       "file": "Particle\\It is coming for you.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gl_PointCoord'"
-    },
-    {
-      "file": "Particle\\Music particles.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gl_PointCoord'"
-    },
-    {
-      "file": "Particle\\Sphere Beat.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
-    },
-    {
-      "file": "Postprocessing\\Bathroom Window.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved call target '_ridgedmffast'"
+      "detail": "import threw: unknown function '_cubicpulse' (line 37)"
     },
     {
       "file": "Postprocessing\\Bayer 8 Matrix Dithering BW.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: expected '=' for assignment"
-    },
-    {
-      "file": "Postprocessing\\Bayer Matrix Dithering Color.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected '=' for assignment"
+      "detail": "import threw: expected ';', found '(' (line 7)"
     },
     {
       "file": "Postprocessing\\BlackAndWhite.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'p9_c'"
-    },
-    {
-      "file": "Postprocessing\\Blocks.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gTexture1Size'"
-    },
-    {
-      "file": "Postprocessing\\Color Distort.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gTargetSize'"
-    },
-    {
-      "file": "Postprocessing\\Crosshatching.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected '{' for if statement"
-    },
-    {
-      "file": "Postprocessing\\Crt.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved call target 'Tri'"
-    },
-    {
-      "file": "Postprocessing\\Cubic lens distortion.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'p9gIn1'"
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Postprocessing\\Embos Merge.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gTexture1Size'"
+      "detail": "bg: invalid vector swizzle member"
     },
     {
       "file": "Postprocessing\\Embos.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gTexture1Size'"
-    },
-    {
-      "file": "Postprocessing\\Fluid Beat.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gl_PointCoord'"
-    },
-    {
-      "file": "Postprocessing\\Fluid Painting.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gl_PointCoord'"
+      "detail": "bg: invalid vector swizzle member"
     },
     {
       "file": "Postprocessing\\Fluid Warper.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gTexture2Size'"
-    },
-    {
-      "file": "Postprocessing\\Fractured.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected '=' for assignment"
-    },
-    {
-      "file": "Postprocessing\\Fuzzy Pixels.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved call target '_rand'"
+      "detail": "bg: invalid vector swizzle member"
     },
     {
       "file": "Postprocessing\\Gears In Silhouette.p9c",
@@ -475,14 +175,9 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Postprocessing\\Gray stripes.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gTargetSize'"
-    },
-    {
       "file": "Postprocessing\\Hexagons.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: invalid character found"
+      "detail": "bg: invalid vector swizzle member"
     },
     {
       "file": "Postprocessing\\Invert Gray.p9c",
@@ -497,27 +192,22 @@
     {
       "file": "Postprocessing\\Led Display Curved.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gTexture1Size'"
+      "detail": "bg: invalid vector swizzle member"
     },
     {
       "file": "Postprocessing\\Led Display.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gTexture1Size'"
+      "detail": "bg: invalid vector swizzle member"
     },
     {
       "file": "Postprocessing\\Rain Drops.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gTexture2Size'"
+      "detail": "bg: invalid vector swizzle member"
     },
     {
       "file": "Postprocessing\\Shatter Scene.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
-    },
-    {
-      "file": "Psychedelic\\Circle Crossover.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved call target '_fbmfast'"
+      "detail": "import threw: cannot convert vec3f to f32 (line 25)"
     },
     {
       "file": "Psychedelic\\HypnoToad.p9c",
@@ -525,274 +215,79 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Smoke\\Colored smoke.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved call target '_toneMappingUncharted2'"
-    },
-    {
       "file": "Special\\NewSceneTemplates\\Clear.p9c",
-      "bucket": "parse-fail",
-      "detail": "Error: no Shader node — this scene is built entirely from engine nodes and must be re-authored"
-    },
-    {
-      "file": "Special\\NewSceneTemplates\\FullscreenShader.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: too many arguments in call to 'ridge', expected 1, got 2"
-    },
-    {
-      "file": "Special\\NewSceneTemplates\\Postprocessing.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: too many arguments in call to 'ridge', expected 1, got 2"
+      "detail": "import threw: no Shader node — this scene is built entirely from engine nodes and must be re-authored"
     },
     {
       "file": "Special\\NewSceneTemplates\\RenderObject.p9c",
-      "bucket": "parse-fail",
-      "detail": "Error: no Shader node — this scene is built entirely from engine nodes and must be re-authored"
-    },
-    {
-      "file": "Special\\PostprocessingBackground.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
+      "detail": "import threw: no Shader node — this scene is built entirely from engine nodes and must be re-authored"
     },
     {
       "file": "Special\\TransitionFromExample.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: expected '=' for assignment"
-    },
-    {
-      "file": "Special\\TransitionToExample.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
+      "detail": "import threw: expected ';', found '(' (line 42)"
     },
     {
       "file": "Text\\Awesomeness.p9c",
-      "bucket": "parse-fail",
-      "detail": "Error: no Shader node — this scene is built entirely from engine nodes and must be re-authored"
-    },
-    {
-      "file": "Text\\Computer Malfunction.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: type mismatch for argument 1 in call to 'noise', expected 'vec2<f32>', got 'vec3<f32>'"
-    },
-    {
-      "file": "Text\\Guru Meditation.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gTargetSize'"
-    },
-    {
-      "file": "Things\\Android.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected '=' for 'const' declaration"
-    },
-    {
-      "file": "Things\\Bit.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
-    },
-    {
-      "file": "Things\\Disco Ball.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
+      "detail": "import threw: no Shader node — this scene is built entirely from engine nodes and must be re-authored"
     },
     {
       "file": "Things\\Flowerbox.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
-    },
-    {
-      "file": "Things\\Frozen firework.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: type mismatch for argument 1 in call to 'img', expected 'vec2<f32>', got 'f32'"
-    },
-    {
-      "file": "Things\\In a ball of yarn.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected ';' for variable declaration"
-    },
-    {
-      "file": "Things\\Look into my eyes.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Things\\Shatter.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected '=' for assignment"
-    },
-    {
-      "file": "Things\\Sphere.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Things\\Spiky.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: expected '=' for assignment"
+      "detail": "import threw: expected ';', found '(' (line 49)"
     },
     {
       "file": "Things\\Twisted.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: no matching call to 'distance(vec3<f32>, vec4<f32>)'\n\n2 candidate functions:\n • 'distance(vecN<T>  ✓ , vecN<T>  ✗ ) -> T' where:\n      ✓  'T' is 'abstract-float', 'f32' or 'f16'\n • 'distance(T  ✗ "
-    },
-    {
-      "file": "Transition\\Banded Swirl Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved type 'vecpler2Df'"
-    },
-    {
-      "file": "Transition\\Bars Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: no matching call to 'dot(vec4<f32>, vec3<f32>)'\n\n1 candidate function:\n • 'dot(vecN<T>  ✓ , vecN<T>  ✗ ) -> T' where:\n      ✓  'T' is 'abstract-float', 'abstract-int', 'f32', 'i32', 'u32' or 'f16'"
-    },
-    {
-      "file": "Transition\\Blinds Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: return statement type must match its function return type, returned 'void', expected 'vec3<f32>'"
-    },
-    {
-      "file": "Transition\\Block Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gTexture1Size'"
-    },
-    {
-      "file": "Transition\\Burn Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved call target '_fbmfast'"
-    },
-    {
-      "file": "Transition\\Circle Stretch Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: cannot assign to parameter 'dir'"
-    },
-    {
-      "file": "Transition\\Clock Swipe Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved call target '_bump'"
-    },
-    {
-      "file": "Transition\\Close Horizontal Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved call target '_bump'"
-    },
-    {
-      "file": "Transition\\Cube Switch Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected '{' for if statement"
-    },
-    {
-      "file": "Transition\\Cube Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected '{' for if statement"
-    },
-    {
-      "file": "Transition\\Cylinder Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved call target '_fbmfast'"
-    },
-    {
-      "file": "Transition\\Disolve Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved call target '_rand'"
-    },
-    {
-      "file": "Transition\\Dropfade Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: no matching constructor for 'vec4<f32>(vec3<f32>)'\n\n20 candidate constructors:\n • 'vec4<T  ✓ >(vec4<T>  ✗ ) -> vec4<T>' where:\n      ✓  'T' is 'f32', 'f16', 'i32', 'u32' or 'bool'\n • 'vec4<T  ✓ >("
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Transition\\Erode Transition.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: too many arguments in call to 'ridge', expected 1, got 2"
-    },
-    {
-      "file": "Transition\\Lines Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gTargetSize'"
-    },
-    {
-      "file": "Transition\\Pour Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: too many arguments in call to 'ridge', expected 1, got 2"
-    },
-    {
-      "file": "Transition\\Radial Blur Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: no matching overload for 'operator * (vec2<f32>, i32)'\n\n9 candidate operators:\n • 'operator * (vecN<T>  ✓ , vecN<T>  ✗ ) -> vecN<T>' where:\n      ✓  'T' is 'abstract-float', 'abstract-int', 'f32',"
-    },
-    {
-      "file": "Transition\\Random Circle Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: too many arguments in call to 'ridge', expected 1, got 2"
-    },
-    {
-      "file": "Transition\\Rotate Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: return statement type must match its function return type, returned 'void', expected 'vec3<f32>'"
-    },
-    {
-      "file": "Transition\\Shockwave Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: too many arguments in call to 'ridge', expected 1, got 2"
-    },
-    {
-      "file": "Transition\\Shrink Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: return statement type must match its function return type, returned 'void', expected 'vec3<f32>'"
-    },
-    {
-      "file": "Transition\\SlideIn Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: return statement type must match its function return type, returned 'void', expected 'vec3<f32>'"
-    },
-    {
-      "file": "Transition\\Smooth Swirl Grid Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved type 'vecpler2Df'"
+      "detail": "bg: invalid vector swizzle member"
     },
     {
       "file": "Transition\\Swirl Transition.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: unresolved type 'vecpler2Df'"
-    },
-    {
-      "file": "Transition\\Turn Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: return statement type must match its function return type, returned 'void', expected 'vec3<f32>'"
-    },
-    {
-      "file": "Transition\\Water Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: too many arguments in call to 'ridge', expected 1, got 2"
+      "detail": "import threw: unknown identifier 'gTexture1' (line 31)"
     },
     {
       "file": "Transition\\Wave Transition.p9c",
       "bucket": "compile-fail",
-      "detail": "bg: unresolved type 'vecpler2Df'"
+      "detail": "import threw: unknown identifier 'gTexture1' (line 24)"
     },
     {
       "file": "Tunnel\\Boxy.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: cannot initialize 'var' of type 'vec3<f32>' with value of type 'vec4<f32>'"
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Tunnel\\Gateway.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected '=' for assignment"
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Tunnel\\ReliefTunnel.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected ';' for variable declaration"
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Tunnel\\TopAndBottom.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: expected ';' for variable declaration"
-    },
-    {
-      "file": "Tunnel\\Wormhole.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: unresolved value 'gl_PointCoord'"
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     }
   ]
 }
