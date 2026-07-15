@@ -8,5 +8,5 @@ for (const f of files) {
   if (!p9.glsl) continue;
   const { wgsl } = translateP9Glsl(p9.glsl);
   console.log("====", f.split("/").pop());
-  console.log(wgsl.slice(0, 1600));
+  console.log(wgsl);
 }

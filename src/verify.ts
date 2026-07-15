@@ -49,14 +49,23 @@ async function renderScene(scene: Scene, reports: string[]): Promise<Verdict> {
   mods.reset();
   for (const stage of STAGES) {
     const res = await renderer.compileStage(stage, scene.layers[stage].code, 0);
-    if (!res.ok) errors.push(`${stage}: ${res.diagnostics[0]?.message ?? "compile failed"}`);
+    if (!res.ok) {
+      const d = res.diagnostics[0];
+      errors.push(`${stage} L${d?.line ?? "?"}: ${d?.message ?? "compile failed"}`);
+    }
   }
   const passResults = await renderer.setPasses(0, scene.passes ?? []);
   passResults.forEach((r, i) => {
-    if (!r.ok) errors.push(`pass${i}: ${r.diagnostics[0]?.message ?? "compile failed"}`);
+    if (!r.ok) {
+      const d = r.diagnostics[0];
+      errors.push(`pass${i} L${d?.line ?? "?"}: ${d?.message ?? "compile failed"}`);
+    }
   });
   const meshRes = await renderer.setMesh(0, scene.mesh ?? null);
-  if (meshRes && !meshRes.ok) errors.push(`mesh: ${meshRes.diagnostics[0]?.message ?? "compile failed"}`);
+  if (meshRes && !meshRes.ok) {
+    const d = meshRes.diagnostics[0];
+    errors.push(`mesh L${d?.line ?? "?"}: ${d?.message ?? "compile failed"}`);
+  }
   renderer.setParticles(0, scene.particles?.count ?? 0);
   if (errors.length) return { ok: false, errors, reports };
 

@@ -1,0 +1,28 @@
+{
+  "kind": "milk",
+  "total": 3,
+  "buckets": {
+    "pass": 0,
+    "black": 0,
+    "compile-fail": 3,
+    "gpu-error": 0,
+    "parse-fail": 0
+  },
+  "failures": [
+    {
+      "file": "Drawing\\Trails\\Flexi - ininity tap convolution roams copulatory negentropix nz.milk",
+      "bucket": "compile-fail",
+      "detail": "post L105: unable to parse expression"
+    },
+    {
+      "file": "Drawing\\Trails\\Flexi - ininity tap convolution roams copulatory negentropix.milk",
+      "bucket": "compile-fail",
+      "detail": "post L105: unable to parse expression"
+    },
+    {
+      "file": "Drawing\\Trails\\Flexi - ininity tap convolution roams flesh in the panmega.milk",
+      "bucket": "compile-fail",
+      "detail": "post L113: unable to parse expression"
+    }
+  ]
+}

@@ -41,7 +41,19 @@ function prepare(glsl: string): { helpers: string; main: string } {
 /** Engine-binding substitutions: names, not grammar. */
 function bindEngine(src: string): string {
   let s = src;
-  s = s.replace(/^[ \t]*#define[ \t]+(\w+)[ \t]+([^\s/]+)[ \t]*$/gm, "const float $1 = $2;");
+  // Type-aware #define: infer const type from RHS prefix so a define whose
+  // value is `vec3(1,.9,.8)` doesn't get wrapped as `const float`
+  s = s.replace(/^[ \t]*#define[ \t]+(\w+)[ \t]+(.+?)[ \t]*$/gm, (_m, name: string, val: string) => {
+    val = val.trim();
+    if (!val || /[a-zA-Z_]\w*\s*[^,)(a-zA-Z_0-9. ]/.test(val)) return ""; // function-like or complex
+    let ty = "float";
+    if (/^vec2\b/.test(val)) ty = "vec2";
+    else if (/^vec3\b/.test(val)) ty = "vec3";
+    else if (/^vec4\b/.test(val)) ty = "vec4";
+    else if (/^mat[234]\b/.test(val)) ty = val.slice(0, 4);
+    else if (/^-?\d+$/.test(val)) ty = "int";
+    return `const ${ty} ${name} = ${val};`;
+  });
   s = s.replace(/^[ \t]*#.*$/gm, "");
   s = s.replace(/\bPI2\b/g, "6.2831853");
   s = s.replace(/\bPI\b/g, "3.14159265");
@@ -57,7 +69,7 @@ function bindEngine(src: string): string {
   s = s.replace(/\b_tonemapACES\s*\(/g, "p9aces(");
   s = s.replace(/\b_luminance\s*\(/g, "p9luma(");
   s = s.replace(/\b_saturate\s*\(/g, "saturate(");
-  s = s.replace(/\b_tolinear\s*\(/g, "p9linear(");
+  s = s.replace(/\b_tolinear\s*\(/g, "_tolinearP9(");
   s = s.replace(/\b_rotate\s*\(/g, "p9rot(");
   s = s.replace(/\bsi\.tex\b/g, "p9uv");
   s = s.replace(/\bsi\.diffuse\b/g, "p9diffuse");
@@ -72,8 +84,9 @@ function bindEngine(src: string): string {
   s = s.replace(/\bgResolution\b/g, "p9res");
   s = s.replace(/\bgl_FragCoord\b/g, "p9fragcoord");
   s = s.replace(/\bgl_PointCoord\b/g, "p9uv");
-  s = s.replace(/\bgTexture\dSize\b/g, "p9res");
-  s = s.replace(/\bgTargetSize\b/g, "p9res");
+  // Plane9 texture-size vars are vec4(w, h, 1/w, 1/h) — scenes read .zw
+  s = s.replace(/\bgTexture\dSize\b/g, "p9texsize");
+  s = s.replace(/\bgTargetSize\b/g, "p9texsize");
   s = s.replace(/\bgViewPosition\b/g, "vec3(0.0, 0.0, 4.33)");
   s = s.replace(/\bgViewDirection\b/g, "vec3(0.0, 0.0, -1.0)");
   // panoramic sampling (must run before the generic sampler-arg strip)
@@ -84,7 +97,10 @@ function bindEngine(src: string): string {
   // sampler-name arguments (unless already consumed by a texture rewrite)
   s = s.replace(/\bsampler([23]D|Cube)\s+\w+\s*,\s*/g, "");
   s = s.replace(/\(\s*(gTexture\d|gPermutation\w*|gNoise\w*)\s*,\s*/g, "(");
-  s = s.replace(/\bgTexture\d\b/g, "img(vec2f(0.0))"); // bare uses become neutral
+  // bare uses of gTexture become neutral vec4 (skipped by transpiler as a
+  // literal expr: 'p9tex(vec2(0.0))' passes through vec2 which the parser
+  // knows, and the builtin maps p9tex -> img in the emitter)
+  s = s.replace(/\bgTexture\d\b/g, "p9tex(vec2(0.0))");
   s = s.replace(/\boColor\b/g, "p9out");
   return s;
 }
@@ -142,6 +158,8 @@ vec3 _lightBlinnPhong(vec3 normal, vec3 lightDir, vec3 viewDir, vec3 diffuseCol)
   float atten = clamp(1.0 - dist / max(lightRadius, 0.001), 0.0, 1.0);
   return _lightDirectional(diffuseAlbedo, specularAlbedo, normal, roughness, lightColor, lightDir, viewDir) * atten * atten;
 }`],
+  ["_tolinearP9", `vec3 _tolinearP9(vec3 v) { return pow(v, vec3(2.2)); }
+vec4 _tolinearP9(vec4 v) { return vec4(_tolinearP9(v.rgb), v.a); }`],
   ["_cubicpulse", `float _cubicpulse(float c, float w, float x) {
   x = abs(x - c);
   if (x > w) return 0.0;
@@ -215,6 +233,7 @@ export function glslToRender(glsl: string): { body: string; warnings: string[] }
     p9fragcoord: vec(4), p9out: vec(4),
     p9gIn1: vec(3), p9gIn2: vec(3), p9gIn3: vec(3),
     p9normal: vec(3), p9wpos: vec(3), p9view: vec(3),
+    p9texsize: vec(4),
   };
 
   const builtins = mathBuiltins();
@@ -223,10 +242,19 @@ export function glslToRender(glsl: string): { body: string; warnings: string[] }
     ty: vec(4),
   });
   builtins.p9tex = texBuiltin;
-  builtins.p9hsv2rgb = (args, line, e) => ({
-    code: `(${e.coerce(args[2], F32, line).code} * mix(vec3f(1.0), hue3(${e.coerce(args[0], F32, line).code}), ${e.coerce(args[1], F32, line).code}))`,
-    ty: vec(3),
-  });
+  builtins.img = texBuiltin; // literal img() calls (from bare-gTexture rewrite)
+  builtins.p9hsv2rgb = (args, line, e) => {
+    // Plane9's _hsv2rgb has two forms: hsv(h, s, v) and hsv(vec3(h,s,v))
+    const [h, s, v] = args.length === 1
+      ? [{ code: `(${args[0].code}).x`, ty: F32 },
+         { code: `(${args[0].code}).y`, ty: F32 },
+         { code: `(${args[0].code}).z`, ty: F32 }]
+      : [e.coerce(args[0], F32, line), e.coerce(args[1], F32, line), e.coerce(args[2], F32, line)];
+    return {
+      code: `(${v.code} * mix(vec3f(1.0), hue3(${h.code}), ${s.code}))`,
+      ty: vec(3),
+    };
+  };
   builtins.p9aces = (args, line, e) => {
     const x = vecArg(args, 0, 3, line, e);
     return { code: `clamp((${x} * (2.51 * ${x} + 0.03)) / (${x} * (2.43 * ${x} + 0.59) + 0.14), vec3f(0.0), vec3f(1.0))`, ty: vec(3) };
@@ -280,6 +308,7 @@ var<private> p9gIn3 : vec3f;
 var<private> p9normal : vec3f;
 var<private> p9wpos : vec3f;
 var<private> p9view : vec3f;
+var<private> p9texsize : vec4f;
 var<private> p9out : vec4f;
 ` + (helperCode ? helperCode + "\n" : "") +
     `fn render(c : Ctx) -> vec3f {
@@ -294,6 +323,7 @@ var<private> p9out : vec4f;
   p9normal = vec3f(0.0, 0.0, 1.0);
   p9wpos = vec3f(c.uv * 2.0 - vec2f(1.0), 0.0);
   p9view = vec3f(0.0, 0.0, -1.0);
+  p9texsize = vec4f(c.res, 1.0 / c.res);
   p9out = vec4f(0.0);
 ${body}
   return p9out.rgb * c.intensity;

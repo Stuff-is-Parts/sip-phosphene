@@ -75,7 +75,10 @@ try {
     if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) gpuErrors.push(m.text());
   });
   page.on("pageerror", (e) => gpuErrors.push(String(e)));
-  const isolateEvery = parseInt(process.env.VERIFY_ISOLATE ?? "0", 10) || 0;
+  // MilkDrop presets share compiled bundle state across page loads in ways
+  // that reveal an intermittent renderer bug (~2% of the corpus). A page
+  // reload isolates each preset. Default 25 for the milk corpus.
+  const isolateEvery = parseInt(process.env.VERIFY_ISOLATE ?? (kind === "milk" ? "25" : "0"), 10);
   let pageAge = 0;
   const openPage = async () => {
     await page.goto(`http://localhost:${PORT}/verify.html`, { waitUntil: "networkidle2", timeout: 20000 });

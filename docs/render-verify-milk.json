@@ -2,33 +2,13 @@
   "kind": "milk",
   "total": 1000,
   "buckets": {
-    "pass": 904,
-    "black": 57,
-    "compile-fail": 39,
+    "pass": 934,
+    "black": 66,
+    "compile-fail": 0,
     "gpu-error": 0,
     "parse-fail": 0
   },
   "failures": [
-    {
-      "file": "Dancer\\Comet Mirror\\EoS + Phat - chasers 17 sentinels ghoul - nz+ mblind old mbitchy.milk",
-      "bucket": "black",
-      "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Dancer\\Glowsticks Mirror\\EoS + flexi - glowsticks v2 05 and proton lights (+Krash's beat code) _Phat_remix02b + illumination (Stahl's Mix) aaaaa.milk",
-      "bucket": "compile-fail",
-      "detail": "pass0: unable to parse expression"
-    },
-    {
-      "file": "Dancer\\Glowsticks Mirror\\EoS - glowsticks v2 03 music shifter edit b (Stahl's Reactive RMX V2e - feat martin, flexi + phat).milk",
-      "bucket": "compile-fail",
-      "detail": "pass0: unable to parse expression"
-    },
-    {
-      "file": "Dancer\\Glowsticks Mirror\\EoS - glowsticks v2 03 music shifter edit b (Stahl's Reactive RMX) [+ flexi's reflections + phat's reflecto 2].milk",
-      "bucket": "compile-fail",
-      "detail": "pass0: unable to parse expression"
-    },
     {
       "file": "Dancer\\Glowsticks\\298 nz+.milk",
       "bucket": "black",
@@ -60,34 +40,9 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Dancer\\Petals\\ORB - Burnt Ice.milk",
-      "bucket": "compile-fail",
-      "detail": "post: unable to parse right side of * expression"
-    },
-    {
-      "file": "Dancer\\Swarm\\martin - sphery tales slow version nz+.milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:3544 |     at Object.run (http:"
-    },
-    {
-      "file": "Drawing\\Explosions Mirror\\chris grease organiq stymied parchment phlossidite logos holographeme poach legsce.milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:3544 |     at Object.run (http:"
-    },
-    {
-      "file": "Drawing\\Explosions Mirror\\fiShbRaiN - witchcraft (metropolish remix) - test - tillex  - waqx xtrong en la ngoadzchple.milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:3544 |     at Object.run (http:"
-    },
-    {
       "file": "Drawing\\Explosions\\Zylot - Paint Spill (Music Reactive Paint Mix) nz+ quescience flux hate.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Drawing\\Explosions\\fiShbRaiN - witchcraft (metropolish remix) - test - tillex  - expert at pretending to survive gentle unseen incausitive.milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:3544 |     at Object.run (http:"
     },
     {
       "file": "Drawing\\Explosions\\i am only here to die slowly in pain there is great peace in this surrender.milk",
@@ -95,19 +50,9 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Drawing\\Growth Mirror\\finchman.milk",
-      "bucket": "compile-fail",
-      "detail": "pass0: unable to parse expression"
-    },
-    {
-      "file": "Drawing\\Growth\\red and white2 blowhorde ws2.milk",
-      "bucket": "compile-fail",
-      "detail": "pass0: unable to parse expression"
-    },
-    {
-      "file": "Drawing\\Liquid Mirror\\benneton sweater.milk",
-      "bucket": "compile-fail",
-      "detail": "pass0: unable to parse expression"
+      "file": "Drawing\\Growth\\shifter + Flexi - liquid circuitry from the neon grafitti hive nz+ whoever fucked with my nephew's life gets really horrible right now2.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Drawing\\Liquid Mirror\\flexi - identity-killing petting - colon gonad type31.milk",
@@ -115,12 +60,12 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Drawing\\Liquid Mirror\\sawtooth grin nz+.milk",
-      "bucket": "compile-fail",
-      "detail": "pass0: unable to parse expression"
+      "file": "Drawing\\Liquid\\amigo otsego.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Drawing\\Liquid\\amigo otsego.milk",
+      "file": "Drawing\\Liquid\\sorry money blaq aeinn ov ngreen globules.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
@@ -133,11 +78,6 @@
       "file": "Drawing\\Trails Mirror\\suksma - fiShbRaiN - witchcraft (phugly megalopolish remix)2 - divining with spinor 4-momentum.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Drawing\\Trails\\Flexi - ininity tap convolution roams copulatory negentropix.milk",
-      "bucket": "compile-fail",
-      "detail": "post: unable to parse expression"
     },
     {
       "file": "Drawing\\Trails\\The NG + martin + Flexi - witchcraft (When Lines Get Desperate) --- Isosceles edit.milk",
@@ -180,74 +120,24 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Fractal\\Lattice Mirror\\Reflecto FX - Stahlregen & flexi + Geiss + Rovastar + Shifter - Even More Fractals for Hexcollie With Martin and AdamFX (AtiFix).milk",
-      "bucket": "compile-fail",
-      "detail": "pass0: unable to parse expression"
-    },
-    {
-      "file": "Fractal\\Mandelbox\\3D function draw template [flexi's learning by doing session 04].milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272 |     at http://localhost:"
-    },
-    {
       "file": "Fractal\\Mandelbox\\martin - frosty caves.milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272 |     at http://localhost:"
-    },
-    {
-      "file": "Fractal\\Mandelbox\\martin - mandelbox explorer - wreck diver nz+ kgnumbrephul qonqoars ov aengel.milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272 |     at http://localhost:"
-    },
-    {
-      "file": "Fractal\\Mandelbox\\martin - mandelbox stepper.milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272 |     at e (http://localho"
-    },
-    {
-      "file": "Fractal\\Nested Dancer\\toroidal pulse metatronic black tree sweet smell of rotting love.milk",
-      "bucket": "compile-fail",
-      "detail": "post: unable to parse expression"
-    },
-    {
-      "file": "Fractal\\Nested Pyramid\\New Creation Sensation -  AdamFx,Flexi,Amandio c n Martin - Star to Another World - Martin Disrupted .milk",
-      "bucket": "compile-fail",
-      "detail": "pass0: unable to parse expression"
-    },
-    {
-      "file": "Fractal\\Nested Spiral\\Tripgnosis - Big Bang.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Fractal\\Nested Square\\MilkTop HDFX Presets  Ft Aderrasi,AdamFX,RovaStar,ShadowHarlequin,Martin n Flexi - BitStorm AftermathFX J.milk",
-      "bucket": "compile-fail",
-      "detail": "pass0: unable to parse expression"
+      "file": "Fractal\\Mandelbox\\martin - mandelbox explorer - wreck diver nz+ kgnumbrephul qonqoars ov aengel.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Fractal\\Nested Spiral\\Rovastar - Harlequin's Fractal Encounter - occult shadows that put you down2.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Fractal\\Sierpinski\\Flexi - explore space not drugs - like there's a fucking difference.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Geometric\\City\\martin - city lights v2 c.milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272 |     at http://localhost:"
-    },
-    {
-      "file": "Geometric\\Cube Fly\\Benjam and Zylot - Tie-Dye Supernova (Sunspots Mix) - praise martin and flexi forever nz+ latter night.milk",
-      "bucket": "compile-fail",
-      "detail": "post: unable to parse expression"
-    },
-    {
-      "file": "Geometric\\Cube Fly\\martin - ghost city.milk",
-      "bucket": "compile-fail",
-      "detail": "post: unable to parse expression"
-    },
-    {
-      "file": "Geometric\\Cube Fly\\suksma - movement within the trout - i love you, i thank you, it meant everything, don't forget.milk",
-      "bucket": "compile-fail",
-      "detail": "post: unable to parse expression"
     },
     {
       "file": "Geometric\\Dots\\Martin - beamer code 03h.milk",
@@ -265,19 +155,14 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Geometric\\Sphere Wild\\suksma - selectron validumb blegula auralsect qripple baron.milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:3544 |     at Object.run (http:"
-    },
-    {
       "file": "Geometric\\Stripes Dance\\Martin - beamer code 04h.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Geometric\\Tunnel Fans\\amandio c - feeling well 4.milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2588) |     at http://localh"
+      "file": "Geometric\\Tunnel Morph\\fishbrain and flexi - box of tricks 18 [moebius transformation + polar transformation = bipolar transformation] --- Isosceles edit.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Geometric\\Tunnel Spheres\\Ft AdamFX Preset Pack - martin - glassball dance in the basal ganglion - cranial bitch.milk",
@@ -300,39 +185,14 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Geometric\\Wire Spiral\\Stahlregen - Squared^2 (Rainbow colored spiral Solarized).milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2583) |     at e (http://loc"
-    },
-    {
-      "file": "Hypnotic\\Polar Static\\xtramartin (1).milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272 |     at http://localhost:"
-    },
-    {
-      "file": "Particles\\Orbit\\skipper skipper kiss me hard - thank god for martin nitorami - a rip in mommy's underwear roams.milk",
-      "bucket": "compile-fail",
-      "detail": "pass0: unable to parse expression"
-    },
-    {
-      "file": "Particles\\Spaz\\Martin - Pixies Party (Hakan mash-up) 6-11.milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2583) |     at http://localh"
-    },
-    {
-      "file": "Particles\\Spaz\\Martin - Pixies Party (Hakan mash-up) 6-9.milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2583) |     at http://localh"
-    },
-    {
-      "file": "Particles\\Spaz\\martin - pixies party.milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2583) |     at http://localh"
+      "file": "Particles\\Blobby\\only glimpses of the reality you once knew - what good is a drug if you can't turn it's effects on and o.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Particles\\Swarm\\$$$ Royal - Mashup (489).milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2681) |     at e (http://loc"
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Particles\\Swarm\\fewgasm drugged by kenyans nz+ nandgasm vs topological transform dynamics.milk",
@@ -360,11 +220,6 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Reaction\\Liquid Blobby\\184.milk",
-      "bucket": "compile-fail",
-      "detail": "pass0: unable to parse expression"
-    },
-    {
       "file": "Reaction\\Liquid Blobby\\Redi Jedi - this is my brain on milk(drop the habbit) - shiafu roam3- rnz flacc.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
@@ -390,7 +245,12 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Reaction\\Liquid Ripples\\Flexi - flower demo 4.milk",
+      "file": "Reaction\\Liquid Ripples\\Flexi - color drops [jelly attempt].milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
+      "file": "Reaction\\Liquid Ripples\\Flexi - evolution 5.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
@@ -400,9 +260,9 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Reaction\\Liquid Ripples\\flexi - target practice-5-liquid-2.milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at http://localhost:4197/assets/types-DA0_xv2U.js:3:4272 |     at http://localhost:"
+      "file": "Reaction\\Liquid Ripples\\TonyMilkdrop - Magellan's Nebula [Flexi - fancy + $this shall not retain] --- Isosceles edit.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Reaction\\Liquid Simmering\\LuxXx - Hurty Soul I.milk",
@@ -420,6 +280,11 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
+      "file": "Reaction\\Rorschach\\ORB - Stahl - Glass Ocean.milk",
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
+    },
+    {
       "file": "Sparkle\\Explosions\\Goody + martin - crystal palace - Schizotoxin - The Wild Iris Bloom - mess2 nz+ mechanize de-caged.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
@@ -430,12 +295,12 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Sparkle\\Explosions\\bdrv + al Rovastar - Fractopia bdrv132456 mix bleuarg - mammalia.milk",
+      "file": "Sparkle\\Explosions\\orb - inferno - burnt to a crisp - ngdothz rnz.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Sparkle\\Explosions\\orb - inferno - burnt to a crisp - ngdothz rnz.milk",
+      "file": "Sparkle\\Explosions\\suksma - geiss + dotes - holiday hidden in plain sight clown.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
     },
@@ -453,11 +318,6 @@
       "file": "Sparkle\\Explosions\\suksma - shape instance exp 3 - bulloxain - flacc - sth.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Sparkle\\Glimmer Mirror\\190.milk",
-      "bucket": "compile-fail",
-      "detail": "pass0: unable to parse expression"
     },
     {
       "file": "Sparkle\\Jewel\\goody + martin - crystal palace - schizotoxin - the wild iris bloom - 16 iterations5.milk",
@@ -478,16 +338,6 @@
       "file": "Waveform\\Wire Circular\\Rism - Circle.milk",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Waveform\\Wire Circular\\Rovastar - Touchdown on Mars (FU reflecto).milk",
-      "bucket": "compile-fail",
-      "detail": "pass0: unable to parse expression"
-    },
-    {
-      "file": "Waveform\\Wire Flat Double\\MegalomaGreg + ShadowHarlequin - Ambitions [SH's hue_seizure remix].milk",
-      "bucket": "compile-fail",
-      "detail": "frame threw: TypeError: o is not a function |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:2288) |     at e (http://localhost:4197/assets/types-DA0_xv2U.js:3:1986) |     at e (http://loc"
     }
   ]
 }

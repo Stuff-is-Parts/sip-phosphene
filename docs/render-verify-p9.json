@@ -2,18 +2,13 @@
   "kind": "p9",
   "total": 252,
   "buckets": {
-    "pass": 199,
-    "black": 23,
-    "compile-fail": 30,
+    "pass": 211,
+    "black": 24,
+    "compile-fail": 17,
     "gpu-error": 0,
     "parse-fail": 0
   },
   "failures": [
-    {
-      "file": "Abstract\\Watercolor.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: invalid vector swizzle member"
-    },
     {
       "file": "Cell\\Mellow.p9c",
       "bucket": "black",
@@ -32,7 +27,7 @@
     {
       "file": "Cube\\Flip Flop.p9c",
       "bucket": "compile-fail",
-      "detail": "import threw: expected ';', found '(' (line 42)"
+      "detail": "import threw: expected ';', found '(' (line 44)"
     },
     {
       "file": "Cube\\Hollow Cube.p9c",
@@ -50,24 +45,9 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Music\\Music Tunnel.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: missing value in coerce (line 14)"
-    },
-    {
       "file": "Music\\Music star.p9c",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Music\\Spectrum Ocean.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: missing value in coerce (line 12)"
-    },
-    {
-      "file": "Music\\Spectrum Radar.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: missing value in coerce (line 11)"
     },
     {
       "file": "Music\\Spectrum sparks.p9c",
@@ -92,7 +72,7 @@
     {
       "file": "Other\\Balls of metal.p9c",
       "bucket": "compile-fail",
-      "detail": "import threw: unexpected '{' (line 42)"
+      "detail": "import threw: unexpected '{' (line 44)"
     },
     {
       "file": "Other\\Black.p9c",
@@ -108,11 +88,6 @@
       "file": "Other\\Fuzzy Target.p9c",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Other\\Glass Field.p9c",
-      "bucket": "compile-fail",
-      "detail": "import threw: cannot convert vec3f to f32 (line 6)"
     },
     {
       "file": "Other\\Sea Of Bricks.p9c",
@@ -140,29 +115,14 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Postprocessing\\Embos Merge.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: invalid vector swizzle member"
-    },
-    {
       "file": "Postprocessing\\Embos.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: invalid vector swizzle member"
-    },
-    {
-      "file": "Postprocessing\\Fluid Warper.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: invalid vector swizzle member"
+      "bucket": "black",
+      "detail": "no lit pixels after 8 frames"
     },
     {
       "file": "Postprocessing\\Gears In Silhouette.p9c",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Postprocessing\\Hexagons.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: invalid vector swizzle member"
     },
     {
       "file": "Postprocessing\\Invert Gray.p9c",
@@ -173,21 +133,6 @@
       "file": "Postprocessing\\Invert.p9c",
       "bucket": "black",
       "detail": "no lit pixels after 8 frames"
-    },
-    {
-      "file": "Postprocessing\\Led Display Curved.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: invalid vector swizzle member"
-    },
-    {
-      "file": "Postprocessing\\Led Display.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: invalid vector swizzle member"
-    },
-    {
-      "file": "Postprocessing\\Rain Drops.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: invalid vector swizzle member"
     },
     {
       "file": "Postprocessing\\Shatter Scene.p9c",
@@ -212,7 +157,7 @@
     {
       "file": "Special\\TransitionFromExample.p9c",
       "bucket": "compile-fail",
-      "detail": "import threw: expected ';', found '(' (line 42)"
+      "detail": "import threw: expected ';', found '(' (line 44)"
     },
     {
       "file": "Text\\Awesomeness.p9c",
@@ -240,19 +185,14 @@
       "detail": "no lit pixels after 8 frames"
     },
     {
-      "file": "Transition\\Erode Transition.p9c",
-      "bucket": "compile-fail",
-      "detail": "bg: invalid vector swizzle member"
-    },
-    {
       "file": "Transition\\Swirl Transition.p9c",
       "bucket": "compile-fail",
-      "detail": "import threw: unknown function 'img' (line 31)"
+      "detail": "import threw: 'SampleWithBorder' has no 3-arg overload (line 31)"
     },
     {
       "file": "Transition\\Wave Transition.p9c",
       "bucket": "compile-fail",
-      "detail": "import threw: unknown function 'img' (line 24)"
+      "detail": "import threw: 'SampleWithBorder' has no 3-arg overload (line 24)"
     },
     {
       "file": "Tunnel\\Boxy.p9c",

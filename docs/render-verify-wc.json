@@ -1,0 +1,18 @@
+{
+  "kind": "p9",
+  "total": 1,
+  "buckets": {
+    "pass": 0,
+    "black": 0,
+    "compile-fail": 1,
+    "gpu-error": 0,
+    "parse-fail": 0
+  },
+  "failures": [
+    {
+      "file": "Abstract\\Watercolor.p9c",
+      "bucket": "compile-fail",
+      "detail": "bg L76: invalid vector swizzle member"
+    }
+  ]
+}

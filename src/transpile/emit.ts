@@ -24,7 +24,9 @@ export interface Dialect {
   rename(name: string): string;
 }
 
-/** WGSL keywords and builtin names that scenes legally use as variables. */
+/** WGSL keywords and builtin names that scenes legally use as variables.
+ *  When a scene declares a local with one of these names the emitter mangles
+ *  it to u_<name> so WGSL accepts it. */
 export const WGSL_RESERVED = new Set([
   "mod", "min", "max", "floor", "ceil", "fract", "pow", "exp", "log", "sqrt",
   "abs", "sign", "sin", "cos", "tan", "step", "mix", "clamp", "length",
@@ -33,6 +35,11 @@ export const WGSL_RESERVED = new Set([
   "case", "default", "break", "continue", "return", "discard", "struct",
   "texture", "sampler", "uniform", "bitcast", "enable", "override", "ptr",
   "ref", "type", "alias", "smoothstep", "distance", "noise",
+  // WGSL reserved for future use: `from`, `import`, `enum`, plus a handful
+  // of shader identifiers scenes reuse as locals
+  "from", "import", "enum", "class", "trait", "impl", "using",
+  "atomic", "shared", "workgroup", "handle", "material", "vertex", "fragment",
+  "compute", "device", "storage", "read", "write", "read_write",
 ]);
 
 const CTOR: Record<string, Ty> = {
@@ -138,6 +145,8 @@ export class Emitter {
         let v = this.expr(x.v);
         if (x.op === "!") return { code: `!${paren(this.toBool(v, x.line).code)}`, ty: BOOL };
         if (v.ty.k === "bool") v = this.coerce(v, F32, x.line); // HLSL bools are numeric
+        // unary + is a no-op in GLSL/HLSL; WGSL rejects it on vectors, so drop
+        if (x.op === "+") return v;
         return { code: `${x.op}${paren(v.code)}`, ty: v.ty };
       }
       case "bin": return this.binary(x.op, this.expr(x.l), this.expr(x.r), x.line);
