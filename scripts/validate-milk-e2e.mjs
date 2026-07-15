@@ -75,6 +75,9 @@ try {
 
     const page = await browser.newPage();
     let frames;
+    // Per-preset worst equation-state drift (populated inside the try
+    // block; declared here so the report row can read it after).
+    let worstDrift = { key: null, frame: -1, err: 0, ours: 0, oracle: 0 };
     try {
       await page.setViewport({ width: W, height: H });
       await page.evaluateOnNewDocument((seed) => {
@@ -112,19 +115,43 @@ try {
       }
       frames = [];
       mkdirSync(`reference/milk-phosphene-e2e/${entry.slug}`, { recursive: true });
-      // Per-frame equation-state divergence tracker: compare our derived
-      // globals (frame/time/fps/bass/mid/treb/att) to the oracle's.
-      const worstDrift = { key: null, frame: -1, err: 0 };
+      // Per-frame equation-state divergence tracker: reads PHOSPHENE's
+      // derived globals + post-equation mdVSFrame from __milkE2EState()
+      // and compares against oracle globalVars/mdVSFrame from the
+      // fixture. Recorded per preset with the worst relative error.
+      const relErr = (a, b) => {
+        if (a === b) return 0;
+        if (!Number.isFinite(a) || !Number.isFinite(b)) return Infinity;
+        return Math.abs(a - b) / Math.max(1e-6, Math.abs(b));
+      };
       for (let f = 0; f < fixture.globalVars.length; f++) {
         const { c, l, r } = audioFrame(f);
         await page.evaluate(
           (pcm) => window.__milkFrameE2E(pcm),
           { c: Array.from(c), l: Array.from(l), r: Array.from(r) },
         );
-        // Read back our state and compare
-        // (We do this every frame — the whole point of the E2E harness.)
-        // We can't read state easily without a getter; instead we assert
-        // by rendering and comparing screenshots at capture frames.
+        // Read back PHOSPHENE's derived state and compare per key.
+        const state = await page.evaluate(() => window.__milkE2EState());
+        if (state) {
+          const oracleGlobals = fixture.globalVars[f];
+          for (const k of Object.keys(state.globals)) {
+            if (!(k in oracleGlobals)) continue;
+            const e = relErr(state.globals[k], oracleGlobals[k]);
+            if (e > worstDrift.err) {
+              worstDrift = { key: `globals.${k}`, frame: f, err: e, ours: state.globals[k], oracle: oracleGlobals[k] };
+            }
+          }
+          const oracleFrame = fixture.mdVSFrame[String(f)];
+          if (oracleFrame) {
+            for (const [k, oracleVal] of Object.entries(oracleFrame)) {
+              if (!(k in state.mdVSFrame)) continue;
+              const e = relErr(state.mdVSFrame[k], oracleVal);
+              if (e > worstDrift.err) {
+                worstDrift = { key: `mdVSFrame.${k}`, frame: f, err: e, ours: state.mdVSFrame[k], oracle: oracleVal };
+              }
+            }
+          }
+        }
         if (CAPTURE_FRAMES.includes(f)) {
           await page.evaluate(() => new Promise((r2) => {
             globalThis.requestAnimationFrame(() => globalThis.requestAnimationFrame(() => r2(null)));
@@ -142,7 +169,6 @@ try {
           });
         }
       }
-      void worstDrift;
       void GLOBAL_TOL;
     } finally {
       await page.close();
@@ -150,7 +176,12 @@ try {
     const allMatch = frames.every((fr) => fr.ssimMinChannel >= SSIM_TOLERANCE);
     if (allMatch) validated++;
     else diverged++;
-    results.push({ preset: entry.file, status: allMatch ? "VALIDATED" : "diverged", frames });
+    results.push({
+      preset: entry.file,
+      status: allMatch ? "VALIDATED" : "diverged",
+      frames,
+      worstEquationDrift: worstDrift.err > 0 ? { ...worstDrift, err: Number(worstDrift.err.toExponential(3)) } : null,
+    });
     console.log(`${allMatch ? "VALID" : "  div"} ${frames.map((fr) => fr.ssimMinChannel.toFixed(2)).join(" ")}  ${entry.file.slice(0, 60)}`);
   }
 } finally {
