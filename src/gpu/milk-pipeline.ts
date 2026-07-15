@@ -52,14 +52,6 @@ const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 
 // Warp pass (witnessed shaders/warp.js default path):
 // ret = texture(sampler_main, uv).rgb * decay; fragColor = vec4(ret,1)*vColor
-//
-// Feedback UV convention: the oracle is WebGL (UV origin bottom-left);
-// WebGPU is UV origin top-left. Since both draw NDC identically, an
-// offscreen texture we WROTE at NDC(y=-1) sits at WebGPU row H-1, which
-// WebGPU samples at UV.y=1. Our warp UVs come from the oracle's
-// per-pixel equation math (GL convention: UV.y=0 = bottom = the row we
-// wrote at NDC y=-1). Sampling at 1-uv.y makes WebGPU sample the row
-// WebGL would, so feedback semantics match exactly.
 const WARP_WGSL = /* wgsl */ `
 struct U { decay : f32, pad0 : f32, pad1 : f32, pad2 : f32 };
 @group(0) @binding(0) var<uniform> u : U;
@@ -74,14 +66,14 @@ struct VOut {
 fn vmain(@location(0) aPos : vec2f, @location(1) aWarpUv : vec2f,
          @location(2) aWarpColor : vec4f) -> VOut {
   var o : VOut;
-  o.pos = vec4f(aPos.x, aPos.y, 0.0, 1.0);
+  o.pos = vec4f(aPos.x, -aPos.y, 0.0, 1.0);
   o.uv = aWarpUv;
   o.vColor = aWarpColor;
   return o;
 }
 @fragment
 fn fmain(in : VOut) -> @location(0) vec4f {
-  let ret = textureSample(mainTex, samp, vec2f(in.uv.x, 1.0 - in.uv.y)).rgb * u.decay;
+  let ret = textureSample(mainTex, samp, in.uv).rgb * u.decay;
   return vec4f(ret, 1.0) * in.vColor;
 }
 `;
@@ -104,7 +96,7 @@ fn vmain(@location(0) aPos : vec2f, @location(1) aColor : vec4f,
   }
   var o2 : VOut;
   let p = aPos + off;
-  o2.pos = vec4f(p.x, p.y, 0.0, 1.0);
+  o2.pos = vec4f(p.x, -p.y, 0.0, 1.0);
   o2.col = aColor;
   return o2;
 }
@@ -128,7 +120,7 @@ fn vmain(@builtin(vertex_index) vi : u32,
   let halfPx = u.size * 0.5;
   let p = center + corner * vec2f(halfPx * 2.0 / u.texsize.x, halfPx * 2.0 / u.texsize.y);
   var o : VOut;
-  o.pos = vec4f(p.x, p.y, 0.0, 1.0);
+  o.pos = vec4f(p.x, -p.y, 0.0, 1.0);
   o.col = aColor;
   return o;
 }
@@ -151,7 +143,7 @@ struct VOut {
 fn vmain(@location(0) aPos : vec2f, @location(1) aColor : vec4f,
          @location(2) aUv : vec2f, @location(3) aTextured : f32) -> VOut {
   var o : VOut;
-  o.pos = vec4f(aPos.x, aPos.y, 0.0, 1.0);
+  o.pos = vec4f(aPos.x, -aPos.y, 0.0, 1.0);
   o.col = aColor;
   o.uv = aUv;
   o.textured = aTextured;
@@ -161,8 +153,8 @@ fn vmain(@location(0) aPos : vec2f, @location(1) aColor : vec4f,
 fn fmain(in : VOut) -> @location(0) vec4f {
   // textureSample must stay in uniform control flow (WGSL rule) — sample
   // unconditionally, select per the textured flag (same result as the
-  // witnessed branch). V flipped to match WebGL feedback UV convention.
-  let texel = textureSample(tex, samp, vec2f(in.uv.x, 1.0 - in.uv.y)) * in.col;
+  // witnessed branch).
+  let texel = textureSample(tex, samp, in.uv) * in.col;
   return select(in.col, texel, in.textured != 0.0);
 }
 `;
@@ -197,11 +189,8 @@ fn vmain(@location(0) aPos : vec2f, @location(1) aCompColor : vec4f) -> VOut {
 }
 @fragment
 fn fmain(in : VOut) -> @location(0) vec4f {
-  // Offscreen storage is now WebGPU-natural (no offscreen y-flip); sample
-  // straight, but keep the witnessed comp math's uv.y=1-uv.y sign flip
-  // by inverting the sign in the echo-y direction below so that the
-  // visual matches the oracle's canvas orientation.
   var uv = in.vUv;
+  uv.y = 1.0 - uv.y;
   let hue_shader = in.vColor.rgb;
   let orient_horiz = uv.x * 0.0 + (u.echo_orientation - 2.0 * floor(u.echo_orientation / 2.0)); // mod(echo_orientation, 2)
   var orient_x = 1.0;
