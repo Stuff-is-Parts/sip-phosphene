@@ -120,14 +120,33 @@ Take the first 12 floats. Applying the corresponding transformation to
   with "blending not implemented" until the mixed-frame execution
   path lands.
 
+## SetUniformMat3x4 upload — resolved
+
+`Renderer::Shader::SetUniformMat3x4` at
+`docs/evidence/projectm/Shader.cpp:178-186` takes `const glm::mat3x4&`
+and calls `glUniformMatrix3x4fv(location, 1, GL_FALSE,
+glm::value_ptr(values))`. MilkdropShader.cpp calls it with a
+`glm::mat4`, which triggers GLM's implicit `mat3x4(mat4)` constructor
+— that takes the first three columns of the 4×4 unchanged and drops
+column 3. `glm::value_ptr(mat3x4)` returns 12 floats in column-major
+order. PHOSPHENE stores those same 12 floats and the mapping is
+one-to-one; the HLSL `float4x3` → GLSL `mat3x4` transpose does not
+require any per-column swap at the upload layer.
+
+## `old_wave_mode` — butterchurn-specific
+
+The retained projectM sources do NOT inject an `old_wave_mode` value
+into the incoming preset's baseValues. `docs/evidence/projectm/
+MilkdropPreset.cpp::RenderFrame` reads no such variable, and no
+projectM path modifies `baseValues.old_wave_mode`. The injection
+observed in `butterchurn.js:194` is butterchurn-specific and belongs
+under a named butterchurn compatibility profile. PHOSPHENE's default
+projectM-authoritative execution path does NOT inject
+`old_wave_mode`, and `MilkPipeline.load` reflects that.
+
 ## Open questions
 
-- The exact `SetUniformMat3x4` byte order for HLSL preset code that
-  accesses these matrices as `float4x3` needs one end-to-end trace
-  through the HLSL parser output before the HLSL translator rewrite
-  begins. The PHOSPHENE representation above assumes GLSL `mat3x4`
-  column-major memory layout matches the OpenGL upload; the HLSL
-  transpose behavior may require a per-column swap.
 - Noise texture byte layout for WebGPU `rgba8unorm` versus projectM's
-  desktop-GL BGRA format — see the noise-packing note in
-  `src/gpu/milk-noise.ts` for the current mapping.
+  desktop-GL BGRA format is documented in `src/gpu/milk-noise.ts`;
+  the current mapping preserves projectM's shader-visible values via
+  a channel remap at pack time.

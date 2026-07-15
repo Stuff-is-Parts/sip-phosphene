@@ -78,10 +78,14 @@ export function dwCubicInterpolateU32(
 }
 
 /** projectM uses `std::uniform_int_distribution<int>(0, INT32_MAX)` on
- *  a `std::default_random_engine`. PHOSPHENE simulates that on top of
- *  a MilkRng. */
+ *  a `std::default_random_engine`. That distribution is INCLUSIVE on
+ *  both ends, so the highest possible draw is `INT32_MAX` = 2^31 - 1.
+ *  PHOSPHENE scales `rng.next()` (a uniform value in [0, 1)) by
+ *  `0x80000000` = 2^31 and floors, producing an integer in
+ *  [0, 2^31 - 1] = [0, INT32_MAX] with the same closed-interval bound.
+ *  Using `0x7fffffff` as the scaler would drop the top value. */
 function randInt(rng: MilkRng): number {
-  return Math.floor(rng.next() * 0x7fffffff);
+  return Math.floor(rng.next() * 0x80000000);
 }
 
 /** Pack four `(rand() % RANGE) + RANGE/2` draws into projectM's exact

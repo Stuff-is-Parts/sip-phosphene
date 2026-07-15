@@ -5,11 +5,10 @@
 **License:** LGPL-2.1-or-later (see `LICENSE.txt` in the upstream release)
 **Retrieval date:** 2026-07-15
 
-Every `.cpp`, `.hpp`, `.frag`, and `.inc` file in this directory is a
-byte-for-byte copy of the upstream file at the pinned SHA above. No
-edits, elisions, or PHOSPHENE annotations appear in the retained files —
-they exist so PHOSPHENE's port can be verified against the exact source
-it claims to derive from.
+Every file in this directory is a byte-for-byte copy of the upstream
+file at the pinned SHA above. No edits, elisions, or PHOSPHENE
+annotations appear in the retained files — they exist so PHOSPHENE's
+port can be verified against the exact source it claims to derive from.
 
 ## Path mapping
 
@@ -20,14 +19,25 @@ it claims to derive from.
 | `MilkdropShader.hpp` | `src/libprojectM/MilkdropPreset/MilkdropShader.hpp` |
 | `BlurTexture.cpp` | `src/libprojectM/MilkdropPreset/BlurTexture.cpp` |
 | `BlurTexture.hpp` | `src/libprojectM/MilkdropPreset/BlurTexture.hpp` |
+| `PerPixelMesh.cpp` | `src/libprojectM/MilkdropPreset/PerPixelMesh.cpp` |
+| `PerPixelMesh.hpp` | `src/libprojectM/MilkdropPreset/PerPixelMesh.hpp` |
+| `FinalComposite.cpp` | `src/libprojectM/MilkdropPreset/FinalComposite.cpp` |
+| `FinalComposite.hpp` | `src/libprojectM/MilkdropPreset/FinalComposite.hpp` |
 | `MilkdropNoise.cpp` | `src/libprojectM/Renderer/MilkdropNoise.cpp` |
 | `MilkdropNoise.hpp` | `src/libprojectM/Renderer/MilkdropNoise.hpp` |
+| `Shader.cpp` | `src/libprojectM/Renderer/Shader.cpp` |
+| `Shader.hpp` | `src/libprojectM/Renderer/Shader.hpp` |
+| `FrameAudioData.hpp` | `src/libprojectM/Audio/FrameAudioData.hpp` |
 | `PresetShaderHeaderGlsl330.inc` | `src/libprojectM/MilkdropPreset/Shaders/PresetShaderHeaderGlsl330.inc` |
 | `Blur1FragmentShaderGlsl330.frag` | `src/libprojectM/MilkdropPreset/Shaders/Blur1FragmentShaderGlsl330.frag` |
 | `Blur2FragmentShaderGlsl330.frag` | `src/libprojectM/MilkdropPreset/Shaders/Blur2FragmentShaderGlsl330.frag` |
-| `PerPixelMesh.cpp` | `src/libprojectM/MilkdropPreset/PerPixelMesh.cpp` |
-| `projectm-warp-fragment.frag` | preset-shader fragment excerpt |
-| `projectm-warp-vertex.vert` | preset-shader vertex excerpt |
+
+## Non-verbatim excerpts
+
+Earlier fetches produced two shader excerpts and an annotated
+`PerPixelMesh.cpp`. They have been moved out of this directory to
+`docs/excerpts/projectm-non-verbatim/` and are NOT verbatim. Do not
+cite them as source; use the verbatim files listed above.
 
 ## Provenance and use in PHOSPHENE
 

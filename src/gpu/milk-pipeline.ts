@@ -593,18 +593,17 @@ export class MilkPipeline {
       aspectx: this.invAspectx, aspecty: this.invAspecty,
       pixelsx: this.width, pixelsy: this.height,
     };
-    // Preset transition: session records the swap and captures the
-    // previous preset's wave_mode so the caller (this code) can inject
-    // it as `old_wave_mode` into the new preset's baseValues per
-    // projectM `MilkdropPreset::RenderFrame` prev-frame state
-    // convention. `blendTime` plumbs the real requested duration.
+    // Preset transition: session records the swap. `old_wave_mode`
+    // injection is butterchurn-specific behavior — the retained
+    // projectM `MilkdropPreset::RenderFrame` at
+    // docs/evidence/projectm/MilkdropPreset.cpp does not modify the
+    // incoming preset's baseValues with a previous-preset `wave_mode`
+    // slot, so PHOSPHENE's projectM-authoritative default does not
+    // inject it either. The butterchurn compatibility profile can
+    // reintroduce the injection when that path lands.
     this.session.beginPresetLoad(blendTime);
-    const injectedBaseValues = {
-      ...frameNode.baseValues,
-      old_wave_mode: this.session.prevPresetWaveMode,
-    };
     this.runner = new MilkPresetRunner({
-      baseValues: injectedBaseValues,
+      baseValues: frameNode.baseValues,
       initEel: frameNode.initCode, frameEel: frameNode.perFrame, pixelEel: warpNode.perPixel,
       waves: this.waveNodes.map((w) => {
         if (w.index === undefined) {
@@ -621,14 +620,17 @@ export class MilkPipeline {
       })),
     }, loadGlobals, this.rng);
     this.session.installRunner(this.runner);
-    // Construct one MilkShaderInstance per shader kind. projectM
-    // creates two `MilkdropShader` objects per preset (warp + comp);
-    // each draws its own `rand_preset` and persistent rotation state.
-    // PHOSPHENE draws from the session shader RNG so the streams are
-    // reproducible.
-    const warpInstance = new MilkShaderInstance("warp", this.session.shaderRng);
-    const compInstance = new MilkShaderInstance("comp", this.session.shaderRng);
-    this.session.installShaders(warpInstance, compInstance);
+    // MilkShaderInstance construction is deferred until the source
+    // runtime would actually instantiate the object. projectM only
+    // constructs a `MilkdropShader` when the preset declares a
+    // supported shader version AND (for warp) has non-empty shader
+    // code that parses. See docs/evidence/projectm/PerPixelMesh.cpp
+    // `LoadWarpShader` and docs/evidence/projectm/FinalComposite.cpp
+    // `LoadCompositeShader`. Since PHOSPHENE currently refuses every
+    // preset carrying a MilkDrop 2 warp or composite shader at load,
+    // no instance is constructed here — that keeps the session shader
+    // RNG stream aligned with projectM's process-wide `rand()` for
+    // shader-less presets, which consume no shader draws.
     this.regVars = {};
     this.oldWaveMode = 0;
 
@@ -931,24 +933,16 @@ export class MilkPipeline {
           frameGlobals = { ...data.globals, ...this.regVars };
           mdVSFrame = runner.runFrameEquations(frameGlobals);
           this.lastMdVSFrame = mdVSFrame;
-          // Build ONE full contract per shader kind, per projectM's
-          // per-`MilkdropShader::LoadVariables` invocation model. The
-          // two contracts share `mipX/Y/Avg` (derived from viewport)
-          // and `qBanks`/`aspect`/`texsize` (derived from mdVSFrame),
-          // but differ in `randPreset` (per-instance persistent) and
-          // `randFrame` (drawn fresh at each invocation from the
-          // session shader RNG).
-          const warpInstance = this.session.warpShader;
-          const compInstance = this.session.compShader;
-          if (!warpInstance || !compInstance) {
-            throw new Error("session shader instances missing after load");
-          }
-          this.lastWarpContract = buildShaderContract(
-            warpInstance, mdVSFrame, this.width, this.height, this.session,
-          );
-          this.lastCompContract = buildShaderContract(
-            compInstance, mdVSFrame, this.width, this.height, this.session,
-          );
+          // Shader contracts are NOT built here. projectM only invokes
+          // `MilkdropShader::LoadVariables` immediately before the
+          // corresponding source-defined shader draw — see
+          // docs/evidence/projectm/PerPixelMesh.cpp `WarpedBlit` (warp
+          // branch) and docs/evidence/projectm/FinalComposite.cpp
+          // `Draw` (composite branch). Since PHOSPHENE currently
+          // refuses every preset carrying a MilkDrop 2 shader at load,
+          // no contract is built and no shader RNG draws are consumed
+          // during the frame — matching projectM's behavior for the
+          // legacy shader-less path.
           break;
         }
         case "milk-warp": {
@@ -1772,11 +1766,18 @@ export function buildShaderContract(
     bass: mdVSFrame.bass ?? 0,
     mid: mdVSFrame.mid ?? 0,
     treb: mdVSFrame.treb ?? 0,
-    vol: ((mdVSFrame.bass ?? 0) + (mdVSFrame.mid ?? 0) + (mdVSFrame.treb ?? 0)) / 3,
+    // projectM's audio pipeline supplies `vol` and `volAtt` directly
+    // as `FrameAudioData` fields (see
+    // docs/evidence/projectm/FrameAudioData.hpp). PHOSPHENE has no
+    // upstream audio processing that emits `vol` yet, so the fallback
+    // formula uses projectM's canonical `* 0.333f` multiplier rather
+    // than `/3` — small rounding difference, but this matches the
+    // source constant when a preset shader reads `vol` from `_c3.w`.
+    vol: ((mdVSFrame.bass ?? 0) + (mdVSFrame.mid ?? 0) + (mdVSFrame.treb ?? 0)) * 0.333,
     bassAtt: mdVSFrame.bass_att ?? 1,
     midAtt: mdVSFrame.mid_att ?? 1,
     trebAtt: mdVSFrame.treb_att ?? 1,
-    volAtt: ((mdVSFrame.bass_att ?? 1) + (mdVSFrame.mid_att ?? 1) + (mdVSFrame.treb_att ?? 1)) / 3,
+    volAtt: ((mdVSFrame.bass_att ?? 1) + (mdVSFrame.mid_att ?? 1) + (mdVSFrame.treb_att ?? 1)) * 0.333,
     aspect: [aspectXY, aspectYX, 1 / aspectXY, 1 / aspectYX],
     texsize: [texsizeX, texsizeY, 1 / texsizeX, 1 / texsizeY],
     randPreset: [instance.randPreset[0], instance.randPreset[1],

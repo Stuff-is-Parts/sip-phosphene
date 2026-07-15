@@ -41,6 +41,21 @@ import { NOISE_TEX_SPECS, createNoiseTex, createNoiseVolTex } from "./milk-noise
 const NOISE_RNG_SEED = 0xA110CADD;
 const SHADER_RNG_SEED = 0xC0DEBEEF;
 
+/** Per-texture-name seed offsets so each noise texture gets an
+ *  independent generator per projectM's per-call
+ *  `std::default_random_engine` construction. Deriving from
+ *  `noiseRng` keeps PHOSPHENE deterministic while matching projectM's
+ *  invariant that generating one texture does not shift the stream
+ *  used to generate another. */
+const NOISE_NAME_SEEDS: Record<string, number> = {
+  noise_lq:      0x1111_1111,
+  noise_lq_lite: 0x2222_2222,
+  noise_mq:      0x3333_3333,
+  noise_hq:      0x4444_4444,
+  noisevol_lq:   0x5555_5555,
+  noisevol_hq:   0x6666_6666,
+};
+
 export class MilkSession {
   currentRunner: MilkPresetRunner | null = null;
   warpShader: MilkShaderInstance | null = null;
@@ -105,17 +120,28 @@ export class MilkSession {
   }
 
   /** Return the pixel data for one of the six shader-visible noise
-   *  textures, generating it lazily from `noiseRng` on first access.
-   *  Subsequent calls with the same spec return the cached data so
-   *  the noise stream is drawn once per session per texture. */
+   *  textures, generating it lazily on first access. Each texture
+   *  name gets its OWN fresh RNG derived from `noiseRng` plus a
+   *  per-name seed offset, so generating one texture does not
+   *  advance the stream used to generate another — matching
+   *  projectM's per-call `std::default_random_engine` construction
+   *  in docs/evidence/projectm/MilkdropNoise.cpp `generate2D` and
+   *  `generate3D`. */
   noiseFor(name: (typeof NOISE_TEX_SPECS)[number]["name"]): Uint8Array {
     const cached = this.noiseCache.get(name);
     if (cached) return cached;
     const spec = NOISE_TEX_SPECS.find((s) => s.name === name);
     if (!spec) throw new Error(`unknown noise texture: ${name}`);
+    const seedOffset = NOISE_NAME_SEEDS[name];
+    if (seedOffset === undefined) throw new Error(`no seed offset for noise: ${name}`);
+    // Fresh RNG per texture — derived from a single noiseRng draw
+    // XOR'd with a per-name seed offset so PHOSPHENE stays
+    // deterministic without sharing the stream across textures.
+    const namedSeed = (Math.floor(this.noiseRng.next() * 0x1_0000_0000) ^ seedOffset) >>> 0;
+    const freshRng = makeMulberry32(namedSeed);
     const data = spec.kind === "2d"
-      ? createNoiseTex(spec.size, spec.zoom, this.noiseRng)
-      : createNoiseVolTex(spec.size, spec.zoom, this.noiseRng);
+      ? createNoiseTex(spec.size, spec.zoom, freshRng)
+      : createNoiseVolTex(spec.size, spec.zoom, freshRng);
     this.noiseCache.set(name, data);
     return data;
   }
