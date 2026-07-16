@@ -117,6 +117,19 @@ export function globalGateControls(repoRoot, binPath) {
 function cloneFixture(repoRoot) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'verify-audit-fixture-'));
   execFileSync('git', ['clone', '--quiet', '--local', repoRoot, dir], { encoding: 'utf8' });
+  // Populate the fixture's node_modules from the parent by installing from
+  // the retained lockfiles. ESM ignores NODE_PATH, so node_modules must live
+  // where the fixture code will import from. Symlinks would be cheaper but
+  // require permissions the CI runner and Windows shell both restrict.
+  const shell = process.platform === 'win32';
+  for (const pkgRel of ['tooling/verification-kit', ...(existsSync(path.join(repoRoot, 'tooling', 'reference-adapters')) ? readdirSync(path.join(repoRoot, 'tooling', 'reference-adapters')).map((d) => `tooling/reference-adapters/${d}`) : [])]) {
+    const pkgAbs = path.join(dir, ...pkgRel.split('/'));
+    if (existsSync(path.join(pkgAbs, 'package-lock.json'))) {
+      try {
+        execFileSync('npm', ['ci', '--no-fund', '--no-audit', '--silent'], { cwd: pkgAbs, encoding: 'utf8', shell, stdio: ['ignore', 'pipe', 'pipe'] });
+      } catch { /* leave fixture partially installed; scenarios needing this package fail loudly */ }
+    }
+  }
   return dir;
 }
 
