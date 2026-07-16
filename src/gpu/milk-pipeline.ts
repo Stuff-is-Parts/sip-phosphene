@@ -31,6 +31,14 @@ import {
   MilkShaderInstance, floatRand, type Mat3x4,
 } from "./milk-shader-instance";
 import {
+  VIDEO_ECHO_WGSL, orthogonalProjection, computeEchoPositions,
+  computeShades, computeHueRandomOffsets, planEchoActiveDraws,
+  planEchoInactiveDraws, type EchoDraw,
+} from "./milk-video-echo";
+import {
+  UNTEXTURED_WGSL, FILTER_BLENDS, planFilterDraws, FILTER_VERTEX_COLOR,
+} from "./milk-filters";
+import {
   GraphScene, GraphNode, MilkWaveNode, MilkShapeNode,
   UnsupportedNodeError, unsupportedFeatures, validateGraph,
 } from "../core/graph";
@@ -189,7 +197,6 @@ export function getBlurValues(mdVSFrame: Pool): {
 
 
 const GRID_X = 48, GRID_Y = 36;   // witnessed oracle mesh (globalVars meshx/meshy)
-const COMP_W = 32, COMP_H = 24;   // witnessed comp grid (comp.js constructor)
 const MAX_SAMPLES = 512;
 
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
@@ -302,63 +309,6 @@ fn fmain(in : VOut) -> @location(0) vec4f {
   // witnessed branch).
   let texel = textureSample(tex, samp, in.uv) * in.col;
   return select(in.col, texel, in.textured != 0.0);
-}
-`;
-
-// Default composite (witnessed shaders/comp.js zero-shader path),
-// rendered as the 32x24 grid with interpolated hue colors.
-const COMP_WGSL = /* wgsl */ `
-struct U {
-  gammaAdj : f32, echo_zoom : f32, echo_alpha : f32, echo_orientation : f32,
-  invert : f32, brighten : f32, darken : f32, solarize : f32,
-  fShader : f32, pad0 : f32, pad1 : f32, pad2 : f32,
-};
-@group(0) @binding(0) var<uniform> u : U;
-@group(0) @binding(1) var samp : sampler;
-@group(0) @binding(2) var mainTex : texture_2d<f32>;
-struct VOut {
-  @builtin(position) pos : vec4f,
-  @location(0) vUv : vec2f,
-  @location(1) vColor : vec4f,
-};
-@vertex
-fn vmain(@location(0) aPos : vec2f, @location(1) aCompColor : vec4f) -> VOut {
-  var o : VOut;
-  // Final pass: NO y negation — offscreen passes store the GL-consistent
-  // (mirrored) image, and drawing it unmirrored here lands the oracle's
-  // screen orientation (verified: flipped output matched the oracle
-  // exactly across 300 feedback frames before this fix).
-  o.pos = vec4f(aPos, 0.0, 1.0);
-  o.vUv = aPos * vec2f(0.5) + vec2f(0.5);
-  o.vColor = aCompColor;
-  return o;
-}
-@fragment
-fn fmain(in : VOut) -> @location(0) vec4f {
-  // Composite samples from the pre-flipped flip2 intermediate produced
-  // by the explicit second y-flip pass, so no inline y-inversion here.
-  var uv = in.vUv;
-  let hue_shader = in.vColor.rgb;
-  let orient_horiz = uv.x * 0.0 + (u.echo_orientation - 2.0 * floor(u.echo_orientation / 2.0)); // mod(echo_orientation, 2)
-  var orient_x = 1.0;
-  if (orient_horiz != 0.0) { orient_x = -1.0; }
-  var orient_y = 1.0;
-  if (u.echo_orientation >= 2.0) { orient_y = -1.0; }
-  let uv_echo = ((uv - 0.5) * (1.0 / u.echo_zoom) * vec2f(orient_x, orient_y)) + 0.5;
-  var ret = mix(textureSample(mainTex, samp, uv).rgb,
-                textureSample(mainTex, samp, uv_echo).rgb,
-                u.echo_alpha);
-  ret = ret * u.gammaAdj;
-  if (u.fShader >= 1.0) {
-    ret = ret * hue_shader;
-  } else if (u.fShader > 0.001) {
-    ret = ret * ((1.0 - u.fShader) + (u.fShader * hue_shader));
-  }
-  if (u.brighten != 0.0) { ret = sqrt(ret); }
-  if (u.darken != 0.0) { ret = ret * ret; }
-  if (u.solarize != 0.0) { ret = ret * (1.0 - ret) * 4.0; }
-  if (u.invert != 0.0) { ret = 1.0 - ret; }
-  return vec4f(ret, in.vColor.a);
 }
 `;
 
@@ -535,7 +485,6 @@ export class MilkPipeline {
   private linePipelines!: Record<string, GPURenderPipeline>;
   private dotPipelines!: Record<string, GPURenderPipeline>;
   private shapePipelines!: Record<string, GPURenderPipeline>;
-  private compPipeline!: GPURenderPipeline;
   private flipPipeline!: GPURenderPipeline;
   private presentPipeline!: GPURenderPipeline;
 
@@ -572,16 +521,35 @@ export class MilkPipeline {
   private lineUni!: GPUBuffer;      // thick
   private lineUniNoThick!: GPUBuffer;
   private dotUnis: GPUBuffer[] = []; // by size 1..3
-  private compUni!: GPUBuffer;
+
+  // VideoEcho + Filters uniform buffer — carries the 4x4 orthogonal
+  // projection matrix once per frame. Shared by the textured (echo) and
+  // untextured (filter) pipelines.
+  private echoUni!: GPUBuffer;
+  // Fixed 4-vertex position buffer for the projectM triangle-strip. Its
+  // contents change per frame via handleResize + writeBuffer.
+  private echoPosBuf!: GPUBuffer;
+  // Per-draw dynamic data buffer holding UV + color for every planned
+  // VideoEcho and Filter draw in a frame. Sized on demand.
+  private echoDynBuf: GPUBuffer | null = null;
+
+  // VideoEcho pipelines — the two blend states projectM's textured echo
+  // draw cycles through.
+  private echoOverwritePipeline!: GPURenderPipeline;
+  private echoAdditivePipeline!: GPURenderPipeline;
+  // Filter pipelines keyed by blend state — one per unique blend factor
+  // pair projectM's four filters use.
+  private filterPipelines!: Map<string, GPURenderPipeline>;
+
+  // Persistent per-preset hueRandomOffsets seeded from the session
+  // shader RNG once per preset load. Drives the VideoEcho shade
+  // animation exactly as projectM's PresetState constructor does.
+  hueRandomOffsets: [number, number, number, number] = [0, 0, 0, 0];
 
   private warpPosBuf!: GPUBuffer;
   private warpUvBuf!: GPUBuffer;
   private warpColBuf!: GPUBuffer;
   private warpIdxBuf!: GPUBuffer;
-  private compPosBuf!: GPUBuffer;
-  private compColBuf!: GPUBuffer;
-  private compIdxBuf!: GPUBuffer;
-  private compIndexCount = 0;
 
   private canvasVertBuf: GPUBuffer | null = null;
 
@@ -710,6 +678,14 @@ export class MilkPipeline {
     this.regVars = {};
     this.oldWaveMode = 0;
 
+    // Seed the persistent per-preset hueRandomOffsets once per load,
+    // matching projectM's PresetState constructor
+    // (docs/evidence/projectm/PresetState.cpp) which draws four random
+    // values through a fresh std::mt19937 seeded from std::random_device.
+    // PHOSPHENE draws from the session shader RNG so tests can inject a
+    // deterministic seed via MilkSession(shaderRng, noiseRng).
+    this.hueRandomOffsets = computeHueRandomOffsets(this.session.shaderRng);
+
     this.initResources();
     return { errors: [...this.runner.errors] };
   }
@@ -781,33 +757,11 @@ export class MilkPipeline {
       size: this.warpUVs.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
 
-    // Comp grid (witnessed comp.js buildPositions 32x24).
-    const cx1 = COMP_W + 1, cy1 = COMP_H + 1;
-    const compPos = new Float32Array(cx1 * cy1 * 2);
-    vi = 0;
-    for (let iy = 0; iy < cy1; iy++) {
-      const y = (iy * (2 / COMP_H)) - 1;
-      for (let ix = 0; ix < cx1; ix++) {
-        const x = (ix * (2 / COMP_W)) - 1;
-        compPos[vi++] = x;
-        compPos[vi++] = -y;
-      }
-    }
-    const cIdx: number[] = [];
-    for (let iy = 0; iy < COMP_H; iy++) {
-      for (let ix = 0; ix < COMP_W; ix++) {
-        const a = ix + cx1 * iy;
-        const b = ix + cx1 * (iy + 1);
-        const c = ix + 1 + cx1 * (iy + 1);
-        const d = ix + 1 + cx1 * iy;
-        cIdx.push(a, b, d, b, c, d);
-      }
-    }
-    this.compIndexCount = cIdx.length;
-    this.compPosBuf = mkBuf(compPos, GPUBufferUsage.VERTEX);
-    this.compIdxBuf = mkBuf(new Uint16Array(cIdx), GPUBufferUsage.INDEX);
-    this.compColBuf = dev.createBuffer({
-      size: cx1 * cy1 * 4 * 4, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    // VideoEcho + Filters share one 4-vertex position buffer refilled
+    // per frame with the overscan + aspect positions from projectM's
+    // VideoEcho::Draw geometry.
+    this.echoPosBuf = dev.createBuffer({
+      size: 4 * 2 * 4, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
 
     // Uniform buffers.
@@ -824,7 +778,10 @@ export class MilkPipeline {
       dev.queue.writeBuffer(b, 0, new Float32Array([this.width, this.height, s, 0]));
       return b;
     });
-    this.compUni = uni(48);
+
+    // Video echo uniform: one 4x4 ortho projection matrix (64 bytes).
+    this.echoUni = uni(64);
+    dev.queue.writeBuffer(this.echoUni, 0, orthogonalProjection());
 
     /* pipelines */
     const blendOf = (mode: "alpha" | "additive" | "none"): GPUBlendState | undefined => {
@@ -925,26 +882,65 @@ export class MilkPipeline {
       });
     }
 
-    const compModule = module(COMP_WGSL);
-    this.compPipeline = dev.createRenderPipeline({
-      layout: "auto",
-      vertex: {
-        module: compModule, entryPoint: "vmain",
-        buffers: [
-          { arrayStride: 8, attributes: [{ shaderLocation: 0, offset: 0, format: "float32x2" }] },
-          { arrayStride: 16, attributes: [{ shaderLocation: 1, offset: 0, format: "float32x4" }] },
-        ],
-      },
-      fragment: {
-        // Composite now writes to the offscreen `prev` framebuffer in
-        // TARGET_FORMAT rather than directly to the presentation surface,
-        // per projectM's `finalComposite.Draw` writing into the previous
-        // framebuffer. Present is a separate copy pass.
-        module: compModule, entryPoint: "fmain",
-        targets: [{ format: TARGET_FORMAT, blend: blendOf("alpha") }],
-      },
-      primitive: { topology: "triangle-list" },
-    });
+    // VideoEcho textured pipelines — two blend states cover projectM's
+    // shaderless legacy composite. Vertex layout: pos (float32x2) at
+    // shaderLocation 0, color (float32x4) at 1, uv (float32x2) at 2.
+    const videoEchoModule = module(VIDEO_ECHO_WGSL);
+    const echoVertexLayout: GPUVertexBufferLayout[] = [
+      { arrayStride: 8, attributes: [{ shaderLocation: 0, offset: 0, format: "float32x2" }] },
+      // Interleaved (color + uv) buffer, 6 floats per vertex.
+      { arrayStride: 24, attributes: [
+        { shaderLocation: 1, offset: 0, format: "float32x4" },
+        { shaderLocation: 2, offset: 16, format: "float32x2" },
+      ] },
+    ];
+    const makeEchoPipeline = (src: GPUBlendFactor, dst: GPUBlendFactor): GPURenderPipeline =>
+      dev.createRenderPipeline({
+        layout: "auto",
+        vertex: { module: videoEchoModule, entryPoint: "vmain", buffers: echoVertexLayout },
+        fragment: {
+          module: videoEchoModule, entryPoint: "fmain",
+          targets: [{
+            format: TARGET_FORMAT,
+            blend: {
+              color: { srcFactor: src, dstFactor: dst, operation: "add" },
+              alpha: { srcFactor: src, dstFactor: dst, operation: "add" },
+            },
+          }],
+        },
+        primitive: { topology: "triangle-strip" },
+      });
+    this.echoOverwritePipeline = makeEchoPipeline("one", "zero");
+    this.echoAdditivePipeline = makeEchoPipeline("one", "one");
+
+    // Filter untextured pipelines — one per unique blend factor pair.
+    const untexturedModule = module(UNTEXTURED_WGSL);
+    const filterVertexLayout: GPUVertexBufferLayout[] = [
+      { arrayStride: 8, attributes: [{ shaderLocation: 0, offset: 0, format: "float32x2" }] },
+      { arrayStride: 24, attributes: [
+        { shaderLocation: 1, offset: 0, format: "float32x4" },
+      ] },
+    ];
+    const makeFilterPipeline = (src: GPUBlendFactor, dst: GPUBlendFactor): GPURenderPipeline =>
+      dev.createRenderPipeline({
+        layout: "auto",
+        vertex: { module: untexturedModule, entryPoint: "vmain", buffers: filterVertexLayout },
+        fragment: {
+          module: untexturedModule, entryPoint: "fmain",
+          targets: [{
+            format: TARGET_FORMAT,
+            blend: {
+              color: { srcFactor: src, dstFactor: dst, operation: "add" },
+              alpha: { srcFactor: src, dstFactor: dst, operation: "add" },
+            },
+          }],
+        },
+        primitive: { topology: "triangle-strip" },
+      });
+    this.filterPipelines = new Map();
+    for (const b of Object.values(FILTER_BLENDS)) {
+      this.filterPipelines.set(b.key, makeFilterPipeline(b.src, b.dst));
+    }
 
     const flipModule = module(FLIP_WGSL);
     this.flipPipeline = dev.createRenderPipeline({
@@ -1255,13 +1251,68 @@ export class MilkPipeline {
 
     // uniforms
     dev.queue.writeBuffer(this.warpUni, 0, new Float32Array([mdVSFrame.decay, 0, 0, 0]));
-    dev.queue.writeBuffer(this.compUni, 0, new Float32Array([
-      mdVSFrame.gammaadj, mdVSFrame.echo_zoom, mdVSFrame.echo_alpha, mdVSFrame.echo_orient,
-      mdVSFrame.invert, mdVSFrame.brighten, mdVSFrame.darken, mdVSFrame.solarize,
-      mdVSFrame.fshader, 0, 0, 0,
-    ]));
-    // comp hue colors (witnessed generateCompColors, non-blending alpha=1)
-    dev.queue.writeBuffer(this.compColBuf, 0, this.generateCompColors(mdVSFrame));
+
+    // Plan every VideoEcho + Filter draw for this frame from the
+    // post-per-frame projectM state, then pack the per-draw dynamic
+    // vertex data (UV + color per vertex) into echoDynBuf.
+    const echoTime = mdVSFrame.time ?? 0;
+    const echoAlpha = mdVSFrame.echo_alpha ?? 0;
+    const echoZoom = mdVSFrame.echo_zoom ?? 1;
+    const echoOrient = Math.floor(mdVSFrame.echo_orient ?? 0);
+    const gammaAdj = mdVSFrame.gammaadj ?? 1;
+    const shades = computeShades(echoTime, this.hueRandomOffsets);
+    const echoDraws: EchoDraw[] = echoAlpha > 0.001
+      ? planEchoActiveDraws(gammaAdj, echoAlpha, echoZoom, echoOrient, shades)
+      : planEchoInactiveDraws(gammaAdj, shades);
+    const filterDraws = planFilterDraws({
+      brighten: (mdVSFrame.brighten ?? 0) !== 0,
+      darken: (mdVSFrame.darken ?? 0) !== 0,
+      solarize: (mdVSFrame.solarize ?? 0) !== 0,
+      invert: (mdVSFrame.invert ?? 0) !== 0,
+    });
+    // Position buffer refresh once per frame (viewport + aspect
+    // overscan matches projectM's VideoEcho::Draw math).
+    const positions = computeEchoPositions(this.width, this.height, this.invAspecty);
+    const posData = new Float32Array(8);
+    for (let i = 0; i < 4; i++) {
+      posData[i * 2]     = positions[i][0];
+      posData[i * 2 + 1] = positions[i][1];
+    }
+    dev.queue.writeBuffer(this.echoPosBuf, 0, posData);
+
+    // Pack per-draw dynamic data. Each draw contributes 4 vertices, each
+    // vertex is (color4 + uv2) = 6 floats = 24 bytes. Total draws =
+    // echoDraws + filterDraws (filters use identity UV + white color).
+    const totalDraws = echoDraws.length + filterDraws.length;
+    const stride = 4 * 24; // 4 vertices * 24 bytes = 96 bytes per draw
+    const dynBytes = totalDraws * stride;
+    if (totalDraws > 0) {
+      if (!this.echoDynBuf || this.echoDynBuf.size < dynBytes) {
+        this.echoDynBuf?.destroy();
+        this.echoDynBuf = dev.createBuffer({
+          size: Math.max(stride, dynBytes * 2),
+          usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+        });
+      }
+      const dyn = new Float32Array(totalDraws * 24);
+      let off = 0;
+      for (const d of echoDraws) {
+        for (let v = 0; v < 4; v++) {
+          const c = d.colors[v];
+          const uv = d.uvs[v];
+          dyn[off++] = c[0]; dyn[off++] = c[1]; dyn[off++] = c[2]; dyn[off++] = c[3];
+          dyn[off++] = uv[0]; dyn[off++] = uv[1];
+        }
+      }
+      for (let i = 0; i < filterDraws.length; i++) {
+        for (let v = 0; v < 4; v++) {
+          dyn[off++] = FILTER_VERTEX_COLOR[0]; dyn[off++] = FILTER_VERTEX_COLOR[1];
+          dyn[off++] = FILTER_VERTEX_COLOR[2]; dyn[off++] = FILTER_VERTEX_COLOR[3];
+          dyn[off++] = 0; dyn[off++] = 0; // untextured pipeline ignores UV
+        }
+      }
+      dev.queue.writeBuffer(this.echoDynBuf, 0, dyn);
+    }
 
     // Reset the pass trace for this frame. `frame-equations` and
     // `pixel-equations` fired in the CPU dispatch loop above.
@@ -1435,21 +1486,30 @@ export class MilkPipeline {
       this.passTrace.push("flip-current");
     }
 
-    // Step 10: legacy composite writes into the dedicated composite
-    // intermediate per projectM `finalComposite.Draw`. Composite samples
-    // flip2 (the y-flipped current) via its binding-2 texture. Writing
-    // into compositeIntermediate rather than prev keeps the read and
-    // write textures distinct so the correction flip in Step 11 has a
-    // stable source to sample from.
-    {
-      const bg = dev.createBindGroup({
-        layout: this.compPipeline.getBindGroupLayout(0),
+    // Step 10: projectM shaderless legacy composite — VideoEcho (or
+    // gamma adjustment) draws first, then Filters draw in fixed order,
+    // all inside ONE render pass targeting compositeIntermediate. Blend
+    // state changes between draws via pipeline swaps; the render pass
+    // clears once at the start and each subsequent draw accumulates
+    // against the previous.
+    if (echoDraws.length > 0 || filterDraws.length > 0) {
+      const echoBg = dev.createBindGroup({
+        layout: this.echoOverwritePipeline.getBindGroupLayout(0),
         entries: [
-          { binding: 0, resource: { buffer: this.compUni } },
-          { binding: 1, resource: mainSamp },
+          { binding: 0, resource: { buffer: this.echoUni } },
+          { binding: 1, resource: this.sampClamp },
           { binding: 2, resource: this.flip2View },
         ],
       });
+      // Filter pipelines share layout across all four blend variants
+      // (auto-layout produces the same layout for identical WGSL).
+      const anyFilterPipeline = this.filterPipelines.values().next().value;
+      const filterBg = anyFilterPipeline
+        ? dev.createBindGroup({
+            layout: anyFilterPipeline.getBindGroupLayout(0),
+            entries: [{ binding: 0, resource: { buffer: this.echoUni } }],
+          })
+        : undefined;
       const pass = enc.beginRenderPass({
         colorAttachments: [{
           view: this.compositeIntermediateView,
@@ -1457,14 +1517,32 @@ export class MilkPipeline {
           clearValue: { r: 0, g: 0, b: 0, a: 1 },
         }],
       });
-      pass.setPipeline(this.compPipeline);
-      pass.setBindGroup(0, bg);
-      pass.setVertexBuffer(0, this.compPosBuf);
-      pass.setVertexBuffer(1, this.compColBuf);
-      pass.setIndexBuffer(this.compIdxBuf, "uint16");
-      pass.drawIndexed(this.compIndexCount);
+      pass.setVertexBuffer(0, this.echoPosBuf);
+      let dynOffset = 0;
+      for (const d of echoDraws) {
+        const pipeline = d.blend === "overwrite"
+          ? this.echoOverwritePipeline
+          : this.echoAdditivePipeline;
+        pass.setPipeline(pipeline);
+        pass.setBindGroup(0, echoBg);
+        pass.setVertexBuffer(1, this.echoDynBuf!, dynOffset);
+        pass.draw(4);
+        this.passTrace.push(d.label);
+        dynOffset += stride;
+      }
+      if (filterBg) {
+        for (const f of filterDraws) {
+          const p = this.filterPipelines.get(f.blend.key);
+          if (!p) continue;
+          pass.setPipeline(p);
+          pass.setBindGroup(0, filterBg);
+          pass.setVertexBuffer(1, this.echoDynBuf!, dynOffset);
+          pass.draw(4);
+          this.passTrace.push(f.label);
+          dynOffset += stride;
+        }
+      }
       pass.end();
-      this.passTrace.push("legacy-composite");
     }
 
     // Step 11: legacy correction flip. projectM applies this after the
@@ -1538,28 +1616,6 @@ export class MilkPipeline {
   }
 
   /* --------------------------- CPU generators --------------------------- */
-
-  /** Witnessed comp.js generateCompColors (non-blending: alpha 1). */
-  private generateCompColors(mdVSFrame: Pool): Float32Array<ArrayBuffer> {
-    const runner = this.runner!;
-    const hueBase = generateHueBase(mdVSFrame.time, runner.randStart);
-    const cx1 = COMP_W + 1, cy1 = COMP_H + 1;
-    const out = new Float32Array(cx1 * cy1 * 4);
-    let o = 0;
-    for (let j = 0; j < cy1; j++) {
-      for (let i = 0; i < cx1; i++) {
-        const x = i / COMP_W;
-        const y = j / COMP_H;
-        for (let c = 0; c < 3; c++) {
-          out[o + c] = hueBase[0 + c] * x * y + hueBase[3 + c] * (1 - x) * y +
-                       hueBase[6 + c] * x * (1 - y) + hueBase[9 + c] * (1 - x) * (1 - y);
-        }
-        out[o + 3] = 1;
-        o += 4;
-      }
-    }
-    return out;
-  }
 
   /** Witnessed motionVectors.js generate + draw (LINES, alpha blend). */
   private buildMotionVectors(
@@ -2197,27 +2253,6 @@ export function buildShaderContract(
     rotUltraFast: [persistent[16], persistent[17], persistent[18], persistent[19]],
     rotPerFrame:  [perFrame[0],    perFrame[1],    perFrame[2],    perFrame[3]],
   };
-}
-
-/** Witnessed comp.js generateHueBase — four RGB triples derived from
- *  four rand_start-seeded time oscillators plus a max-shade normalize.
- *  Exported so direct semantic tests can pin the math without needing a
- *  MilkPipeline instance. Source: butterchurn's shaders/comp.js
- *  generateHueBase; time argument is mdVSFrame.time, randStart is the
- *  4-element array the runner constructs from its seeded RNG (matching
- *  butterchurn equations_presetEquationRunner.js:88). */
-export function generateHueBase(time: number, randStart: readonly number[]): Float32Array {
-  const hueBase = new Float32Array(12).fill(1);
-  for (let i = 0; i < 4; i++) {
-    hueBase[i * 3 + 0] = 0.6 + 0.3 * Math.sin(time * 30.0 * 0.0143 + 3 + i * 21 + randStart[3]);
-    hueBase[i * 3 + 1] = 0.6 + 0.3 * Math.sin(time * 30.0 * 0.0107 + 1 + i * 13 + randStart[1]);
-    hueBase[i * 3 + 2] = 0.6 + 0.3 * Math.sin(time * 30.0 * 0.0129 + 6 + i * 9 + randStart[2]);
-    const maxshade = Math.max(hueBase[i * 3], hueBase[i * 3 + 1], hueBase[i * 3 + 2]);
-    for (let k = 0; k < 3; k++) {
-      hueBase[i * 3 + k] = 0.5 + 0.5 * (hueBase[i * 3 + k] / maxshade);
-    }
-  }
-  return hueBase;
 }
 
 /** Witnessed waveUtils.smoothWaveAndColor: -0.15/1.15 spline midpoints;
