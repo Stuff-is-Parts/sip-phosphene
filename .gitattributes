@@ -1,0 +1,10 @@
+# Raw authority artifacts are byte-exact by definition (framework spec §7.2).
+# Git must never convert their line endings or otherwise touch their bytes;
+# the LF->CRLF autocrlf conversion on checkout is exactly the corruption that
+# produced non-verbatim "verbatim" evidence in the failed prior attempt
+# (WITNESSED-FAILURE-MODES.md #6).
+verification/authorities/raw/** -text
+
+# Everything else: LF in every working copy so hashes and locks are
+# deterministic across Windows and Linux checkouts.
+* text=auto eol=lf
