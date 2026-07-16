@@ -16,6 +16,66 @@ env:
   KIT: tooling/verification-kit
 
 jobs:
+  framework-bootstrap-conformance:
+    # §7.10A: the independent bootstrap-conformance judgment must come from
+    # an authenticated authority outside the correlated producer. This job
+    # verifies the retained record; it stays FAIL until that authority exists.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs framework-bootstrap-conformance
+        working-directory: ${{ env.KIT }}
+
+  framework-conformance-suite-integrity:
+    # §7.10B: runs the governed canonical scenarios through public boundaries
+    # and verifies suite governance (manifest hash, unauthorized changes).
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - name: install reference adapters
+        run: for d in tooling/reference-adapters/*/; do if [ -f "$d/package.json" ]; then (cd "$d" && npm ci --no-fund --no-audit); fi; done
+      - run: node bin/verify.mjs framework-conformance-suite
+        working-directory: ${{ env.KIT }}
+
+  semantic-acceptance-integrity:
+    # §14.5: rejects mandatory fields implemented only through correlated proxies.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - name: install reference adapters
+        run: for d in tooling/reference-adapters/*/; do if [ -f "$d/package.json" ]; then (cd "$d" && npm ci --no-fund --no-audit); fi; done
+      - run: node bin/verify.mjs semantic-acceptance
+        working-directory: ${{ env.KIT }}
+
+  authorization-lineage-integrity:
+    # §7.10: verifies reviewed-revision ancestry and unchanged protected
+    # artifacts for every retained attestation. Never live authentication.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs authorization-lineage
+        working-directory: ${{ env.KIT }}
+
   framework-self-test:
     runs-on: ubuntu-latest
     env:

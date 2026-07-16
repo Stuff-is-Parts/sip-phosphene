@@ -92,8 +92,7 @@ function finish(repoRoot, command, payload, extra = {}) {
   const reportPath = writeReport({ repoRoot, tree }, command, { ...payload, ...extra });
   const failures = payload.failures ?? [];
   process.stdout.write(`${command}: ${payload.result}\n`);
-  for (const f of failures.slice(0, 50)) process.stdout.write(`  ${f.code}: ${f.detail}\n`);
-  if (failures.length > 50) process.stdout.write(`  … ${failures.length - 50} more failures (see report)\n`);
+  for (const f of failures) process.stdout.write(`  ${f.code}: ${f.detail}\n`);
   process.stdout.write(`report: ${reportPath}\n`);
   return payload.result === 'PASS' ? 0 : 1;
 }

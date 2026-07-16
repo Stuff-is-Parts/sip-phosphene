@@ -3,8 +3,8 @@
   "frameworkSpecificationHash": "sha256:dfab47cbe3e9aed4dc8bb2cb9d3212b36303984e196452ffa70deb131883f275",
   "frameworkImplementation": {
     "repositoryIdentity": "Stuff-is-Parts/sip-phosphene",
-    "reviewedCommit": "970c2256e871dc90554555c583ccf1c547f9fdbf",
-    "reviewedTreeHash": "8f06ae3778ad1f4aac9b4b9083011f5f4e2d2690",
+    "reviewedCommit": "6650c4d26b5e28abb78deb1898d0a11eaab0764a",
+    "reviewedTreeHash": "93db36b8738bb223f44d43177419926906ef1dab",
     "trustBearingArtifactHashes": [
       {
         "path": "tooling/verification-kit/bin/verify.mjs",
@@ -12,7 +12,7 @@
       },
       {
         "path": "tooling/verification-kit/src/cli/main.mjs",
-        "sha256": "64faa6b71ed0a17a735eb9e6452efc3fcfc2a2df3eac0c8d186c381e17087ee3"
+        "sha256": "8de0c721e8134e9852df67416057747e84768c731c6fd746ac8db18e84636487"
       },
       {
         "path": "tooling/verification-kit/src/core/adapters.mjs",
@@ -40,7 +40,7 @@
       },
       {
         "path": "tooling/verification-kit/src/core/controls.mjs",
-        "sha256": "fe60385819e241b3768fb9361a74dbf8c3db7634433d791e4a38f8ab822fe639"
+        "sha256": "32afb3e1afcf70960257f3cb445b135d4cf73ba78afe808bf8a6e44fb746238b"
       },
       {
         "path": "tooling/verification-kit/src/core/engine-util.mjs",

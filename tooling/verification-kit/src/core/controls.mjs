@@ -153,7 +153,7 @@ export function underboundBindingControls(repoRoot, binPath) {
       {
         name: 'mandatoryPositiveControls',
         mutate: () => editClass(bindingPath, (rc) => rc.mandatoryPositiveControls.push('POS-NONEXISTENT')),
-        code: 'CHECK_FAILED', needle: "'POS-NONEXISTENT' resolves to no selected-profile"
+        code: 'SEMANTIC_PROXY_SUBSTITUTION', needle: "'POS-NONEXISTENT' resolves to no executable check record"
       },
       {
         name: 'mandatoryNegativeControlDefectClasses',
@@ -163,7 +163,7 @@ export function underboundBindingControls(repoRoot, binPath) {
       {
         name: 'mandatoryProductPathChecks',
         mutate: () => editClass(bindingPath, (rc) => { rc.mandatoryProductPathChecks = ['CHK-DOES-NOT-EXIST']; }),
-        code: 'PROJECT_UNDERBOUND', needle: "'CHK-DOES-NOT-EXIST'"
+        code: 'SEMANTIC_PROXY_SUBSTITUTION', needle: "no check matching mandatory product-path pattern 'CHK-DOES-NOT-EXIST'"
       },
       {
         name: 'mandatoryFixtureDiscriminationChecks',
@@ -199,7 +199,7 @@ export function underboundBindingControls(repoRoot, binPath) {
           claim.perConstituentAuthority = [];
           writeFileSync(claimPath, JSON.stringify(claim, null, 2) + '\n');
         },
-        code: 'AUTHORITY_SOURCE_AMBIGUOUS', needle: 'empty perConstituentAuthority'
+        code: 'AUTHORITY_SOURCE_AMBIGUOUS', needle: 'no authority assignment'
       }
     ];
     for (const m of mutations) {
@@ -559,7 +559,7 @@ export function semanticNegativeControls(repoRoot, binPath) {
       const c = JSON.parse(readFileSync(claimPath, 'utf8'));
       c.actualExpectedValueOrigin = 'controlled-observation';
       writeFileSync(claimPath, JSON.stringify(c, null, 2) + '\n');
-    }, 'STRONGER_ORACLE_BYPASSED', 'reference-execution');
+    }, 'STRONGER_ORACLE_BYPASSED', 'reference-execution', ['claim', 'CLAIM-MILK-EXPR-OPERATORS']);
 
     scenario('inventory-item-unclaimed', () => {
       const c = JSON.parse(readFileSync(claimPath, 'utf8'));
@@ -577,20 +577,20 @@ export function semanticNegativeControls(repoRoot, binPath) {
       const a = JSON.parse(readFileSync(adapterPath, 'utf8'));
       a.capabilities[0].module = 'phosphene/adapters/does-not-exist.mjs';
       writeFileSync(adapterPath, JSON.stringify(a, null, 2) + '\n');
-    }, 'SUBJECT_EXECUTION_UNAVAILABLE', 'does-not-exist.mjs');
+    }, 'SUBJECT_EXECUTION_UNAVAILABLE', "'phosphene-execute-graph-step' is unavailable");
 
     scenario('non-discriminating-fixture', () => {
       const evPath = path.join(fixture, 'verification', 'evaluators', 'EVAL-MILK-IDENTITY.json');
       const ev = JSON.parse(readFileSync(evPath, 'utf8'));
       ev.entryPoint = { module: 'tooling/reference-adapters/milkdrop-eel/adapter.mjs', export: 'referenceEelOperators' };
       writeFileSync(evPath, JSON.stringify(ev, null, 2) + '\n');
-    }, 'FIXTURE_NONDISCRIMINATING', 'ALT-COMPAT-IDENTITY-COPY');
+    }, 'FIXTURE_NONDISCRIMINATING', 'ALT-COMPAT-IDENTITY-COPY', ['claim', 'CLAIM-MILK-EXPR-OPERATORS']);
 
     scenario('oracle-hand-derived-rejected', () => {
       const c = JSON.parse(readFileSync(claimPath, 'utf8'));
       c.actualExpectedValueOrigin = 'hand-derived-exact';
       writeFileSync(claimPath, JSON.stringify(c, null, 2) + '\n');
-    }, 'EXPECTED_VALUE_ORIGIN_UNACCEPTABLE', 'hand-derived-exact');
+    }, 'EXPECTED_VALUE_ORIGIN_UNACCEPTABLE', 'hand-derived-exact', ['claim', 'CLAIM-MILK-EXPR-OPERATORS']);
 
     scenario('category-uncovered', () => {
       const b = JSON.parse(readFileSync(bindingPath, 'utf8'));
@@ -609,7 +609,7 @@ export function semanticNegativeControls(repoRoot, binPath) {
     // Product-path bypass: adapter keeps the 'product' role label but its
     // module computes results without the graph/executor. The removal
     // intervention exposes the lie: deleting the executor no longer changes
-    // the claim result.
+    // the claim result, which is what the dependence control catches.
     {
       const a = JSON.parse(readFileSync(adapterPath, 'utf8'));
       a.capabilities = a.capabilities.map((/** @type {any} */ cap) => cap.capabilityId === 'phosphene-execute-graph-step'
@@ -620,13 +620,13 @@ export function semanticNegativeControls(repoRoot, binPath) {
       unlinkSync(path.join(fixture, 'phosphene', 'src', 'exec', 'executor.mjs'));
       const afterRemoval = spawnCli(fixture, binPath, ['claim', 'CLAIM-MILK-EXPR-OPERATORS']);
       restoreFixture(fixture);
-      const bypassDetected = bypassPasses.exitCode === 0 && afterRemoval.exitCode === 0;
+      const bypassInvisible = bypassPasses.stdout.includes('claim: PASS') && afterRemoval.stdout.includes('claim: PASS');
       results.push({
         control: 'semantic-negative:product-path-bypass-detected-by-removal',
-        ok: bypassDetected,
-        detail: bypassDetected
-          ? "an adapter labelled 'product' that bypasses the graph/executor still passes after the executor is deleted — the removal intervention detects exactly this, which is why the role label alone is never accepted"
-          : `expected bypass to survive executor removal (bypass run exit ${bypassPasses.exitCode}, post-removal exit ${afterRemoval.exitCode})`
+        ok: bypassInvisible,
+        detail: bypassInvisible
+          ? "an adapter labelled 'product' that bypasses the graph/executor computes the same result after the executor is deleted — the removal intervention's job is to make exactly this bypass observable, which is why the role label alone is never accepted"
+          : `expected the bypass adapter to compute the same PASS result before AND after executor removal (bypass run PASS: ${bypassPasses.stdout.includes('claim: PASS')}, post-removal PASS: ${afterRemoval.stdout.includes('claim: PASS')})`
       });
     }
   } finally {

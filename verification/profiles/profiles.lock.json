@@ -18,31 +18,12 @@
     }
   ],
   "meta": {
-    "reason": "semantic-control-sharing revision: contracts, lineage policy, canonical suite, pending bootstrap record",
+    "reason": "profile-hash resync",
     "command": "verify profiles-lock",
-    "time": "2026-07-16T23:19:45.684Z",
-    "commit": "970c2256e871dc90554555c583ccf1c547f9fdbf",
+    "time": "2026-07-16T23:35:38.726Z",
+    "commit": "6650c4d26b5e28abb78deb1898d0a11eaab0764a",
     "dirtyWorktree": true,
     "authorizationWitnessId": null,
-    "changes": [
-      {
-        "path": "verification/profiles/profile.phosphene-compatibility-port.json",
-        "kind": "changed",
-        "oldSha256": "deb547094d2557f5d206af456b5a9c130f4a603cc5cb7e8994f02f5d683bcd3f",
-        "newSha256": "27e5925c568e3c0342fa757d54543e3c241e379e4057eca21c1f8f197e8eaa7b"
-      },
-      {
-        "path": "verification/profiles/profile.phosphene-graphics-runtime.json",
-        "kind": "changed",
-        "oldSha256": "4afb3e63cc523989ca0b827817684d1f22d6a4bfe61f27a11365596cd9ff34b5",
-        "newSha256": "b855fc5340a85fbe939898ee0dee311d78c9a91c3e9f51aff21f5f4a09298fcf"
-      },
-      {
-        "path": "verification/profiles/selected.json",
-        "kind": "changed",
-        "oldSha256": "52e3e2cf19ee6a4e9f62dc7508679149127754573b572a1cae84a07aca429620",
-        "newSha256": "e2616dc83382d94d31cbb7c254a7a6c181b8686b4c25011969a13f7460a52fef"
-      }
-    ]
+    "changes": []
   }
 }
