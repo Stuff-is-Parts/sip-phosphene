@@ -18,6 +18,8 @@ env:
 jobs:
   framework-self-test:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -181,6 +183,8 @@ jobs:
 
   clean-environment:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -197,6 +201,8 @@ jobs:
     # required status check, and must never substitute for `verify` when
     # completion itself is required.
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -241,6 +247,8 @@ jobs:
     # completion-report (§25.2), but its result is real, not decorative.
     runs-on: ubuntu-latest
     continue-on-error: true
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
