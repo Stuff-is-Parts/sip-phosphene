@@ -1,0 +1,46 @@
+{
+  "evidenceId": "EV-SELFTEST-CRC32-EXPECTED",
+  "evidenceClass": "reference-execution",
+  "frameworkOnly": true,
+  "requirementIds": [
+    "REQ-SELFTEST-CRC32"
+  ],
+  "claimIds": [
+    "CLAIM-SELFTEST-CRC32"
+  ],
+  "authorityIds": [
+    "AUTH-NODE-ZLIB",
+    "AUTH-RFC1952"
+  ],
+  "rawAuthorityArtifactIds": [
+    "AUTH-RFC1952"
+  ],
+  "sourceLocations": [
+    "node:zlib crc32 (node v24.18.0)",
+    "verification/authorities/raw/rfc1952.txt §8.1.1.6.2 (CRC-32 definition)"
+  ],
+  "perConstituentAuthority": [
+    {
+      "constituent": "results[*] expected CRC-32 values",
+      "authorityId": "AUTH-NODE-ZLIB"
+    },
+    {
+      "constituent": "CRC-32 algorithm definition",
+      "authorityId": "AUTH-RFC1952"
+    }
+  ],
+  "fact": "The expected CRC-32 value for each fixture operation, computed by the independent node:zlib implementation over the operation's chunks in declared order with fresh state per operation.",
+  "procedure": "Invoke reference adapter capability 'reference-crc-operations' (ADP-SELFTEST-REFERENCE) on the fixture input; retain its JSON output as the expected artifact.",
+  "expectedResultArtifact": "verification/fixtures/expected/FIX-SELFTEST-CRC32.expected.json",
+  "comparatorId": "CMP-EXACT-JSON",
+  "toolVersion": "node v24.18.0 (node:zlib)",
+  "reproductionCommand": "node tooling/verification-kit/bin/verify.mjs capture-oracle EV-SELFTEST-CRC32-EXPECTED",
+  "oraclePrecedencePolicyId": "ORACLE-POLICY-SELFTEST",
+  "strongerOraclesConsidered": [],
+  "contentHash": "sha256:0865ed19897e91da13eb4bfca7d34d8370f66842d74a21ccd25111ac6b60af7c",
+  "captureSpec": {
+    "adapterId": "ADP-SELFTEST-REFERENCE",
+    "capabilityId": "reference-crc-operations",
+    "inputArtifact": "verification/fixtures/inputs/FIX-SELFTEST-CRC32.input.json"
+  }
+}

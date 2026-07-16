@@ -1,0 +1,42 @@
+{
+  "$id": "witness.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "witnessId", "authorizationType", "decision", "affectedIds",
+    "authorizingIdentity", "verificationMethod", "timestamp"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "witnessId": { "type": "string", "minLength": 1 },
+    "authorizationType": {
+      "type": "string",
+      "enum": [
+        "scope-approval", "scope-change", "scope-exclusion",
+        "interpretive-judgment", "regression-authorization",
+        "binding-adoption", "binding-adequacy", "allowlist-change", "other-reserved-action"
+      ]
+    },
+    "decision": { "type": "string", "minLength": 1 },
+    "affectedIds": { "type": "array", "items": { "type": "string" } },
+    "authorizingIdentity": { "type": "string", "minLength": 1 },
+    "verificationMethod": {
+      "type": "string",
+      "enum": ["github-approval", "github-repository-administration", "cryptographic-signature", "host-enforced-mechanism"]
+    },
+    "hostMetadata": { "type": "object", "additionalProperties": true },
+    "timestamp": { "type": "string" },
+    "retainedVerificationResult": { "type": "string" },
+    "adequacyCriteriaExplicitlyJudged": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Required for binding-adequacy witnesses: each load-bearing surface the authority explicitly judged."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "authorizationType": { "const": "binding-adequacy" } } },
+      "then": { "required": ["adequacyCriteriaExplicitlyJudged"] }
+    }
+  ]
+}

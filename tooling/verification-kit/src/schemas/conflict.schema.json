@@ -1,0 +1,32 @@
+{
+  "$id": "conflict.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "conflictId", "requirementIds", "claimIds", "conflictingAuthorityIds",
+    "sourceLocations", "incompatibleConclusions", "authorityOrdering", "status"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "conflictId": { "type": "string", "minLength": 1 },
+    "requirementIds": { "type": "array", "items": { "type": "string" } },
+    "claimIds": { "type": "array", "items": { "type": "string" } },
+    "conflictingAuthorityIds": { "type": "array", "minItems": 2, "items": { "type": "string" } },
+    "sourceLocations": { "type": "array", "items": { "type": "string" } },
+    "incompatibleConclusions": { "type": "array", "minItems": 2, "items": { "type": "string" } },
+    "authorityOrdering": { "type": "string" },
+    "status": { "type": "string", "enum": ["unresolved", "resolved"] },
+    "resolutionEvidenceIds": { "type": "array", "items": { "type": "string" } },
+    "selectedConclusion": { "type": "string" },
+    "affectedFixtureIds": { "type": "array", "items": { "type": "string" } },
+    "affectedComparatorIds": { "type": "array", "items": { "type": "string" } },
+    "affectedCheckIds": { "type": "array", "items": { "type": "string" } },
+    "unresolvedReason": { "type": "string" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "resolved" } } },
+      "then": { "required": ["resolutionEvidenceIds", "selectedConclusion"] }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "$id": "project-config.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["projectName", "repositoryIdentity", "kitPath"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "projectName": { "type": "string", "minLength": 1 },
+    "repositoryIdentity": { "type": "string", "minLength": 1 },
+    "kitPath": { "type": "string", "minLength": 1 },
+    "hostLanguages": { "type": "array", "items": { "type": "string" } },
+    "notes": { "type": "string" }
+  }
+}

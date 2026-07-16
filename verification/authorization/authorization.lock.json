@@ -1,0 +1,37 @@
+{
+  "lockId": "lock.authorization",
+  "covers": [
+    {
+      "path": "verification/authorization/authorized-identities.json",
+      "sha256": "43679bcfa31ab1bcb2882463739175cd923439891fe13e4c94ff09c8bd7bafb9",
+      "bytes": 23
+    },
+    {
+      "path": "verification/authorization/bootstrap-record.json",
+      "sha256": "e34d3f64880c7d652ec405d145df7f64abe8d50a81ef6f5869fc0665c4115af5",
+      "bytes": 677
+    }
+  ],
+  "meta": {
+    "reason": "initial lock: framework self-test vertical path",
+    "command": "verify authorization-lock",
+    "time": "2026-07-16T21:09:48.304Z",
+    "commit": "4e8bf98e15e097449a35fbb734a62a75588de00c",
+    "dirtyWorktree": true,
+    "authorizationWitnessId": null,
+    "changes": [
+      {
+        "path": "verification/authorization/authorized-identities.json",
+        "kind": "added",
+        "oldSha256": null,
+        "newSha256": "43679bcfa31ab1bcb2882463739175cd923439891fe13e4c94ff09c8bd7bafb9"
+      },
+      {
+        "path": "verification/authorization/bootstrap-record.json",
+        "kind": "added",
+        "oldSha256": null,
+        "newSha256": "e34d3f64880c7d652ec405d145df7f64abe8d50a81ef6f5869fc0665c4115af5"
+      }
+    ]
+  }
+}

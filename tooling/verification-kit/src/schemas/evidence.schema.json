@@ -1,0 +1,71 @@
+{
+  "$id": "evidence.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "evidenceId", "evidenceClass", "requirementIds", "claimIds", "authorityIds",
+    "sourceLocations", "perConstituentAuthority", "fact", "procedure",
+    "toolVersion", "reproductionCommand", "oraclePrecedencePolicyId",
+    "strongerOraclesConsidered", "contentHash"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "evidenceId": { "type": "string", "minLength": 1 },
+    "evidenceClass": {
+      "type": "string",
+      "enum": ["reference-execution", "mechanical-extraction", "formal-derivation", "controlled-observation", "hand-derived-exact", "derived-evidence"]
+    },
+    "frameworkOnly": { "type": "boolean" },
+    "requirementIds": { "type": "array", "items": { "type": "string" } },
+    "claimIds": { "type": "array", "items": { "type": "string" } },
+    "authorityIds": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "rawAuthorityArtifactIds": { "type": "array", "items": { "type": "string" } },
+    "sourceLocations": { "type": "array", "items": { "type": "string" } },
+    "perConstituentAuthority": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["constituent", "authorityId"],
+        "properties": {
+          "constituent": { "type": "string" },
+          "authorityId": { "type": "string" },
+          "conflictId": { "type": "string" }
+        }
+      }
+    },
+    "fact": { "type": "string", "minLength": 1 },
+    "procedure": { "type": "string", "minLength": 1 },
+    "derivedArtifactPath": { "type": "string" },
+    "expectedResultArtifact": { "type": "string" },
+    "comparatorId": { "type": "string" },
+    "toolVersion": { "type": "string" },
+    "reproductionCommand": { "type": "string", "minLength": 1 },
+    "oraclePrecedencePolicyId": { "type": "string" },
+    "strongerOraclesConsidered": { "type": "array", "items": { "type": "string" } },
+    "unavailabilityEvidenceForBypassedClasses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["bypassedOracleClass", "evidence"],
+        "properties": {
+          "bypassedOracleClass": { "type": "string" },
+          "evidence": { "type": "string" }
+        }
+      }
+    },
+    "contentHash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "captureSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapterId", "capabilityId", "inputArtifact"],
+      "description": "Executable reproduction of this evidence: the reference/extraction capability and input that regenerate the expected-result artifact via 'verify capture-oracle'.",
+      "properties": {
+        "adapterId": { "type": "string" },
+        "capabilityId": { "type": "string" },
+        "inputArtifact": { "type": "string" }
+      }
+    }
+  }
+}

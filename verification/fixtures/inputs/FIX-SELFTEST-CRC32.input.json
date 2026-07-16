@@ -1,0 +1,13 @@
+{
+  "operations": [
+    {
+      "chunksBase64": ["VGhlIHF1aWNrIGJyb3duIGZveCA=", "anVtcHMgb3ZlciB0aGUgbGF6eSBkb2c="]
+    },
+    {
+      "chunksBase64": ["anVtcHMgb3ZlciB0aGUgbGF6eSBkb2c=", "VGhlIHF1aWNrIGJyb3duIGZveCA="]
+    },
+    {
+      "chunksBase64": ["UEhPU1BIRU5F"]
+    }
+  ]
+}

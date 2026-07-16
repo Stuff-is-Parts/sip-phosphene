@@ -1,0 +1,22 @@
+{
+  "$id": "selected-profiles.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["selected"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "selected": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId", "path", "hash"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "path": { "type": "string", "description": "Repo-relative path to the profile record." },
+          "hash": { "type": "string" }
+        }
+      }
+    }
+  }
+}

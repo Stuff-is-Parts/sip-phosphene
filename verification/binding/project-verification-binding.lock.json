@@ -1,0 +1,26 @@
+{
+  "lockId": "lock.binding",
+  "covers": [
+    {
+      "path": "verification/binding/project-verification-binding.json",
+      "sha256": "c6abeb388a67fc77c5291acc3197333d16c6e83268baa1476ccc708f9ebf9b60",
+      "bytes": 19013
+    }
+  ],
+  "meta": {
+    "reason": "propose PHOSPHENE project binding from verbatim user-authored oracle and inventory policies; adoption and adequacy witnesses pending user authorization",
+    "command": "verify binding-lock",
+    "time": "2026-07-16T21:16:36.156Z",
+    "commit": "4e8bf98e15e097449a35fbb734a62a75588de00c",
+    "dirtyWorktree": true,
+    "authorizationWitnessId": null,
+    "changes": [
+      {
+        "path": "verification/binding/project-verification-binding.json",
+        "kind": "added",
+        "oldSha256": null,
+        "newSha256": "c6abeb388a67fc77c5291acc3197333d16c6e83268baa1476ccc708f9ebf9b60"
+      }
+    ]
+  }
+}

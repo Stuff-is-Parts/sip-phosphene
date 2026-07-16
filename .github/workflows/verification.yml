@@ -1,0 +1,220 @@
+# Verification framework CI — framework spec §25.
+# Integrity jobs establish that a change preserves the verification system; they
+# do not claim the project is complete. The completion-report job publishes the
+# real global verify result and is never a merge-blocking health claim (§25.2).
+# Job names are load-bearing: branch protection references them exactly
+# (see .github/BRANCH-PROTECTION.md).
+
+name: verification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  KIT: tooling/verification-kit
+
+jobs:
+  framework-self-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - run: npx tsc -p tsconfig.json
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs framework
+        working-directory: ${{ env.KIT }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: framework-report
+          path: verification/reports/
+
+  scope-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs scope
+        working-directory: ${{ env.KIT }}
+
+  authorization-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs authorization
+        working-directory: ${{ env.KIT }}
+
+  authorization-attestation-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs authorization-attestations
+        working-directory: ${{ env.KIT }}
+
+  profile-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs profiles
+        working-directory: ${{ env.KIT }}
+
+  project-binding-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs project-binding
+        working-directory: ${{ env.KIT }}
+
+  authority-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs authorities
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs conflicts
+        working-directory: ${{ env.KIT }}
+
+  evidence-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs evidence
+        working-directory: ${{ env.KIT }}
+
+  oracle-precedence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs oracles
+        working-directory: ${{ env.KIT }}
+
+  inventory-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs inventory-coverage
+        working-directory: ${{ env.KIT }}
+
+  behavioral-verification:
+    # Runs the strongest binding-required oracles, actual subject paths, and
+    # comparators for every registered claim (directive: behavioral jobs).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs claims
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs requirements
+        working-directory: ${{ env.KIT }}
+
+  provider-health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs providers
+        working-directory: ${{ env.KIT }}
+
+  change-integrity:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs change-integrity --base origin/${{ github.base_ref }} --head HEAD
+        working-directory: ${{ env.KIT }}
+
+  clean-environment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs clean
+        working-directory: ${{ env.KIT }}
+
+  completion-report:
+    # §25.2: publishes the ACTUAL global PASS or FAIL. Success of this job means
+    # only that the report was generated. It is not a health claim, is never a
+    # required status check, and must never substitute for `verify` when
+    # completion itself is required.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - name: run global verify and publish its real result
+        run: |
+          set +e
+          node "$KIT/bin/verify.mjs" | tee global-verify-output.txt
+          code=$?
+          if [ $code -eq 0 ]; then result=PASS; else result=FAIL; fi
+          {
+            echo "## Global verification result: **$result**"
+            echo ""
+            echo '```'
+            cat global-verify-output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Global verify: $result (exit $code) — this job succeeds because the report was generated, not because the project passed."
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: completion-report
+          path: verification/reports/

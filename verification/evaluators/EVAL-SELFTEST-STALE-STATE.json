@@ -1,0 +1,22 @@
+{
+  "evaluatorId": "EVAL-SELFTEST-STALE-STATE",
+  "alternativeId": "ALT-SELFTEST-STALE-STATE",
+  "defectClass": "stale-state-reuse",
+  "statefulness": "stateful",
+  "applicableClasses": ["requirement-class.framework-self-test"],
+  "entryPoint": {
+    "module": "tooling/verification-kit/src/self-test/evaluators/stale-state.mjs",
+    "export": "staleStateReuse"
+  },
+  "inputPreconditions": "at least two operations so state leakage across the lifecycle boundary is observable",
+  "expectedDivergence": "results[1]",
+  "grounding": {
+    "type": "witnessed-failure",
+    "reference": "WITNESSED-FAILURE-MODES.md #4 — claiming implementation for structure: 'isFirstFrame resets on resize' while no reset code existed; state carried across a lifecycle boundary that the source resets"
+  },
+  "negativeControlSignature": {
+    "expectedFailureCode": "CHECK_FAILED",
+    "expectedFirstDivergence": "results[1]",
+    "intendedCheckId": "CHK-SELFTEST-CRC32-EXEC"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "comparatorId": "CMP-EXACT-JSON",
+  "rule": "Deep exact equality over JSON values; first divergence reported as a document-order path (framework spec §7.8: exact equality is the default).",
+  "dataType": "json",
+  "equalityMode": "exact",
+  "failureReporting": "first divergence path plus expected and actual values at that path"
+}

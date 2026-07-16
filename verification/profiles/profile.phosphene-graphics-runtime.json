@@ -1,0 +1,273 @@
+{
+  "profileId": "profile.phosphene-graphics-runtime",
+  "name": "PHOSPHENE graphics runtime — render pipeline behavior reproduction",
+  "version": "0.1.0",
+  "hash": "sha256:646bbe50b3f926619e2bde2aa2e15badd0421a29cf87a55597c84520f8c98a2b",
+  "technicalDomainOrProductForm": "graphics/runtime verification for a WebGPU-class native renderer reproducing source-defined pass order, render state, framebuffer lifecycles, and shader behavior per PHOSPHENE-GOAL.md Exactness Standard",
+  "categoriesSupplied": [
+    "render-pass-order",
+    "render-state",
+    "framebuffer-lifecycle",
+    "texture-sampling",
+    "shader-translation"
+  ],
+  "providersSuppliedOrRequired": [
+    {
+      "providerId": "PROVIDER-SHADER-COMPILER",
+      "mode": "required",
+      "versionConstraint": "a real target-language shader implementation (e.g. naga/tint); PHOSPHENE-GOAL.md Validation Rule: generated shaders compile through a real implementation, never a model-authored simulator"
+    }
+  ],
+  "adapterCapabilitiesSuppliedOrRequired": [
+    {
+      "capabilityId": "phosphene-execute-render-pass",
+      "mode": "required"
+    },
+    {
+      "capabilityId": "phosphene-inspect-framebuffer",
+      "mode": "required"
+    },
+    {
+      "capabilityId": "phosphene-inspect-pipeline-state",
+      "mode": "required"
+    },
+    {
+      "capabilityId": "reference-render-capture",
+      "mode": "required"
+    }
+  ],
+  "positiveControls": [
+    {
+      "controlId": "POS-GFX-VERTICAL-PATH",
+      "categoryId": "render-pass-order",
+      "expectedResult": "PASS"
+    }
+  ],
+  "negativeControlDefectClasses": [
+    {
+      "defectClassId": "NEG-GFX-FLIP-COPY",
+      "categoryId": "framebuffer-lifecycle",
+      "expectedFailureCode": "CHECK_FAILED",
+      "expectedFirstDivergence": "per-claim declared divergence path"
+    },
+    {
+      "defectClassId": "NEG-GFX-PASS-REORDER",
+      "categoryId": "render-pass-order",
+      "expectedFailureCode": "CHECK_FAILED",
+      "expectedFirstDivergence": "per-claim declared divergence path"
+    },
+    {
+      "defectClassId": "NEG-GFX-STALE-FRAMEBUFFER",
+      "categoryId": "framebuffer-lifecycle",
+      "expectedFailureCode": "CHECK_FAILED",
+      "expectedFirstDivergence": "per-claim declared divergence path"
+    }
+  ],
+  "ciJobs": [
+    "behavioral-verification"
+  ],
+  "applicabilityPredicates": [
+    "requirement.verificationCategories intersects the categories this profile supplies"
+  ],
+  "limitations": [
+    "This profile supplies requirements and defect catalogs, not implementations: no PHOSPHENE render adapter, framebuffer instrumentation, or shader-compiler provider exists yet; every claim in these categories fails until they are built.",
+    "Rendered similarity is neither a target nor proof: comparisons are per-stage state, resource, and value comparisons, never SSIM or screenshots (PHOSPHENE-GOAL.md Validation Rule)."
+  ],
+  "evidenceClassRules": [
+    {
+      "ruleId": "EVIDENCE-CLASS-RULE-GFX",
+      "rawAuthorityMustRemainByteExact": true,
+      "derivedEvidenceMustReferenceSource": true,
+      "perConstituentAuthorityIdentityRequired": true
+    }
+  ],
+  "discriminatingFixtureRequirements": [
+    {
+      "categoryId": "framebuffer-lifecycle",
+      "requiredAlternativeClasses": [
+        "ALT-GFX-FLIP-COPY",
+        "ALT-GFX-STALE-FRAMEBUFFER"
+      ],
+      "requiredDiscriminationCheckId": "per-claim discrimination check",
+      "requiredAlternativeEvaluatorIds": [
+        "per-claim registered evaluators covering the required alternative classes"
+      ],
+      "effectiveSetRule": "union-with-claim-and-project-binding"
+    },
+    {
+      "categoryId": "render-pass-order",
+      "requiredAlternativeClasses": [
+        "ALT-GFX-PASS-REORDER",
+        "ALT-GFX-PASS-OMISSION"
+      ],
+      "requiredDiscriminationCheckId": "per-claim discrimination check",
+      "requiredAlternativeEvaluatorIds": [
+        "per-claim registered evaluators covering the required alternative classes"
+      ],
+      "effectiveSetRule": "union-with-claim-and-project-binding"
+    }
+  ],
+  "equivalenceClaimRules": [
+    {
+      "categoryId": "shader-translation",
+      "proofRequired": true,
+      "completeApplicableDomainRequired": true
+    },
+    {
+      "categoryId": "render-pass-order",
+      "proofRequired": true,
+      "completeApplicableDomainRequired": true
+    }
+  ],
+  "runtimeEffectControls": [
+    {
+      "categoryId": "framebuffer-lifecycle",
+      "controlId": "RUNTIME-EFFECT-GFX-FRAMEBUFFER",
+      "actualProductPathRequired": true,
+      "controlledInterventionOrTraceRequired": true
+    }
+  ],
+  "plausibleAlternativeCatalog": [
+    {
+      "alternativeId": "ALT-GFX-FLIP-COPY",
+      "defectClass": "flip-copy-confusion",
+      "statefulness": "stateless",
+      "applicableCategoryIds": [
+        "framebuffer-lifecycle",
+        "texture-sampling"
+      ],
+      "grounding": {
+        "type": "authority-or-witnessed-failure",
+        "reference": "WITNESSED-FAILURE-MODES.md #1 — the archetype: a flip pass that was algebraically a copy survived commit, push, and completion report"
+      }
+    },
+    {
+      "alternativeId": "ALT-GFX-PASS-REORDER",
+      "defectClass": "render-pass-reordering",
+      "statefulness": "stateful",
+      "applicableCategoryIds": [
+        "render-pass-order",
+        "framebuffer-lifecycle"
+      ],
+      "grounding": {
+        "type": "authority-or-witnessed-failure",
+        "reference": "PHOSPHENE-GOAL.md Exactness Standard (execution and pass order) + witnessed projectM RenderFrame ordering defects in the failed port (motion vectors before warp, swap after composite)"
+      }
+    },
+    {
+      "alternativeId": "ALT-GFX-PASS-OMISSION",
+      "defectClass": "render-pass-omission",
+      "statefulness": "stateless",
+      "applicableCategoryIds": [
+        "render-pass-order"
+      ],
+      "grounding": {
+        "type": "authority-or-witnessed-failure",
+        "reference": "WITNESSED-FAILURE-MODES.md #2 — the legacy correction flip pass omitted under an equivalence argument whose premise was the broken flip math"
+      }
+    },
+    {
+      "alternativeId": "ALT-GFX-BLEND-SUBSTITUTION",
+      "defectClass": "blend-state-substitution",
+      "statefulness": "stateless",
+      "applicableCategoryIds": [
+        "render-state"
+      ],
+      "grounding": {
+        "type": "authority-or-witnessed-failure",
+        "reference": "PHOSPHENE-GOAL.md Exactness Standard (blend, depth, raster, and other render state) + witnessed VideoEcho blend-transition defects in the failed port"
+      }
+    },
+    {
+      "alternativeId": "ALT-GFX-STALE-FRAMEBUFFER",
+      "defectClass": "stale-framebuffer-content-reuse",
+      "statefulness": "stateful",
+      "applicableCategoryIds": [
+        "framebuffer-lifecycle"
+      ],
+      "grounding": {
+        "type": "authority-or-witnessed-failure",
+        "reference": "WITNESSED-FAILURE-MODES.md #4 — structure claimed as implementation around framebuffer swap/reset lifecycles; feedback pipelines make stale-target reuse a first-class defect"
+      }
+    },
+    {
+      "alternativeId": "ALT-GFX-SAMPLER-WRONG-DEFAULT",
+      "defectClass": "sampler-or-wrap-mode-wrong-default",
+      "statefulness": "stateless",
+      "applicableCategoryIds": [
+        "texture-sampling"
+      ],
+      "grounding": {
+        "type": "authority-or-witnessed-failure",
+        "reference": "PHOSPHENE-GOAL.md Exactness Standard (textures, sampling) — sampler defaults differ across source engines and silently change sampling behavior"
+      }
+    }
+  ],
+  "alternativeEvaluators": [
+    {
+      "evaluatorId": "EVAL-GFX-REQUIRED-PER-CLAIM",
+      "alternativeId": "ALT-GFX-FLIP-COPY",
+      "providerOrImplementation": "required — repository-specific evaluator registered per claim; this profile mandates the defect classes, the binding mandates the evaluator registrations",
+      "expectedDivergence": "per-claim declared divergence path",
+      "negativeControlId": "NEG-GFX-FLIP-COPY"
+    }
+  ],
+  "divergenceClassificationRules": [
+    {
+      "categoryId": "shader-translation",
+      "representationLevelRequiresUnchangedAlgorithmStateOrderAndPath": true,
+      "representationLevelRequiresEvidenceOfCauseAndMagnitude": true,
+      "behavioralOrPathChangeRequiresEquivalenceClaim": true
+    },
+    {
+      "categoryId": "framebuffer-lifecycle",
+      "representationLevelRequiresUnchangedAlgorithmStateOrderAndPath": true,
+      "representationLevelRequiresEvidenceOfCauseAndMagnitude": true,
+      "behavioralOrPathChangeRequiresEquivalenceClaim": true
+    }
+  ],
+  "oraclePrecedenceRules": [
+    {
+      "policyId": "ORACLE-POLICY-GFX",
+      "categoryId": "framebuffer-lifecycle",
+      "orderedOracleClassesStrongestFirst": [
+        "reference-execution",
+        "mechanical-extraction",
+        "formal-derivation",
+        "controlled-observation"
+      ],
+      "requiredProviderOrCapabilityByClass": {
+        "reference-execution": [
+          "reference-render-capture"
+        ],
+        "mechanical-extraction": [
+          "reference-render-capture"
+        ]
+      },
+      "strongestAvailableRequired": true,
+      "bypassRequiresIndependentUnavailabilityEvidence": true,
+      "optionalOracleClasses": {
+        "hand-derived-exact": {
+          "defaultPermission": "forbidden-unless-explicitly-authorized",
+          "requiresApplicabilityRule": true,
+          "requiresAuthoritativePremisesAndReproducibleProcedure": true,
+          "requiresStrongerOracleUnavailabilityEvidence": true
+        }
+      }
+    }
+  ],
+  "inventoryCoverageRules": [
+    {
+      "categoryId": "render-pass-order",
+      "inventoryProcedureId": "per-binding inventory procedures (INV-MILK-*, INV-P9-*)",
+      "stableInventoryIdsRequired": true,
+      "everyItemRequiresClaimFixtureAndExecutableCheck": true,
+      "claimAggregationMayNotReducePerItemCoverage": true
+    }
+  ],
+  "customMechanismSelfTestRules": {
+    "publicCommandOrProcessBoundaryRequired": true,
+    "internalDecisionLogicMayNotBeImportedOrDuplicated": true,
+    "observableFailureSignatureRequired": true
+  }
+}

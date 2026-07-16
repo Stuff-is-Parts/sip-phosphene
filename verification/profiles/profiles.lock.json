@@ -1,0 +1,48 @@
+{
+  "lockId": "lock.profiles",
+  "covers": [
+    {
+      "path": "verification/profiles/profile.phosphene-compatibility-port.json",
+      "sha256": "deb547094d2557f5d206af456b5a9c130f4a603cc5cb7e8994f02f5d683bcd3f",
+      "bytes": 10986
+    },
+    {
+      "path": "verification/profiles/profile.phosphene-graphics-runtime.json",
+      "sha256": "4afb3e63cc523989ca0b827817684d1f22d6a4bfe61f27a11365596cd9ff34b5",
+      "bytes": 10068
+    },
+    {
+      "path": "verification/profiles/selected.json",
+      "sha256": "52e3e2cf19ee6a4e9f62dc7508679149127754573b572a1cae84a07aca429620",
+      "bytes": 501
+    }
+  ],
+  "meta": {
+    "reason": "select PHOSPHENE compatibility-port and graphics-runtime profiles v0.1.0",
+    "command": "verify profiles-lock",
+    "time": "2026-07-16T21:16:36.001Z",
+    "commit": "4e8bf98e15e097449a35fbb734a62a75588de00c",
+    "dirtyWorktree": true,
+    "authorizationWitnessId": null,
+    "changes": [
+      {
+        "path": "verification/profiles/profile.phosphene-compatibility-port.json",
+        "kind": "added",
+        "oldSha256": null,
+        "newSha256": "deb547094d2557f5d206af456b5a9c130f4a603cc5cb7e8994f02f5d683bcd3f"
+      },
+      {
+        "path": "verification/profiles/profile.phosphene-graphics-runtime.json",
+        "kind": "added",
+        "oldSha256": null,
+        "newSha256": "4afb3e63cc523989ca0b827817684d1f22d6a4bfe61f27a11365596cd9ff34b5"
+      },
+      {
+        "path": "verification/profiles/selected.json",
+        "kind": "changed",
+        "oldSha256": "f5cfefec9804a5ff044891dd95e3198ab47aeb979125aaa6fc4b24c1b795e1cb",
+        "newSha256": "52e3e2cf19ee6a4e9f62dc7508679149127754573b572a1cae84a07aca429620"
+      }
+    ]
+  }
+}

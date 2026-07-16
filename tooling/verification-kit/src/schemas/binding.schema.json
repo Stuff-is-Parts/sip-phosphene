@@ -1,0 +1,224 @@
+{
+  "$id": "binding.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "bindingId", "repository", "approvedScopeHash", "governingSpecifications",
+    "selectedProfiles", "requirementClasses", "repositorySpecificRules",
+    "bindingAuthorization"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "bindingId": { "type": "string", "minLength": 1 },
+    "userAuthoredOraclePolicyText": {
+      "type": "string",
+      "description": "Verbatim user-authored oracle-precedence policy text. Upstream authority; never paraphrased."
+    },
+    "userAuthoredInventoryPolicyText": {
+      "type": "string",
+      "description": "Verbatim user-authored inventory policy text. Upstream authority; never paraphrased."
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repositoryId", "canonicalRemote"],
+      "properties": {
+        "repositoryId": { "type": "string" },
+        "canonicalRemote": { "type": "string" }
+      }
+    },
+    "approvedScopeHash": { "type": "string" },
+    "governingSpecifications": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["specificationId", "pathOrLocator", "versionOrHash"],
+        "properties": {
+          "specificationId": { "type": "string" },
+          "pathOrLocator": { "type": "string" },
+          "versionOrHash": { "type": "string" }
+        }
+      }
+    },
+    "selectedProfiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId", "version", "hash"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "version": { "type": "string" },
+          "hash": { "type": "string" }
+        }
+      }
+    },
+    "requirementClasses": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "requirementClassId", "description", "match",
+          "mandatoryVerificationCategories", "mandatoryAdapterCapabilities",
+          "mandatoryProviders", "mandatoryPositiveControls",
+          "mandatoryNegativeControlDefectClasses", "mandatoryProductPathChecks",
+          "requiredInventoryProcedures", "mandatoryEvidenceClasses",
+          "evidenceClassSemantics", "authorityIdentityRule",
+          "mandatoryFixtureDiscriminationChecks", "equivalenceClaimPolicy",
+          "mandatoryRuntimeEffectChecks", "mandatoryPlausibleAlternativeClasses",
+          "mandatoryAlternativeEvaluatorIds", "mandatoryStatefulAlternativeClasses",
+          "divergenceClassificationPolicy", "oraclePrecedencePolicy",
+          "inventoryCoveragePolicy"
+        ],
+        "properties": {
+          "requirementClassId": { "type": "string" },
+          "description": { "type": "string" },
+          "match": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["requirementIdPatterns", "governingSpecificationRefs"],
+            "properties": {
+              "requirementIdPatterns": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+              "governingSpecificationRefs": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "mandatoryVerificationCategories": { "type": "array", "items": { "type": "string" } },
+          "mandatoryAdapterCapabilities": { "type": "array", "items": { "type": "string" } },
+          "mandatoryProviders": { "type": "array", "items": { "type": "string" } },
+          "mandatoryPositiveControls": { "type": "array", "items": { "type": "string" } },
+          "mandatoryNegativeControlDefectClasses": { "type": "array", "items": { "type": "string" } },
+          "mandatoryProductPathChecks": { "type": "array", "items": { "type": "string" } },
+          "requiredInventoryProcedures": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["procedureId", "source", "commandOrProvider", "expectedOutput", "stableInventoryIdField", "outputHashRequired"],
+              "properties": {
+                "procedureId": { "type": "string" },
+                "source": { "type": "string" },
+                "commandOrProvider": { "type": "string" },
+                "expectedOutput": { "type": "string" },
+                "stableInventoryIdField": { "type": "string", "const": "inventoryItemId" },
+                "outputHashRequired": { "type": "boolean", "const": true }
+              }
+            }
+          },
+          "mandatoryEvidenceClasses": { "type": "array", "items": { "type": "string" } },
+          "evidenceClassSemantics": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["mandatoryEvidenceClassesGovern", "expectedValueOriginGovernedExclusivelyBy", "artifactPresenceDoesNotAuthorizeExpectedValueOrigin"],
+            "properties": {
+              "mandatoryEvidenceClassesGovern": { "type": "string", "const": "required retained evidence artifacts" },
+              "expectedValueOriginGovernedExclusivelyBy": { "type": "string", "const": "oraclePrecedencePolicy" },
+              "artifactPresenceDoesNotAuthorizeExpectedValueOrigin": { "type": "boolean", "const": true }
+            }
+          },
+          "authorityIdentityRule": { "type": "string", "const": "per-expected-constituent" },
+          "mandatoryFixtureDiscriminationChecks": { "type": "array", "items": { "type": "string" } },
+          "equivalenceClaimPolicy": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["allowed", "proofRequired", "completeApplicableDomainRequired", "authorizedExclusionsOnly"],
+            "properties": {
+              "allowed": { "type": "boolean" },
+              "proofRequired": { "type": "boolean", "const": true },
+              "completeApplicableDomainRequired": { "type": "boolean", "const": true },
+              "authorizedExclusionsOnly": { "type": "boolean", "const": true }
+            }
+          },
+          "mandatoryRuntimeEffectChecks": { "type": "array", "items": { "type": "string" } },
+          "mandatoryPlausibleAlternativeClasses": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["alternativeId", "defectClass", "statefulness"],
+              "properties": {
+                "alternativeId": { "type": "string" },
+                "defectClass": { "type": "string" },
+                "statefulness": { "type": "string", "enum": ["stateless", "stateful"] }
+              }
+            }
+          },
+          "mandatoryAlternativeEvaluatorIds": { "type": "array", "items": { "type": "string" } },
+          "mandatoryStatefulAlternativeClasses": { "type": "array", "items": { "type": "string" } },
+          "divergenceClassificationPolicy": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["representationLevelRequiresEvidence", "behavioralOrPathChangeRequiresEquivalenceClaim", "observedPlatformDifferenceAloneIsInsufficient"],
+            "properties": {
+              "representationLevelRequiresEvidence": { "type": "boolean", "const": true },
+              "behavioralOrPathChangeRequiresEquivalenceClaim": { "type": "boolean", "const": true },
+              "observedPlatformDifferenceAloneIsInsufficient": { "type": "boolean", "const": true }
+            }
+          },
+          "oraclePrecedencePolicy": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["policyId", "orderedOracleClassesStrongestFirst", "strongestAvailableRequired", "everyBypassedStrongerClassRequiresUnavailabilityEvidence", "producerConvenienceIsNotUnavailability"],
+            "properties": {
+              "policyId": { "type": "string" },
+              "orderedOracleClassesStrongestFirst": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string", "enum": ["reference-execution", "mechanical-extraction", "formal-derivation", "controlled-observation"] }
+              },
+              "requiredProviderOrCapabilityByClass": {
+                "type": "object",
+                "additionalProperties": { "type": "array", "items": { "type": "string" } }
+              },
+              "strongestAvailableRequired": { "type": "boolean", "const": true },
+              "everyBypassedStrongerClassRequiresUnavailabilityEvidence": { "type": "boolean", "const": true },
+              "producerConvenienceIsNotUnavailability": { "type": "boolean", "const": true },
+              "optionalOracleClasses": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["defaultPermission"],
+                  "properties": {
+                    "defaultPermission": { "type": "string", "const": "forbidden-unless-explicitly-authorized" },
+                    "requiresApplicabilityRule": { "type": "boolean" },
+                    "requiresAuthoritativePremisesAndReproducibleProcedure": { "type": "boolean" },
+                    "requiresStrongerOracleUnavailabilityEvidence": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "inventoryCoveragePolicy": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["everyInventoryItemRequiresClaimMapping", "everyInventoryItemRequiresFixtureMapping", "everyInventoryItemRequiresExecutableCheckMapping", "claimAggregationMayNotReduceOracleFixtureAlternativeOrExecutionSurface", "mechanicallyEnumerableSourcesMustBeExtracted", "residualCompletenessRequiresAuthenticatedWitness"],
+            "properties": {
+              "everyInventoryItemRequiresClaimMapping": { "type": "boolean", "const": true },
+              "everyInventoryItemRequiresFixtureMapping": { "type": "boolean", "const": true },
+              "everyInventoryItemRequiresExecutableCheckMapping": { "type": "boolean", "const": true },
+              "claimAggregationMayNotReduceOracleFixtureAlternativeOrExecutionSurface": { "type": "boolean", "const": true },
+              "mechanicallyEnumerableSourcesMustBeExtracted": { "type": "boolean", "const": true },
+              "residualCompletenessRequiresAuthenticatedWitness": { "type": "boolean", "const": true }
+            }
+          }
+        }
+      }
+    },
+    "repositorySpecificRules": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+    "bindingAuthorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adoptionOrChangeWitnessId", "adequacyWitnessId", "sameWitnessMayServeBothOnlyWhenDecisionExplicitlyCoversAdequacy", "adequacyCriteriaExplicitlyJudged"],
+      "properties": {
+        "adoptionOrChangeWitnessId": { "type": ["string", "null"], "description": "null while the binding is a proposal awaiting authenticated adoption." },
+        "adequacyWitnessId": { "type": ["string", "null"], "description": "null while the binding lacks an authenticated adequacy judgment. null produces BINDING_ADEQUACY_UNWITNESSED." },
+        "sameWitnessMayServeBothOnlyWhenDecisionExplicitlyCoversAdequacy": { "type": "boolean", "const": true },
+        "adequacyCriteriaExplicitlyJudged": { "type": "array", "minItems": 10, "items": { "type": "string" } }
+      }
+    }
+  }
+}

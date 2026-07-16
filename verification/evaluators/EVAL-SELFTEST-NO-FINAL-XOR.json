@@ -1,0 +1,22 @@
+{
+  "evaluatorId": "EVAL-SELFTEST-NO-FINAL-XOR",
+  "alternativeId": "ALT-SELFTEST-NO-FINAL-XOR",
+  "defectClass": "omitted-finalization",
+  "statefulness": "stateless",
+  "applicableClasses": ["requirement-class.framework-self-test"],
+  "entryPoint": {
+    "module": "tooling/verification-kit/src/self-test/evaluators/no-final-xor.mjs",
+    "export": "noFinalXor"
+  },
+  "inputPreconditions": "any non-empty operation list",
+  "expectedDivergence": "results[0]",
+  "grounding": {
+    "type": "authority",
+    "reference": "RFC 1952 §8.1.1.6.2 (verification/authorities/raw/rfc1952.txt): the CRC-32 value requires pre- and post-conditioning by inversion; omitting the final inversion is the canonical omission defect for this algorithm"
+  },
+  "negativeControlSignature": {
+    "expectedFailureCode": "CHECK_FAILED",
+    "expectedFirstDivergence": "results[0]",
+    "intendedCheckId": "CHK-SELFTEST-CRC32-EXEC"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "lockId": "lock.fixtures",
+  "covers": [
+    {
+      "path": "verification/fixtures/expected/FIX-SELFTEST-CRC32.expected.json",
+      "sha256": "0865ed19897e91da13eb4bfca7d34d8370f66842d74a21ccd25111ac6b60af7c",
+      "bytes": 69
+    },
+    {
+      "path": "verification/fixtures/inputs/FIX-SELFTEST-CRC32.input.json",
+      "sha256": "dd29c3f28fe0ce82b96f46d8fe815f02f98892cda1257aa87152bf6c5984d5fa",
+      "bytes": 285
+    },
+    {
+      "path": "verification/fixtures/records/FIX-SELFTEST-CRC32.json",
+      "sha256": "5c9308e714f0b1daf3b2d2379e7b59bc10731ec65ecbcbb3f407fe2a381db334",
+      "bytes": 1695
+    }
+  ],
+  "meta": {
+    "reason": "initial lock: framework self-test vertical path",
+    "command": "verify fixtures-lock",
+    "time": "2026-07-16T21:09:49.010Z",
+    "commit": "4e8bf98e15e097449a35fbb734a62a75588de00c",
+    "dirtyWorktree": true,
+    "authorizationWitnessId": null,
+    "changes": [
+      {
+        "path": "verification/fixtures/expected/FIX-SELFTEST-CRC32.expected.json",
+        "kind": "added",
+        "oldSha256": null,
+        "newSha256": "0865ed19897e91da13eb4bfca7d34d8370f66842d74a21ccd25111ac6b60af7c"
+      },
+      {
+        "path": "verification/fixtures/inputs/FIX-SELFTEST-CRC32.input.json",
+        "kind": "added",
+        "oldSha256": null,
+        "newSha256": "dd29c3f28fe0ce82b96f46d8fe815f02f98892cda1257aa87152bf6c5984d5fa"
+      },
+      {
+        "path": "verification/fixtures/records/FIX-SELFTEST-CRC32.json",
+        "kind": "added",
+        "oldSha256": null,
+        "newSha256": "5c9308e714f0b1daf3b2d2379e7b59bc10731ec65ecbcbb3f407fe2a381db334"
+      }
+    ]
+  }
+}

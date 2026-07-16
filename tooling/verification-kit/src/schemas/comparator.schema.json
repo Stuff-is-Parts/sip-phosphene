@@ -1,0 +1,28 @@
+{
+  "$id": "comparator.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["comparatorId", "rule", "dataType", "equalityMode", "failureReporting"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "comparatorId": { "type": "string", "minLength": 1 },
+    "rule": { "type": "string", "minLength": 1 },
+    "dataType": { "type": "string" },
+    "units": { "type": "string" },
+    "equalityMode": { "type": "string", "enum": ["exact", "toleranced"] },
+    "tolerance": { "type": "number", "exclusiveMinimum": 0 },
+    "toleranceJustification": {
+      "type": "string",
+      "description": "The specific demonstrated numerical or representation path justifying the tolerance. Required when equalityMode is toleranced."
+    },
+    "environmentProfiles": { "type": "array", "items": { "type": "string" } },
+    "evidenceRefs": { "type": "array", "items": { "type": "string" } },
+    "failureReporting": { "type": "string", "minLength": 1 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "equalityMode": { "const": "toleranced" } } },
+      "then": { "required": ["tolerance", "toleranceJustification", "evidenceRefs"] }
+    }
+  ]
+}

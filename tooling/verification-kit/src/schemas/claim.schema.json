@@ -1,0 +1,97 @@
+{
+  "$id": "claim.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "claimId", "requirementIds", "kind", "assertion", "subjectOperation",
+    "expectedResultRefs", "perConstituentAuthority", "authorityIds",
+    "evidenceIds", "fixtureIds", "comparatorIds", "checkIds",
+    "adapterCapabilities", "providerIds", "implementationPaths",
+    "inventoryItemIds", "oraclePrecedencePolicyId", "actualExpectedValueOrigin",
+    "plausibleAlternatives", "verificationCategories"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "claimId": { "type": "string", "minLength": 1 },
+    "requirementIds": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "kind": { "type": "string", "enum": ["behavior", "equivalence", "runtime-effect"] },
+    "assertion": { "type": "string", "minLength": 1 },
+    "subjectOperation": { "type": "string", "minLength": 1 },
+    "productPathEntryPoint": { "type": "string" },
+    "expectedResultRefs": { "type": "array", "items": { "type": "string" } },
+    "perConstituentAuthority": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["constituent", "authorityId"],
+        "properties": {
+          "constituent": { "type": "string" },
+          "authorityId": { "type": "string" },
+          "conflictId": { "type": "string" }
+        }
+      }
+    },
+    "authorityIds": { "type": "array", "items": { "type": "string" } },
+    "conflictIds": { "type": "array", "items": { "type": "string" } },
+    "evidenceIds": { "type": "array", "items": { "type": "string" } },
+    "fixtureIds": { "type": "array", "items": { "type": "string" } },
+    "comparatorIds": { "type": "array", "items": { "type": "string" } },
+    "checkIds": { "type": "array", "items": { "type": "string" } },
+    "adapterCapabilities": { "type": "array", "items": { "type": "string" } },
+    "providerIds": { "type": "array", "items": { "type": "string" } },
+    "implementationPaths": { "type": "array", "items": { "type": "string" } },
+    "inventoryItemIds": { "type": "array", "items": { "type": "string" } },
+    "oraclePrecedencePolicyId": { "type": "string", "minLength": 1 },
+    "actualExpectedValueOrigin": {
+      "type": "string",
+      "enum": ["reference-execution", "mechanical-extraction", "formal-derivation", "controlled-observation", "hand-derived-exact"]
+    },
+    "oracleUnavailabilityEvidenceIds": { "type": "array", "items": { "type": "string" } },
+    "plausibleAlternatives": {
+      "type": "array",
+      "description": "Claim-declared ADDITIONS to the effective alternative union. Never narrows profile or binding requirements.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["alternativeId", "defectClass", "statefulness"],
+        "properties": {
+          "alternativeId": { "type": "string" },
+          "defectClass": { "type": "string" },
+          "statefulness": { "type": "string", "enum": ["stateless", "stateful"] }
+        }
+      }
+    },
+    "verificationCategories": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "equivalence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pathA", "pathB", "applicableInputDomain", "proofKind", "proofRef"],
+      "properties": {
+        "pathA": { "type": "string" },
+        "pathB": { "type": "string" },
+        "applicableInputDomain": { "type": "string" },
+        "proofKind": { "type": "string", "enum": ["authority-derived-proof", "complete-domain-differential"] },
+        "proofRef": { "type": "string" },
+        "excludedDomain": { "type": "string" },
+        "excludedDomainAuthorizationWitnessId": { "type": "string" }
+      }
+    },
+    "runtimeEffect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["structureUnderTest", "productPathEntryPoint", "observedEffect", "interventionKind", "interventionRef"],
+      "properties": {
+        "structureUnderTest": { "type": "string" },
+        "productPathEntryPoint": { "type": "string" },
+        "observedEffect": { "type": "string" },
+        "interventionKind": { "type": "string", "enum": ["removal", "disable", "perturbation", "replacement", "authority-derived-trace"] },
+        "interventionRef": { "type": "string" }
+      }
+    }
+  },
+  "allOf": [
+    { "if": { "properties": { "kind": { "const": "equivalence" } } }, "then": { "required": ["equivalence"] } },
+    { "if": { "properties": { "kind": { "const": "runtime-effect" } } }, "then": { "required": ["runtimeEffect"] } }
+  ]
+}

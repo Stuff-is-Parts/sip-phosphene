@@ -1,0 +1,37 @@
+{
+  "lockId": "lock.authorities",
+  "covers": [
+    {
+      "path": "verification/authorities/authorities.json",
+      "sha256": "bb1a57038cb23ffc747302ecd217119a0d447dd1f89468db36011e38de483d6d",
+      "bytes": 1942
+    },
+    {
+      "path": "verification/authorities/raw/rfc1952.txt",
+      "sha256": "164ef0897b4cbec63abf1b57f069f3599bd0fb7c72c2a4dee21bd7e03ec9af67",
+      "bytes": 25037
+    }
+  ],
+  "meta": {
+    "reason": "initial lock: framework self-test vertical path",
+    "command": "verify authorities-lock",
+    "time": "2026-07-16T21:09:49.347Z",
+    "commit": "4e8bf98e15e097449a35fbb734a62a75588de00c",
+    "dirtyWorktree": true,
+    "authorizationWitnessId": null,
+    "changes": [
+      {
+        "path": "verification/authorities/authorities.json",
+        "kind": "added",
+        "oldSha256": null,
+        "newSha256": "bb1a57038cb23ffc747302ecd217119a0d447dd1f89468db36011e38de483d6d"
+      },
+      {
+        "path": "verification/authorities/raw/rfc1952.txt",
+        "kind": "added",
+        "oldSha256": null,
+        "newSha256": "164ef0897b4cbec63abf1b57f069f3599bd0fb7c72c2a4dee21bd7e03ec9af67"
+      }
+    ]
+  }
+}

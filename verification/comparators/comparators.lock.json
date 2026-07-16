@@ -1,0 +1,26 @@
+{
+  "lockId": "lock.comparators",
+  "covers": [
+    {
+      "path": "verification/comparators/CMP-EXACT-JSON.json",
+      "sha256": "5e2f8d93d62f75073adff5912caa35ced8843cbc6a68052ccfbcf410de0ee18c",
+      "bytes": 337
+    }
+  ],
+  "meta": {
+    "reason": "initial lock: framework self-test vertical path",
+    "command": "verify comparators-lock",
+    "time": "2026-07-16T21:09:49.182Z",
+    "commit": "4e8bf98e15e097449a35fbb734a62a75588de00c",
+    "dirtyWorktree": true,
+    "authorizationWitnessId": null,
+    "changes": [
+      {
+        "path": "verification/comparators/CMP-EXACT-JSON.json",
+        "kind": "added",
+        "oldSha256": null,
+        "newSha256": "5e2f8d93d62f75073adff5912caa35ced8843cbc6a68052ccfbcf410de0ee18c"
+      }
+    ]
+  }
+}

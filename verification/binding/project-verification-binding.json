@@ -1,0 +1,288 @@
+{
+  "bindingId": "project-binding.phosphene",
+  "userAuthoredOraclePolicyText": "For every requirement class, expected values must originate from the strongest binding-required oracle that is executable, mechanically extractable, or otherwise independently observable.\n\nAn executable reference adapter is mandatory whenever the governing authority or a faithful reference implementation can reasonably be built, run, instrumented, or observed with available tools.\n\nImplementation cost, inconvenience, task size, absence of an existing adapter, or producer preference does not make an oracle unavailable.\n\n`hand-derived-exact` is forbidden unless I separately authorize it for a specifically named requirement class after retained evidence demonstrates that every stronger required oracle is unavailable.\n\nAuthority priority and oracle availability are different:\n\n* Stronger authority determines the behavior that PHOSPHENE must reproduce.\n* A lower-tier executable implementation may provide measurements but may not silently override stronger authority.\n* Any disagreement must produce an explicit authority-conflict record and remain FAIL until resolved.\n\nPreserve this section verbatim as the user-authored source for the binding's oracle-precedence policy.",
+  "userAuthoredInventoryPolicyText": "Mechanically enumerate every behavior that can be enumerated from:\n\n* accepted source formats;\n* authoritative source and documentation;\n* retained binaries and libraries;\n* shaders;\n* node and port definitions;\n* parsed fields and defaults;\n* expressions and random behavior;\n* audio and timing systems;\n* execution paths and pass order;\n* state and persistence lifecycles;\n* render resources and pipeline state;\n* retained corpora.\n\nAssign every behavior a stable inventory ID.\n\nEvery inventory ID must map to sufficient:\n\n* claims;\n* exact authority identity;\n* strongest-required oracle evidence;\n* discriminating fixtures;\n* plausible-alternative evaluators;\n* comparators;\n* actual PHOSPHENE executor paths;\n* positive controls;\n* negative controls.\n\nCombining behaviors into a coarse claim may not reduce the evidence, fixture, alternative, execution, or coverage obligation for any individual behavior.\n\nThe retained corpus exercises scope but does not define completeness.\n\nPreserve this section verbatim as the user-authored source for the binding's inventory procedures.",
+  "repository": {
+    "repositoryId": "Stuff-is-Parts/sip-phosphene",
+    "canonicalRemote": "https://github.com/Stuff-is-Parts/sip-phosphene"
+  },
+  "approvedScopeHash": "sha256:45eddf845fb7bbbd45eeb214d60f41f983a819766e0a8a854a6d4138db1cb8ff",
+  "governingSpecifications": [
+    {
+      "specificationId": "SPEC-PHOSPHENE-GOAL",
+      "pathOrLocator": "PHOSPHENE-GOAL.md",
+      "versionOrHash": "sha256:d6e10a8c74e9b863c3625e3ea2437e9c444046b9ab03e925052546576be8d422"
+    },
+    {
+      "specificationId": "SPEC-FRAMEWORK",
+      "pathOrLocator": "portable-verification-framework/portable-evidence-gated-verification-framework.md",
+      "versionOrHash": "sha256:b2536d9a65af9830985d29beabb17814b23e895302d44e3f19fce334575cff70"
+    }
+  ],
+  "selectedProfiles": [
+    {
+      "profileId": "profile.phosphene-compatibility-port",
+      "version": "0.1.0",
+      "hash": "sha256:7a934e0572935b3014e170dbe0ede0be16b615f3f75051fc92848f01af6d8d9d"
+    },
+    {
+      "profileId": "profile.phosphene-graphics-runtime",
+      "version": "0.1.0",
+      "hash": "sha256:646bbe50b3f926619e2bde2aa2e15badd0421a29cf87a55597c84520f8c98a2b"
+    }
+  ],
+  "requirementClasses": [
+    {
+      "requirementClassId": "requirement-class.milkdrop-behavior",
+      "description": "Every MilkDrop source-defined behavior in the accepted formats, reproduced through the PHOSPHENE native execution path per PHOSPHENE-GOAL.md.",
+      "match": {
+        "requirementIdPatterns": ["REQ-MILK-*"],
+        "governingSpecificationRefs": ["SPEC-PHOSPHENE-GOAL"]
+      },
+      "mandatoryVerificationCategories": ["expression-evaluation", "deterministic-randomness", "state-lifecycles", "execution-order", "source-format-parsing"],
+      "mandatoryAdapterCapabilities": ["phosphene-execute-graph-step", "phosphene-inspect-state", "reference-execute-milkdrop-behavior"],
+      "mandatoryProviders": ["PROVIDER-NODE-RUNTIME"],
+      "mandatoryPositiveControls": ["POS-COMPAT-VERTICAL-PATH"],
+      "mandatoryNegativeControlDefectClasses": ["copy-or-identity-instead-of-computation", "wrong-default-or-substituted-constant", "stale-state-reuse-or-persistence-leakage", "rng-stream-desynchronization"],
+      "mandatoryProductPathChecks": ["per-claim runtime-effect check through the actual PHOSPHENE executor entry point"],
+      "requiredInventoryProcedures": [
+        {
+          "procedureId": "INV-MILK-BEHAVIORS",
+          "source": "pinned MilkDrop/projectM/butterchurn raw authorities per PHOSPHENE-GOAL.md Source Authority ordering: parsed fields and defaults, expressions and random behavior, execution paths and pass order, state and persistence lifecycles, render resources and pipeline state, shaders, retained corpora",
+          "commandOrProvider": "mechanical extractors under tooling/ operating on registered raw-authority artifacts (to be built per behavior class; extraction is mechanical, never producer-retyped)",
+          "expectedOutput": "verification/inventory/INV-MILK-*.json",
+          "stableInventoryIdField": "inventoryItemId",
+          "outputHashRequired": true
+        }
+      ],
+      "mandatoryEvidenceClasses": ["raw-authority", "reference-execution"],
+      "evidenceClassSemantics": {
+        "mandatoryEvidenceClassesGovern": "required retained evidence artifacts",
+        "expectedValueOriginGovernedExclusivelyBy": "oraclePrecedencePolicy",
+        "artifactPresenceDoesNotAuthorizeExpectedValueOrigin": true
+      },
+      "authorityIdentityRule": "per-expected-constituent",
+      "mandatoryFixtureDiscriminationChecks": ["per-claim discrimination check executing every effective-union alternative"],
+      "equivalenceClaimPolicy": {
+        "allowed": true,
+        "proofRequired": true,
+        "completeApplicableDomainRequired": true,
+        "authorizedExclusionsOnly": true
+      },
+      "mandatoryRuntimeEffectChecks": ["per-claim runtime-effect witness for every structure-implements-behavior claim"],
+      "mandatoryPlausibleAlternativeClasses": [
+        { "alternativeId": "ALT-COMPAT-IDENTITY-COPY", "defectClass": "copy-or-identity-instead-of-computation", "statefulness": "stateless" },
+        { "alternativeId": "ALT-COMPAT-WRONG-DEFAULT", "defectClass": "wrong-default-or-substituted-constant", "statefulness": "stateless" },
+        { "alternativeId": "ALT-COMPAT-STALE-STATE", "defectClass": "stale-state-reuse-or-persistence-leakage", "statefulness": "stateful" },
+        { "alternativeId": "ALT-COMPAT-RNG-DESYNC", "defectClass": "rng-stream-desynchronization", "statefulness": "stateful" }
+      ],
+      "mandatoryAlternativeEvaluatorIds": ["per-claim evaluator registrations covering every mandatory alternative class; a claim without them fails ALTERNATIVE_EVALUATOR_MISSING"],
+      "mandatoryStatefulAlternativeClasses": ["ALT-COMPAT-STALE-STATE", "ALT-COMPAT-RNG-DESYNC"],
+      "divergenceClassificationPolicy": {
+        "representationLevelRequiresEvidence": true,
+        "behavioralOrPathChangeRequiresEquivalenceClaim": true,
+        "observedPlatformDifferenceAloneIsInsufficient": true
+      },
+      "oraclePrecedencePolicy": {
+        "policyId": "ORACLE-POLICY-MILKDROP",
+        "orderedOracleClassesStrongestFirst": ["reference-execution", "mechanical-extraction", "formal-derivation", "controlled-observation"],
+        "requiredProviderOrCapabilityByClass": {
+          "reference-execution": ["reference-execute-milkdrop-behavior"],
+          "mechanical-extraction": ["mechanical-extract-source-values"]
+        },
+        "strongestAvailableRequired": true,
+        "everyBypassedStrongerClassRequiresUnavailabilityEvidence": true,
+        "producerConvenienceIsNotUnavailability": true,
+        "optionalOracleClasses": {
+          "hand-derived-exact": {
+            "defaultPermission": "forbidden-unless-explicitly-authorized",
+            "requiresApplicabilityRule": true,
+            "requiresAuthoritativePremisesAndReproducibleProcedure": true,
+            "requiresStrongerOracleUnavailabilityEvidence": true
+          }
+        }
+      },
+      "inventoryCoveragePolicy": {
+        "everyInventoryItemRequiresClaimMapping": true,
+        "everyInventoryItemRequiresFixtureMapping": true,
+        "everyInventoryItemRequiresExecutableCheckMapping": true,
+        "claimAggregationMayNotReduceOracleFixtureAlternativeOrExecutionSurface": true,
+        "mechanicallyEnumerableSourcesMustBeExtracted": true,
+        "residualCompletenessRequiresAuthenticatedWitness": true
+      }
+    },
+    {
+      "requirementClassId": "requirement-class.plane9-behavior",
+      "description": "Every Plane9 source-defined behavior resolvable from tier 1 and tier 2 evidence per PHOSPHENE-GOAL.md, reproduced through the PHOSPHENE native execution path.",
+      "match": {
+        "requirementIdPatterns": ["REQ-P9-*"],
+        "governingSpecificationRefs": ["SPEC-PHOSPHENE-GOAL"]
+      },
+      "mandatoryVerificationCategories": ["source-format-parsing", "state-lifecycles", "execution-order"],
+      "mandatoryAdapterCapabilities": ["phosphene-parse-source-format", "phosphene-execute-graph-step", "phosphene-inspect-state"],
+      "mandatoryProviders": ["PROVIDER-NODE-RUNTIME"],
+      "mandatoryPositiveControls": ["POS-COMPAT-VERTICAL-PATH"],
+      "mandatoryNegativeControlDefectClasses": ["copy-or-identity-instead-of-computation", "omitted-step-or-field", "stale-state-reuse-or-persistence-leakage"],
+      "mandatoryProductPathChecks": ["per-claim runtime-effect check through the actual PHOSPHENE executor entry point"],
+      "requiredInventoryProcedures": [
+        {
+          "procedureId": "INV-P9-BEHAVIORS",
+          "source": "retained .p9c scene graphs, node and port definitions, retained binaries and helper/shader libraries, string tables, retained corpora per PHOSPHENE-GOAL.md Source Authority tiers 1-2",
+          "commandOrProvider": "mechanical extractors under tooling/ operating on registered raw-authority artifacts (to be built per behavior class; extraction is mechanical, never producer-retyped)",
+          "expectedOutput": "verification/inventory/INV-P9-*.json",
+          "stableInventoryIdField": "inventoryItemId",
+          "outputHashRequired": true
+        }
+      ],
+      "mandatoryEvidenceClasses": ["raw-authority", "mechanical-extraction"],
+      "evidenceClassSemantics": {
+        "mandatoryEvidenceClassesGovern": "required retained evidence artifacts",
+        "expectedValueOriginGovernedExclusivelyBy": "oraclePrecedencePolicy",
+        "artifactPresenceDoesNotAuthorizeExpectedValueOrigin": true
+      },
+      "authorityIdentityRule": "per-expected-constituent",
+      "mandatoryFixtureDiscriminationChecks": ["per-claim discrimination check executing every effective-union alternative"],
+      "equivalenceClaimPolicy": {
+        "allowed": true,
+        "proofRequired": true,
+        "completeApplicableDomainRequired": true,
+        "authorizedExclusionsOnly": true
+      },
+      "mandatoryRuntimeEffectChecks": ["per-claim runtime-effect witness for every structure-implements-behavior claim"],
+      "mandatoryPlausibleAlternativeClasses": [
+        { "alternativeId": "ALT-COMPAT-IDENTITY-COPY", "defectClass": "copy-or-identity-instead-of-computation", "statefulness": "stateless" },
+        { "alternativeId": "ALT-COMPAT-OMISSION", "defectClass": "omitted-step-or-field", "statefulness": "stateless" },
+        { "alternativeId": "ALT-COMPAT-STALE-STATE", "defectClass": "stale-state-reuse-or-persistence-leakage", "statefulness": "stateful" }
+      ],
+      "mandatoryAlternativeEvaluatorIds": ["per-claim evaluator registrations covering every mandatory alternative class; a claim without them fails ALTERNATIVE_EVALUATOR_MISSING"],
+      "mandatoryStatefulAlternativeClasses": ["ALT-COMPAT-STALE-STATE"],
+      "divergenceClassificationPolicy": {
+        "representationLevelRequiresEvidence": true,
+        "behavioralOrPathChangeRequiresEquivalenceClaim": true,
+        "observedPlatformDifferenceAloneIsInsufficient": true
+      },
+      "oraclePrecedencePolicy": {
+        "policyId": "ORACLE-POLICY-PLANE9",
+        "orderedOracleClassesStrongestFirst": ["mechanical-extraction", "controlled-observation"],
+        "requiredProviderOrCapabilityByClass": {
+          "mechanical-extraction": ["mechanical-extract-source-values"]
+        },
+        "strongestAvailableRequired": true,
+        "everyBypassedStrongerClassRequiresUnavailabilityEvidence": true,
+        "producerConvenienceIsNotUnavailability": true,
+        "optionalOracleClasses": {
+          "hand-derived-exact": {
+            "defaultPermission": "forbidden-unless-explicitly-authorized",
+            "requiresApplicabilityRule": true,
+            "requiresAuthoritativePremisesAndReproducibleProcedure": true,
+            "requiresStrongerOracleUnavailabilityEvidence": true
+          }
+        }
+      },
+      "inventoryCoveragePolicy": {
+        "everyInventoryItemRequiresClaimMapping": true,
+        "everyInventoryItemRequiresFixtureMapping": true,
+        "everyInventoryItemRequiresExecutableCheckMapping": true,
+        "claimAggregationMayNotReduceOracleFixtureAlternativeOrExecutionSurface": true,
+        "mechanicallyEnumerableSourcesMustBeExtracted": true,
+        "residualCompletenessRequiresAuthenticatedWitness": true
+      }
+    },
+    {
+      "requirementClassId": "requirement-class.native-core",
+      "description": "PHOSPHENE's own native graph and executor architecture: graph model semantics, executor lifecycle, serialization/reload/portability, and editability contract per PHOSPHENE-GOAL.md Formal Goal.",
+      "match": {
+        "requirementIdPatterns": ["REQ-NATIVE-*"],
+        "governingSpecificationRefs": ["SPEC-PHOSPHENE-GOAL"]
+      },
+      "mandatoryVerificationCategories": ["state-lifecycles", "execution-order", "serialization-roundtrip"],
+      "mandatoryAdapterCapabilities": ["phosphene-execute-graph-step", "phosphene-inspect-state"],
+      "mandatoryProviders": ["PROVIDER-NODE-RUNTIME"],
+      "mandatoryPositiveControls": ["POS-COMPAT-VERTICAL-PATH"],
+      "mandatoryNegativeControlDefectClasses": ["stale-state-reuse-or-persistence-leakage", "execution-or-pass-reordering", "omitted-step-or-field"],
+      "mandatoryProductPathChecks": ["per-claim runtime-effect check through the actual PHOSPHENE executor entry point"],
+      "requiredInventoryProcedures": [
+        {
+          "procedureId": "INV-NATIVE-CONTRACT",
+          "source": "the PHOSPHENE native graph contract: node and port definitions, executor lifecycle states, serialization schema",
+          "commandOrProvider": "mechanical extractor over the native graph contract definitions once they exist (to be built with the native architecture)",
+          "expectedOutput": "verification/inventory/INV-NATIVE-*.json",
+          "stableInventoryIdField": "inventoryItemId",
+          "outputHashRequired": true
+        }
+      ],
+      "mandatoryEvidenceClasses": ["reference-execution", "mechanical-extraction"],
+      "evidenceClassSemantics": {
+        "mandatoryEvidenceClassesGovern": "required retained evidence artifacts",
+        "expectedValueOriginGovernedExclusivelyBy": "oraclePrecedencePolicy",
+        "artifactPresenceDoesNotAuthorizeExpectedValueOrigin": true
+      },
+      "authorityIdentityRule": "per-expected-constituent",
+      "mandatoryFixtureDiscriminationChecks": ["per-claim discrimination check executing every effective-union alternative"],
+      "equivalenceClaimPolicy": {
+        "allowed": true,
+        "proofRequired": true,
+        "completeApplicableDomainRequired": true,
+        "authorizedExclusionsOnly": true
+      },
+      "mandatoryRuntimeEffectChecks": ["per-claim runtime-effect witness for every structure-implements-behavior claim"],
+      "mandatoryPlausibleAlternativeClasses": [
+        { "alternativeId": "ALT-COMPAT-STALE-STATE", "defectClass": "stale-state-reuse-or-persistence-leakage", "statefulness": "stateful" },
+        { "alternativeId": "ALT-COMPAT-REORDER", "defectClass": "execution-or-pass-reordering", "statefulness": "stateless" },
+        { "alternativeId": "ALT-COMPAT-OMISSION", "defectClass": "omitted-step-or-field", "statefulness": "stateless" }
+      ],
+      "mandatoryAlternativeEvaluatorIds": ["per-claim evaluator registrations covering every mandatory alternative class; a claim without them fails ALTERNATIVE_EVALUATOR_MISSING"],
+      "mandatoryStatefulAlternativeClasses": ["ALT-COMPAT-STALE-STATE"],
+      "divergenceClassificationPolicy": {
+        "representationLevelRequiresEvidence": true,
+        "behavioralOrPathChangeRequiresEquivalenceClaim": true,
+        "observedPlatformDifferenceAloneIsInsufficient": true
+      },
+      "oraclePrecedencePolicy": {
+        "policyId": "ORACLE-POLICY-NATIVE",
+        "orderedOracleClassesStrongestFirst": ["reference-execution", "mechanical-extraction", "formal-derivation"],
+        "requiredProviderOrCapabilityByClass": {
+          "reference-execution": ["phosphene-execute-graph-step"],
+          "mechanical-extraction": ["mechanical-extract-source-values"]
+        },
+        "strongestAvailableRequired": true,
+        "everyBypassedStrongerClassRequiresUnavailabilityEvidence": true,
+        "producerConvenienceIsNotUnavailability": true,
+        "optionalOracleClasses": {
+          "hand-derived-exact": {
+            "defaultPermission": "forbidden-unless-explicitly-authorized",
+            "requiresApplicabilityRule": true,
+            "requiresAuthoritativePremisesAndReproducibleProcedure": true,
+            "requiresStrongerOracleUnavailabilityEvidence": true
+          }
+        }
+      },
+      "inventoryCoveragePolicy": {
+        "everyInventoryItemRequiresClaimMapping": true,
+        "everyInventoryItemRequiresFixtureMapping": true,
+        "everyInventoryItemRequiresExecutableCheckMapping": true,
+        "claimAggregationMayNotReduceOracleFixtureAlternativeOrExecutionSurface": true,
+        "mechanicallyEnumerableSourcesMustBeExtracted": true,
+        "residualCompletenessRequiresAuthenticatedWitness": true
+      }
+    }
+  ],
+  "repositorySpecificRules": [],
+  "bindingAuthorization": {
+    "adoptionOrChangeWitnessId": null,
+    "adequacyWitnessId": null,
+    "sameWitnessMayServeBothOnlyWhenDecisionExplicitlyCoversAdequacy": true,
+    "adequacyCriteriaExplicitlyJudged": [
+      "oracle-policies",
+      "inventory-procedures",
+      "verification-categories",
+      "providers",
+      "adapter-capabilities",
+      "plausible-alternatives",
+      "alternative-evaluators",
+      "fixture-discrimination-checks",
+      "product-path-checks",
+      "other-binding-controls"
+    ]
+  }
+}

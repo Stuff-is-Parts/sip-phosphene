@@ -1,0 +1,50 @@
+{
+  "$id": "lock.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["lockId", "covers", "meta"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "lockId": { "type": "string", "minLength": 1 },
+    "covers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256", "bytes"],
+        "properties": {
+          "path": { "type": "string", "description": "Repo-relative path with forward slashes." },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "bytes": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "command", "time", "commit", "dirtyWorktree"],
+      "properties": {
+        "reason": { "type": "string", "minLength": 1 },
+        "command": { "type": "string" },
+        "time": { "type": "string" },
+        "commit": { "type": "string" },
+        "dirtyWorktree": { "type": "boolean" },
+        "authorizationWitnessId": { "type": ["string", "null"] },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "kind"],
+            "properties": {
+              "path": { "type": "string" },
+              "kind": { "type": "string", "enum": ["added", "changed", "removed"] },
+              "oldSha256": { "type": ["string", "null"] },
+              "newSha256": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

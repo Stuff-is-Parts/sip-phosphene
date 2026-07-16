@@ -1,0 +1,26 @@
+{
+  "$id": "attestation.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "attestationId", "repositoryIdentity", "commit", "witnessId", "witnessObjectHash",
+    "decision", "affectedIds", "baseAllowlistHash", "verificationProvider",
+    "verificationResult", "verificationTimestamp", "attestationHash"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "attestationId": { "type": "string", "minLength": 1 },
+    "repositoryIdentity": { "type": "string", "minLength": 1 },
+    "commit": { "type": "string", "minLength": 1 },
+    "witnessId": { "type": "string", "minLength": 1 },
+    "witnessObjectHash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "decision": { "type": "string", "minLength": 1 },
+    "affectedIds": { "type": "array", "items": { "type": "string" } },
+    "baseAllowlistHash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "projectBindingHash": { "type": "string" },
+    "verificationProvider": { "type": "string", "minLength": 1 },
+    "verificationResult": { "type": "string", "minLength": 1 },
+    "verificationTimestamp": { "type": "string" },
+    "attestationHash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+  }
+}

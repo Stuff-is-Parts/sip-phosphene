@@ -1,0 +1,8 @@
+{
+  "checkId": "CHK-SELFTEST-CRC32-DISCRIMINATION",
+  "claimIds": ["CLAIM-SELFTEST-CRC32"],
+  "checkType": "fixture-discrimination",
+  "adapterId": "ADP-SELFTEST-SUBJECT",
+  "capabilityId": "crc-operations",
+  "operation": "execute every registered plausible-alternative evaluator on the fixture input and prove each diverges from the expected result at its declared path"
+}

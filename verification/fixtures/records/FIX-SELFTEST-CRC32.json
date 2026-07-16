@@ -1,0 +1,49 @@
+{
+  "fixtureId": "FIX-SELFTEST-CRC32",
+  "requirementIds": [
+    "REQ-SELFTEST-CRC32"
+  ],
+  "claimIds": [
+    "CLAIM-SELFTEST-CRC32"
+  ],
+  "inputArtifact": "verification/fixtures/inputs/FIX-SELFTEST-CRC32.input.json",
+  "expectedArtifact": "verification/fixtures/expected/FIX-SELFTEST-CRC32.expected.json",
+  "authorityIds": [
+    "AUTH-RFC1952",
+    "AUTH-NODE-ZLIB"
+  ],
+  "evidenceIds": [
+    "EV-SELFTEST-CRC32-EXPECTED"
+  ],
+  "comparatorId": "CMP-EXACT-JSON",
+  "fixtureHash": "sha256:ae39f2e576ccdca95d937db4ffce837602715bcebc5265eceacc90d1f7653842",
+  "procedure": "Three operations chosen so every registered alternative diverges: operations 0 and 1 share the same two chunks in opposite orders (exposes reordering and, via cross-operation state, stale-state reuse), operation 2 is a single-chunk case. Expected values captured from the reference-execution oracle via 'verify capture-oracle EV-SELFTEST-CRC32-EXPECTED'.",
+  "discriminates": [
+    {
+      "alternativeId": "ALT-SELFTEST-IDENTITY",
+      "evaluatorId": "EVAL-SELFTEST-IDENTITY",
+      "expectedDivergence": "results[0]"
+    },
+    {
+      "alternativeId": "ALT-SELFTEST-NO-FINAL-XOR",
+      "evaluatorId": "EVAL-SELFTEST-NO-FINAL-XOR",
+      "expectedDivergence": "results[0]"
+    },
+    {
+      "alternativeId": "ALT-SELFTEST-REORDER",
+      "evaluatorId": "EVAL-SELFTEST-REORDER",
+      "expectedDivergence": "results[0]"
+    },
+    {
+      "alternativeId": "ALT-SELFTEST-STALE-STATE",
+      "evaluatorId": "EVAL-SELFTEST-STALE-STATE",
+      "expectedDivergence": "results[1]"
+    }
+  ],
+  "discriminationCheckId": "CHK-SELFTEST-CRC32-DISCRIMINATION",
+  "inventoryItemIds": [
+    "OP-0",
+    "OP-1",
+    "OP-2"
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "bindingId": "project-binding.framework-self-test",
+  "repository": {
+    "repositoryId": "framework-self-test",
+    "canonicalRemote": "internal — governs only frameworkOnly requirements per framework spec §24; self-test evidence never satisfies a host requirement"
+  },
+  "approvedScopeHash": "sha256:governed-by-framework-spec-section-24-not-host-scope",
+  "governingSpecifications": [
+    {
+      "specificationId": "SPEC-FRAMEWORK",
+      "pathOrLocator": "portable-verification-framework/portable-evidence-gated-verification-framework.md",
+      "versionOrHash": "in-repo"
+    }
+  ],
+  "selectedProfiles": [],
+  "requirementClasses": [
+    {
+      "requirementClassId": "requirement-class.framework-self-test",
+      "description": "Deterministic chunked-computation behavior of the deliberately minimal self-test subject, verified against an independent maintained reference execution (node:zlib crc32).",
+      "match": {
+        "requirementIdPatterns": ["REQ-SELFTEST-*"],
+        "governingSpecificationRefs": ["SPEC-FRAMEWORK"]
+      },
+      "mandatoryVerificationCategories": ["deterministic-computation"],
+      "mandatoryAdapterCapabilities": ["crc-operations", "reference-crc-operations"],
+      "mandatoryProviders": [],
+      "mandatoryPositiveControls": ["POS-SELFTEST-CRC32"],
+      "mandatoryNegativeControlDefectClasses": [
+        "copy-instead-of-compute",
+        "omitted-finalization",
+        "chunk-reordering",
+        "stale-state-reuse"
+      ],
+      "mandatoryProductPathChecks": [],
+      "requiredInventoryProcedures": [
+        {
+          "procedureId": "INV-SELFTEST-CRC-OPERATIONS",
+          "source": "verification/fixtures/inputs/FIX-SELFTEST-CRC32.input.json",
+          "commandOrProvider": "node tooling/verification-kit/src/self-test/extract-inventory.mjs",
+          "expectedOutput": "verification/inventory/INV-SELFTEST-CRC-OPERATIONS.json",
+          "stableInventoryIdField": "inventoryItemId",
+          "outputHashRequired": true
+        }
+      ],
+      "mandatoryEvidenceClasses": ["raw-authority", "reference-execution"],
+      "evidenceClassSemantics": {
+        "mandatoryEvidenceClassesGovern": "required retained evidence artifacts",
+        "expectedValueOriginGovernedExclusivelyBy": "oraclePrecedencePolicy",
+        "artifactPresenceDoesNotAuthorizeExpectedValueOrigin": true
+      },
+      "authorityIdentityRule": "per-expected-constituent",
+      "mandatoryFixtureDiscriminationChecks": ["CHK-SELFTEST-CRC32-DISCRIMINATION"],
+      "equivalenceClaimPolicy": {
+        "allowed": false,
+        "proofRequired": true,
+        "completeApplicableDomainRequired": true,
+        "authorizedExclusionsOnly": true
+      },
+      "mandatoryRuntimeEffectChecks": [],
+      "mandatoryPlausibleAlternativeClasses": [
+        { "alternativeId": "ALT-SELFTEST-IDENTITY", "defectClass": "copy-instead-of-compute", "statefulness": "stateless" },
+        { "alternativeId": "ALT-SELFTEST-NO-FINAL-XOR", "defectClass": "omitted-finalization", "statefulness": "stateless" },
+        { "alternativeId": "ALT-SELFTEST-REORDER", "defectClass": "chunk-reordering", "statefulness": "stateless" },
+        { "alternativeId": "ALT-SELFTEST-STALE-STATE", "defectClass": "stale-state-reuse", "statefulness": "stateful" }
+      ],
+      "mandatoryAlternativeEvaluatorIds": [
+        "EVAL-SELFTEST-IDENTITY",
+        "EVAL-SELFTEST-NO-FINAL-XOR",
+        "EVAL-SELFTEST-REORDER",
+        "EVAL-SELFTEST-STALE-STATE"
+      ],
+      "mandatoryStatefulAlternativeClasses": ["ALT-SELFTEST-STALE-STATE"],
+      "divergenceClassificationPolicy": {
+        "representationLevelRequiresEvidence": true,
+        "behavioralOrPathChangeRequiresEquivalenceClaim": true,
+        "observedPlatformDifferenceAloneIsInsufficient": true
+      },
+      "oraclePrecedencePolicy": {
+        "policyId": "ORACLE-POLICY-SELFTEST",
+        "orderedOracleClassesStrongestFirst": [
+          "reference-execution",
+          "mechanical-extraction",
+          "formal-derivation",
+          "controlled-observation"
+        ],
+        "requiredProviderOrCapabilityByClass": {
+          "reference-execution": ["reference-crc-operations"],
+          "mechanical-extraction": ["reference-crc-operations"]
+        },
+        "strongestAvailableRequired": true,
+        "everyBypassedStrongerClassRequiresUnavailabilityEvidence": true,
+        "producerConvenienceIsNotUnavailability": true,
+        "optionalOracleClasses": {
+          "hand-derived-exact": {
+            "defaultPermission": "forbidden-unless-explicitly-authorized",
+            "requiresApplicabilityRule": true,
+            "requiresAuthoritativePremisesAndReproducibleProcedure": true,
+            "requiresStrongerOracleUnavailabilityEvidence": true
+          }
+        }
+      },
+      "inventoryCoveragePolicy": {
+        "everyInventoryItemRequiresClaimMapping": true,
+        "everyInventoryItemRequiresFixtureMapping": true,
+        "everyInventoryItemRequiresExecutableCheckMapping": true,
+        "claimAggregationMayNotReduceOracleFixtureAlternativeOrExecutionSurface": true,
+        "mechanicallyEnumerableSourcesMustBeExtracted": true,
+        "residualCompletenessRequiresAuthenticatedWitness": true
+      }
+    }
+  ],
+  "repositorySpecificRules": [],
+  "bindingAuthorization": {
+    "adoptionOrChangeWitnessId": null,
+    "adequacyWitnessId": null,
+    "sameWitnessMayServeBothOnlyWhenDecisionExplicitlyCoversAdequacy": true,
+    "adequacyCriteriaExplicitlyJudged": [
+      "oracle-policies",
+      "inventory-procedures",
+      "verification-categories",
+      "providers",
+      "adapter-capabilities",
+      "plausible-alternatives",
+      "alternative-evaluators",
+      "fixture-discrimination-checks",
+      "product-path-checks",
+      "other-binding-controls"
+    ]
+  }
+}

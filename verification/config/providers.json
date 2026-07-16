@@ -1,0 +1,11 @@
+{
+  "providers": [
+    {
+      "providerId": "PROVIDER-NODE-RUNTIME",
+      "kind": "command",
+      "command": "node",
+      "versionCommand": "node --version",
+      "notes": "Node.js runtime executing the verification kit, subject adapters, and reference adapters; kit engines field requires >=22."
+    }
+  ]
+}

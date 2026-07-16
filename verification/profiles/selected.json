@@ -1,0 +1,14 @@
+{
+  "selected": [
+    {
+      "profileId": "profile.phosphene-compatibility-port",
+      "path": "verification/profiles/profile.phosphene-compatibility-port.json",
+      "hash": "sha256:7a934e0572935b3014e170dbe0ede0be16b615f3f75051fc92848f01af6d8d9d"
+    },
+    {
+      "profileId": "profile.phosphene-graphics-runtime",
+      "path": "verification/profiles/profile.phosphene-graphics-runtime.json",
+      "hash": "sha256:646bbe50b3f926619e2bde2aa2e15badd0421a29cf87a55597c84520f8c98a2b"
+    }
+  ]
+}

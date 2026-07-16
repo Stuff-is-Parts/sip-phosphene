@@ -1,0 +1,8 @@
+{
+  "checkId": "CHK-SELFTEST-CRC32-EXEC",
+  "claimIds": ["CLAIM-SELFTEST-CRC32"],
+  "checkType": "subject-execution",
+  "adapterId": "ADP-SELFTEST-SUBJECT",
+  "capabilityId": "crc-operations",
+  "operation": "execute every fixture operation through the actual self-test subject and compare against the reference-execution expected artifact via CMP-EXACT-JSON"
+}

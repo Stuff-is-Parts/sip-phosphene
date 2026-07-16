@@ -1,0 +1,26 @@
+{
+  "claimId": "CLAIM-SELFTEST-CRC32",
+  "requirementIds": ["REQ-SELFTEST-CRC32"],
+  "kind": "behavior",
+  "assertion": "For every operation in the fixture input, the subject's finalized CRC-32 value equals the node:zlib reference execution's value exactly, with state reset between operations and chunks folded in declared order.",
+  "subjectOperation": "runCrcOperations (tooling/verification-kit/src/self-test/subject/adapter.mjs)",
+  "expectedResultRefs": ["verification/fixtures/expected/FIX-SELFTEST-CRC32.expected.json"],
+  "perConstituentAuthority": [
+    { "constituent": "results[*] expected CRC-32 values", "authorityId": "AUTH-NODE-ZLIB" },
+    { "constituent": "CRC-32 algorithm definition (pre/post inversion, polynomial)", "authorityId": "AUTH-RFC1952" }
+  ],
+  "authorityIds": ["AUTH-RFC1952", "AUTH-NODE-ZLIB"],
+  "conflictIds": [],
+  "evidenceIds": ["EV-SELFTEST-CRC32-EXPECTED"],
+  "fixtureIds": ["FIX-SELFTEST-CRC32"],
+  "comparatorIds": ["CMP-EXACT-JSON"],
+  "checkIds": ["CHK-SELFTEST-CRC32-EXEC", "CHK-SELFTEST-CRC32-DISCRIMINATION"],
+  "adapterCapabilities": ["crc-operations", "reference-crc-operations"],
+  "providerIds": [],
+  "implementationPaths": ["tooling/verification-kit/src/self-test/subject/crc32.mjs"],
+  "inventoryItemIds": ["OP-0", "OP-1", "OP-2"],
+  "oraclePrecedencePolicyId": "ORACLE-POLICY-SELFTEST",
+  "actualExpectedValueOrigin": "reference-execution",
+  "plausibleAlternatives": [],
+  "verificationCategories": ["deterministic-computation"]
+}

@@ -1,0 +1,37 @@
+{
+  "authorities": [
+    {
+      "authorityId": "AUTH-RFC1952",
+      "authorityType": "specification",
+      "sourceName": "RFC 1952 — GZIP file format specification version 4.3 (defines the CRC-32 check value used by the framework self-test subject)",
+      "version": "RFC 1952 (May 1996)",
+      "locator": "https://www.rfc-editor.org/rfc/rfc1952.txt",
+      "sha256": "164ef0897b4cbec63abf1b57f069f3599bd0fb7c72c2a4dee21bd7e03ec9af67",
+      "retainedPath": "verification/authorities/raw/rfc1952.txt",
+      "acquisitionMethod": "curl -sS -o verification/authorities/raw/rfc1952.txt https://www.rfc-editor.org/rfc/rfc1952.txt",
+      "dateRecorded": "2026-07-16",
+      "license": "IETF RFC — freely distributable",
+      "authorityTier": 1,
+      "rawArtifact": {
+        "upstreamLocator": "https://www.rfc-editor.org/rfc/rfc1952.txt",
+        "pinnedRevision": "RFC 1952 (immutable published RFC)",
+        "acquisitionCommand": "curl -sS -o verification/authorities/raw/rfc1952.txt https://www.rfc-editor.org/rfc/rfc1952.txt",
+        "byteLength": 25037,
+        "sha256": "164ef0897b4cbec63abf1b57f069f3599bd0fb7c72c2a4dee21bd7e03ec9af67",
+        "retainedPath": "verification/authorities/raw/rfc1952.txt",
+        "acquisitionDate": "2026-07-16",
+        "toolVersion": "curl 8.18.0 (x86_64-w64-mingw32)"
+      }
+    },
+    {
+      "authorityId": "AUTH-NODE-ZLIB",
+      "authorityType": "maintained-tool",
+      "sourceName": "node:zlib crc32 — maintained independent CRC-32 implementation used as the reference-execution oracle for the framework self-test",
+      "version": "node v24.18.0",
+      "locator": "node:zlib (bundled with the pinned Node.js runtime; kit engines field requires >=22)",
+      "acquisitionMethod": "bundled with the Node.js runtime; invoked through the registered reference adapter capability 'reference-crc-operations'",
+      "dateRecorded": "2026-07-16",
+      "authorityTier": 1
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "$id": "inventory.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["procedureId", "source", "commandOrProvider", "extractionToolVersion", "extractedAt", "outputHash", "mechanicallyComplete", "items"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "procedureId": { "type": "string", "minLength": 1 },
+    "source": { "type": "string", "minLength": 1 },
+    "commandOrProvider": { "type": "string", "minLength": 1 },
+    "extractionToolVersion": { "type": "string" },
+    "extractedAt": { "type": "string" },
+    "outputHash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "description": "sha256 over the canonical JSON of items." },
+    "mechanicallyComplete": {
+      "type": "boolean",
+      "description": "true when the extraction mechanically covers the entire enumerable source. false requires residualCompletenessWitnessId or the coverage result is BEHAVIOR_COVERAGE_UNPROVEN."
+    },
+    "residualCompletenessWitnessId": { "type": ["string", "null"] },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["inventoryItemId", "behavior", "sourceLocation"],
+        "properties": {
+          "inventoryItemId": { "type": "string", "minLength": 1 },
+          "behavior": { "type": "string", "minLength": 1 },
+          "sourceLocation": { "type": "string" }
+        }
+      }
+    }
+  }
+}

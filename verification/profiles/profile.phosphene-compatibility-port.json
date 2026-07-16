@@ -1,0 +1,303 @@
+{
+  "profileId": "profile.phosphene-compatibility-port",
+  "name": "PHOSPHENE compatibility port — source-format behavior reproduction",
+  "version": "0.1.0",
+  "hash": "sha256:7a934e0572935b3014e170dbe0ede0be16b615f3f75051fc92848f01af6d8d9d",
+  "technicalDomainOrProductForm": "compatibility port: exact reproduction of MilkDrop and Plane9 source-defined behavior through a native graph/executor per PHOSPHENE-GOAL.md",
+  "categoriesSupplied": [
+    "source-format-parsing",
+    "expression-evaluation",
+    "deterministic-randomness",
+    "state-lifecycles",
+    "execution-order",
+    "serialization-roundtrip"
+  ],
+  "providersSuppliedOrRequired": [
+    {
+      "providerId": "PROVIDER-NODE-RUNTIME",
+      "mode": "required",
+      "versionConstraint": ">=22"
+    }
+  ],
+  "adapterCapabilitiesSuppliedOrRequired": [
+    {
+      "capabilityId": "phosphene-parse-source-format",
+      "mode": "required"
+    },
+    {
+      "capabilityId": "phosphene-execute-graph-step",
+      "mode": "required"
+    },
+    {
+      "capabilityId": "phosphene-inspect-state",
+      "mode": "required"
+    },
+    {
+      "capabilityId": "reference-execute-milkdrop-behavior",
+      "mode": "required"
+    },
+    {
+      "capabilityId": "mechanical-extract-source-values",
+      "mode": "required"
+    }
+  ],
+  "positiveControls": [
+    {
+      "controlId": "POS-COMPAT-VERTICAL-PATH",
+      "categoryId": "expression-evaluation",
+      "expectedResult": "PASS"
+    }
+  ],
+  "negativeControlDefectClasses": [
+    {
+      "defectClassId": "NEG-COMPAT-COPY",
+      "categoryId": "expression-evaluation",
+      "expectedFailureCode": "CHECK_FAILED",
+      "expectedFirstDivergence": "per-claim declared divergence path"
+    },
+    {
+      "defectClassId": "NEG-COMPAT-STALE-STATE",
+      "categoryId": "state-lifecycles",
+      "expectedFailureCode": "CHECK_FAILED",
+      "expectedFirstDivergence": "per-claim declared divergence path"
+    },
+    {
+      "defectClassId": "NEG-COMPAT-RNG-DESYNC",
+      "categoryId": "deterministic-randomness",
+      "expectedFailureCode": "CHECK_FAILED",
+      "expectedFirstDivergence": "per-claim declared divergence path"
+    }
+  ],
+  "ciJobs": [
+    "behavioral-verification"
+  ],
+  "applicabilityPredicates": [
+    "requirement.requirementClass is one of requirement-class.milkdrop-behavior, requirement-class.plane9-behavior, requirement-class.native-core"
+  ],
+  "limitations": [
+    "This profile supplies requirements and defect catalogs, not implementations: the PHOSPHENE subject/product adapters and the per-behavior reference adapters do not exist yet and every claim in these categories fails SUBJECT_EXECUTION_UNAVAILABLE or ALTERNATIVE_EVALUATOR_MISSING until they are built.",
+    "Alternative evaluators for product claims are repository-specific and must be registered per claim; the catalog below names the mandatory defect classes."
+  ],
+  "evidenceClassRules": [
+    {
+      "ruleId": "EVIDENCE-CLASS-RULE-COMPAT",
+      "rawAuthorityMustRemainByteExact": true,
+      "derivedEvidenceMustReferenceSource": true,
+      "perConstituentAuthorityIdentityRequired": true
+    }
+  ],
+  "discriminatingFixtureRequirements": [
+    {
+      "categoryId": "expression-evaluation",
+      "requiredAlternativeClasses": [
+        "ALT-COMPAT-IDENTITY-COPY",
+        "ALT-COMPAT-WRONG-DEFAULT",
+        "ALT-COMPAT-STALE-STATE"
+      ],
+      "requiredDiscriminationCheckId": "per-claim discrimination check",
+      "requiredAlternativeEvaluatorIds": [
+        "per-claim registered evaluators covering the required alternative classes"
+      ],
+      "effectiveSetRule": "union-with-claim-and-project-binding"
+    },
+    {
+      "categoryId": "deterministic-randomness",
+      "requiredAlternativeClasses": [
+        "ALT-COMPAT-RNG-DESYNC",
+        "ALT-COMPAT-WRONG-DEFAULT"
+      ],
+      "requiredDiscriminationCheckId": "per-claim discrimination check",
+      "requiredAlternativeEvaluatorIds": [
+        "per-claim registered evaluators covering the required alternative classes"
+      ],
+      "effectiveSetRule": "union-with-claim-and-project-binding"
+    },
+    {
+      "categoryId": "state-lifecycles",
+      "requiredAlternativeClasses": [
+        "ALT-COMPAT-STALE-STATE",
+        "ALT-COMPAT-OMISSION"
+      ],
+      "requiredDiscriminationCheckId": "per-claim discrimination check",
+      "requiredAlternativeEvaluatorIds": [
+        "per-claim registered evaluators covering the required alternative classes"
+      ],
+      "effectiveSetRule": "union-with-claim-and-project-binding"
+    }
+  ],
+  "equivalenceClaimRules": [
+    {
+      "categoryId": "expression-evaluation",
+      "proofRequired": true,
+      "completeApplicableDomainRequired": true
+    },
+    {
+      "categoryId": "execution-order",
+      "proofRequired": true,
+      "completeApplicableDomainRequired": true
+    }
+  ],
+  "runtimeEffectControls": [
+    {
+      "categoryId": "state-lifecycles",
+      "controlId": "RUNTIME-EFFECT-COMPAT-STATE",
+      "actualProductPathRequired": true,
+      "controlledInterventionOrTraceRequired": true
+    }
+  ],
+  "plausibleAlternativeCatalog": [
+    {
+      "alternativeId": "ALT-COMPAT-IDENTITY-COPY",
+      "defectClass": "copy-or-identity-instead-of-computation",
+      "statefulness": "stateless",
+      "applicableCategoryIds": [
+        "expression-evaluation",
+        "source-format-parsing",
+        "execution-order"
+      ],
+      "grounding": {
+        "type": "authority-or-witnessed-failure",
+        "reference": "WITNESSED-FAILURE-MODES.md #1 — FLIP_WGSL vertex math was algebraically the copy mapping while named, commented, and reported as a flip"
+      }
+    },
+    {
+      "alternativeId": "ALT-COMPAT-WRONG-DEFAULT",
+      "defectClass": "wrong-default-or-substituted-constant",
+      "statefulness": "stateless",
+      "applicableCategoryIds": [
+        "source-format-parsing",
+        "expression-evaluation",
+        "deterministic-randomness"
+      ],
+      "grounding": {
+        "type": "authority-or-witnessed-failure",
+        "reference": "WITNESSED-FAILURE-MODES.md #5 — vol reconstructed as (bass+mid+treb)/3 instead of source-provided; butterchurn defaults delivered under projectM citations"
+      }
+    },
+    {
+      "alternativeId": "ALT-COMPAT-OMISSION",
+      "defectClass": "omitted-step-or-field",
+      "statefulness": "stateless",
+      "applicableCategoryIds": [
+        "source-format-parsing",
+        "execution-order",
+        "state-lifecycles"
+      ],
+      "grounding": {
+        "type": "authority-or-witnessed-failure",
+        "reference": "WITNESSED-FAILURE-MODES.md #2 — projectM's legacy correction flip replaced by a comment-proof of its non-necessity"
+      }
+    },
+    {
+      "alternativeId": "ALT-COMPAT-REORDER",
+      "defectClass": "execution-or-pass-reordering",
+      "statefulness": "stateless",
+      "applicableCategoryIds": [
+        "execution-order"
+      ],
+      "grounding": {
+        "type": "authority-or-witnessed-failure",
+        "reference": "WITNESSED-FAILURE-MODES.md #7 and PHOSPHENE-GOAL.md Exactness Standard — execution and pass order are source-defined behavior"
+      }
+    },
+    {
+      "alternativeId": "ALT-COMPAT-SIGN-REVERSAL",
+      "defectClass": "sign-or-direction-reversal",
+      "statefulness": "stateless",
+      "applicableCategoryIds": [
+        "expression-evaluation"
+      ],
+      "grounding": {
+        "type": "authority-or-witnessed-failure",
+        "reference": "WITNESSED-FAILURE-MODES.md #1 — flip/copy confusion is a sign error on the y mapping; framework spec §7.7 names sign reversal as an applicable alternative"
+      }
+    },
+    {
+      "alternativeId": "ALT-COMPAT-STALE-STATE",
+      "defectClass": "stale-state-reuse-or-persistence-leakage",
+      "statefulness": "stateful",
+      "applicableCategoryIds": [
+        "state-lifecycles",
+        "expression-evaluation",
+        "serialization-roundtrip"
+      ],
+      "grounding": {
+        "type": "authority-or-witnessed-failure",
+        "reference": "WITNESSED-FAILURE-MODES.md #4 — 'isFirstFrame resets on resize' with no reset code; state carried across lifecycle boundaries the source resets"
+      }
+    },
+    {
+      "alternativeId": "ALT-COMPAT-RNG-DESYNC",
+      "defectClass": "rng-stream-desynchronization",
+      "statefulness": "stateful",
+      "applicableCategoryIds": [
+        "deterministic-randomness"
+      ],
+      "grounding": {
+        "type": "authority-or-witnessed-failure",
+        "reference": "WITNESSED-FAILURE-MODES.md #7 — consuming draws the source would not consume, transforming draws differently (rand()%7381/7380), off-by-one bounds; each silently shifts every subsequent value"
+      }
+    }
+  ],
+  "alternativeEvaluators": [
+    {
+      "evaluatorId": "EVAL-COMPAT-REQUIRED-PER-CLAIM",
+      "alternativeId": "ALT-COMPAT-IDENTITY-COPY",
+      "providerOrImplementation": "required — repository-specific evaluator registered per claim; this profile mandates the defect classes, the binding mandates the evaluator registrations",
+      "expectedDivergence": "per-claim declared divergence path",
+      "negativeControlId": "NEG-COMPAT-COPY"
+    }
+  ],
+  "divergenceClassificationRules": [
+    {
+      "categoryId": "expression-evaluation",
+      "representationLevelRequiresUnchangedAlgorithmStateOrderAndPath": true,
+      "representationLevelRequiresEvidenceOfCauseAndMagnitude": true,
+      "behavioralOrPathChangeRequiresEquivalenceClaim": true
+    }
+  ],
+  "oraclePrecedenceRules": [
+    {
+      "policyId": "ORACLE-POLICY-COMPAT",
+      "categoryId": "expression-evaluation",
+      "orderedOracleClassesStrongestFirst": [
+        "reference-execution",
+        "mechanical-extraction",
+        "formal-derivation",
+        "controlled-observation"
+      ],
+      "requiredProviderOrCapabilityByClass": {
+        "reference-execution": [
+          "reference-execute-milkdrop-behavior"
+        ],
+        "mechanical-extraction": [
+          "mechanical-extract-source-values"
+        ]
+      },
+      "strongestAvailableRequired": true,
+      "bypassRequiresIndependentUnavailabilityEvidence": true,
+      "optionalOracleClasses": {
+        "hand-derived-exact": {
+          "defaultPermission": "forbidden-unless-explicitly-authorized",
+          "requiresApplicabilityRule": true,
+          "requiresAuthoritativePremisesAndReproducibleProcedure": true,
+          "requiresStrongerOracleUnavailabilityEvidence": true
+        }
+      }
+    }
+  ],
+  "inventoryCoverageRules": [
+    {
+      "categoryId": "source-format-parsing",
+      "inventoryProcedureId": "per-binding inventory procedures (INV-MILK-*, INV-P9-*)",
+      "stableInventoryIdsRequired": true,
+      "everyItemRequiresClaimFixtureAndExecutableCheck": true,
+      "claimAggregationMayNotReducePerItemCoverage": true
+    }
+  ],
+  "customMechanismSelfTestRules": {
+    "publicCommandOrProcessBoundaryRequired": true,
+    "internalDecisionLogicMayNotBeImportedOrDuplicated": true,
+    "observableFailureSignatureRequired": true
+  }
+}
