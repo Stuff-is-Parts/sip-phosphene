@@ -1,0 +1,30 @@
+{
+  "command": "clean-claim",
+  "repositoryCommit": "5f14fb96f742010e076a49e97e5bd25d24f3f17c",
+  "dirtyWorktree": true,
+  "operatingSystem": "win32 10.0.26200",
+  "nodeVersion": "v24.18.0",
+  "time": "2026-07-16T22:17:18.157Z",
+  "result": "PASS",
+  "failures": [],
+  "surface": "claim CLAIM-MILK-EXPR-OPERATORS executed in a clean checkout; its actual result propagates",
+  "cleanCheckoutSourceCommit": "5f14fb96f742010e076a49e97e5bd25d24f3f17c",
+  "steps": [
+    {
+      "step": "clone",
+      "exitCode": 0
+    },
+    {
+      "step": "npm-ci",
+      "exitCode": 0
+    },
+    {
+      "step": "npm-ci-reference-adapter-milkdrop-eel",
+      "exitCode": 0
+    },
+    {
+      "step": "target:claim CLAIM-MILK-EXPR-OPERATORS",
+      "exitCode": 0
+    }
+  ]
+}

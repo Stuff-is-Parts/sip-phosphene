@@ -1,0 +1,4 @@
+authorization: FAIL
+  AUTHORIZATION_WITNESS_MISSING: identity allowlist is empty; authorization root of trust is not bootstrapped
+  AUTHORIZATION_WITNESS_MISSING: authorization bootstrap pending; required external actions: Repository administrator: add your GitHub account login to verification/authorization/authorized-identities.json through a repository-administration action you control (not through the producing agent). | Repository administrator: record the establishing mechanism, actor, time, and verification method in this bootstrap record and set status to established. | Repository administrator: configure branch protection so changes to verification/authorization/** and verification/binding/** require your review (see .github/BRANCH-PROTECTION.md).
+report: verification/reports/authorization-2026-07-16T22-17-13-280Z.json

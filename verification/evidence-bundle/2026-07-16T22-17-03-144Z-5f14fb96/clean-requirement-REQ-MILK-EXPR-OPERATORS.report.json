@@ -1,0 +1,35 @@
+{
+  "command": "clean-requirement",
+  "repositoryCommit": "5f14fb96f742010e076a49e97e5bd25d24f3f17c",
+  "dirtyWorktree": true,
+  "operatingSystem": "win32 10.0.26200",
+  "nodeVersion": "v24.18.0",
+  "time": "2026-07-16T22:17:20.839Z",
+  "result": "FAIL",
+  "failures": [
+    {
+      "code": "CHECK_FAILED",
+      "detail": "target 'requirement REQ-MILK-EXPR-OPERATORS' exited 1 in the clean checkout — this result propagates (audit finding 6)"
+    }
+  ],
+  "surface": "requirement REQ-MILK-EXPR-OPERATORS executed in a clean checkout; its actual result propagates",
+  "cleanCheckoutSourceCommit": "5f14fb96f742010e076a49e97e5bd25d24f3f17c",
+  "steps": [
+    {
+      "step": "clone",
+      "exitCode": 0
+    },
+    {
+      "step": "npm-ci",
+      "exitCode": 0
+    },
+    {
+      "step": "npm-ci-reference-adapter-milkdrop-eel",
+      "exitCode": 0
+    },
+    {
+      "step": "target:requirement REQ-MILK-EXPR-OPERATORS",
+      "exitCode": 1
+    }
+  ]
+}

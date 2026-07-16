@@ -1,0 +1,144 @@
+{
+  "command": "claims",
+  "repositoryCommit": "5f14fb96f742010e076a49e97e5bd25d24f3f17c",
+  "dirtyWorktree": true,
+  "operatingSystem": "win32 10.0.26200",
+  "nodeVersion": "v24.18.0",
+  "time": "2026-07-16T22:17:12.086Z",
+  "result": "PASS",
+  "failures": [],
+  "claims": [
+    {
+      "claimId": "CLAIM-MILK-EXPR-OPERATORS",
+      "result": "PASS",
+      "failures": [],
+      "trace": {
+        "requirementIds": [
+          "REQ-MILK-EXPR-OPERATORS"
+        ],
+        "oracle": {
+          "policy": "ORACLE-POLICY-MILK-EXPR",
+          "actual": "reference-execution",
+          "bypassed": []
+        },
+        "discrimination": [
+          {
+            "fixtureId": "FIX-MILK-EXPR-OPERATORS",
+            "alternativeId": "ALT-COMPAT-IDENTITY-COPY",
+            "evaluatorId": "EVAL-MILK-IDENTITY",
+            "diverged": true,
+            "firstDivergence": "pools[0].a"
+          },
+          {
+            "fixtureId": "FIX-MILK-EXPR-OPERATORS",
+            "alternativeId": "ALT-COMPAT-WRONG-DEFAULT",
+            "evaluatorId": "EVAL-MILK-WRONG-INITIAL",
+            "diverged": true,
+            "firstDivergence": "pools[0].q1"
+          },
+          {
+            "fixtureId": "FIX-MILK-EXPR-OPERATORS",
+            "alternativeId": "ALT-COMPAT-REORDER",
+            "evaluatorId": "EVAL-MILK-REORDER",
+            "diverged": true,
+            "firstDivergence": "pools[0].b"
+          },
+          {
+            "fixtureId": "FIX-MILK-EXPR-OPERATORS",
+            "alternativeId": "ALT-COMPAT-SIGN-REVERSAL",
+            "evaluatorId": "EVAL-MILK-SIGN-REVERSAL",
+            "diverged": true,
+            "firstDivergence": "pools[0].c"
+          },
+          {
+            "fixtureId": "FIX-MILK-EXPR-OPERATORS",
+            "alternativeId": "ALT-COMPAT-OMISSION",
+            "evaluatorId": "EVAL-MILK-OMISSION",
+            "diverged": true,
+            "firstDivergence": "pools[0].d"
+          },
+          {
+            "fixtureId": "FIX-MILK-EXPR-OPERATORS",
+            "alternativeId": "ALT-COMPAT-STALE-STATE",
+            "evaluatorId": "EVAL-MILK-STALE-STATE",
+            "diverged": true,
+            "firstDivergence": "pools[1].q1"
+          }
+        ],
+        "checks": [
+          {
+            "checkId": "CHK-MILK-EXPR-EXEC",
+            "fixtureId": "FIX-MILK-EXPR-OPERATORS",
+            "executed": true,
+            "pass": true,
+            "firstDivergence": null
+          },
+          {
+            "checkId": "CHK-MILK-EXPR-DISCRIMINATION",
+            "kind": "fixture-discrimination",
+            "note": "executed by fixturesCheck"
+          }
+        ]
+      }
+    },
+    {
+      "claimId": "CLAIM-SELFTEST-CRC32",
+      "result": "PASS",
+      "failures": [],
+      "trace": {
+        "requirementIds": [
+          "REQ-SELFTEST-CRC32"
+        ],
+        "oracle": {
+          "policy": "ORACLE-POLICY-SELFTEST",
+          "actual": "reference-execution",
+          "bypassed": []
+        },
+        "discrimination": [
+          {
+            "fixtureId": "FIX-SELFTEST-CRC32",
+            "alternativeId": "ALT-SELFTEST-IDENTITY",
+            "evaluatorId": "EVAL-SELFTEST-IDENTITY",
+            "diverged": true,
+            "firstDivergence": "results[0]"
+          },
+          {
+            "fixtureId": "FIX-SELFTEST-CRC32",
+            "alternativeId": "ALT-SELFTEST-NO-FINAL-XOR",
+            "evaluatorId": "EVAL-SELFTEST-NO-FINAL-XOR",
+            "diverged": true,
+            "firstDivergence": "results[0]"
+          },
+          {
+            "fixtureId": "FIX-SELFTEST-CRC32",
+            "alternativeId": "ALT-SELFTEST-REORDER",
+            "evaluatorId": "EVAL-SELFTEST-REORDER",
+            "diverged": true,
+            "firstDivergence": "results[0]"
+          },
+          {
+            "fixtureId": "FIX-SELFTEST-CRC32",
+            "alternativeId": "ALT-SELFTEST-STALE-STATE",
+            "evaluatorId": "EVAL-SELFTEST-STALE-STATE",
+            "diverged": true,
+            "firstDivergence": "results[1]"
+          }
+        ],
+        "checks": [
+          {
+            "checkId": "CHK-SELFTEST-CRC32-EXEC",
+            "fixtureId": "FIX-SELFTEST-CRC32",
+            "executed": true,
+            "pass": true,
+            "firstDivergence": null
+          },
+          {
+            "checkId": "CHK-SELFTEST-CRC32-DISCRIMINATION",
+            "kind": "fixture-discrimination",
+            "note": "executed by fixturesCheck"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+verify: FAIL
+  CHECK_MISSING: [framework] [orphan] binding requirement class 'requirement-class.plane9-behavior' matches no registered requirement (mechanism with no consumer yet)
+  CHECK_MISSING: [framework] [orphan] binding requirement class 'requirement-class.native-core' matches no registered requirement (mechanism with no consumer yet)
+  NEGATIVE_CONTROL_INVALID: [framework] [matrix] mechanism 'schema-validation' has no executed negative control
+  NEGATIVE_CONTROL_INVALID: [framework] [matrix] mechanism 'lock-system' has no executed negative control
+  NEGATIVE_CONTROL_INVALID: [framework] [matrix] mechanism 'orphan-detection' has no executed negative control
+  CHECK_FAILED: [framework] [matrix] mechanism 'orphan-detection' control failing
+  NEGATIVE_CONTROL_INVALID: [framework] [matrix] mechanism 'oracle-precedence' has no executed negative control
+  NEGATIVE_CONTROL_INVALID: [framework] [matrix] mechanism 'alternative-union' has no executed negative control
+  NEGATIVE_CONTROL_INVALID: [framework] [matrix] mechanism 'negative-control-machinery' has no executed negative control
+  CHECK_MISSING: [framework] [matrix] mechanism 'authorization-witness-verification' has no executed positive control
+  CHECK_MISSING: [framework] [matrix] mechanism 'live-host-authorization' has no executed positive control
+  CHECK_MISSING: [framework] [matrix] mechanism 'attestation-integrity' has no executed positive control
+  NEGATIVE_CONTROL_INVALID: [framework] [matrix] mechanism 'attestation-integrity' has no executed negative control
+  NEGATIVE_CONTROL_INVALID: [framework] [matrix] mechanism 'inventory-coverage' has no executed negative control
+  CHECK_MISSING: [framework] [matrix] mechanism 'change-integrity' has no executed positive control
+  NEGATIVE_CONTROL_INVALID: [framework] [matrix] mechanism 'change-integrity' has no executed negative control
+  CHECK_MISSING: [framework] [matrix] mechanism 'clean-environment' has no executed positive control
+  NEGATIVE_CONTROL_INVALID: [framework] [matrix] mechanism 'clean-environment' has no executed negative control
+  NEGATIVE_CONTROL_INVALID: [framework] [matrix] mechanism 'structured-reports' has no executed negative control
+  CHECK_MISSING: [framework] [matrix] mechanism 'evidence-bundle' has no executed positive control
+  NEGATIVE_CONTROL_INVALID: [framework] [matrix] mechanism 'evidence-bundle' has no executed negative control
+  CHECK_MISSING: [framework] [matrix] mechanism 'equivalence-claims' has no executed positive control
+  NEGATIVE_CONTROL_INVALID: [framework] [matrix] mechanism 'equivalence-claims' has no executed negative control
+  NEGATIVE_CONTROL_INVALID: [framework] [matrix] mechanism 'capture-oracle' has no executed negative control
+  NEGATIVE_CONTROL_INVALID: [framework] [matrix] mechanism 'binding-field:equivalenceClaimPolicy' has no executed negative control
+  CHECK_FAILED: requirement 'REQ-MILK-EXPR-OPERATORS' fails
+  CHECK_FAILED: scope item 'scope-item.framework-operational' is covered by the framework verification result, which is FAIL
+  AUTHORIZATION_WITNESS_MISSING: scope item 'scope-item.profiles-and-binding': scope approval witness missing
+  AUTHORIZATION_WITNESS_MISSING: scope item 'scope-item.profiles-and-binding': binding adoption witness missing
+  BINDING_ADEQUACY_UNWITNESSED: scope item 'scope-item.profiles-and-binding': binding adequacy witness missing
+  BEHAVIOR_COVERAGE_UNPROVEN: scope item 'scope-item.native-architecture' decomposition is not mechanically complete and lacks an authenticated residual-completeness witness (no witness referenced)
+  SCOPE_DECOMPOSITION_INCOMPLETE: scope item 'scope-item.native-architecture': requirement class 'requirement-class.native-core' has no registered requirements
+  BEHAVIOR_COVERAGE_UNPROVEN: scope item 'scope-item.native-architecture': inventory procedure 'INV-NATIVE-*' has no retained output
+  BEHAVIOR_COVERAGE_UNPROVEN: scope item 'scope-item.compatibility-goal' decomposition is not mechanically complete and lacks an authenticated residual-completeness witness (no witness referenced)
+  CHECK_FAILED: scope item 'scope-item.compatibility-goal': requirement 'REQ-MILK-EXPR-OPERATORS' of class 'requirement-class.milkdrop-expression' is FAIL
+  CHECK_FAILED: scope item 'scope-item.compatibility-goal': requirement 'REQ-MILK-EXPR-OPERATORS' of class 'requirement-class.milkdrop-behavior' is FAIL
+  SCOPE_DECOMPOSITION_INCOMPLETE: scope item 'scope-item.compatibility-goal': requirement class 'requirement-class.plane9-behavior' has no registered requirements
+  BEHAVIOR_COVERAGE_UNPROVEN: scope item 'scope-item.compatibility-goal': inventory procedure 'INV-P9-*' has no retained output
+report: verification/reports/verify-2026-07-16T22-17-52-110Z.json
