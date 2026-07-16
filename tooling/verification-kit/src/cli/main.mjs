@@ -7,17 +7,17 @@ import { hashFile, canonicalJsonHash, sha256Hex } from '../core/hash.mjs';
 import { writeReport } from '../core/report.mjs';
 import { initialize } from '../core/init.mjs';
 import { lockSurfaces, verifyLock, updateLock } from '../core/locks.mjs';
-import { findOrphans } from '../core/orphans.mjs';
 import {
   computeClaimResult, computeRequirementResult, computeGlobalResult,
   surfaceLockFailures, oracleCheck, bindingFor, inventoryCheck, authoritiesCheck, evidenceCheck
 } from '../core/engine.mjs';
-import { runNegativeControls } from '../core/negcontrols.mjs';
-import { runFixtureRepoScenarios } from '../core/selftest.mjs';
+import { computeFrameworkResult } from '../core/framework.mjs';
 import { changeIntegrity } from '../core/integrity.mjs';
-import { runClean } from '../core/clean.mjs';
+import { runInClean } from '../core/clean.mjs';
 import { witnessStatus } from '../core/authorization.mjs';
+import { verifyWitnessLive } from '../core/livehost.mjs';
 import { invokeCapability } from '../core/adapters.mjs';
+import { spawnSync } from 'node:child_process';
 
 const kitDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const selfTestBindingPath = path.join(kitDir, 'src', 'self-test', 'self-test-binding.json');
@@ -47,7 +47,13 @@ export async function main(argv) {
     case 'requirement': return cmdOneRequirement(repoRoot, rest[0]);
     case 'claim': return cmdOneClaim(repoRoot, rest[0]);
     case 'change-integrity': return cmdChangeIntegrity(repoRoot, rest);
-    case 'clean': return cmdClean(repoRoot);
+    case 'clean':
+    case 'clean-integrity': return cmdCleanTarget(repoRoot, 'clean-integrity', ['framework'], 'framework integrity surfaces only; makes no completion claim');
+    case 'clean-completion': return cmdCleanTarget(repoRoot, 'clean-completion', [], 'the global completion gate executed in a clean checkout; its actual result propagates');
+    case 'clean-claim': return rest[0] ? cmdCleanTarget(repoRoot, 'clean-claim', ['claim', rest[0]], `claim ${rest[0]} executed in a clean checkout; its actual result propagates`) : usage('verify clean-claim <claim-id>');
+    case 'clean-requirement': return rest[0] ? cmdCleanTarget(repoRoot, 'clean-requirement', ['requirement', rest[0]], `requirement ${rest[0]} executed in a clean checkout; its actual result propagates`) : usage('verify clean-requirement <requirement-id>');
+    case 'authorization-live': return cmdAuthorizationLive(repoRoot, rest);
+    case 'evidence-bundle': return cmdEvidenceBundle(repoRoot);
     case 'capture-oracle': return cmdCaptureOracle(repoRoot, rest);
     case 'scope-lock': return cmdLock(repoRoot, 'scope', rest);
     case 'authorization-lock': return cmdLock(repoRoot, 'authorization', rest);
@@ -96,18 +102,168 @@ function cmdInit(repoRoot) {
   return 0;
 }
 
+/** @param {string} usageText @returns {number} */
+function usage(usageText) {
+  process.stderr.write(`usage: ${usageText}\n`);
+  return 2;
+}
+
 /** @param {string} repoRoot @returns {Promise<number>} */
 async function globalVerify(repoRoot) {
   const store = load(repoRoot);
-  /** @type {Array<{code: string, detail: string}>} */
-  const failures = store.structuralErrors.map((e) => ({ code: 'EVIDENCE_MISSING', detail: `[structural] ${e}` }));
-  const g = await computeGlobalResult(store);
-  failures.push(...g.failures);
-  const result = failures.length === 0 ? 'PASS' : 'FAIL';
-  return finish(repoRoot, 'verify', { result: /** @type {'PASS' | 'FAIL'} */ (result), failures }, {
-    note: 'sole global completion gate: the project passes only when every user-scoped requirement currently passes',
-    requirements: g.requirements
+  const frameworkResult = await computeFrameworkResult(store, kitDir);
+  const g = await computeGlobalResult(store, { frameworkResult });
+  return finish(repoRoot, 'verify', { result: g.result, failures: g.failures }, {
+    note: 'sole global completion gate: PASS requires every host requirement, every scope-item decomposition, AND the complete framework verification result; clean reproduction is gated by verify clean-completion',
+    frameworkComponent: g.frameworkComponent,
+    requirements: g.requirements,
+    coverageMatrix: frameworkResult.matrix
   });
+}
+
+/**
+ * @param {string} repoRoot @param {string} command @param {string[]} targetArgs @param {string} surfaceStatement
+ * @returns {number}
+ */
+function cmdCleanTarget(repoRoot, command, targetArgs, surfaceStatement) {
+  const r = runInClean(repoRoot, targetArgs);
+  /** @type {Array<{code: string, detail: string}>} */
+  const failures = [];
+  for (const s of r.steps.filter((x) => x.exitCode !== 0 && !x.step.startsWith('target:'))) {
+    failures.push({ code: 'CHECK_FAILED', detail: `clean setup step '${s.step}' exited ${s.exitCode}` });
+  }
+  if (r.targetExitCode === null) {
+    failures.push({ code: 'CHECK_FAILED', detail: 'target command did not run in the clean checkout' });
+  } else if (r.targetExitCode !== 0) {
+    failures.push({ code: 'CHECK_FAILED', detail: `target '${targetArgs.join(' ') || 'verify (global)'}' exited ${r.targetExitCode} in the clean checkout — this result propagates (audit finding 6)` });
+  }
+  return finish(repoRoot, command, { result: failures.length === 0 ? 'PASS' : 'FAIL', failures }, {
+    surface: surfaceStatement,
+    cleanCheckoutSourceCommit: r.sourceCommit,
+    steps: r.steps.map((s) => ({ step: s.step, exitCode: s.exitCode }))
+  });
+}
+
+/** @param {string} repoRoot @param {string[]} rest @returns {number} */
+function cmdAuthorizationLive(repoRoot, rest) {
+  const store = load(repoRoot);
+  const witnessFilter = argValue(rest, '--witness');
+  const candidates = store.witnesses.filter((w) =>
+    w.verificationMethod === 'github-approval' && (!witnessFilter || w.witnessId === witnessFilter));
+  /** @type {Array<{code: string, detail: string}>} */
+  const failures = [];
+  /** @type {any[]} */
+  const outcomes = [];
+  if (candidates.length === 0) {
+    failures.push({ code: 'AUTHORIZATION_WITNESS_MISSING', detail: witnessFilter ? `witness '${witnessFilter}' not found or not github-approval` : 'no github-approval witnesses retained to verify live' });
+  }
+  for (const witness of candidates) {
+    const r = verifyWitnessLive(store, witness);
+    outcomes.push({ witnessId: witness.witnessId, ok: r.ok, reasons: r.reasons, attestationPath: r.attestationPath });
+    if (!r.ok) {
+      const code = witness.authorizationType === 'allowlist-change' ? 'IDENTITY_ALLOWLIST_CHANGE_UNAUTHORIZED' : 'AUTHORIZATION_WITNESS_UNVERIFIED';
+      failures.push({ code, detail: `witness '${witness.witnessId}': ${r.reasons.join('; ')}` });
+    }
+  }
+  return finish(repoRoot, 'authorization-live', { result: failures.length === 0 ? 'PASS' : 'FAIL', failures }, {
+    note: 'LIVE host authentication through gh api — distinct from authorization-attestations, which verifies only retained attestation integrity. New attestations require an authorization-lock update with a reason.',
+    outcomes
+  });
+}
+
+/** @param {string} repoRoot @returns {Promise<number>} */
+async function cmdEvidenceBundle(repoRoot) {
+  const { execFileSync } = await import('node:child_process');
+  const commit = execFileSync('git', ['-C', repoRoot, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const treeHash = execFileSync('git', ['-C', repoRoot, 'rev-parse', 'HEAD^{tree}'], { encoding: 'utf8' }).trim();
+  const dirty = execFileSync('git', ['-C', repoRoot, 'status', '--porcelain'], { encoding: 'utf8' }).trim().length > 0;
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const bundleRel = `verification/evidence-bundle/${stamp}-${commit.slice(0, 8)}`;
+  const bundleAbs = abs(repoRoot, bundleRel);
+  const { mkdirSync } = await import('node:fs');
+  mkdirSync(bundleAbs, { recursive: true });
+
+  /** @type {Array<{args: string[], ids: string[]}>} */
+  const material = [
+    { args: ['framework'], ids: ['REQ-SELFTEST-CRC32', 'CLAIM-SELFTEST-CRC32'] },
+    { args: ['claims'], ids: ['CLAIM-SELFTEST-CRC32', 'CLAIM-MILK-EXPR-OPERATORS'] },
+    { args: ['requirements'], ids: ['REQ-SELFTEST-CRC32', 'REQ-MILK-EXPR-OPERATORS'] },
+    { args: ['oracles'], ids: ['ORACLE-POLICY-SELFTEST', 'ORACLE-POLICY-MILK-EXPR'] },
+    { args: ['inventory-coverage'], ids: ['INV-SELFTEST-CRC-OPERATIONS', 'INV-MILK-EXPR-STATEMENTS'] },
+    { args: ['scope'], ids: ['scope.phosphene'] },
+    { args: ['authorization'], ids: [] },
+    { args: ['authorization-attestations'], ids: [] },
+    { args: ['profiles'], ids: ['profile.phosphene-compatibility-port', 'profile.phosphene-graphics-runtime'] },
+    { args: ['project-binding'], ids: ['project-binding.phosphene'] },
+    { args: ['authorities'], ids: ['AUTH-RFC1952', 'AUTH-NSEEL2-CALTAB', 'AUTH-MILKDROP-EEL-PARSER'] },
+    { args: ['conflicts'], ids: [] },
+    { args: ['evidence'], ids: ['EV-SELFTEST-CRC32-EXPECTED', 'EV-MILK-EXPR-EXPECTED'] },
+    { args: ['providers'], ids: ['PROVIDER-NODE-RUNTIME'] },
+    { args: ['claim', 'CLAIM-MILK-EXPR-OPERATORS'], ids: ['CLAIM-MILK-EXPR-OPERATORS', 'FIX-MILK-EXPR-OPERATORS', 'CMP-EXACT-JSON'] },
+    { args: ['requirement', 'REQ-MILK-EXPR-OPERATORS'], ids: ['REQ-MILK-EXPR-OPERATORS'] },
+    { args: ['clean-claim', 'CLAIM-MILK-EXPR-OPERATORS'], ids: ['CLAIM-MILK-EXPR-OPERATORS'] },
+    { args: ['clean-requirement', 'REQ-MILK-EXPR-OPERATORS'], ids: ['REQ-MILK-EXPR-OPERATORS'] },
+    { args: ['clean-integrity'], ids: [] },
+    { args: ['clean-completion'], ids: [] },
+    { args: [], ids: [] }
+  ];
+
+  /** @type {any[]} */
+  const entries = [];
+  for (const m of material) {
+    const name = (m.args.join('-') || 'verify-global').replace(/[^a-zA-Z0-9-]/g, '_');
+    const started = new Date().toISOString();
+    const run = spawnSync('node', [path.join(kitDir, 'bin', 'verify.mjs'), ...m.args], { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    const ended = new Date().toISOString();
+    const stdoutName = `${name}.stdout.txt`;
+    const stderrName = `${name}.stderr.txt`;
+    writeFileSync(path.join(bundleAbs, stdoutName), run.stdout ?? '');
+    writeFileSync(path.join(bundleAbs, stderrName), run.stderr ?? '');
+    const reportCmd = m.args.length === 0 ? 'verify' : m.args[0];
+    const reportAbs = abs(repoRoot, `${hostTree(repoRoot).reportsDir}/latest-${reportCmd.replace(/[^a-z0-9-]/gi, '_')}.json`);
+    let reportCopy = null;
+    if (existsSync(reportAbs)) {
+      const reportName = `${name}.report.json`;
+      writeFileSync(path.join(bundleAbs, reportName), readFileSync(reportAbs, 'utf8'));
+      reportCopy = { path: `${bundleRel}/${reportName}`, sha256: hashFile(path.join(bundleAbs, reportName)).sha256 };
+    }
+    entries.push({
+      command: `verify ${m.args.join(' ')}`.trim(),
+      arguments: m.args,
+      workingDirectory: repoRoot,
+      startedAt: started,
+      endedAt: ended,
+      exitCode: run.status,
+      stdout: { path: `${bundleRel}/${stdoutName}`, sha256: hashFile(path.join(bundleAbs, stdoutName)).sha256 },
+      stderr: { path: `${bundleRel}/${stderrName}`, sha256: hashFile(path.join(bundleAbs, stderrName)).sha256 },
+      structuredReport: reportCopy,
+      relatedIds: m.ids
+    });
+    process.stdout.write(`evidence-bundle: verify ${m.args.join(' ')} → exit ${run.status}\n`);
+  }
+
+  const parserVersion = JSON.parse(readFileSync(abs(repoRoot, 'tooling/reference-adapters/milkdrop-eel/package-lock.json'), 'utf8'))
+    ?.packages?.['node_modules/milkdrop-eel-parser']?.version ?? 'unknown';
+  const manifest = {
+    bundleId: `${stamp}-${commit.slice(0, 8)}`,
+    sourceCommit: commit,
+    sourceTreeHash: treeHash,
+    dirtyWorktreeAtGeneration: dirty,
+    provenanceNote: 'Generated by "node tooling/verification-kit/bin/verify.mjs evidence-bundle". A bundle committed to the repository was necessarily generated at the recorded sourceCommit and lands in a later commit; the recorded commit and tree hash are the provenance anchor. Regenerate from a clean checkout with: git clone <repo> && npm ci in tooling/verification-kit and each tooling/reference-adapters/* && node tooling/verification-kit/bin/verify.mjs evidence-bundle.',
+    runtime: {
+      node: process.version,
+      os: `${process.platform}`,
+      kitPackageLockSha256: hashFile(abs(repoRoot, 'tooling/verification-kit/package-lock.json')).sha256,
+      milkdropEelParserVersion: parserVersion
+    },
+    entries
+  };
+  const manifestPath = path.join(bundleAbs, 'manifest.json');
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  const manifestHash = hashFile(manifestPath).sha256;
+  writeFileSync(path.join(bundleAbs, 'manifest.sha256'), `${manifestHash}  manifest.json\n`);
+  process.stdout.write(`evidence-bundle: ${bundleRel} (manifest sha256 ${manifestHash.slice(0, 16)}…)\n`);
+  return entries.every((e) => typeof e.exitCode === 'number') ? 0 : 1;
 }
 
 /** @param {string} repoRoot @returns {number} */
@@ -402,20 +558,6 @@ function cmdChangeIntegrity(repoRoot, rest) {
   });
 }
 
-/** @param {string} repoRoot @returns {number} */
-function cmdClean(repoRoot) {
-  const r = runClean(repoRoot);
-  const failed = r.steps.filter((s) => s.exitCode !== 0 && s.step !== 'global-verify');
-  const globalStep = r.steps.find((s) => s.step === 'global-verify');
-  /** @type {Array<{code: string, detail: string}>} */
-  const failures = failed.map((s) => ({ code: 'CHECK_FAILED', detail: `clean step '${s.step}' exited ${s.exitCode}` }));
-  return finish(repoRoot, 'clean', { result: failures.length === 0 ? 'PASS' : 'FAIL', failures }, {
-    steps: r.steps.map((s) => ({ step: s.step, exitCode: s.exitCode })),
-    globalVerifyInClean: globalStep ? (globalStep.exitCode === 0 ? 'PASS' : 'FAIL (expected while the project is incomplete; see completion report)') : 'not-run',
-    note: 'clean gate covers framework integrity; the global verify result inside the clean run is reported, not gated here'
-  });
-}
-
 /** @param {string} repoRoot @param {string[]} rest @returns {Promise<number>} */
 async function cmdCaptureOracle(repoRoot, rest) {
   const evidenceId = rest.find((a) => !a.startsWith('--'));
@@ -499,116 +641,16 @@ function cmdLock(repoRoot, surfaceName, rest) {
 /** @param {string} repoRoot @returns {Promise<number>} */
 async function cmdFramework(repoRoot) {
   const store = load(repoRoot);
-  /** @type {Array<{code: string, detail: string}>} */
-  const failures = [];
-
-  for (const e of store.structuralErrors) failures.push({ code: 'EVIDENCE_MISSING', detail: `[schema/structure] ${e}` });
-
-  /** @type {Record<string, {ok: boolean, detail: string}>} */
-  const positives = {};
-
-  const surfaces = lockSurfaces(store.tree);
-  /** @type {string[]} */
-  const lockProblems = [];
-  for (const [name, surface] of Object.entries(surfaces)) {
-    const r = verifyLock(repoRoot, surface);
-    if (!r.ok) lockProblems.push(...r.problems.map((p) => `[${name}] ${p}`));
-  }
-  positives['lock-system'] = { ok: lockProblems.length === 0, detail: lockProblems.length === 0 ? 'all 8 lock surfaces current' : lockProblems.join('; ') };
-  for (const p of lockProblems) failures.push({ code: 'EVIDENCE_STALE', detail: `[lock] ${p}` });
-
-  const orphans = findOrphans(store);
-  positives['orphan-detection'] = { ok: orphans.length === 0, detail: orphans.length === 0 ? 'no orphan writes or reads' : orphans.join('; ') };
-  for (const o of orphans) failures.push({ code: 'CHECK_MISSING', detail: `[orphan] ${o}` });
-
-  const selfTestReqs = store.requirements.filter((r) => r.frameworkOnly);
-  if (selfTestReqs.length === 0) {
-    failures.push({ code: 'CHECK_MISSING', detail: 'no framework self-test requirements registered (framework spec §24)' });
-    positives['self-test-vertical-path'] = { ok: false, detail: 'no self-test requirements' };
-  }
-  /** @type {any[]} */
-  const selfTestResults = [];
-  for (const requirement of selfTestReqs) {
-    const r = await computeRequirementResult(store, requirement);
-    selfTestResults.push(r);
-    if (r.result === 'FAIL') {
-      for (const f of r.failures) failures.push({ code: f.code, detail: `[self-test ${r.requirementId}] ${f.detail}` });
-    }
-  }
-  if (selfTestReqs.length > 0) {
-    const allPass = selfTestResults.every((r) => r.result === 'PASS');
-    positives['self-test-vertical-path'] = { ok: allPass, detail: allPass ? `${selfTestResults.length} framework-only requirement(s) PASS through oracle→fixture→subject→comparator` : 'self-test requirement failing (see failures)' };
-  }
-
-  const negatives = await runNegativeControls(store);
-  const negativesOk = negatives.length > 0 && negatives.every((n) => n.ok);
-  positives['negative-controls'] = {
-    ok: negativesOk,
-    detail: negatives.length === 0 ? 'no negative controls registered' : negatives.map((n) => `${n.evaluatorId}: ${n.ok ? 'rejected for intended reason' : n.detail}`).join(' | ')
-  };
-  for (const n of negatives.filter((x) => !x.ok)) failures.push({ code: 'NEGATIVE_CONTROL_INVALID', detail: `${n.evaluatorId}: ${n.detail}` });
-  if (negatives.length === 0) failures.push({ code: 'NEGATIVE_CONTROL_INVALID', detail: 'no negative controls registered' });
-
-  const fixtureScenarios = runFixtureRepoScenarios(path.join(kitDir));
-  for (const s of fixtureScenarios) {
-    positives[`initializer:${s.scenario}`] = { ok: s.ok, detail: s.detail };
-    if (!s.ok) failures.push({ code: 'CHECK_FAILED', detail: `[initializer] ${s.scenario}: ${s.detail}` });
-  }
-
-  const matrix = buildMatrix(store, positives);
-  for (const row of matrix) {
-    if (!row.implementationPresent) failures.push({ code: 'CHECK_MISSING', detail: `[matrix] mechanism '${row.mechanism}' implementation absent` });
-    if (row.positiveControl === 'ABSENT') failures.push({ code: 'CHECK_MISSING', detail: `[matrix] mechanism '${row.mechanism}' has no executed positive control` });
-    if (row.negativeControl === 'ABSENT') failures.push({ code: 'NEGATIVE_CONTROL_INVALID', detail: `[matrix] mechanism '${row.mechanism}' has no executed negative control` });
-    if (row.positiveControl === 'FAIL' || row.negativeControl === 'FAIL') failures.push({ code: 'CHECK_FAILED', detail: `[matrix] mechanism '${row.mechanism}' control failing` });
-  }
-
-  return finish(repoRoot, 'framework', { result: failures.length === 0 ? 'PASS' : 'FAIL', failures }, {
-    coverageMatrix: matrix,
-    selfTest: selfTestResults,
-    negativeControls: negatives,
-    fixtureRepoScenarios: fixtureScenarios,
+  const r = await computeFrameworkResult(store, kitDir);
+  return finish(repoRoot, 'framework', { result: r.result, failures: r.failures }, {
+    coverageMatrix: r.matrix,
+    selfTest: r.selfTest,
+    negativeControls: r.negativeControls,
+    fixtureRepoScenarios: r.fixtureRepoScenarios,
+    auditControls: r.auditControls,
+    bindingFieldAudit: r.bindingFieldAudit,
     note: 'partial framework construction appears as a failed matrix, not a progress narrative (framework spec §15)'
   });
-}
-
-/**
- * Derive the §15 coverage matrix from this run's executed controls.
- * @param {import('../core/store.mjs').Store} store
- * @param {Record<string, {ok: boolean, detail: string}>} positives
- * @returns {Array<{mechanism: string, implementationPresent: boolean, positiveControl: string, negativeControl: string, detail: string}>}
- */
-function buildMatrix(store, positives) {
-  const src = path.join(kitDir, 'src');
-  /** @param {string} p @returns {boolean} */
-  const present = (p) => existsSync(path.join(src, ...p.split('/')));
-  /** @param {string} key @returns {string} */
-  const pos = (key) => positives[key] ? (positives[key].ok ? 'PASS' : 'FAIL') : 'ABSENT';
-
-  const negControlsExecuted = positives['negative-controls']?.ok === true;
-  /** @type {Array<{mechanism: string, implementationPresent: boolean, positiveControl: string, negativeControl: string, detail: string}>} */
-  const rows = [
-    { mechanism: 'schema-validation', implementationPresent: present('core/schemas.mjs'), positiveControl: store.structuralErrors.length === 0 ? 'PASS' : 'FAIL', negativeControl: 'ABSENT', detail: 'negative control (invalid record rejected with precise error) not yet registered as a fixture scenario' },
-    { mechanism: 'lock-system', implementationPresent: present('core/locks.mjs'), positiveControl: pos('lock-system'), negativeControl: 'ABSENT', detail: 'stale-hash rejection scenario not yet registered' },
-    { mechanism: 'orphan-detection', implementationPresent: present('core/orphans.mjs'), positiveControl: pos('orphan-detection'), negativeControl: 'ABSENT', detail: 'seeded-orphan rejection scenario not yet registered' },
-    { mechanism: 'oracle-precedence', implementationPresent: present('core/engine.mjs'), positiveControl: pos('self-test-vertical-path'), negativeControl: 'ABSENT', detail: 'stronger-oracle-bypass rejection scenario not yet registered' },
-    { mechanism: 'alternative-union', implementationPresent: present('core/union.mjs'), positiveControl: pos('self-test-vertical-path'), negativeControl: 'ABSENT', detail: 'claim-level trimming rejection scenario not yet registered' },
-    { mechanism: 'fixture-discrimination', implementationPresent: present('core/engine.mjs'), positiveControl: pos('self-test-vertical-path'), negativeControl: negControlsExecuted ? 'PASS' : (positives['negative-controls'] ? 'FAIL' : 'ABSENT'), detail: 'evaluator mutants rejected through the subject-execution check' },
-    { mechanism: 'comparator-exactness', implementationPresent: present('core/compare.mjs'), positiveControl: pos('self-test-vertical-path'), negativeControl: negControlsExecuted ? 'PASS' : 'ABSENT', detail: 'mutant divergences detected by exact comparison' },
-    { mechanism: 'subject-execution', implementationPresent: present('core/adapters.mjs'), positiveControl: pos('self-test-vertical-path'), negativeControl: negControlsExecuted ? 'PASS' : 'ABSENT', detail: 'actual subject executed through registered adapter capability' },
-    { mechanism: 'negative-control-machinery', implementationPresent: present('core/negcontrols.mjs'), positiveControl: pos('negative-controls'), negativeControl: 'ABSENT', detail: 'wrong-reason-failure rejection scenario not yet registered' },
-    { mechanism: 'authorization-witness-verification', implementationPresent: present('core/authorization.mjs'), positiveControl: 'ABSENT', negativeControl: 'ABSENT', detail: 'requires bootstrapped allowlist (pending user repository-administration action) plus forged-witness rejection scenario' },
-    { mechanism: 'attestation-integrity', implementationPresent: present('core/authorization.mjs'), positiveControl: 'ABSENT', negativeControl: 'ABSENT', detail: 'requires a live authenticated verification job to produce the first attestation' },
-    { mechanism: 'inventory-coverage', implementationPresent: present('core/engine.mjs'), positiveControl: pos('self-test-vertical-path'), negativeControl: 'ABSENT', detail: 'unclaimed-item rejection scenario not yet registered' },
-    { mechanism: 'change-integrity', implementationPresent: present('core/integrity.mjs'), positiveControl: 'ABSENT', negativeControl: 'ABSENT', detail: 'positive and regression scenarios not yet registered; command is executable via verify change-integrity' },
-    { mechanism: 'clean-environment', implementationPresent: present('core/clean.mjs'), positiveControl: 'ABSENT', negativeControl: 'ABSENT', detail: 'run via verify clean and the CI clean-environment job' },
-    { mechanism: 'structured-reports', implementationPresent: present('core/report.mjs'), positiveControl: 'PASS', negativeControl: 'ABSENT', detail: 'this run writes structured reports; malformed-report rejection not applicable as negative control shape yet' },
-    { mechanism: 'initializer', implementationPresent: present('core/init.mjs'), positiveControl: pos('initializer:init-empty-git-repo'), negativeControl: pos('initializer:missing-scope-fails-loudly'), detail: 'idempotence and non-Node host proven black-box; missing-scope loud failure is the negative control' },
-    { mechanism: 'equivalence-claims', implementationPresent: present('core/engine.mjs'), positiveControl: 'ABSENT', negativeControl: 'ABSENT', detail: 'no equivalence claim registered yet; circular-equivalence rejection scenario pending' },
-    { mechanism: 'runtime-effect-witnessing', implementationPresent: present('core/engine.mjs'), positiveControl: 'ABSENT', negativeControl: 'ABSENT', detail: 'no runtime-effect claim registered yet; scaffolding-only rejection scenario pending' },
-    { mechanism: 'capture-oracle', implementationPresent: present('cli/main.mjs'), positiveControl: pos('self-test-vertical-path'), negativeControl: 'ABSENT', detail: 'drift-rejection scenario not yet registered' }
-  ];
-  return rows;
 }
 
 /** @param {string[]} args @param {string} name @returns {string | undefined} */

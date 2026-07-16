@@ -188,7 +188,7 @@ jobs:
         with: { node-version: 24 }
       - run: npm ci --no-fund --no-audit
         working-directory: ${{ env.KIT }}
-      - run: node bin/verify.mjs clean
+      - run: node bin/verify.mjs clean-integrity
         working-directory: ${{ env.KIT }}
 
   completion-report:
@@ -206,21 +206,85 @@ jobs:
       - name: install reference adapters
         run: for d in tooling/reference-adapters/*/; do if [ -f "$d/package.json" ]; then (cd "$d" && npm ci --no-fund --no-audit); fi; done
       - name: run global verify and publish its real result
+        # pipefail so $? is the verify process exit, not tee's (audit finding 1);
+        # the executable control for this lives in the framework matrix row
+        # 'completion-report-exit-propagation'.
         run: |
           set +e
+          set -o pipefail
           node "$KIT/bin/verify.mjs" | tee global-verify-output.txt
           code=$?
+          set +o pipefail
           if [ $code -eq 0 ]; then result=PASS; else result=FAIL; fi
           {
-            echo "## Global verification result: **$result**"
+            echo "## Global verification result: **$result** (verify exit code $code)"
             echo ""
             echo '```'
             cat global-verify-output.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           echo "Global verify: $result (exit $code) — this job succeeds because the report was generated, not because the project passed."
+      - name: generate retained evidence bundle
+        run: node "$KIT/bin/verify.mjs" evidence-bundle
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: completion-report
-          path: verification/reports/
+          path: |
+            verification/reports/
+            verification/evidence-bundle/
+
+  clean-completion:
+    # Runs the global completion gate inside a clean checkout and propagates its
+    # ACTUAL result (audit finding 6). Expected FAIL while the project is
+    # incomplete; never a required merge check for the same reason as
+    # completion-report (§25.2), but its result is real, not decorative.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - name: install reference adapters
+        run: for d in tooling/reference-adapters/*/; do if [ -f "$d/package.json" ]; then (cd "$d" && npm ci --no-fund --no-audit); fi; done
+      - run: node bin/verify.mjs clean-completion
+        working-directory: ${{ env.KIT }}
+
+  clean-product-claim:
+    # Retained clean-checkout execution of the exact first product claim and
+    # requirement (audit findings 6 and 8).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - name: install reference adapters
+        run: for d in tooling/reference-adapters/*/; do if [ -f "$d/package.json" ]; then (cd "$d" && npm ci --no-fund --no-audit); fi; done
+      - run: node bin/verify.mjs clean-claim CLAIM-MILK-EXPR-OPERATORS
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs clean-requirement REQ-MILK-EXPR-OPERATORS
+        working-directory: ${{ env.KIT }}
+        continue-on-error: true
+
+  authorization-live-verification:
+    # LIVE host authentication of github-approval witnesses through gh api
+    # (audit finding 5). FAILs truthfully while no witnesses exist; becomes the
+    # producer of hash-bound attestations once the repository administrator
+    # supplies the first real approval event.
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci --no-fund --no-audit
+        working-directory: ${{ env.KIT }}
+      - run: node bin/verify.mjs authorization-live
+        working-directory: ${{ env.KIT }}

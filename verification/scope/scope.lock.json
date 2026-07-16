@@ -2,24 +2,29 @@
   "lockId": "lock.scope",
   "covers": [
     {
+      "path": "verification/scope/decomposition.json",
+      "sha256": "5ce0c117fc4da81d3733324ca685b51c13ebaaa27c69c2fba745c6310c426533",
+      "bytes": 2604
+    },
+    {
       "path": "verification/scope/scope.json",
       "sha256": "0742d097b01cac65a513aa3da07e53ef99c64b77a1936687d67ffcd96a2d0be6",
       "bytes": 3351
     }
   ],
   "meta": {
-    "reason": "author approved-scope record from verbatim user-authored APPROVED SCOPE text (2026-07-16 directive); approval witness pending user authorization",
+    "reason": "add scope decomposition record (audit finding 4): coverage flows only through decomposition, never requirement citation",
     "command": "verify scope-lock",
-    "time": "2026-07-16T21:11:17.309Z",
-    "commit": "4e8bf98e15e097449a35fbb734a62a75588de00c",
+    "time": "2026-07-16T22:15:15.863Z",
+    "commit": "eb4308ee45c1f1bcba5aa428129713765c3faa48",
     "dirtyWorktree": true,
     "authorizationWitnessId": null,
     "changes": [
       {
-        "path": "verification/scope/scope.json",
+        "path": "verification/scope/decomposition.json",
         "kind": "added",
         "oldSha256": null,
-        "newSha256": "0742d097b01cac65a513aa3da07e53ef99c64b77a1936687d67ffcd96a2d0be6"
+        "newSha256": "5ce0c117fc4da81d3733324ca685b51c13ebaaa27c69c2fba745c6310c426533"
       }
     ]
   }

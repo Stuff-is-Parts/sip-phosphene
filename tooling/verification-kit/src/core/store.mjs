@@ -10,6 +10,7 @@ import { loadValidators, schemaErrors } from './schemas.mjs';
  * @property {any} projectConfig
  * @property {any} providersConfig
  * @property {any} scope
+ * @property {any} scopeDecomposition
  * @property {any} allowlist
  * @property {any} bootstrap
  * @property {any[]} witnesses
@@ -106,6 +107,7 @@ export function loadStore(repoRoot, opts = {}) {
   const projectConfig = loadOne(tree.projectConfig, 'project-config', true);
   const providersConfig = loadOne(tree.providersConfig, 'providers-config', true);
   const scope = loadOne(tree.scope, 'scope', true);
+  const scopeDecomposition = loadOne('verification/scope/decomposition.json', 'scope-decomposition', false);
   const allowlist = loadOne(tree.allowlist, 'allowlist', true);
   const bootstrap = loadOne(tree.bootstrap, 'bootstrap', true);
   const witnesses = loadDir(tree.witnessesDir, 'witness');
@@ -163,7 +165,7 @@ export function loadStore(repoRoot, opts = {}) {
 
   return {
     repoRoot, tree, structuralErrors,
-    projectConfig, providersConfig, scope, allowlist, bootstrap,
+    projectConfig, providersConfig, scope, scopeDecomposition, allowlist, bootstrap,
     witnesses, attestations, authorities, conflicts,
     requirements, claims, evidence, fixtures, comparators,
     adapters, checks, evaluators, inventories, profiles,

@@ -68,15 +68,28 @@ configured state.
 When you are ready to approve the scope and adopt the binding:
 
 1. Open a pull request containing the witness records (the producer may draft
-   the JSON, but the authorization is your review, not the file).
-2. Review and approve that PR from your allowlisted account. For the binding
-   adequacy witness, the review text must explicitly evaluate each of the ten
-   adequacy criteria named in
+   the JSON, but the authorization is your review, not the file). Each witness
+   record's `hostMetadata` must name the PR number, the review ID (added after
+   your review exists), and the commit your review is bound to.
+2. Review and approve that PR from your allowlisted account, and **quote the
+   witness object hash in your review text** — run
+   `node tooling/verification-kit/bin/verify.mjs authorization-attestations`
+   to see each witness's object hash, and include the full
+   `sha256:…` value in the review body. Live verification rejects an approval
+   that does not quote the exact hash, because only the quote binds your
+   decision to the exact witness content (a file or comment merely claiming
+   approval never verifies). For the binding adequacy witness, the review text
+   must additionally evaluate each of the ten adequacy criteria named in
    `verification/binding/project-verification-binding.json`
    `bindingAuthorization.adequacyCriteriaExplicitlyJudged` — a generic
    approval does not establish adequacy (framework spec §7.12).
-3. The CI live-verification step then verifies the approval through the GitHub
-   API and produces the hash-bound attestation the clean run consumes (§7.10).
+3. `verify authorization-live` (locally with gh, or the CI
+   authorization-live-verification job) then authenticates the approval event
+   through the GitHub API — identity against the allowlist (base-revision
+   allowlist for allowlist changes), review state, bound commit, quoted hash —
+   and produces the hash-bound attestation the clean run consumes (§7.10).
+   Live authentication and attestation-integrity checking are distinct: the
+   former talks to the host, the latter only verifies retained records.
 
 ## What is currently NOT configured (truthful state as of 2026-07-16)
 

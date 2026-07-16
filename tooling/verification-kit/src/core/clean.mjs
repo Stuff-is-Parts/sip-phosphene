@@ -4,14 +4,17 @@ import os from 'node:os';
 import path from 'node:path';
 
 /**
- * Clean-environment verification per framework spec §18: clone the current HEAD
- * into a temporary directory, install strictly from the kit lockfile, and run
- * the framework suite plus the global verify there. Returns actual exit codes.
+ * Run one verification command in a clean checkout per framework spec §18:
+ * clone the current HEAD into a temporary directory, install strictly from
+ * lockfiles (kit plus every reference adapter), run the named command there,
+ * and propagate its ACTUAL exit code (audit finding 6 — no clean command may
+ * report PASS while its named target failed inside the clean checkout).
  * A dirty worktree is reported: uncommitted changes are absent from a clean run.
  * @param {string} repoRoot
- * @returns {{ cloneDir: string, steps: Array<{step: string, exitCode: number, output: string}> }}
+ * @param {string[]} targetArgs CLI arguments for the command to run in the clean checkout
+ * @returns {{ cloneDir: string, sourceCommit: string, steps: Array<{step: string, exitCode: number, output: string}>, targetExitCode: number | null }}
  */
-export function runClean(repoRoot) {
+export function runInClean(repoRoot, targetArgs) {
   const cloneDir = mkdtempSync(path.join(os.tmpdir(), 'verify-clean-'));
   /** @type {Array<{step: string, exitCode: number, output: string}>} */
   const steps = [];
@@ -32,10 +35,16 @@ export function runClean(repoRoot) {
   }
 
   run('clone', 'git', ['clone', '--quiet', repoRoot, cloneDir], repoRoot);
+  let sourceCommit = '(unknown)';
+  try {
+    sourceCommit = execFileSync('git', ['-C', cloneDir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  } catch {
+    steps.push({ step: 'source-commit', exitCode: 1, output: 'unable to resolve the clean checkout HEAD' });
+  }
   const kit = path.join(cloneDir, 'tooling', 'verification-kit');
   if (!existsSync(kit)) {
     steps.push({ step: 'kit-present', exitCode: 1, output: 'tooling/verification-kit not present in clean checkout' });
-    return { cloneDir, steps };
+    return { cloneDir, sourceCommit, steps, targetExitCode: null };
   }
   run('npm-ci', 'npm', ['ci', '--no-fund', '--no-audit'], kit);
   const adaptersDir = path.join(cloneDir, 'tooling', 'reference-adapters');
@@ -47,12 +56,11 @@ export function runClean(repoRoot) {
       }
     }
   }
-  run('framework', 'node', [path.join('bin', 'verify.mjs'), 'framework', '--skip-clean'], kit);
-  run('global-verify', 'node', [path.join('bin', 'verify.mjs')], kit);
+  const targetExitCode = run(`target:${targetArgs.join(' ') || 'verify (global)'}`, 'node', [path.join('bin', 'verify.mjs'), ...targetArgs], kit);
   try {
     rmSync(cloneDir, { recursive: true, force: true, maxRetries: 3 });
   } catch {
     steps.push({ step: 'cleanup', exitCode: 0, output: `temporary clone left at ${cloneDir} (removal failed; safe to delete)` });
   }
-  return { cloneDir, steps };
+  return { cloneDir, sourceCommit, steps, targetExitCode };
 }

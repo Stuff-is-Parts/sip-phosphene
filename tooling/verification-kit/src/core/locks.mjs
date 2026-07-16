@@ -12,7 +12,7 @@ import { repoState } from './git.mjs';
  */
 export function lockSurfaces(tree) {
   return {
-    scope: { lockPath: tree.scopeLock, covers: [tree.scope] },
+    scope: { lockPath: tree.scopeLock, covers: ['verification/scope'] },
     authorization: {
       lockPath: tree.authorizationLock,
       covers: [tree.allowlist, tree.bootstrap, tree.witnessesDir, tree.attestationsDir]

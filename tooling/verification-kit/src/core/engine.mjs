@@ -6,14 +6,12 @@ import { effectiveAlternativeSet } from './union.mjs';
 import { resolveCapability, invokeCapability, invokeEvaluator } from './adapters.mjs';
 import { witnessStatus } from './authorization.mjs';
 import { lockSurfaces, verifyLock } from './locks.mjs';
+import { matchPattern } from './engine-util.mjs';
+import { enforceBindingClassFields } from './bindingfields.mjs';
 
 /** @typedef {{ code: string, detail: string }} Failure */
 
-/** Glob match supporting '*' wildcards only. @param {string} pattern @param {string} id @returns {boolean} */
-export function matchPattern(pattern, id) {
-  const re = new RegExp('^' + pattern.split('*').map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$');
-  return re.test(id);
-}
+export { matchPattern } from './engine-util.mjs';
 
 /**
  * Resolve the governing binding and matching requirement class for a requirement.
@@ -478,7 +476,7 @@ export function surfaceLockFailures(store) {
 /**
  * Compute one requirement's result per §4: requirement-level conditions plus every claim.
  * @param {import('./store.mjs').Store} store @param {any} requirement
- * @returns {Promise<{ requirementId: string, result: 'PASS' | 'FAIL', failures: Failure[], claims: any[] }>}
+ * @returns {Promise<{ requirementId: string, result: 'PASS' | 'FAIL', failures: Failure[], claims: any[], bindingFieldAudit: any[] }>}
  */
 export async function computeRequirementResult(store, requirement) {
   /** @type {Failure[]} */
@@ -527,6 +525,19 @@ export async function computeRequirementResult(store, requirement) {
     failures.push({ code: 'CHECK_MISSING', detail: `requirement '${requirement.requirementId}' has no registered claims` });
   }
 
+  const surfaceFailures = surfaceLockFailures(store);
+  /** @type {any[]} */
+  const claimResults = [];
+  for (const claim of claims) {
+    const r = await computeClaimResult(store, claim, surfaceFailures);
+    claimResults.push(r);
+    if (r.result === 'FAIL') {
+      failures.push({ code: 'CHECK_FAILED', detail: `claim '${claim.claimId}' fails (${r.failures.length} failure${r.failures.length === 1 ? '' : 's'})` });
+    }
+  }
+
+  /** @type {Array<{field: string, reader: string, passCondition: string, failureCode: string, status: string}>} */
+  let fieldAudit = [];
   if (b.bindingClass) {
     const claimCategories = new Set(claims.flatMap((c) => c.verificationCategories ?? []));
     for (const cat of b.bindingClass.mandatoryVerificationCategories ?? []) {
@@ -545,37 +556,109 @@ export async function computeRequirementResult(store, requirement) {
       }
     }
     failures.push(...inventoryCheck(store, requirement, b.bindingClass));
+    const enforcement = enforceBindingClassFields(store, requirement, b.bindingClass, claims, claimResults.map((r) => ({ claimId: r.claimId, result: r.result })));
+    failures.push(...enforcement.failures);
+    fieldAudit = enforcement.fieldAudit;
   }
 
-  const surfaceFailures = surfaceLockFailures(store);
-  /** @type {any[]} */
-  const claimResults = [];
-  for (const claim of claims) {
-    const r = await computeClaimResult(store, claim, surfaceFailures);
-    claimResults.push(r);
-    if (r.result === 'FAIL') {
-      failures.push({ code: 'CHECK_FAILED', detail: `claim '${claim.claimId}' fails (${r.failures.length} failure${r.failures.length === 1 ? '' : 's'})` });
+  return { requirementId: requirement.requirementId, result: failures.length === 0 ? 'PASS' : 'FAIL', failures, claims: claimResults, bindingFieldAudit: fieldAudit };
+}
+
+/**
+ * Scope-item coverage through the decomposition record ONLY (audit finding 4):
+ * a requirement citing a scope-item ID never covers it. Coverage flows through
+ * verification/scope/decomposition.json, whose completeness is either
+ * mechanical or carries the authenticated residual witness §7.12 requires.
+ * @param {import('./store.mjs').Store} store
+ * @param {any} item scope item
+ * @param {Array<{requirementId: string, result: string}>} requirementResults
+ * @param {{ result: string } | undefined} frameworkResult
+ * @returns {Failure[]}
+ */
+export function scopeItemCoverage(store, item, requirementResults, frameworkResult) {
+  /** @type {Failure[]} */
+  const failures = [];
+  const decomposition = (store.scopeDecomposition?.decompositions ?? []).find((/** @type {any} */ d) => d.scopeItemId === item.scopeItemId);
+  if (!decomposition) {
+    failures.push({ code: 'SCOPE_DECOMPOSITION_MISSING', detail: `approved scope item '${item.scopeItemId}' (${item.title}) has no decomposition record; requirements citing its ID do not cover it` });
+    return failures;
+  }
+  if (!decomposition.decompositionComplete) {
+    const ws = witnessStatus(store, decomposition.residualCompletenessWitnessId);
+    if (ws.status !== 'verified-attested') {
+      failures.push({ code: 'BEHAVIOR_COVERAGE_UNPROVEN', detail: `scope item '${item.scopeItemId}' decomposition is not mechanically complete and lacks an authenticated residual-completeness witness (${ws.reasons.join('; ')})` });
     }
   }
-
-  return { requirementId: requirement.requirementId, result: failures.length === 0 ? 'PASS' : 'FAIL', failures, claims: claimResults };
+  if (decomposition.kind === 'framework') {
+    if (frameworkResult?.result !== 'PASS') {
+      failures.push({ code: 'CHECK_FAILED', detail: `scope item '${item.scopeItemId}' is covered by the framework verification result, which is ${frameworkResult?.result ?? 'not computed'}` });
+    }
+    return failures;
+  }
+  if (decomposition.kind === 'authorization-surface') {
+    const scopeWs = witnessStatus(store, store.scope?.authorizationWitnessId);
+    const adoption = witnessStatus(store, store.binding?.bindingAuthorization?.adoptionOrChangeWitnessId);
+    const adequacy = witnessStatus(store, store.binding?.bindingAuthorization?.adequacyWitnessId);
+    for (const [name, ws] of [['scope approval', scopeWs], ['binding adoption', adoption], ['binding adequacy', adequacy]]) {
+      if (/** @type {any} */ (ws).status !== 'verified-attested') {
+        failures.push({ code: name === 'binding adequacy' ? 'BINDING_ADEQUACY_UNWITNESSED' : 'AUTHORIZATION_WITNESS_MISSING', detail: `scope item '${item.scopeItemId}': ${name} witness ${/** @type {any} */ (ws).status}` });
+      }
+    }
+    return failures;
+  }
+  // kind: requirement-classes
+  const binding = store.binding;
+  for (const classId of decomposition.requirementClassIds ?? []) {
+    const bindingClass = (binding?.requirementClasses ?? []).find((/** @type {any} */ rc) => rc.requirementClassId === classId);
+    if (!bindingClass) {
+      failures.push({ code: 'SCOPE_DECOMPOSITION_INCOMPLETE', detail: `scope item '${item.scopeItemId}' decomposition names requirement class '${classId}' which the binding does not define` });
+      continue;
+    }
+    const matching = store.requirements.filter((r) => !r.frameworkOnly &&
+      (bindingClass.match?.requirementIdPatterns ?? []).some((/** @type {string} */ p) => matchPattern(p, r.requirementId)));
+    if (matching.length === 0) {
+      failures.push({ code: 'SCOPE_DECOMPOSITION_INCOMPLETE', detail: `scope item '${item.scopeItemId}': requirement class '${classId}' has no registered requirements` });
+      continue;
+    }
+    for (const r of matching) {
+      const result = requirementResults.find((rr) => rr.requirementId === r.requirementId);
+      if (result?.result !== 'PASS') {
+        failures.push({ code: 'CHECK_FAILED', detail: `scope item '${item.scopeItemId}': requirement '${r.requirementId}' of class '${classId}' is ${result?.result ?? 'uncomputed'}` });
+      }
+    }
+  }
+  for (const procId of decomposition.inventoryProcedureIds ?? []) {
+    const inv = store.inventories.find((i) => matchPattern(procId, i.procedureId));
+    if (!inv) {
+      failures.push({ code: 'BEHAVIOR_COVERAGE_UNPROVEN', detail: `scope item '${item.scopeItemId}': inventory procedure '${procId}' has no retained output` });
+    }
+  }
+  return failures;
 }
 
 /**
  * The sole global completion computation per §4: the project passes only when
- * every host (non-framework-only) requirement inside approved scope has a current PASS.
+ * every host requirement inside approved scope passes, every scope item is
+ * covered through its decomposition, AND the complete framework verification
+ * result passes (audit finding 2 — a failing framework mechanism, self-test,
+ * matrix cell, lock surface, or control makes global verify FAIL). Clean-
+ * checkout reproduction is gated by running this same computation inside a
+ * clean checkout via 'verify clean-completion'; embedding it here would recurse.
  * @param {import('./store.mjs').Store} store
- * @returns {Promise<{ result: 'PASS' | 'FAIL', failures: Failure[], requirements: any[] }>}
+ * @param {{ frameworkResult?: { result: 'PASS' | 'FAIL', failures: Failure[] } }} [opts]
+ * @returns {Promise<{ result: 'PASS' | 'FAIL', failures: Failure[], requirements: any[], frameworkComponent: any }>}
  */
-export async function computeGlobalResult(store) {
+export async function computeGlobalResult(store, opts = {}) {
   /** @type {Failure[]} */
   const failures = [];
   const hostRequirements = store.requirements.filter((r) => !r.frameworkOnly);
 
-  for (const item of store.scope?.approvedScopeItems ?? []) {
-    const covered = hostRequirements.some((r) => (r.scopeItemIds ?? []).includes(item.scopeItemId));
-    if (!covered) {
-      failures.push({ code: 'PROJECT_UNDERBOUND', detail: `approved scope item '${item.scopeItemId}' (${item.title}) has no registered requirements` });
+  const frameworkResult = opts.frameworkResult;
+  if (!frameworkResult) {
+    failures.push({ code: 'CHECK_MISSING', detail: 'framework verification result was not supplied to the global computation; the global gate requires it' });
+  } else if (frameworkResult.result !== 'PASS') {
+    for (const f of frameworkResult.failures) {
+      failures.push({ code: f.code, detail: `[framework] ${f.detail}` });
     }
   }
 
@@ -588,5 +671,18 @@ export async function computeGlobalResult(store) {
       failures.push({ code: 'CHECK_FAILED', detail: `requirement '${r.requirementId}' fails` });
     }
   }
-  return { result: failures.length === 0 ? 'PASS' : 'FAIL', failures, requirements: results };
+
+  if (!store.scopeDecomposition) {
+    failures.push({ code: 'SCOPE_DECOMPOSITION_MISSING', detail: 'verification/scope/decomposition.json is absent; no scope item can be covered' });
+  }
+  for (const item of store.scope?.approvedScopeItems ?? []) {
+    failures.push(...scopeItemCoverage(store, item, results.map((r) => ({ requirementId: r.requirementId, result: r.result })), frameworkResult));
+  }
+
+  return {
+    result: failures.length === 0 ? 'PASS' : 'FAIL',
+    failures,
+    requirements: results,
+    frameworkComponent: frameworkResult ? { result: frameworkResult.result, failureCount: frameworkResult.failures.length } : null
+  };
 }

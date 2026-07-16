@@ -1,0 +1,40 @@
+{
+  "decompositions": [
+    {
+      "scopeItemId": "scope-item.framework-operational",
+      "kind": "framework",
+      "decompositionComplete": true,
+      "residualCompletenessWitnessId": null,
+      "rationale": "The framework's own verification result is the mechanical totality for this item (framework spec §27: the framework assignment is complete only when the framework itself passes). Covered exactly when the complete framework verification result computes PASS inside the global gate."
+    },
+    {
+      "scopeItemId": "scope-item.profiles-and-binding",
+      "kind": "authorization-surface",
+      "decompositionComplete": true,
+      "residualCompletenessWitnessId": null,
+      "rationale": "This item is exactly the authenticated authorization surface: scope-approval, binding-adoption, and binding-adequacy witnesses verified against the identity allowlist, plus profile and binding integrity. Covered when those witnesses verify — actions reserved to the repository administrator."
+    },
+    {
+      "scopeItemId": "scope-item.native-architecture",
+      "kind": "requirement-classes",
+      "requirementClassIds": ["requirement-class.native-core"],
+      "inventoryProcedureIds": ["INV-NATIVE-*"],
+      "decompositionComplete": false,
+      "residualCompletenessWitnessId": null,
+      "rationale": "The native graph/executor behavior surface is not yet mechanically enumerable (the contract is a seed). The item stays BEHAVIOR_COVERAGE_UNPROVEN until the native contract inventory exists, every item maps per §7.12, and residual completeness carries the authenticated judgment the framework requires. A narrow requirement citing this item never covers it."
+    },
+    {
+      "scopeItemId": "scope-item.compatibility-goal",
+      "kind": "requirement-classes",
+      "requirementClassIds": [
+        "requirement-class.milkdrop-expression",
+        "requirement-class.milkdrop-behavior",
+        "requirement-class.plane9-behavior"
+      ],
+      "inventoryProcedureIds": ["INV-MILK-*", "INV-P9-*"],
+      "decompositionComplete": false,
+      "residualCompletenessWitnessId": null,
+      "rationale": "The complete MilkDrop and Plane9 compatibility goal decomposes into these requirement classes and their mechanical behavior inventories. decompositionComplete stays false until the inventories mechanically cover every enumerable source behavior per the user-authored inventory policy and residual completeness carries the authenticated judgment. REQ-MILK-EXPR-OPERATORS covers one operator subset only; its citation of this item does not and must not cover it."
+    }
+  ]
+}

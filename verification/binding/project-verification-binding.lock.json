@@ -3,23 +3,23 @@
   "covers": [
     {
       "path": "verification/binding/project-verification-binding.json",
-      "sha256": "e13ec53fa6aeb15749017dddd5d2eb059b7b7c0c7e8641b3a5c6b96f223011da",
-      "bytes": 23751
+      "sha256": "5479a64306b1b2279b76ce223cd1c2f8b9e246d4025e9afc150c344d64498430",
+      "bytes": 24695
     }
   ],
   "meta": {
-    "reason": "register MilkDrop EEL operator claim: ns-eel2 + eel-parser authorities, reference-captured expected values, binding class milkdrop-expression",
+    "reason": "regenerate binding after enforcement fixes (audit execution rule): prose placeholders replaced with enforceable check/evaluator patterns",
     "command": "verify binding-lock",
-    "time": "2026-07-16T21:32:39.292Z",
-    "commit": "596a64cc4b9bbc14d3bae8cf04ab29f2843286d5",
+    "time": "2026-07-16T22:15:16.016Z",
+    "commit": "eb4308ee45c1f1bcba5aa428129713765c3faa48",
     "dirtyWorktree": true,
     "authorizationWitnessId": null,
     "changes": [
       {
         "path": "verification/binding/project-verification-binding.json",
         "kind": "changed",
-        "oldSha256": "c6abeb388a67fc77c5291acc3197333d16c6e83268baa1476ccc708f9ebf9b60",
-        "newSha256": "e13ec53fa6aeb15749017dddd5d2eb059b7b7c0c7e8641b3a5c6b96f223011da"
+        "oldSha256": "e13ec53fa6aeb15749017dddd5d2eb059b7b7c0c7e8641b3a5c6b96f223011da",
+        "newSha256": "5479a64306b1b2279b76ce223cd1c2f8b9e246d4025e9afc150c344d64498430"
       }
     ]
   }
