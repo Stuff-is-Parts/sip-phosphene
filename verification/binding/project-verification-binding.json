@@ -23,12 +23,12 @@
     {
       "profileId": "profile.phosphene-compatibility-port",
       "version": "0.1.0",
-      "hash": "sha256:7a934e0572935b3014e170dbe0ede0be16b615f3f75051fc92848f01af6d8d9d"
+      "hash": "sha256:f5bc3741d1e35ce81c002683c567fa35778b56ecd59869c6e64d50fe8e3d9b81"
     },
     {
       "profileId": "profile.phosphene-graphics-runtime",
       "version": "0.1.0",
-      "hash": "sha256:646bbe50b3f926619e2bde2aa2e15badd0421a29cf87a55597c84520f8c98a2b"
+      "hash": "sha256:41acca91234689e4d1bbc3ee3b1030680feb97cb9b17cb20191819a80c00a3e9"
     }
   ],
   "requirementClasses": [
@@ -56,7 +56,7 @@
         "PROVIDER-NODE-RUNTIME"
       ],
       "mandatoryPositiveControls": [
-        "POS-COMPAT-VERTICAL-PATH"
+        "CHK-MILK-EXPR-EXEC"
       ],
       "mandatoryNegativeControlDefectClasses": [
         "copy-or-identity-instead-of-computation",
@@ -161,7 +161,540 @@
         "claimAggregationMayNotReduceOracleFixtureAlternativeOrExecutionSurface": true,
         "mechanicallyEnumerableSourcesMustBeExtracted": true,
         "residualCompletenessRequiresAuthenticatedWitness": true
-      }
+      },
+      "semanticAcceptanceContracts": [
+        {
+          "propertyId": "SC-EVIDENCE-CLASSES",
+          "operativeMeaning": "Every mandatory evidence class has a retained artifact that the claim verification chain actually consumes",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-EXPR-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "EVIDENCE_MISSING",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-EVIDENCE-CLASSES-POS"
+            ],
+            "structuralNegative": [
+              "CS-EVIDENCE-CLASSES-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-EVIDENCE-CLASSES-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-POSITIVE-CONTROLS",
+          "operativeMeaning": "Every mandatory positive control resolves to an executable check registered on every class claim whose own retained execution result passes",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-EXPR-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "SEMANTIC_PROXY_SUBSTITUTION",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-POSITIVE-CONTROLS-POS"
+            ],
+            "structuralNegative": [
+              "CS-POSITIVE-CONTROLS-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-POSITIVE-CONTROLS-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-NEGATIVE-CONTROL-DEFECTS",
+          "operativeMeaning": "Every mandatory negative-control defect class has a registered evaluator exercised by class fixtures and rejected with its intended signature",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-EXPR-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "NEGATIVE_CONTROL_INVALID",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-NEGATIVE-CONTROL-DEFECTS-POS"
+            ],
+            "structuralNegative": [
+              "CS-NEGATIVE-CONTROL-DEFECTS-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-NEGATIVE-CONTROL-DEFECTS-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-PRODUCT-PATH",
+          "operativeMeaning": "Every claim executes through the declared native product path, proven by runtime dependence interventions rather than an adapter role label",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-EXPR-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "SEMANTIC_PROXY_SUBSTITUTION",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-PRODUCT-PATH-POS"
+            ],
+            "structuralNegative": [
+              "CS-PRODUCT-PATH-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-PRODUCT-PATH-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-FIXTURE-DISCRIMINATION",
+          "operativeMeaning": "Every behavior claim registers the mandatory discrimination check and every effective alternative diverges at its declared path",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-EXPR-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "FIXTURE_NONDISCRIMINATING",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-FIXTURE-DISCRIMINATION-POS"
+            ],
+            "structuralNegative": [
+              "CS-FIXTURE-DISCRIMINATION-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-FIXTURE-DISCRIMINATION-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-RUNTIME-EFFECT",
+          "operativeMeaning": "Structure counts as implementation only with a witnessed runtime effect through the product path",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-EXPR-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "RUNTIME_EFFECT_UNWITNESSED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-RUNTIME-EFFECT-POS"
+            ],
+            "structuralNegative": [
+              "CS-RUNTIME-EFFECT-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-RUNTIME-EFFECT-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-ALTERNATIVE-EVALUATORS",
+          "operativeMeaning": "Every mandatory alternative evaluator resolves, its module exists, and class fixtures exercise it",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-EXPR-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "ALTERNATIVE_EVALUATOR_MISSING",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-ALTERNATIVE-EVALUATORS-POS"
+            ],
+            "structuralNegative": [
+              "CS-ALTERNATIVE-EVALUATORS-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-ALTERNATIVE-EVALUATORS-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-DIVERGENCE-CLASSIFICATION",
+          "operativeMeaning": "Every toleranced comparator cites evidence establishing the representation-level cause and a permitted magnitude covering the actual tolerance",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-EXPR-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "DIVERGENCE_CLASSIFICATION_UNJUSTIFIED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-DIVERGENCE-CLASSIFICATION-POS"
+            ],
+            "structuralNegative": [
+              "CS-DIVERGENCE-CLASSIFICATION-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-DIVERGENCE-CLASSIFICATION-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-EQUIVALENCE-POLICY",
+          "operativeMeaning": "Equivalence claims establish the defined domain with complete coverage, independent executions, and no circular proof",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-EXPR-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "EQUIVALENCE_UNPROVEN",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": true,
+          "residualJudgmentDescription": "authenticated exclusions when complete-domain coverage is impossible",
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-EQUIVALENCE-POLICY-POS"
+            ],
+            "structuralNegative": [
+              "CS-EQUIVALENCE-POLICY-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-EQUIVALENCE-POLICY-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-AUTHORITY-IDENTITY",
+          "operativeMeaning": "The derived constituent set of every expected artifact is covered exactly by resolving authorities with no omission, substitution, or conflicting duplicate",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-EXPR-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "AUTHORITY_SOURCE_AMBIGUOUS",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-AUTHORITY-IDENTITY-POS"
+            ],
+            "structuralNegative": [
+              "CS-AUTHORITY-IDENTITY-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-AUTHORITY-IDENTITY-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-ORACLE-PRECEDENCE",
+          "operativeMeaning": "Expected values originate from the strongest available required oracle class; hand-derived expectations are rejected without explicit authorization",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-EXPR-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "STRONGER_ORACLE_BYPASSED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-ORACLE-PRECEDENCE-POS"
+            ],
+            "structuralNegative": [
+              "CS-ORACLE-PRECEDENCE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-ORACLE-PRECEDENCE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-INVENTORY-COVERAGE",
+          "operativeMeaning": "Every mechanically enumerated inventory item maps to claims, fixtures, and executable checks without coverage loss through aggregation",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-EXPR-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "INVENTORY_ITEM_UNCLAIMED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-INVENTORY-COVERAGE-POS"
+            ],
+            "structuralNegative": [
+              "CS-INVENTORY-COVERAGE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-INVENTORY-COVERAGE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-VERIFICATION-CATEGORIES",
+          "operativeMeaning": "Every mandatory verification category is covered by a class claim",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-EXPR-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "PROJECT_UNDERBOUND",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-VERIFICATION-CATEGORIES-POS"
+            ],
+            "structuralNegative": [
+              "CS-VERIFICATION-CATEGORIES-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-VERIFICATION-CATEGORIES-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-ADAPTER-CAPABILITIES",
+          "operativeMeaning": "Every mandatory adapter capability resolves to an existing executable module",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-EXPR-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "SUBJECT_EXECUTION_UNAVAILABLE",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-ADAPTER-CAPABILITIES-POS"
+            ],
+            "structuralNegative": [
+              "CS-ADAPTER-CAPABILITIES-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-ADAPTER-CAPABILITIES-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-PROVIDERS",
+          "operativeMeaning": "Every mandatory provider is configured and resolvable",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-EXPR-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "PROVIDER_UNAVAILABLE",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-PROVIDERS-POS"
+            ],
+            "structuralNegative": [
+              "CS-PROVIDERS-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-PROVIDERS-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-AUTHORIZATION-LINEAGE",
+          "operativeMeaning": "Approvals bind to exact reviewed revisions and protected artifact hashes; descendants consume them only with proven ancestry and unchanged artifacts",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-EXPR-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "AUTHORIZATION_LINEAGE_INVALID",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-AUTHORIZATION-LINEAGE-POS"
+            ],
+            "structuralNegative": [
+              "CS-AUTHORIZATION-LINEAGE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-AUTHORIZATION-LINEAGE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-BOOTSTRAP-CONFORMANCE",
+          "operativeMeaning": "The initial framework implementation has an independently authenticated conformance judgment over the exact trust-bearing core and suite hashes",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-EXPR-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "FRAMEWORK_BOOTSTRAP_UNWITNESSED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": true,
+          "residualJudgmentDescription": "the independent conformance judgment itself (§7.10A)",
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-BOOTSTRAP-CONFORMANCE-POS"
+            ],
+            "structuralNegative": [
+              "CS-BOOTSTRAP-CONFORMANCE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-BOOTSTRAP-CONFORMANCE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-CONFORMANCE-GOVERNANCE",
+          "operativeMeaning": "The canonical suite cannot be removed, weakened, reinterpreted, or replaced without authenticated framework-change authorization",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-EXPR-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "CONFORMANCE_SUITE_UNAUTHORIZED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": true,
+          "residualJudgmentDescription": "authenticated framework-change authorization for any canonical-control change",
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-CONFORMANCE-GOVERNANCE-POS"
+            ],
+            "structuralNegative": [
+              "CS-CONFORMANCE-GOVERNANCE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-CONFORMANCE-GOVERNANCE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        }
+      ],
+      "productPathDependenceControls": [
+        {
+          "claimId": "CLAIM-MILK-EXPR-OPERATORS",
+          "removalTargets": [
+            "phosphene/src/exec/executor.mjs",
+            "phosphene/src/graph/graph.mjs"
+          ]
+        }
+      ]
     },
     {
       "requirementClassId": "requirement-class.milkdrop-behavior",
@@ -302,7 +835,531 @@
         "claimAggregationMayNotReduceOracleFixtureAlternativeOrExecutionSurface": true,
         "mechanicallyEnumerableSourcesMustBeExtracted": true,
         "residualCompletenessRequiresAuthenticatedWitness": true
-      }
+      },
+      "semanticAcceptanceContracts": [
+        {
+          "propertyId": "SC-EVIDENCE-CLASSES",
+          "operativeMeaning": "Every mandatory evidence class has a retained artifact that the claim verification chain actually consumes",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "EVIDENCE_MISSING",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-EVIDENCE-CLASSES-POS"
+            ],
+            "structuralNegative": [
+              "CS-EVIDENCE-CLASSES-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-EVIDENCE-CLASSES-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-POSITIVE-CONTROLS",
+          "operativeMeaning": "Every mandatory positive control resolves to an executable check registered on every class claim whose own retained execution result passes",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "SEMANTIC_PROXY_SUBSTITUTION",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-POSITIVE-CONTROLS-POS"
+            ],
+            "structuralNegative": [
+              "CS-POSITIVE-CONTROLS-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-POSITIVE-CONTROLS-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-NEGATIVE-CONTROL-DEFECTS",
+          "operativeMeaning": "Every mandatory negative-control defect class has a registered evaluator exercised by class fixtures and rejected with its intended signature",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "NEGATIVE_CONTROL_INVALID",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-NEGATIVE-CONTROL-DEFECTS-POS"
+            ],
+            "structuralNegative": [
+              "CS-NEGATIVE-CONTROL-DEFECTS-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-NEGATIVE-CONTROL-DEFECTS-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-PRODUCT-PATH",
+          "operativeMeaning": "Every claim executes through the declared native product path, proven by runtime dependence interventions rather than an adapter role label",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "SEMANTIC_PROXY_SUBSTITUTION",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-PRODUCT-PATH-POS"
+            ],
+            "structuralNegative": [
+              "CS-PRODUCT-PATH-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-PRODUCT-PATH-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-FIXTURE-DISCRIMINATION",
+          "operativeMeaning": "Every behavior claim registers the mandatory discrimination check and every effective alternative diverges at its declared path",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "FIXTURE_NONDISCRIMINATING",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-FIXTURE-DISCRIMINATION-POS"
+            ],
+            "structuralNegative": [
+              "CS-FIXTURE-DISCRIMINATION-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-FIXTURE-DISCRIMINATION-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-RUNTIME-EFFECT",
+          "operativeMeaning": "Structure counts as implementation only with a witnessed runtime effect through the product path",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "RUNTIME_EFFECT_UNWITNESSED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-RUNTIME-EFFECT-POS"
+            ],
+            "structuralNegative": [
+              "CS-RUNTIME-EFFECT-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-RUNTIME-EFFECT-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-ALTERNATIVE-EVALUATORS",
+          "operativeMeaning": "Every mandatory alternative evaluator resolves, its module exists, and class fixtures exercise it",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "ALTERNATIVE_EVALUATOR_MISSING",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-ALTERNATIVE-EVALUATORS-POS"
+            ],
+            "structuralNegative": [
+              "CS-ALTERNATIVE-EVALUATORS-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-ALTERNATIVE-EVALUATORS-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-DIVERGENCE-CLASSIFICATION",
+          "operativeMeaning": "Every toleranced comparator cites evidence establishing the representation-level cause and a permitted magnitude covering the actual tolerance",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "DIVERGENCE_CLASSIFICATION_UNJUSTIFIED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-DIVERGENCE-CLASSIFICATION-POS"
+            ],
+            "structuralNegative": [
+              "CS-DIVERGENCE-CLASSIFICATION-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-DIVERGENCE-CLASSIFICATION-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-EQUIVALENCE-POLICY",
+          "operativeMeaning": "Equivalence claims establish the defined domain with complete coverage, independent executions, and no circular proof",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "EQUIVALENCE_UNPROVEN",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": true,
+          "residualJudgmentDescription": "authenticated exclusions when complete-domain coverage is impossible",
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-EQUIVALENCE-POLICY-POS"
+            ],
+            "structuralNegative": [
+              "CS-EQUIVALENCE-POLICY-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-EQUIVALENCE-POLICY-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-AUTHORITY-IDENTITY",
+          "operativeMeaning": "The derived constituent set of every expected artifact is covered exactly by resolving authorities with no omission, substitution, or conflicting duplicate",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "AUTHORITY_SOURCE_AMBIGUOUS",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-AUTHORITY-IDENTITY-POS"
+            ],
+            "structuralNegative": [
+              "CS-AUTHORITY-IDENTITY-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-AUTHORITY-IDENTITY-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-ORACLE-PRECEDENCE",
+          "operativeMeaning": "Expected values originate from the strongest available required oracle class; hand-derived expectations are rejected without explicit authorization",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "STRONGER_ORACLE_BYPASSED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-ORACLE-PRECEDENCE-POS"
+            ],
+            "structuralNegative": [
+              "CS-ORACLE-PRECEDENCE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-ORACLE-PRECEDENCE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-INVENTORY-COVERAGE",
+          "operativeMeaning": "Every mechanically enumerated inventory item maps to claims, fixtures, and executable checks without coverage loss through aggregation",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "INVENTORY_ITEM_UNCLAIMED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-INVENTORY-COVERAGE-POS"
+            ],
+            "structuralNegative": [
+              "CS-INVENTORY-COVERAGE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-INVENTORY-COVERAGE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-VERIFICATION-CATEGORIES",
+          "operativeMeaning": "Every mandatory verification category is covered by a class claim",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "PROJECT_UNDERBOUND",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-VERIFICATION-CATEGORIES-POS"
+            ],
+            "structuralNegative": [
+              "CS-VERIFICATION-CATEGORIES-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-VERIFICATION-CATEGORIES-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-ADAPTER-CAPABILITIES",
+          "operativeMeaning": "Every mandatory adapter capability resolves to an existing executable module",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "SUBJECT_EXECUTION_UNAVAILABLE",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-ADAPTER-CAPABILITIES-POS"
+            ],
+            "structuralNegative": [
+              "CS-ADAPTER-CAPABILITIES-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-ADAPTER-CAPABILITIES-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-PROVIDERS",
+          "operativeMeaning": "Every mandatory provider is configured and resolvable",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "PROVIDER_UNAVAILABLE",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-PROVIDERS-POS"
+            ],
+            "structuralNegative": [
+              "CS-PROVIDERS-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-PROVIDERS-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-AUTHORIZATION-LINEAGE",
+          "operativeMeaning": "Approvals bind to exact reviewed revisions and protected artifact hashes; descendants consume them only with proven ancestry and unchanged artifacts",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "AUTHORIZATION_LINEAGE_INVALID",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-AUTHORIZATION-LINEAGE-POS"
+            ],
+            "structuralNegative": [
+              "CS-AUTHORIZATION-LINEAGE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-AUTHORIZATION-LINEAGE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-BOOTSTRAP-CONFORMANCE",
+          "operativeMeaning": "The initial framework implementation has an independently authenticated conformance judgment over the exact trust-bearing core and suite hashes",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "FRAMEWORK_BOOTSTRAP_UNWITNESSED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": true,
+          "residualJudgmentDescription": "the independent conformance judgment itself (§7.10A)",
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-BOOTSTRAP-CONFORMANCE-POS"
+            ],
+            "structuralNegative": [
+              "CS-BOOTSTRAP-CONFORMANCE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-BOOTSTRAP-CONFORMANCE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-CONFORMANCE-GOVERNANCE",
+          "operativeMeaning": "The canonical suite cannot be removed, weakened, reinterpreted, or replaced without authenticated framework-change authorization",
+          "publicReaderOrCommand": "verify requirement <REQ-MILK-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "CONFORMANCE_SUITE_UNAUTHORIZED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": true,
+          "residualJudgmentDescription": "authenticated framework-change authorization for any canonical-control change",
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-CONFORMANCE-GOVERNANCE-POS"
+            ],
+            "structuralNegative": [
+              "CS-CONFORMANCE-GOVERNANCE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-CONFORMANCE-GOVERNANCE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        }
+      ]
     },
     {
       "requirementClassId": "requirement-class.plane9-behavior",
@@ -429,7 +1486,531 @@
         "claimAggregationMayNotReduceOracleFixtureAlternativeOrExecutionSurface": true,
         "mechanicallyEnumerableSourcesMustBeExtracted": true,
         "residualCompletenessRequiresAuthenticatedWitness": true
-      }
+      },
+      "semanticAcceptanceContracts": [
+        {
+          "propertyId": "SC-EVIDENCE-CLASSES",
+          "operativeMeaning": "Every mandatory evidence class has a retained artifact that the claim verification chain actually consumes",
+          "publicReaderOrCommand": "verify requirement <REQ-P9-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "EVIDENCE_MISSING",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-EVIDENCE-CLASSES-POS"
+            ],
+            "structuralNegative": [
+              "CS-EVIDENCE-CLASSES-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-EVIDENCE-CLASSES-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-POSITIVE-CONTROLS",
+          "operativeMeaning": "Every mandatory positive control resolves to an executable check registered on every class claim whose own retained execution result passes",
+          "publicReaderOrCommand": "verify requirement <REQ-P9-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "SEMANTIC_PROXY_SUBSTITUTION",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-POSITIVE-CONTROLS-POS"
+            ],
+            "structuralNegative": [
+              "CS-POSITIVE-CONTROLS-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-POSITIVE-CONTROLS-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-NEGATIVE-CONTROL-DEFECTS",
+          "operativeMeaning": "Every mandatory negative-control defect class has a registered evaluator exercised by class fixtures and rejected with its intended signature",
+          "publicReaderOrCommand": "verify requirement <REQ-P9-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "NEGATIVE_CONTROL_INVALID",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-NEGATIVE-CONTROL-DEFECTS-POS"
+            ],
+            "structuralNegative": [
+              "CS-NEGATIVE-CONTROL-DEFECTS-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-NEGATIVE-CONTROL-DEFECTS-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-PRODUCT-PATH",
+          "operativeMeaning": "Every claim executes through the declared native product path, proven by runtime dependence interventions rather than an adapter role label",
+          "publicReaderOrCommand": "verify requirement <REQ-P9-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "SEMANTIC_PROXY_SUBSTITUTION",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-PRODUCT-PATH-POS"
+            ],
+            "structuralNegative": [
+              "CS-PRODUCT-PATH-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-PRODUCT-PATH-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-FIXTURE-DISCRIMINATION",
+          "operativeMeaning": "Every behavior claim registers the mandatory discrimination check and every effective alternative diverges at its declared path",
+          "publicReaderOrCommand": "verify requirement <REQ-P9-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "FIXTURE_NONDISCRIMINATING",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-FIXTURE-DISCRIMINATION-POS"
+            ],
+            "structuralNegative": [
+              "CS-FIXTURE-DISCRIMINATION-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-FIXTURE-DISCRIMINATION-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-RUNTIME-EFFECT",
+          "operativeMeaning": "Structure counts as implementation only with a witnessed runtime effect through the product path",
+          "publicReaderOrCommand": "verify requirement <REQ-P9-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "RUNTIME_EFFECT_UNWITNESSED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-RUNTIME-EFFECT-POS"
+            ],
+            "structuralNegative": [
+              "CS-RUNTIME-EFFECT-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-RUNTIME-EFFECT-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-ALTERNATIVE-EVALUATORS",
+          "operativeMeaning": "Every mandatory alternative evaluator resolves, its module exists, and class fixtures exercise it",
+          "publicReaderOrCommand": "verify requirement <REQ-P9-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "ALTERNATIVE_EVALUATOR_MISSING",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-ALTERNATIVE-EVALUATORS-POS"
+            ],
+            "structuralNegative": [
+              "CS-ALTERNATIVE-EVALUATORS-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-ALTERNATIVE-EVALUATORS-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-DIVERGENCE-CLASSIFICATION",
+          "operativeMeaning": "Every toleranced comparator cites evidence establishing the representation-level cause and a permitted magnitude covering the actual tolerance",
+          "publicReaderOrCommand": "verify requirement <REQ-P9-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "DIVERGENCE_CLASSIFICATION_UNJUSTIFIED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-DIVERGENCE-CLASSIFICATION-POS"
+            ],
+            "structuralNegative": [
+              "CS-DIVERGENCE-CLASSIFICATION-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-DIVERGENCE-CLASSIFICATION-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-EQUIVALENCE-POLICY",
+          "operativeMeaning": "Equivalence claims establish the defined domain with complete coverage, independent executions, and no circular proof",
+          "publicReaderOrCommand": "verify requirement <REQ-P9-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "EQUIVALENCE_UNPROVEN",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": true,
+          "residualJudgmentDescription": "authenticated exclusions when complete-domain coverage is impossible",
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-EQUIVALENCE-POLICY-POS"
+            ],
+            "structuralNegative": [
+              "CS-EQUIVALENCE-POLICY-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-EQUIVALENCE-POLICY-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-AUTHORITY-IDENTITY",
+          "operativeMeaning": "The derived constituent set of every expected artifact is covered exactly by resolving authorities with no omission, substitution, or conflicting duplicate",
+          "publicReaderOrCommand": "verify requirement <REQ-P9-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "AUTHORITY_SOURCE_AMBIGUOUS",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-AUTHORITY-IDENTITY-POS"
+            ],
+            "structuralNegative": [
+              "CS-AUTHORITY-IDENTITY-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-AUTHORITY-IDENTITY-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-ORACLE-PRECEDENCE",
+          "operativeMeaning": "Expected values originate from the strongest available required oracle class; hand-derived expectations are rejected without explicit authorization",
+          "publicReaderOrCommand": "verify requirement <REQ-P9-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "STRONGER_ORACLE_BYPASSED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-ORACLE-PRECEDENCE-POS"
+            ],
+            "structuralNegative": [
+              "CS-ORACLE-PRECEDENCE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-ORACLE-PRECEDENCE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-INVENTORY-COVERAGE",
+          "operativeMeaning": "Every mechanically enumerated inventory item maps to claims, fixtures, and executable checks without coverage loss through aggregation",
+          "publicReaderOrCommand": "verify requirement <REQ-P9-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "INVENTORY_ITEM_UNCLAIMED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-INVENTORY-COVERAGE-POS"
+            ],
+            "structuralNegative": [
+              "CS-INVENTORY-COVERAGE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-INVENTORY-COVERAGE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-VERIFICATION-CATEGORIES",
+          "operativeMeaning": "Every mandatory verification category is covered by a class claim",
+          "publicReaderOrCommand": "verify requirement <REQ-P9-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "PROJECT_UNDERBOUND",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-VERIFICATION-CATEGORIES-POS"
+            ],
+            "structuralNegative": [
+              "CS-VERIFICATION-CATEGORIES-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-VERIFICATION-CATEGORIES-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-ADAPTER-CAPABILITIES",
+          "operativeMeaning": "Every mandatory adapter capability resolves to an existing executable module",
+          "publicReaderOrCommand": "verify requirement <REQ-P9-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "SUBJECT_EXECUTION_UNAVAILABLE",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-ADAPTER-CAPABILITIES-POS"
+            ],
+            "structuralNegative": [
+              "CS-ADAPTER-CAPABILITIES-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-ADAPTER-CAPABILITIES-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-PROVIDERS",
+          "operativeMeaning": "Every mandatory provider is configured and resolvable",
+          "publicReaderOrCommand": "verify requirement <REQ-P9-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "PROVIDER_UNAVAILABLE",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-PROVIDERS-POS"
+            ],
+            "structuralNegative": [
+              "CS-PROVIDERS-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-PROVIDERS-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-AUTHORIZATION-LINEAGE",
+          "operativeMeaning": "Approvals bind to exact reviewed revisions and protected artifact hashes; descendants consume them only with proven ancestry and unchanged artifacts",
+          "publicReaderOrCommand": "verify requirement <REQ-P9-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "AUTHORIZATION_LINEAGE_INVALID",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-AUTHORIZATION-LINEAGE-POS"
+            ],
+            "structuralNegative": [
+              "CS-AUTHORIZATION-LINEAGE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-AUTHORIZATION-LINEAGE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-BOOTSTRAP-CONFORMANCE",
+          "operativeMeaning": "The initial framework implementation has an independently authenticated conformance judgment over the exact trust-bearing core and suite hashes",
+          "publicReaderOrCommand": "verify requirement <REQ-P9-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "FRAMEWORK_BOOTSTRAP_UNWITNESSED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": true,
+          "residualJudgmentDescription": "the independent conformance judgment itself (§7.10A)",
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-BOOTSTRAP-CONFORMANCE-POS"
+            ],
+            "structuralNegative": [
+              "CS-BOOTSTRAP-CONFORMANCE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-BOOTSTRAP-CONFORMANCE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-CONFORMANCE-GOVERNANCE",
+          "operativeMeaning": "The canonical suite cannot be removed, weakened, reinterpreted, or replaced without authenticated framework-change authorization",
+          "publicReaderOrCommand": "verify requirement <REQ-P9-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "CONFORMANCE_SUITE_UNAUTHORIZED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": true,
+          "residualJudgmentDescription": "authenticated framework-change authorization for any canonical-control change",
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-CONFORMANCE-GOVERNANCE-POS"
+            ],
+            "structuralNegative": [
+              "CS-CONFORMANCE-GOVERNANCE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-CONFORMANCE-GOVERNANCE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        }
+      ]
     },
     {
       "requirementClassId": "requirement-class.native-core",
@@ -559,7 +2140,531 @@
         "claimAggregationMayNotReduceOracleFixtureAlternativeOrExecutionSurface": true,
         "mechanicallyEnumerableSourcesMustBeExtracted": true,
         "residualCompletenessRequiresAuthenticatedWitness": true
-      }
+      },
+      "semanticAcceptanceContracts": [
+        {
+          "propertyId": "SC-EVIDENCE-CLASSES",
+          "operativeMeaning": "Every mandatory evidence class has a retained artifact that the claim verification chain actually consumes",
+          "publicReaderOrCommand": "verify requirement <REQ-NATIVE-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "EVIDENCE_MISSING",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-EVIDENCE-CLASSES-POS"
+            ],
+            "structuralNegative": [
+              "CS-EVIDENCE-CLASSES-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-EVIDENCE-CLASSES-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-POSITIVE-CONTROLS",
+          "operativeMeaning": "Every mandatory positive control resolves to an executable check registered on every class claim whose own retained execution result passes",
+          "publicReaderOrCommand": "verify requirement <REQ-NATIVE-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "SEMANTIC_PROXY_SUBSTITUTION",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-POSITIVE-CONTROLS-POS"
+            ],
+            "structuralNegative": [
+              "CS-POSITIVE-CONTROLS-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-POSITIVE-CONTROLS-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-NEGATIVE-CONTROL-DEFECTS",
+          "operativeMeaning": "Every mandatory negative-control defect class has a registered evaluator exercised by class fixtures and rejected with its intended signature",
+          "publicReaderOrCommand": "verify requirement <REQ-NATIVE-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "NEGATIVE_CONTROL_INVALID",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-NEGATIVE-CONTROL-DEFECTS-POS"
+            ],
+            "structuralNegative": [
+              "CS-NEGATIVE-CONTROL-DEFECTS-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-NEGATIVE-CONTROL-DEFECTS-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-PRODUCT-PATH",
+          "operativeMeaning": "Every claim executes through the declared native product path, proven by runtime dependence interventions rather than an adapter role label",
+          "publicReaderOrCommand": "verify requirement <REQ-NATIVE-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "SEMANTIC_PROXY_SUBSTITUTION",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-PRODUCT-PATH-POS"
+            ],
+            "structuralNegative": [
+              "CS-PRODUCT-PATH-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-PRODUCT-PATH-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-FIXTURE-DISCRIMINATION",
+          "operativeMeaning": "Every behavior claim registers the mandatory discrimination check and every effective alternative diverges at its declared path",
+          "publicReaderOrCommand": "verify requirement <REQ-NATIVE-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "FIXTURE_NONDISCRIMINATING",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-FIXTURE-DISCRIMINATION-POS"
+            ],
+            "structuralNegative": [
+              "CS-FIXTURE-DISCRIMINATION-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-FIXTURE-DISCRIMINATION-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-RUNTIME-EFFECT",
+          "operativeMeaning": "Structure counts as implementation only with a witnessed runtime effect through the product path",
+          "publicReaderOrCommand": "verify requirement <REQ-NATIVE-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "RUNTIME_EFFECT_UNWITNESSED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-RUNTIME-EFFECT-POS"
+            ],
+            "structuralNegative": [
+              "CS-RUNTIME-EFFECT-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-RUNTIME-EFFECT-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-ALTERNATIVE-EVALUATORS",
+          "operativeMeaning": "Every mandatory alternative evaluator resolves, its module exists, and class fixtures exercise it",
+          "publicReaderOrCommand": "verify requirement <REQ-NATIVE-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "ALTERNATIVE_EVALUATOR_MISSING",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-ALTERNATIVE-EVALUATORS-POS"
+            ],
+            "structuralNegative": [
+              "CS-ALTERNATIVE-EVALUATORS-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-ALTERNATIVE-EVALUATORS-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-DIVERGENCE-CLASSIFICATION",
+          "operativeMeaning": "Every toleranced comparator cites evidence establishing the representation-level cause and a permitted magnitude covering the actual tolerance",
+          "publicReaderOrCommand": "verify requirement <REQ-NATIVE-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "DIVERGENCE_CLASSIFICATION_UNJUSTIFIED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-DIVERGENCE-CLASSIFICATION-POS"
+            ],
+            "structuralNegative": [
+              "CS-DIVERGENCE-CLASSIFICATION-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-DIVERGENCE-CLASSIFICATION-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-EQUIVALENCE-POLICY",
+          "operativeMeaning": "Equivalence claims establish the defined domain with complete coverage, independent executions, and no circular proof",
+          "publicReaderOrCommand": "verify requirement <REQ-NATIVE-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "EQUIVALENCE_UNPROVEN",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": true,
+          "residualJudgmentDescription": "authenticated exclusions when complete-domain coverage is impossible",
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-EQUIVALENCE-POLICY-POS"
+            ],
+            "structuralNegative": [
+              "CS-EQUIVALENCE-POLICY-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-EQUIVALENCE-POLICY-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-AUTHORITY-IDENTITY",
+          "operativeMeaning": "The derived constituent set of every expected artifact is covered exactly by resolving authorities with no omission, substitution, or conflicting duplicate",
+          "publicReaderOrCommand": "verify requirement <REQ-NATIVE-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "AUTHORITY_SOURCE_AMBIGUOUS",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-AUTHORITY-IDENTITY-POS"
+            ],
+            "structuralNegative": [
+              "CS-AUTHORITY-IDENTITY-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-AUTHORITY-IDENTITY-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-ORACLE-PRECEDENCE",
+          "operativeMeaning": "Expected values originate from the strongest available required oracle class; hand-derived expectations are rejected without explicit authorization",
+          "publicReaderOrCommand": "verify requirement <REQ-NATIVE-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "STRONGER_ORACLE_BYPASSED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-ORACLE-PRECEDENCE-POS"
+            ],
+            "structuralNegative": [
+              "CS-ORACLE-PRECEDENCE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-ORACLE-PRECEDENCE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-INVENTORY-COVERAGE",
+          "operativeMeaning": "Every mechanically enumerated inventory item maps to claims, fixtures, and executable checks without coverage loss through aggregation",
+          "publicReaderOrCommand": "verify requirement <REQ-NATIVE-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "INVENTORY_ITEM_UNCLAIMED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-INVENTORY-COVERAGE-POS"
+            ],
+            "structuralNegative": [
+              "CS-INVENTORY-COVERAGE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-INVENTORY-COVERAGE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-VERIFICATION-CATEGORIES",
+          "operativeMeaning": "Every mandatory verification category is covered by a class claim",
+          "publicReaderOrCommand": "verify requirement <REQ-NATIVE-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "PROJECT_UNDERBOUND",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-VERIFICATION-CATEGORIES-POS"
+            ],
+            "structuralNegative": [
+              "CS-VERIFICATION-CATEGORIES-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-VERIFICATION-CATEGORIES-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-ADAPTER-CAPABILITIES",
+          "operativeMeaning": "Every mandatory adapter capability resolves to an existing executable module",
+          "publicReaderOrCommand": "verify requirement <REQ-NATIVE-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "SUBJECT_EXECUTION_UNAVAILABLE",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-ADAPTER-CAPABILITIES-POS"
+            ],
+            "structuralNegative": [
+              "CS-ADAPTER-CAPABILITIES-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-ADAPTER-CAPABILITIES-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-PROVIDERS",
+          "operativeMeaning": "Every mandatory provider is configured and resolvable",
+          "publicReaderOrCommand": "verify requirement <REQ-NATIVE-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "PROVIDER_UNAVAILABLE",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-PROVIDERS-POS"
+            ],
+            "structuralNegative": [
+              "CS-PROVIDERS-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-PROVIDERS-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-AUTHORIZATION-LINEAGE",
+          "operativeMeaning": "Approvals bind to exact reviewed revisions and protected artifact hashes; descendants consume them only with proven ancestry and unchanged artifacts",
+          "publicReaderOrCommand": "verify requirement <REQ-NATIVE-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "AUTHORIZATION_LINEAGE_INVALID",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-AUTHORIZATION-LINEAGE-POS"
+            ],
+            "structuralNegative": [
+              "CS-AUTHORIZATION-LINEAGE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-AUTHORIZATION-LINEAGE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-BOOTSTRAP-CONFORMANCE",
+          "operativeMeaning": "The initial framework implementation has an independently authenticated conformance judgment over the exact trust-bearing core and suite hashes",
+          "publicReaderOrCommand": "verify requirement <REQ-NATIVE-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "FRAMEWORK_BOOTSTRAP_UNWITNESSED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": true,
+          "residualJudgmentDescription": "the independent conformance judgment itself (§7.10A)",
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-BOOTSTRAP-CONFORMANCE-POS"
+            ],
+            "structuralNegative": [
+              "CS-BOOTSTRAP-CONFORMANCE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-BOOTSTRAP-CONFORMANCE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        },
+        {
+          "propertyId": "SC-CONFORMANCE-GOVERNANCE",
+          "operativeMeaning": "The canonical suite cannot be removed, weakened, reinterpreted, or replaced without authenticated framework-change authorization",
+          "publicReaderOrCommand": "verify requirement <REQ-NATIVE-*>",
+          "mechanicalAcceptanceCondition": "engine + bindingfields readers named in the framework matrix row for this contract; see verify framework bindingFieldAudit",
+          "expectedFailureCode": "CONFORMANCE_SUITE_UNAUTHORIZED",
+          "expectedFirstFailureOrDivergence": "per-scenario declared signature",
+          "residualJudgmentWitnessRequired": true,
+          "residualJudgmentDescription": "authenticated framework-change authorization for any canonical-control change",
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CS-CONFORMANCE-GOVERNANCE-POS"
+            ],
+            "structuralNegative": [
+              "CS-CONFORMANCE-GOVERNANCE-STRUCT"
+            ],
+            "semanticNegative": [
+              "CS-CONFORMANCE-GOVERNANCE-SEM"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        }
+      ]
     }
   ],
   "repositorySpecificRules": [],
@@ -577,7 +2682,27 @@
       "alternative-evaluators",
       "fixture-discrimination-checks",
       "product-path-checks",
-      "other-binding-controls"
+      "other-binding-controls",
+      "semantic-acceptance-contracts",
+      "authorization-lineage",
+      "framework-bootstrap-conformance",
+      "canonical-conformance-suite-governance"
     ]
+  },
+  "frameworkBootstrapConformance": {
+    "bootstrapRecordId": "framework-bootstrap.phosphene",
+    "canonicalConformanceSuiteId": "framework-conformance-suite.phosphene",
+    "canonicalConformanceSuiteManifestHash": "sha256:126399afcfab5d57d505302b192d26df05668b550496509edc7af5a843d69559",
+    "independentBootstrapWitnessId": null
+  },
+  "authorizationLineagePolicy": {
+    "reviewedRevisionRequired": true,
+    "reviewedTreeHashRequired": true,
+    "hostEventIdentityRequired": true,
+    "affectedArtifactHashesRequired": true,
+    "descendantConsumptionAllowedOnlyWhenReviewedRevisionIsAncestor": true,
+    "descendantConsumptionAllowedOnlyWhenProtectedArtifactsAreUnchanged": true,
+    "attestationContainerCommitNeedNotEqualReviewedRevision": true,
+    "baseRevisionRequiredForTrustRootChanges": true
   }
 }

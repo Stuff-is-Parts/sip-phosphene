@@ -133,7 +133,38 @@
         "claimAggregationMayNotReduceOracleFixtureAlternativeOrExecutionSurface": true,
         "mechanicallyEnumerableSourcesMustBeExtracted": true,
         "residualCompletenessRequiresAuthenticatedWitness": true
-      }
+      },
+      "semanticAcceptanceContracts": [
+        {
+          "propertyId": "SEMANTIC-PROPERTY-REPLACE",
+          "operativeMeaning": "REPLACE_COMPLETE_OPERATIVE_MEANING",
+          "publicReaderOrCommand": "REPLACE_PUBLIC_COMMAND_OR_PROCESS_BOUNDARY",
+          "mechanicalAcceptanceCondition": "REPLACE_DIRECT_OBSERVATION_EXECUTION_OR_COMPARISON",
+          "expectedFailureCode": "SEMANTIC_PROXY_SUBSTITUTION",
+          "expectedFirstFailureOrDivergence": "REPLACE_FAILURE_PATH",
+          "residualJudgmentWitnessRequired": false,
+          "residualJudgmentDescription": null,
+          "requiredControlConditions": [
+            "positive",
+            "structural-negative",
+            "semantic-negative"
+          ],
+          "controlScenarioRefs": {
+            "positive": [
+              "CONTROL-SCENARIO-POSITIVE-REPLACE"
+            ],
+            "structuralNegative": [
+              "CONTROL-SCENARIO-STRUCTURAL-REPLACE"
+            ],
+            "semanticNegative": [
+              "CONTROL-SCENARIO-SEMANTIC-REPLACE"
+            ]
+          },
+          "sharedControlScenariosPermitted": true,
+          "independentAttributionRequired": true,
+          "weakeningThisContractMustBreakDesignatedControl": true
+        }
+      ]
     }
   ],
   "repositorySpecificRules": [],
@@ -151,7 +182,27 @@
       "alternative-evaluators",
       "fixture-discrimination-checks",
       "product-path-checks",
-      "other-binding-controls"
+      "other-binding-controls",
+      "semantic-acceptance-contracts",
+      "authorization-lineage",
+      "framework-bootstrap-conformance",
+      "canonical-conformance-suite-governance"
     ]
+  },
+  "frameworkBootstrapConformance": {
+    "bootstrapRecordId": "framework-bootstrap.REPLACE",
+    "canonicalConformanceSuiteId": "framework-conformance-suite.REPLACE",
+    "canonicalConformanceSuiteManifestHash": "sha256:REPLACE",
+    "independentBootstrapWitnessId": "AUTH-WITNESS-FRAMEWORK-BOOTSTRAP-REPLACE"
+  },
+  "authorizationLineagePolicy": {
+    "reviewedRevisionRequired": true,
+    "reviewedTreeHashRequired": true,
+    "hostEventIdentityRequired": true,
+    "affectedArtifactHashesRequired": true,
+    "descendantConsumptionAllowedOnlyWhenReviewedRevisionIsAncestor": true,
+    "descendantConsumptionAllowedOnlyWhenProtectedArtifactsAreUnchanged": true,
+    "attestationContainerCommitNeedNotEqualReviewedRevision": true,
+    "baseRevisionRequiredForTrustRootChanges": true
   }
 }

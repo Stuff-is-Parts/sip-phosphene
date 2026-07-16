@@ -16,6 +16,8 @@ import { changeIntegrity } from '../core/integrity.mjs';
 import { runInClean } from '../core/clean.mjs';
 import { witnessStatus } from '../core/authorization.mjs';
 import { verifyWitnessLive } from '../core/livehost.mjs';
+import { verifyAttestationLineage } from '../core/lineage.mjs';
+import { bootstrapConformanceStatus } from '../core/conformance.mjs';
 import { invokeCapability } from '../core/adapters.mjs';
 import { spawnSync } from 'node:child_process';
 
@@ -53,8 +55,13 @@ export async function main(argv) {
     case 'clean-claim': return rest[0] ? cmdCleanTarget(repoRoot, 'clean-claim', ['claim', rest[0]], `claim ${rest[0]} executed in a clean checkout; its actual result propagates`) : usage('verify clean-claim <claim-id>');
     case 'clean-requirement': return rest[0] ? cmdCleanTarget(repoRoot, 'clean-requirement', ['requirement', rest[0]], `requirement ${rest[0]} executed in a clean checkout; its actual result propagates`) : usage('verify clean-requirement <requirement-id>');
     case 'authorization-live': return cmdAuthorizationLive(repoRoot, rest);
+    case 'authorization-lineage': return cmdAuthorizationLineage(repoRoot);
+    case 'framework-bootstrap-conformance': return cmdBootstrapConformance(repoRoot);
+    case 'framework-conformance-suite': return cmdConformanceSuite(repoRoot);
+    case 'semantic-acceptance': return cmdSemanticAcceptance(repoRoot);
     case 'evidence-bundle': return cmdEvidenceBundle(repoRoot);
     case 'capture-oracle': return cmdCaptureOracle(repoRoot, rest);
+    case 'framework-conformance-lock': return cmdLock(repoRoot, 'framework-conformance', rest);
     case 'scope-lock': return cmdLock(repoRoot, 'scope', rest);
     case 'authorization-lock': return cmdLock(repoRoot, 'authorization', rest);
     case 'project-binding-lock': return cmdLock(repoRoot, 'binding', rest);
@@ -141,6 +148,93 @@ function cmdCleanTarget(repoRoot, command, targetArgs, surfaceStatement) {
     surface: surfaceStatement,
     cleanCheckoutSourceCommit: r.sourceCommit,
     steps: r.steps.map((s) => ({ step: s.step, exitCode: s.exitCode }))
+  });
+}
+
+/** @param {string} repoRoot @returns {number} */
+function cmdAuthorizationLineage(repoRoot) {
+  const store = load(repoRoot);
+  /** @type {Array<{code: string, detail: string}>} */
+  const failures = [];
+  /** @type {any[]} */
+  const outcomes = [];
+  for (const attestation of store.attestations) {
+    const r = verifyAttestationLineage(store, attestation);
+    outcomes.push({ attestationId: attestation.attestationId, ok: r.ok, reasons: r.reasons });
+    if (!r.ok) {
+      for (const reason of r.reasons) failures.push({ code: 'AUTHORIZATION_LINEAGE_INVALID', detail: `attestation '${attestation.attestationId}': ${reason}` });
+    }
+  }
+  for (const w of store.witnesses) {
+    if (!w.reviewedRevision) {
+      failures.push({ code: 'AUTHORIZATION_LINEAGE_INVALID', detail: `witness '${w.witnessId}' lacks an exact reviewed revision (mandatory per §7.10)` });
+    }
+  }
+  for (const e of store.structuralErrors.filter((s) => s.includes('witnesses') || s.includes('attestations'))) {
+    failures.push({ code: 'AUTHORIZATION_LINEAGE_INVALID', detail: `[structural] ${e}` });
+  }
+  return finish(repoRoot, 'authorization-lineage', { result: failures.length === 0 ? 'PASS' : 'FAIL', failures }, {
+    note: 'lineage verification of retained attestations: reviewed-revision ancestry plus unchanged protected artifacts (§7.10). This is not live authentication and never re-authenticates the external actor.',
+    outcomes
+  });
+}
+
+/** @param {string} repoRoot @returns {number} */
+function cmdBootstrapConformance(repoRoot) {
+  const store = load(repoRoot);
+  const r = bootstrapConformanceStatus(store);
+  return finish(repoRoot, 'framework-bootstrap-conformance', { result: r.failures.length === 0 ? 'PASS' : 'FAIL', failures: r.failures }, {
+    status: r.status,
+    note: 'the independent bootstrap-conformance judgment must come from an authenticated authority outside the correlated producer (§7.10A); the producing agent cannot issue it'
+  });
+}
+
+/** @param {string} repoRoot @returns {Promise<number>} */
+async function cmdConformanceSuite(repoRoot) {
+  const store = load(repoRoot);
+  const fw = await computeFrameworkResult(store, kitDir);
+  /** @type {Array<{code: string, detail: string}>} */
+  const failures = fw.failures.filter((f) => f.detail.startsWith('[conformance-suite]'));
+  return finish(repoRoot, 'framework-conformance-suite', { result: failures.length === 0 ? 'PASS' : 'FAIL', failures }, {
+    scenarioResults: fw.conformanceSuite.scenarioResults,
+    contractCoverage: fw.conformanceSuite.contractCoverage,
+    note: 'runs the governed canonical controls through public boundaries and verifies suite governance (§7.10B)'
+  });
+}
+
+/** @param {string} repoRoot @returns {Promise<number>} */
+async function cmdSemanticAcceptance(repoRoot) {
+  const store = load(repoRoot);
+  /** @type {Array<{code: string, detail: string}>} */
+  const failures = [];
+  /** @type {any[]} */
+  const audits = [];
+  for (const requirement of store.requirements) {
+    const r = await computeRequirementResult(store, requirement);
+    audits.push({ requirementId: r.requirementId, bindingFieldAudit: r.bindingFieldAudit });
+    for (const f of r.failures.filter((x) => x.code === 'SEMANTIC_PROXY_SUBSTITUTION' || x.detail.includes('[binding:'))) {
+      failures.push(f);
+    }
+  }
+  const suite = store.conformanceSuite;
+  for (const bc of (store.binding?.requirementClasses ?? [])) {
+    for (const contract of bc.semanticAcceptanceContracts ?? []) {
+      const refs = [
+        ...(contract.controlScenarioRefs?.positive ?? []),
+        ...(contract.controlScenarioRefs?.structuralNegative ?? []),
+        ...(contract.controlScenarioRefs?.semanticNegative ?? [])
+      ];
+      for (const ref of refs) {
+        const found = (suite?.controlScenarios ?? []).some((/** @type {any} */ s) => s.scenarioId === ref);
+        if (!found) {
+          failures.push({ code: 'SEMANTIC_PROXY_SUBSTITUTION', detail: `binding contract '${contract.propertyId}' references canonical scenario '${ref}' which the governed suite does not define` });
+        }
+      }
+    }
+  }
+  return finish(repoRoot, 'semantic-acceptance', { result: failures.length === 0 ? 'PASS' : 'FAIL', failures }, {
+    audits,
+    note: 'rejects mandatory fields or policies implemented only through correlated proxies (§14.5); full three-condition demonstration is judged by verify framework via the canonical suite'
   });
 }
 
@@ -649,6 +743,9 @@ async function cmdFramework(repoRoot) {
     fixtureRepoScenarios: r.fixtureRepoScenarios,
     auditControls: r.auditControls,
     bindingFieldAudit: r.bindingFieldAudit,
+    bootstrapConformance: r.bootstrapConformance,
+    conformanceSuite: r.conformanceSuite,
+    attestationLineage: r.attestationLineage,
     note: 'partial framework construction appears as a failed matrix, not a progress narrative (framework spec §15)'
   });
 }

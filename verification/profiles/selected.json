@@ -3,12 +3,12 @@
     {
       "profileId": "profile.phosphene-compatibility-port",
       "path": "verification/profiles/profile.phosphene-compatibility-port.json",
-      "hash": "sha256:7a934e0572935b3014e170dbe0ede0be16b615f3f75051fc92848f01af6d8d9d"
+      "hash": "sha256:f5bc3741d1e35ce81c002683c567fa35778b56ecd59869c6e64d50fe8e3d9b81"
     },
     {
       "profileId": "profile.phosphene-graphics-runtime",
       "path": "verification/profiles/profile.phosphene-graphics-runtime.json",
-      "hash": "sha256:646bbe50b3f926619e2bde2aa2e15badd0421a29cf87a55597c84520f8c98a2b"
+      "hash": "sha256:41acca91234689e4d1bbc3ee3b1030680feb97cb9b17cb20191819a80c00a3e9"
     }
   ]
 }

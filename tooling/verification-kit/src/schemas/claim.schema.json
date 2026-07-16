@@ -24,11 +24,17 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["constituent", "authorityId"],
+        "required": ["constituent", "authorityId", "coversPaths"],
         "properties": {
           "constituent": { "type": "string" },
           "authorityId": { "type": "string" },
-          "conflictId": { "type": "string" }
+          "conflictId": { "type": "string" },
+          "coversPaths": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" },
+            "description": "Machine-checkable expected-result paths this constituent covers (top-level keys or '<key>' patterns). The union across entries must cover the complete derived constituent set of the expected artifact — a nonempty map covering nothing is semantic proxy substitution (framework spec §14.5)."
+          }
         }
       }
     },

@@ -15,6 +15,8 @@ import { loadValidators, schemaErrors } from './schemas.mjs';
  * @property {any} bootstrap
  * @property {any[]} witnesses
  * @property {any[]} attestations
+ * @property {any} bootstrapConformance
+ * @property {any} conformanceSuite
  * @property {any[]} authorities
  * @property {any[]} conflicts
  * @property {any[]} requirements
@@ -112,6 +114,8 @@ export function loadStore(repoRoot, opts = {}) {
   const bootstrap = loadOne(tree.bootstrap, 'bootstrap', true);
   const witnesses = loadDir(tree.witnessesDir, 'witness');
   const attestations = loadDir(tree.attestationsDir, 'attestation');
+  const bootstrapConformance = loadOne(tree.bootstrapConformance, 'framework-bootstrap-conformance', false);
+  const conformanceSuite = loadOne(tree.canonicalSuiteManifest, 'framework-conformance-suite', false);
   const authoritiesDoc = loadOne(tree.authorities, 'authority', true);
   const authorities = authoritiesDoc?.authorities ?? [];
   const conflicts = loadDir(tree.conflictsDir, 'conflict');
@@ -166,7 +170,7 @@ export function loadStore(repoRoot, opts = {}) {
   return {
     repoRoot, tree, structuralErrors,
     projectConfig, providersConfig, scope, scopeDecomposition, allowlist, bootstrap,
-    witnesses, attestations, authorities, conflicts,
+    witnesses, attestations, bootstrapConformance, conformanceSuite, authorities, conflicts,
     requirements, claims, evidence, fixtures, comparators,
     adapters, checks, evaluators, inventories, profiles,
     selectedProfiles, binding, selfTestBinding,

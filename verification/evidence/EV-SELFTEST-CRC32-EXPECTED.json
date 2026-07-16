@@ -21,12 +21,11 @@
   ],
   "perConstituentAuthority": [
     {
-      "constituent": "results[*] expected CRC-32 values",
-      "authorityId": "AUTH-NODE-ZLIB"
-    },
-    {
-      "constituent": "CRC-32 algorithm definition",
-      "authorityId": "AUTH-RFC1952"
+      "constituent": "expected CRC-32 results (measurement; RFC 1952 defines the algorithm and stays in authorityIds)",
+      "authorityId": "AUTH-NODE-ZLIB",
+      "coversPaths": [
+        "results"
+      ]
     }
   ],
   "fact": "The expected CRC-32 value for each fixture operation, computed by the independent node:zlib implementation over the operation's chunks in declared order with fresh state per operation.",

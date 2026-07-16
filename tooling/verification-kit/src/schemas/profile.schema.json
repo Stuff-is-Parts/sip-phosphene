@@ -237,11 +237,13 @@
     "customMechanismSelfTestRules": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["publicCommandOrProcessBoundaryRequired", "internalDecisionLogicMayNotBeImportedOrDuplicated", "observableFailureSignatureRequired"],
+      "required": ["publicCommandOrProcessBoundaryRequired", "internalDecisionLogicMayNotBeImportedOrDuplicated", "observableFailureSignatureRequired", "structurallyValidSemanticallyInadequateControlRequired", "proxyRequiresIndependentEquivalenceProof"],
       "properties": {
         "publicCommandOrProcessBoundaryRequired": { "type": "boolean", "const": true },
         "internalDecisionLogicMayNotBeImportedOrDuplicated": { "type": "boolean", "const": true },
-        "observableFailureSignatureRequired": { "type": "boolean", "const": true }
+        "observableFailureSignatureRequired": { "type": "boolean", "const": true },
+        "structurallyValidSemanticallyInadequateControlRequired": { "type": "boolean", "const": true },
+        "proxyRequiresIndependentEquivalenceProof": { "type": "boolean", "const": true }
       }
     }
   }

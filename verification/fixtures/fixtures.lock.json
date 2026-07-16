@@ -33,31 +33,12 @@
     }
   ],
   "meta": {
-    "reason": "register MilkDrop EEL operator claim: ns-eel2 + eel-parser authorities, reference-captured expected values, binding class milkdrop-expression",
+    "reason": "semantic-control-sharing revision: contracts, lineage policy, canonical suite, pending bootstrap record",
     "command": "verify fixtures-lock",
-    "time": "2026-07-16T21:32:39.128Z",
-    "commit": "596a64cc4b9bbc14d3bae8cf04ab29f2843286d5",
+    "time": "2026-07-16T23:19:45.994Z",
+    "commit": "970c2256e871dc90554555c583ccf1c547f9fdbf",
     "dirtyWorktree": true,
     "authorizationWitnessId": null,
-    "changes": [
-      {
-        "path": "verification/fixtures/expected/FIX-MILK-EXPR-OPERATORS.expected.json",
-        "kind": "added",
-        "oldSha256": null,
-        "newSha256": "6b925578aceee71c893936fb454874addda0d75249751d265a648d6b598e2a0c"
-      },
-      {
-        "path": "verification/fixtures/inputs/FIX-MILK-EXPR-OPERATORS.input.json",
-        "kind": "added",
-        "oldSha256": null,
-        "newSha256": "6293388e9aaf58e1bc229d2deb3fa1ab33f410e33e77568451b144362da5ef3f"
-      },
-      {
-        "path": "verification/fixtures/records/FIX-MILK-EXPR-OPERATORS.json",
-        "kind": "added",
-        "oldSha256": null,
-        "newSha256": "ebbc2f6879347837c7504abd233023b3005a50c7edd1e57ae69e49cc779c855f"
-      }
-    ]
+    "changes": []
   }
 }

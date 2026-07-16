@@ -1,0 +1,228 @@
+{
+  "bootstrapRecordId": "framework-bootstrap.phosphene",
+  "frameworkSpecificationHash": "sha256:dfab47cbe3e9aed4dc8bb2cb9d3212b36303984e196452ffa70deb131883f275",
+  "frameworkImplementation": {
+    "repositoryIdentity": "Stuff-is-Parts/sip-phosphene",
+    "reviewedCommit": "970c2256e871dc90554555c583ccf1c547f9fdbf",
+    "reviewedTreeHash": "8f06ae3778ad1f4aac9b4b9083011f5f4e2d2690",
+    "trustBearingArtifactHashes": [
+      {
+        "path": "tooling/verification-kit/bin/verify.mjs",
+        "sha256": "cd69becab8ee4f93699e5b535a96c5632d4d6d8b856649f9e53f31edd03c3e42"
+      },
+      {
+        "path": "tooling/verification-kit/src/cli/main.mjs",
+        "sha256": "64faa6b71ed0a17a735eb9e6452efc3fcfc2a2df3eac0c8d186c381e17087ee3"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/adapters.mjs",
+        "sha256": "faa1d27ee9c562e205f1693e98a909bbe4d242ce6c259052af2b819875a30819"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/authorization.mjs",
+        "sha256": "89e273867e1f33ba4c23589d391f8ab9be53f3028f2e7b439f5ead76afdc6887"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/bindingfields.mjs",
+        "sha256": "540ecbf148d0c037c98b227fd0c41dd486bba848e4238805fd44a37200192cf6"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/clean.mjs",
+        "sha256": "3b65be4061eececcba12919090734580b82e616de824c0c7fe7bb4bbb9f3e514"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/compare.mjs",
+        "sha256": "3538f0510d00ca3efab878ddcfcd2c10d005abeb9fc9b290218dd21e7db06519"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/conformance.mjs",
+        "sha256": "212848ac40effe70b6e08b9cfad578f2a6cf4596d9f429311fb17ed17520994f"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/controls.mjs",
+        "sha256": "fe60385819e241b3768fb9361a74dbf8c3db7634433d791e4a38f8ab822fe639"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/engine-util.mjs",
+        "sha256": "81412a4cbbbec2541af83725697fa7ae0458b139cc1cbb12e7659e63102570b9"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/engine.mjs",
+        "sha256": "5de09601995af4e9140278ebef6e3c3410d0d22794fbe94b9da1e426a8eaddf5"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/framework.mjs",
+        "sha256": "a2ebf7e24b4b9f0e23c7ba1bbf8bfeb2aa3807a8a99666125b2ed42c2bb2581c"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/git.mjs",
+        "sha256": "51fdff13d9ebe1f075bbdfd9233b3c6d633efdda2173f16f833427f0151da58a"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/hash.mjs",
+        "sha256": "49dce28b075434bf583c8afa7f008ef0e1a6e7ec41c770470e05abc783019bdd"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/init.mjs",
+        "sha256": "47008f83ced3300151b056a791c92eb7a7376dbeaf439c8f3fc936b9174b5c9b"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/integrity.mjs",
+        "sha256": "4906d83754118e221befa38024818f0deb356ef5579657a1abf8cc60811a6d37"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/lineage.mjs",
+        "sha256": "df43fa5f6351cf108f3302e20e75fec7e513dfec3fa46003c9779beb49551e36"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/livehost.mjs",
+        "sha256": "3e7426f192f7c5e0eff5db0646a1f3283a2d3b14b029116367a1956187a96979"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/locks.mjs",
+        "sha256": "3fae4cf23df9a6d637c568bb66e89cc384d2d5fbe34a188e62c2edc5051831c4"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/negcontrols.mjs",
+        "sha256": "10fe909e0c59c59633c58b93973adb71108ec2986ef98706ab60440cf3f6b001"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/orphans.mjs",
+        "sha256": "d4148b7ba59825182aefc2a51c8c26f528da00afd63ab82eea8c0f02fbc261f6"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/paths.mjs",
+        "sha256": "349c09821949cb140afc5c136d3214ae2b98e0f497301a29a59eb2a53092e5ce"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/report.mjs",
+        "sha256": "4a37eefb1ed02fe8685cefbb767cac473813c512c23c5c9bfbbb889ae9f11183"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/schemas.mjs",
+        "sha256": "bed9005d2fba88b2ca3853ca5106ada211781bd544a06684a7a608d7b28efc68"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/selftest.mjs",
+        "sha256": "1a4eaa44e5f22b2142cc8aca1a8e40ab59a633abe4e88c2ce4ddccb83f0db3ee"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/store.mjs",
+        "sha256": "ea93526a47c0b4808c82d1825ee94adca5477105992425deb59d3254a75be136"
+      },
+      {
+        "path": "tooling/verification-kit/src/core/union.mjs",
+        "sha256": "c01999fcaf6c4e1658756c99c364d7b523a2dceb445cec4db9aaea7cd52f323c"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/adapter.schema.json",
+        "sha256": "9800625ea860da83792438299fa5cb87b77873473d22188d83901db02574e468"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/allowlist.schema.json",
+        "sha256": "2a9b8c784995347eedc137595bd2cec44d2f0d9dabeaa46c5bae0a03096c7e1a"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/attestation.schema.json",
+        "sha256": "98d7491d355d413b671869606876aa4cff16a44dd2ea602d215fffc1053429a8"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/authority.schema.json",
+        "sha256": "680be5985b9877e481ca13401e2f56b824ad2202caf0c156ec7b4bc28bbc855f"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/binding.schema.json",
+        "sha256": "a5c7fbe113c25d9a56d1a9f9754da1ad21b804a8c5362cd67cafcd191d8658a8"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/bootstrap.schema.json",
+        "sha256": "8fca9358f186457b6fa8e898bc9b13df11114f211d40f496f71810ec088df319"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/check.schema.json",
+        "sha256": "38be22d0956a96fafcdb43b49d3b74b41ed30c30d15a747058e815f421812542"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/claim.schema.json",
+        "sha256": "fa3194d15867c76b47a3cfa6c109a276aa0b740b9cc3135dc6adce12a7eba673"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/comparator.schema.json",
+        "sha256": "f07aee57f76ecb7291e285073f1fc8208d500b2635485bc5129c5ed14e9f4172"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/conflict.schema.json",
+        "sha256": "7191dbba6e1ec50c1a01bcca0f9973f2cb5fc8cc0d2475835093277cb2a1e6e9"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/evaluator.schema.json",
+        "sha256": "c19915a55509d100ae0f510ab1380f9aa03c3987ba311c129e7a8536eca7dcb8"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/evidence.schema.json",
+        "sha256": "fff714699db6142af455afcd1a477107a7e638563210a1adb4c30dbd89e0dc5a"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/fixture.schema.json",
+        "sha256": "9cb8686258cecc4876e0901186b21bb219effc71b4d8f9086c51c2b99da7e85b"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/framework-bootstrap-conformance.schema.json",
+        "sha256": "340efa5de6d2e6278f00ba5ff1d9d01918411370463b47c2d42d431688e92312"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/framework-conformance-suite.schema.json",
+        "sha256": "a020fa31a2326431aad48a147a6ffb4f2b0c2e8e83477a3aff539cef3e7bd27c"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/inventory.schema.json",
+        "sha256": "e23388a48184740122b594c59f38c8afc9b97352cb70eb5b680489981be07611"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/lock.schema.json",
+        "sha256": "04462c6efcc13319bfa2beb27a4c48348447bebcbc44da266aad8872ff49986b"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/profile.schema.json",
+        "sha256": "72735dd2c98e3024acceda9c64b57082e660fe624f09e24129769209a4f0e4a8"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/project-config.schema.json",
+        "sha256": "8bc96b61138c84fa8d0da5ca880d7009cad700bdf963ee7940fb3defef402dc6"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/providers-config.schema.json",
+        "sha256": "e14570a2b504c1bd0d152f7a33d5d22f5d23dee90c37780325a14ca0acecb903"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/requirement.schema.json",
+        "sha256": "532ae2e4463526d2431c620f7c963f1c3f62e5f7cfa6328113459bd9617e10ec"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/scope-decomposition.schema.json",
+        "sha256": "7b12a151263bd4bf39aeb9a9f78ba9eaf5be571d7db573bd932fdd47337e8975"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/scope.schema.json",
+        "sha256": "c458429f96361c4269d0743cb9983e9603504440a92b067d6c805d21cab59b63"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/selected-profiles.schema.json",
+        "sha256": "8e6d5ac79b358bbbd5b6c6caca5020faa39d4dbb6d0676cf9a395a570572d6df"
+      },
+      {
+        "path": "tooling/verification-kit/src/schemas/witness.schema.json",
+        "sha256": "0e626ba6913992dbaba6d888edeec7fb1f1e868fcf7ac8e7fb6239faf7c2db08"
+      }
+    ]
+  },
+  "canonicalConformanceSuite": {
+    "suiteId": "framework-conformance-suite.phosphene",
+    "version": "0.1.0",
+    "manifestHash": "sha256:126399afcfab5d57d505302b192d26df05668b550496509edc7af5a843d69559"
+  },
+  "independentBootstrapWitnessId": null,
+  "decision": "PENDING — the independent conformance judgment must come from an authenticated authority outside the correlated producer (framework spec §7.10A); the producing agent may not issue it",
+  "reviewedLimitationsOrDeviations": [],
+  "status": "pending"
+}

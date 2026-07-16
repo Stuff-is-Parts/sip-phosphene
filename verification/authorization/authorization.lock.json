@@ -13,25 +13,12 @@
     }
   ],
   "meta": {
-    "reason": "initial lock: framework self-test vertical path",
+    "reason": "semantic-control-sharing revision: contracts, lineage policy, canonical suite, pending bootstrap record",
     "command": "verify authorization-lock",
-    "time": "2026-07-16T21:09:48.304Z",
-    "commit": "4e8bf98e15e097449a35fbb734a62a75588de00c",
+    "time": "2026-07-16T23:19:45.219Z",
+    "commit": "970c2256e871dc90554555c583ccf1c547f9fdbf",
     "dirtyWorktree": true,
     "authorizationWitnessId": null,
-    "changes": [
-      {
-        "path": "verification/authorization/authorized-identities.json",
-        "kind": "added",
-        "oldSha256": null,
-        "newSha256": "43679bcfa31ab1bcb2882463739175cd923439891fe13e4c94ff09c8bd7bafb9"
-      },
-      {
-        "path": "verification/authorization/bootstrap-record.json",
-        "kind": "added",
-        "oldSha256": null,
-        "newSha256": "e34d3f64880c7d652ec405d145df7f64abe8d50a81ef6f5869fc0665c4115af5"
-      }
-    ]
+    "changes": []
   }
 }

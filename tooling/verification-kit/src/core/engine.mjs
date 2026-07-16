@@ -375,6 +375,16 @@ export async function checksRun(store, claim, opts = {}) {
       if (result?.pass !== true) {
         failures.push({ code: check.checkType === 'runtime-effect' ? 'RUNTIME_EFFECT_UNWITNESSED' : 'EQUIVALENCE_UNPROVEN', detail: `check '${checkId}': ${result?.detail ?? 'check reported failure'}` });
       }
+      if (check.checkType === 'equivalence-differential') {
+        // §14.5 applied to equivalence: a passing differential over an
+        // incomplete domain proves nothing. The executor must report the
+        // enumerated domain and full coverage of it.
+        const domainCount = Number(result?.domainCount ?? 0);
+        const coveredCount = Number(result?.coveredCount ?? 0);
+        if (!(domainCount > 0) || coveredCount !== domainCount) {
+          failures.push({ code: 'EQUIVALENCE_UNPROVEN', detail: `check '${checkId}': differential coverage incomplete (domain ${domainCount}, covered ${coveredCount}) — complete-domain coverage or authenticated exclusions are required` });
+        }
+      }
       trace.push({ checkId, kind: check.checkType, executed: true, pass: result?.pass === true });
       continue;
     }
@@ -556,7 +566,7 @@ export async function computeRequirementResult(store, requirement) {
       }
     }
     failures.push(...inventoryCheck(store, requirement, b.bindingClass));
-    const enforcement = enforceBindingClassFields(store, requirement, b.bindingClass, claims, claimResults.map((r) => ({ claimId: r.claimId, result: r.result })));
+    const enforcement = enforceBindingClassFields(store, requirement, b.bindingClass, claims, claimResults.map((r) => ({ claimId: r.claimId, result: r.result, checks: r.trace?.checks ?? [] })));
     failures.push(...enforcement.failures);
     fieldAudit = enforcement.fieldAudit;
   }

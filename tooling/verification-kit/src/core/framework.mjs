@@ -7,8 +7,11 @@ import { runNegativeControls } from './negcontrols.mjs';
 import { runFixtureRepoScenarios } from './selftest.mjs';
 import {
   completionReportExitControls, globalGateControls,
-  underboundBindingControls, productPathControls, forgedWitnessLiveControls
+  underboundBindingControls, productPathControls, forgedWitnessLiveControls,
+  lineageControls, semanticNegativeControls, conformanceGovernanceControls
 } from './controls.mjs';
+import { bootstrapConformanceStatus, runConformanceSuite } from './conformance.mjs';
+import { verifyAttestationLineage } from './lineage.mjs';
 
 /**
  * The complete framework verification computation (framework spec §15/§24):
@@ -23,7 +26,7 @@ import {
  * global verify); suppressed rows count as ABSENT so a nested run still fails.
  * @param {import('./store.mjs').Store} store
  * @param {string} kitDir
- * @returns {Promise<{ result: 'PASS' | 'FAIL', failures: Array<{code: string, detail: string}>, matrix: any[], selfTest: any[], negativeControls: any[], fixtureRepoScenarios: any[], auditControls: any[], bindingFieldAudit: any[] }>}
+ * @returns {Promise<{ result: 'PASS' | 'FAIL', failures: Array<{code: string, detail: string}>, matrix: any[], selfTest: any[], negativeControls: any[], fixtureRepoScenarios: any[], auditControls: any[], bindingFieldAudit: any[], bootstrapConformance: any, conformanceSuite: any, attestationLineage: any[] }>}
  */
 export async function computeFrameworkResult(store, kitDir) {
   /** @type {Array<{code: string, detail: string}>} */
@@ -94,7 +97,10 @@ export async function computeFrameworkResult(store, kitDir) {
       ...globalGateControls(store.repoRoot, binPath),
       ...underboundBindingControls(store.repoRoot, binPath),
       ...productPathControls(store.repoRoot, binPath),
-      ...forgedWitnessLiveControls(store.repoRoot, binPath)
+      ...forgedWitnessLiveControls(store.repoRoot, binPath),
+      ...lineageControls(store.repoRoot, binPath),
+      ...semanticNegativeControls(store.repoRoot, binPath),
+      ...conformanceGovernanceControls(store.repoRoot, binPath)
     ];
   }
   for (const c of auditControls) {
@@ -104,6 +110,41 @@ export async function computeFrameworkResult(store, kitDir) {
   if (suppressed) {
     positives['audit-controls'] = { ok: false, detail: 'suppressed in nested run (clone-heavy and recursive controls execute only at top level); ABSENT here by design' };
   }
+
+  const bootstrap = bootstrapConformanceStatus(store);
+  failures.push(...bootstrap.failures.map((f) => ({ code: f.code, detail: `[bootstrap-conformance] ${f.detail}` })));
+  positives['bootstrap-conformance'] = {
+    ok: bootstrap.failures.length === 0,
+    detail: bootstrap.failures.length === 0 ? 'independent bootstrap-conformance judgment current' : `status '${bootstrap.status}': ${bootstrap.failures[0]?.detail}`
+  };
+
+  /** @type {any[]} */
+  const lineageResults = [];
+  for (const attestation of store.attestations) {
+    const r = verifyAttestationLineage(store, attestation);
+    lineageResults.push({ attestationId: attestation.attestationId, ok: r.ok, reasons: r.reasons });
+    if (!r.ok) {
+      for (const reason of r.reasons) failures.push({ code: 'AUTHORIZATION_LINEAGE_INVALID', detail: `[lineage ${attestation.attestationId}] ${reason}` });
+    }
+  }
+
+  /** @type {Map<string, {ok: boolean, detail: string}>} */
+  const executedControls = new Map();
+  for (const c of auditControls) executedControls.set(c.control, { ok: c.ok, detail: c.detail });
+  for (const n of negatives) executedControls.set(`negcontrol:${n.evaluatorId}`, { ok: n.ok, detail: n.detail });
+  for (const s of fixtureScenarios) executedControls.set(`initializer:${s.scenario}`, { ok: s.ok, detail: s.detail });
+  executedControls.set('self-test-vertical-path', { ok: positives['self-test-vertical-path']?.ok === true, detail: positives['self-test-vertical-path']?.detail ?? '' });
+  executedControls.set('lock-system', { ok: positives['lock-system']?.ok === true, detail: positives['lock-system']?.detail ?? '' });
+  executedControls.set('orphan-detection', { ok: positives['orphan-detection']?.ok === true, detail: positives['orphan-detection']?.detail ?? '' });
+
+  const conformance = suppressed
+    ? { failures: [{ code: 'CHECK_MISSING', detail: 'conformance suite not executed in nested run (controls suppressed)' }], scenarioResults: [], contractCoverage: [] }
+    : runConformanceSuite(store, executedControls);
+  failures.push(...conformance.failures.map((f) => ({ code: f.code, detail: `[conformance-suite] ${f.detail}` })));
+  positives['conformance-suite'] = {
+    ok: conformance.failures.length === 0,
+    detail: conformance.failures.length === 0 ? 'every canonical scenario executed with its mapped outcome' : `${conformance.failures.length} conformance failures`
+  };
 
   const matrix = buildMatrix(store, kitDir, positives, bindingFieldAudit, suppressed);
   for (const row of matrix) {
@@ -121,7 +162,10 @@ export async function computeFrameworkResult(store, kitDir) {
     negativeControls: negatives,
     fixtureRepoScenarios: fixtureScenarios,
     auditControls,
-    bindingFieldAudit
+    bindingFieldAudit,
+    bootstrapConformance: { status: bootstrap.status, failures: bootstrap.failures },
+    conformanceSuite: { scenarioResults: conformance.scenarioResults, contractCoverage: conformance.contractCoverage },
+    attestationLineage: lineageResults
   };
 }
 
@@ -164,8 +208,12 @@ function buildMatrix(store, kitDir, positives, bindingFieldAudit, suppressed) {
     { mechanism: 'subject-execution', implementationPresent: present('core/adapters.mjs'), positiveControl: pos('self-test-vertical-path'), negativeControl: negControlsExecuted ? 'PASS' : 'ABSENT', detail: 'actual subject executed through registered adapter capability' },
     { mechanism: 'negative-control-machinery', implementationPresent: present('core/negcontrols.mjs'), positiveControl: pos('negative-controls'), negativeControl: 'ABSENT', detail: 'wrong-reason-failure rejection scenario not yet registered' },
     { mechanism: 'authorization-witness-verification', implementationPresent: present('core/authorization.mjs'), positiveControl: 'ABSENT', negativeControl: ctl('live-authorization-forged-witness-rejected'), detail: 'positive control requires the first real repository-host approval event (user action); forged-witness rejection is executable' },
-    { mechanism: 'live-host-authorization', implementationPresent: present('cli/main.mjs'), positiveControl: 'ABSENT', negativeControl: ctl('live-authorization-forged-witness-rejected'), detail: 'live gh verification implemented; NOT operational until a real host approval event is authenticated (audit finding 5)' },
-    { mechanism: 'attestation-integrity', implementationPresent: present('core/authorization.mjs'), positiveControl: 'ABSENT', negativeControl: 'ABSENT', detail: 'requires the first live-produced attestation' },
+    { mechanism: 'live-host-authorization', implementationPresent: present('core/livehost.mjs'), positiveControl: 'ABSENT', negativeControl: ctl('live-authorization-forged-witness-rejected'), detail: 'live gh verification implemented with reviewed-revision binding; NOT operational until a real host approval event is authenticated' },
+    { mechanism: 'authorization-lineage', implementationPresent: present('core/lineage.mjs'), positiveControl: ctl('lineage-unchanged-descendant-accepted'), negativeControl: ctl('lineage-protected-artifact-change-invalidates'), detail: 'reviewed-revision ancestry + protected-artifact hash verification; fixture-based algorithm controls, never represented as live approval (§7.10)' },
+    { mechanism: 'attestation-integrity', implementationPresent: present('core/authorization.mjs'), positiveControl: ctl('lineage-unchanged-descendant-accepted'), negativeControl: ctl('lineage-review-against-wrong-commit-rejected'), detail: 'attestation hash + witness binding + lineage verified through fixture controls; live-produced attestation still pending the first real approval' },
+    { mechanism: 'bootstrap-conformance', implementationPresent: present('core/conformance.mjs'), positiveControl: pos('bootstrap-conformance'), negativeControl: ctl('bootstrap-self-certification-rejected'), detail: 'FAIL until an authenticated authority outside the correlated producer judges the exact trust-bearing core and suite hashes (§7.10A); self-certification rejected' },
+    { mechanism: 'conformance-suite-governance', implementationPresent: present('core/conformance.mjs'), positiveControl: pos('conformance-suite'), negativeControl: ctl('conformance-suite-weakening-rejected'), detail: 'canonical suite hash-governed separately from the implementation; weakening a canonical control is rejected (§7.10B)' },
+    { mechanism: 'semantic-acceptance', implementationPresent: present('core/bindingfields.mjs'), positiveControl: pos('self-test-vertical-path'), negativeControl: ctl('semantic-negative:positive-control-not-consumed'), detail: 'every mandatory semantic acceptance contract enforced against its complete operative meaning; structurally valid but semantically inadequate records rejected (§14.5)' },
     { mechanism: 'inventory-coverage', implementationPresent: present('core/engine.mjs'), positiveControl: pos('self-test-vertical-path'), negativeControl: 'ABSENT', detail: 'unclaimed-item rejection scenario not yet registered' },
     { mechanism: 'scope-decomposition-coverage', implementationPresent: present('core/engine.mjs'), positiveControl: store.scopeDecomposition ? 'PASS' : 'FAIL', negativeControl: ctl('narrow-requirement-cannot-cover-broad-scope-item'), detail: 'scope items covered only through decomposition records; citation never covers (audit finding 4)' },
     { mechanism: 'global-gate-composition', implementationPresent: present('core/framework.mjs'), positiveControl: ctl('global-fails-on-framework-while-product-claim-passes'), negativeControl: ctl('global-fails-on-framework-while-product-claim-passes'), detail: 'global verify consumes the structured framework result (audit finding 2)' },

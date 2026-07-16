@@ -5,7 +5,7 @@
   "required": [
     "bindingId", "repository", "approvedScopeHash", "governingSpecifications",
     "selectedProfiles", "requirementClasses", "repositorySpecificRules",
-    "bindingAuthorization"
+    "bindingAuthorization", "frameworkBootstrapConformance", "authorizationLineagePolicy"
   ],
   "properties": {
     "$schema": { "type": "string" },
@@ -72,7 +72,7 @@
           "mandatoryRuntimeEffectChecks", "mandatoryPlausibleAlternativeClasses",
           "mandatoryAlternativeEvaluatorIds", "mandatoryStatefulAlternativeClasses",
           "divergenceClassificationPolicy", "oraclePrecedencePolicy",
-          "inventoryCoveragePolicy"
+          "inventoryCoveragePolicy", "semanticAcceptanceContracts"
         ],
         "properties": {
           "requirementClassId": { "type": "string" },
@@ -204,6 +204,56 @@
               "mechanicallyEnumerableSourcesMustBeExtracted": { "type": "boolean", "const": true },
               "residualCompletenessRequiresAuthenticatedWitness": { "type": "boolean", "const": true }
             }
+          },
+          "semanticAcceptanceContracts": {
+            "type": "array",
+            "description": "Per framework spec §14.5: one contract per mandatory field/policy whose satisfaction can affect PASS or FAIL, each mapped to positive, structural-negative, and semantic-negative control scenarios in the canonical conformance suite.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["propertyId", "operativeMeaning", "publicReaderOrCommand", "mechanicalAcceptanceCondition", "expectedFailureCode", "expectedFirstFailureOrDivergence", "residualJudgmentWitnessRequired", "residualJudgmentDescription", "requiredControlConditions", "controlScenarioRefs", "sharedControlScenariosPermitted", "independentAttributionRequired", "weakeningThisContractMustBreakDesignatedControl"],
+              "properties": {
+                "propertyId": { "type": "string" },
+                "operativeMeaning": { "type": "string", "minLength": 1 },
+                "publicReaderOrCommand": { "type": "string", "minLength": 1 },
+                "mechanicalAcceptanceCondition": { "type": "string", "minLength": 1 },
+                "expectedFailureCode": { "type": "string" },
+                "expectedFirstFailureOrDivergence": { "type": "string" },
+                "residualJudgmentWitnessRequired": { "type": "boolean" },
+                "residualJudgmentDescription": { "type": ["string", "null"] },
+                "requiredControlConditions": {
+                  "type": "array",
+                  "minItems": 3,
+                  "items": { "type": "string", "enum": ["positive", "structural-negative", "semantic-negative"] }
+                },
+                "controlScenarioRefs": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["positive", "structuralNegative", "semanticNegative"],
+                  "properties": {
+                    "positive": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+                    "structuralNegative": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+                    "semanticNegative": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+                  }
+                },
+                "sharedControlScenariosPermitted": { "type": "boolean", "const": true },
+                "independentAttributionRequired": { "type": "boolean", "const": true },
+                "weakeningThisContractMustBreakDesignatedControl": { "type": "boolean", "const": true }
+              }
+            }
+          },
+          "productPathDependenceControls": {
+            "type": "array",
+            "description": "Runtime dependence controls per claim (framework spec §14.5 applied to product-path checks): a removal intervention or equivalent black-box control proving the claim depends on the declared native product path. A role label alone never satisfies the product-path contract.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["claimId", "removalTargets"],
+              "properties": {
+                "claimId": { "type": "string" },
+                "removalTargets": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+              }
+            }
           }
         }
       }
@@ -218,6 +268,37 @@
         "adequacyWitnessId": { "type": ["string", "null"], "description": "null while the binding lacks an authenticated adequacy judgment. null produces BINDING_ADEQUACY_UNWITNESSED." },
         "sameWitnessMayServeBothOnlyWhenDecisionExplicitlyCoversAdequacy": { "type": "boolean", "const": true },
         "adequacyCriteriaExplicitlyJudged": { "type": "array", "minItems": 10, "items": { "type": "string" } }
+      }
+    },
+    "frameworkBootstrapConformance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bootstrapRecordId", "canonicalConformanceSuiteId", "canonicalConformanceSuiteManifestHash", "independentBootstrapWitnessId"],
+      "properties": {
+        "bootstrapRecordId": { "type": "string" },
+        "canonicalConformanceSuiteId": { "type": "string" },
+        "canonicalConformanceSuiteManifestHash": { "type": "string" },
+        "independentBootstrapWitnessId": { "type": ["string", "null"] }
+      }
+    },
+    "authorizationLineagePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewedRevisionRequired", "reviewedTreeHashRequired", "hostEventIdentityRequired",
+        "affectedArtifactHashesRequired", "descendantConsumptionAllowedOnlyWhenReviewedRevisionIsAncestor",
+        "descendantConsumptionAllowedOnlyWhenProtectedArtifactsAreUnchanged",
+        "attestationContainerCommitNeedNotEqualReviewedRevision", "baseRevisionRequiredForTrustRootChanges"
+      ],
+      "properties": {
+        "reviewedRevisionRequired": { "type": "boolean", "const": true },
+        "reviewedTreeHashRequired": { "type": "boolean", "const": true },
+        "hostEventIdentityRequired": { "type": "boolean", "const": true },
+        "affectedArtifactHashesRequired": { "type": "boolean", "const": true },
+        "descendantConsumptionAllowedOnlyWhenReviewedRevisionIsAncestor": { "type": "boolean", "const": true },
+        "descendantConsumptionAllowedOnlyWhenProtectedArtifactsAreUnchanged": { "type": "boolean", "const": true },
+        "attestationContainerCommitNeedNotEqualReviewedRevision": { "type": "boolean", "const": true },
+        "baseRevisionRequiredForTrustRootChanges": { "type": "boolean", "const": true }
       }
     }
   }

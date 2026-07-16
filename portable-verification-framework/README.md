@@ -1,10 +1,12 @@
 # Portable Verification Framework Package
 
-This package separates the verification system into three layers:
+This package separates the verification system into three operational layers plus two independently governed trust artifacts:
 
 1. **Portable core** — `portable-evidence-gated-verification-framework.md`
 2. **Reusable profile template** — `reusable-verification-profile.template.json`
 3. **Repository-specific binding template** — `project-verification-binding.template.json`
+4. **Framework bootstrap-conformance template** — `framework-bootstrap-conformance.template.json`
+5. **Canonical framework conformance-suite template** — `framework-conformance-suite.template.json`
 
 The portable core contains no project-, product-, language-, graphics-, or technology-specific verification requirements.
 
@@ -42,3 +44,15 @@ The required countermeasures are outside further specification layering:
 - mechanically extract behavior inventories wherever possible;
 - require explicit authenticated adequacy judgment for the binding's oracle and inventory decisions;
 - treat the existence of these rules as controls to execute, not proof that the residual risk disappeared.
+
+## Bootstrap and semantic-conformance hardening
+
+The package includes four bootstrap-era controls introduced in the preceding revision:
+
+- **Independent bootstrap conformance:** an initial framework implementation remains FAIL until an authenticated authority outside the correlated producer judges the exact trust-bearing core and canonical suite hashes.
+- **Semantic proxy rejection:** every mandatory semantic acceptance contract must establish its complete operative meaning through positive, structurally invalid negative, and structurally valid but semantically inadequate control conditions. Scenarios may be shared across contracts when mappings and failure attribution remain independent; presence, registration, declared roles, unrelated PASS results, and raw fixture counts are insufficient.
+- **Authorization lineage:** approvals bind to exact reviewed revisions and protected artifact hashes. Attestations may live in descendant commits only when ancestry and unchanged protected artifacts are mechanically proven.
+- **Separately governed canonical conformance suite:** the producer may add stricter tests but may not weaken, remove, reinterpret, or replace canonical controls without authenticated framework-change authorization.
+
+This revision introduces no additional control. It only amends the semantic-proxy control to permit shared scenarios under independent-attribution rules and harmonizes the term **mandatory semantic acceptance contract** throughout the specification.
+

@@ -1,5 +1,5 @@
 import { canonicalJsonHash } from './hash.mjs';
-import { repoState } from './git.mjs';
+import { verifyAttestationLineage } from './lineage.mjs';
 
 /**
  * Hash of a witness object for attestation binding: canonical JSON of the full record.
@@ -26,9 +26,14 @@ export function allowlistHash(allowlist) {
 
 /**
  * Determine a witness's verification status from retained records.
- * 'verified-attested' means a hash-valid attestation binds the witness to the
- * current commit, repository, and allowlist. It is integrity verification of a
- * previously live-verified attestation, not live re-authentication (§7.10).
+ * 'verified-attested' means a hash-valid attestation binds the witness to its
+ * exact REVIEWED revision, and lineage verification proves the reviewed
+ * revision is an ancestor of the consuming revision with every protected
+ * artifact unchanged (framework spec §7.10). This is integrity + lineage
+ * verification of a previously live-verified attestation, never live
+ * re-authentication, and never current-HEAD equality — binding an attestation
+ * to the commit that retains it is the authorization-lineage deadlock the
+ * spec names as a failure mode.
  * @param {import('./store.mjs').Store} store
  * @param {string | null | undefined} witnessId
  * @returns {{ status: 'missing' | 'unverified' | 'verified-attested', reasons: string[] }}
@@ -40,6 +45,10 @@ export function witnessStatus(store, witnessId) {
   const witness = hit.record;
   /** @type {string[]} */
   const reasons = [];
+
+  if (!witness.reviewedRevision) {
+    reasons.push(`witness '${witnessId}' lacks an exact reviewed revision (AUTHORIZATION_LINEAGE_INVALID: reviewed revision is mandatory)`);
+  }
 
   const identities = (store.allowlist?.identities ?? []).map((/** @type {any} */ i) => i.value);
   if (identities.length === 0) {
@@ -53,23 +62,18 @@ export function witnessStatus(store, witnessId) {
     reasons.push('no authorization verification attestation retained for this witness');
     return { status: 'unverified', reasons };
   }
-  if (attestation.attestationHash !== attestationSelfHash(attestation)) {
-    reasons.push('attestation hash does not match its content');
-  }
-  if (attestation.witnessObjectHash !== witnessObjectHash(witness)) {
-    reasons.push('attestation is bound to a different witness object (witness changed after attestation)');
-  }
-  if (attestation.baseAllowlistHash !== allowlistHash(store.allowlist)) {
-    reasons.push('attestation is bound to a different identity allowlist');
-  }
-  const { commit } = repoState(store.repoRoot);
-  if (attestation.commit !== commit) {
-    reasons.push(`attestation is bound to commit ${String(attestation.commit).slice(0, 12)}…, current HEAD is ${commit.slice(0, 12)}… (live re-verification required)`);
-  }
-  const expectedRepo = store.projectConfig?.repositoryIdentity;
-  if (expectedRepo && attestation.repositoryIdentity !== expectedRepo) {
-    reasons.push('attestation is bound to a different repository identity');
-  }
+  const lineage = verifyAttestationLineageRef(store, attestation);
+  reasons.push(...lineage.reasons);
   if (reasons.length > 0) return { status: 'unverified', reasons };
   return { status: 'verified-attested', reasons: [] };
+}
+
+/**
+ * Late-bound reference to lineage verification (lineage.mjs and this module
+ * import each other's pure functions; the call is resolved at invocation time).
+ * @param {import('./store.mjs').Store} store @param {any} attestation
+ * @returns {{ ok: boolean, reasons: string[] }}
+ */
+function verifyAttestationLineageRef(store, attestation) {
+  return verifyAttestationLineage(store, attestation);
 }

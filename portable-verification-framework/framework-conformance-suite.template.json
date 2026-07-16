@@ -1,0 +1,89 @@
+{
+  "$schema": "verification/schemas/framework-conformance-suite.schema.json",
+  "suiteId": "framework-conformance-suite.REPLACE",
+  "version": "0.1.0",
+  "manifestHash": "sha256:REPLACE",
+  "governingSpecificationHash": "sha256:REPLACE",
+  "publicExecutionBoundary": "verify framework-conformance",
+  "governance": {
+    "producerMayAddStricterControls": true,
+    "removalWeakeningReinterpretationOrReplacementRequiresAuthenticatedAuthorization": true,
+    "adoptionOrChangeWitnessId": "AUTH-WITNESS-CONFORMANCE-SUITE-REPLACE"
+  },
+  "semanticContracts": [
+    {
+      "semanticContractId": "SEMANTIC-CONTRACT-REPLACE",
+      "semanticProperty": "REPLACE_COMPLETE_OPERATIVE_PROPERTY",
+      "requiredControlConditions": [
+        "positive",
+        "structural-negative",
+        "semantic-negative"
+      ],
+      "controlScenarioIds": [
+        "CONTROL-SCENARIO-POSITIVE-REPLACE",
+        "CONTROL-SCENARIO-STRUCTURAL-REPLACE",
+        "CONTROL-SCENARIO-SEMANTIC-REPLACE"
+      ],
+      "trustBearingImplementationSurfaces": [
+        "REPLACE_IMPLEMENTATION_PATH"
+      ]
+    }
+  ],
+  "controlScenarios": [
+    {
+      "scenarioId": "CONTROL-SCENARIO-POSITIVE-REPLACE",
+      "condition": "positive",
+      "fixtureOrMutationId": "POSITIVE-FIXTURE-REPLACE",
+      "coversSemanticContractIds": [
+        "SEMANTIC-CONTRACT-REPLACE"
+      ],
+      "expectedOutcomes": [
+        {
+          "semanticContractId": "SEMANTIC-CONTRACT-REPLACE",
+          "expectedResult": "PASS",
+          "expectedFailureCode": null,
+          "expectedFirstFailureOrDivergence": null
+        }
+      ]
+    },
+    {
+      "scenarioId": "CONTROL-SCENARIO-STRUCTURAL-REPLACE",
+      "condition": "structural-negative",
+      "fixtureOrMutationId": "STRUCTURAL-NEGATIVE-FIXTURE-REPLACE",
+      "coversSemanticContractIds": [
+        "SEMANTIC-CONTRACT-REPLACE"
+      ],
+      "expectedOutcomes": [
+        {
+          "semanticContractId": "SEMANTIC-CONTRACT-REPLACE",
+          "expectedResult": "FAIL",
+          "expectedFailureCode": "REPLACE_STRUCTURAL_FAILURE_CODE",
+          "expectedFirstFailureOrDivergence": "REPLACE_FAILURE_PATH"
+        }
+      ]
+    },
+    {
+      "scenarioId": "CONTROL-SCENARIO-SEMANTIC-REPLACE",
+      "condition": "semantic-negative",
+      "fixtureOrMutationId": "SEMANTIC-NEGATIVE-FIXTURE-REPLACE",
+      "coversSemanticContractIds": [
+        "SEMANTIC-CONTRACT-REPLACE"
+      ],
+      "expectedOutcomes": [
+        {
+          "semanticContractId": "SEMANTIC-CONTRACT-REPLACE",
+          "expectedResult": "FAIL",
+          "expectedFailureCode": "SEMANTIC_PROXY_SUBSTITUTION",
+          "expectedFirstFailureOrDivergence": "REPLACE_FAILURE_PATH"
+        }
+      ]
+    }
+  ],
+  "sharingRules": {
+    "sharedScenariosPermitted": true,
+    "everyCoveredContractMustBeExplicitlyMapped": true,
+    "expectedOutcomeMustBeIndependentlyAttributablePerContract": true,
+    "weakeningOneContractMustBreakItsDesignatedControl": true,
+    "aggregateFixtureCountsMayNotSubstituteForContractCoverage": true
+  }
+}

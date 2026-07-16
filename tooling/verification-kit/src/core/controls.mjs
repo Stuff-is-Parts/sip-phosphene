@@ -1,7 +1,8 @@
-import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdirSync, appendFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
+import { canonicalJsonHash } from './hash.mjs';
 
 /**
  * Audit-derived executable controls (2026-07-16 independent audit findings
@@ -296,6 +297,417 @@ export function productPathControls(repoRoot, binPath) {
 }
 
 /**
+ * Authorization-lineage controls (spec §7.10, semantic-control-sharing
+ * revision): fixture-crafted witnesses and attestations prove the LINEAGE
+ * ALGORITHM through the public `verify authorization-lineage` command. These
+ * are fixture-based controls of the lineage mechanics; they are NOT a real
+ * live-host approval and are never represented as one.
+ * @param {string} repoRoot @param {string} binPath
+ * @returns {ControlResult[]}
+ */
+export function lineageControls(repoRoot, binPath) {
+  /** @type {ControlResult[]} */
+  const results = [];
+  const fixture = cloneFixture(repoRoot);
+  try {
+    /** @param {string[]} args */
+    const fgit = (args) => execFileSync('git', ['-C', fixture, '-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+
+    // Reviewed revision R: the fixture allowlist carries the approving identity.
+    const allowlistPath = path.join(fixture, 'verification', 'authorization', 'authorized-identities.json');
+    writeFileSync(allowlistPath, JSON.stringify({ identities: [{ identityId: 'identity.fixture-admin', kind: 'github-account', value: 'fixture-admin' }] }, null, 2) + '\n');
+    fgit(['add', '-A']);
+    fgit(['commit', '-q', '-m', 'fixture: allowlist for lineage controls']);
+    const reviewedCommit = fgit(['rev-parse', 'HEAD']);
+    const reviewedTree = fgit(['rev-parse', 'HEAD^{tree}']);
+
+    const witness = {
+      witnessId: 'AUTH-WITNESS-LINEAGE-FIXTURE',
+      authorizationType: 'scope-approval',
+      reviewedRevision: reviewedCommit,
+      decision: 'fixture lineage-control decision',
+      affectedIds: ['scope.phosphene'],
+      authorizingIdentity: 'fixture-admin',
+      verificationMethod: 'github-approval',
+      hostMetadata: { kind: 'pr-review', prNumber: 1, reviewId: 1 },
+      timestamp: '2026-07-16T00:00:00Z'
+    };
+    const witnessHash = canonicalJsonHash(witness);
+    const protectedPaths = [
+      'verification/authorization/authorized-identities.json',
+      'verification/authorization/bootstrap-record.json',
+      'verification/scope/scope.json',
+      'verification/scope/decomposition.json'
+    ];
+    /** @type {Array<{path: string, sha256: string}>} */
+    const protectedHashes = [];
+    const { createHash } = cryptoModule;
+    for (const p of protectedPaths) {
+      const bytes = execFileSync('git', ['-C', fixture, 'show', `${reviewedCommit}:${p}`], { encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 });
+      protectedHashes.push({ path: p, sha256: createHash('sha256').update(bytes).digest('hex') });
+    }
+    const allowlistNow = JSON.parse(readFileSync(allowlistPath, 'utf8'));
+    /** @type {any} */
+    const attestation = {
+      attestationId: 'ATT-LINEAGE-FIXTURE',
+      repositoryIdentity: JSON.parse(readFileSync(path.join(fixture, 'verification', 'config', 'project.json'), 'utf8')).repositoryIdentity,
+      reviewedCommit,
+      reviewedTreeHash: reviewedTree,
+      hostEvent: { kind: 'pr-review', prNumber: 1, reviewId: 1 },
+      approvingIdentity: 'fixture-admin',
+      authorizationType: 'scope-approval',
+      witnessId: witness.witnessId,
+      witnessObjectHash: witnessHash,
+      decision: witness.decision,
+      affectedIds: witness.affectedIds,
+      protectedArtifactHashes: protectedHashes,
+      baseAllowlistHash: canonicalJsonHash(allowlistNow),
+      verificationProvider: 'fixture-crafted (lineage-algorithm control; NOT a live host approval)',
+      verificationResult: 'fixture',
+      verificationTimestamp: '2026-07-16T00:00:00Z'
+    };
+    attestation.attestationHash = canonicalJsonHash((({ attestationHash, ...rest }) => rest)(attestation));
+
+    const witnessesDir = path.join(fixture, 'verification', 'authorization', 'witnesses');
+    const attestationsDir = path.join(fixture, 'verification', 'authorization', 'attestations');
+    mkdirSync(witnessesDir, { recursive: true });
+    mkdirSync(attestationsDir, { recursive: true });
+    writeFileSync(path.join(witnessesDir, 'AUTH-WITNESS-LINEAGE-FIXTURE.json'), JSON.stringify(witness, null, 2) + '\n');
+    writeFileSync(path.join(attestationsDir, 'ATT-LINEAGE-FIXTURE.json'), JSON.stringify(attestation, null, 2) + '\n');
+    fgit(['add', '-A']);
+    fgit(['commit', '-q', '-m', 'fixture: retain attestation in descendant commit']);
+    appendFileSync(path.join(fixture, 'UNRELATED.txt'), 'unrelated descendant change\n');
+    fgit(['add', '-A']);
+    fgit(['commit', '-q', '-m', 'fixture: unrelated descendant']);
+
+    const accept = spawnCli(fixture, binPath, ['authorization-lineage']);
+    results.push({
+      control: 'lineage-unchanged-descendant-accepted',
+      ok: accept.exitCode === 0 && accept.stdout.includes('PASS'),
+      detail: accept.exitCode === 0
+        ? 'attestation retained two descendant commits after the reviewed revision is accepted: ancestry holds and every protected artifact is unchanged (retention itself does not invalidate)'
+        : `expected acceptance, got exit ${accept.exitCode}: ${accept.stdout.slice(0, 300)}`
+    });
+
+    const scopePath = path.join(fixture, 'verification', 'scope', 'scope.json');
+    const scopeOriginal = readFileSync(scopePath, 'utf8');
+    writeFileSync(scopePath, scopeOriginal.replace('"scopeId": "scope.phosphene"', '"scopeId": "scope.phosphene-tampered"'));
+    fgit(['add', '-A']);
+    fgit(['commit', '-q', '-m', 'fixture: tamper protected artifact']);
+    const tampered = spawnCli(fixture, binPath, ['authorization-lineage']);
+    results.push({
+      control: 'lineage-protected-artifact-change-invalidates',
+      ok: tampered.exitCode !== 0 && tampered.stdout.includes('AUTHORIZATION_LINEAGE_INVALID') && tampered.stdout.includes('scope.json'),
+      detail: tampered.exitCode !== 0
+        ? 'changing a protected artifact after approval invalidates the attestation with AUTHORIZATION_LINEAGE_INVALID naming the changed file'
+        : 'tampered protected artifact was NOT rejected'
+    });
+    fgit(['reset', '--hard', 'HEAD~1']);
+
+    const wrongRepo = { ...attestation, attestationId: 'ATT-LINEAGE-WRONG-REPO', repositoryIdentity: 'someone-else/other-repo' };
+    wrongRepo.attestationHash = canonicalJsonHash((({ attestationHash, ...rest }) => rest)(wrongRepo));
+    writeFileSync(path.join(attestationsDir, 'ATT-LINEAGE-WRONG-REPO.json'), JSON.stringify(wrongRepo, null, 2) + '\n');
+    const wrongRepoRun = spawnCli(fixture, binPath, ['authorization-lineage']);
+    unlinkSync(path.join(attestationsDir, 'ATT-LINEAGE-WRONG-REPO.json'));
+    results.push({
+      control: 'lineage-wrong-repository-rejected',
+      ok: wrongRepoRun.exitCode !== 0 && wrongRepoRun.stdout.includes('wrong repository'),
+      detail: wrongRepoRun.exitCode !== 0 ? 'attestation bound to a different repository identity is rejected' : 'wrong-repository attestation was NOT rejected'
+    });
+
+    const sideBase = fgit(['rev-parse', 'HEAD']);
+    fgit(['checkout', '-q', '-b', 'lineage-side', reviewedCommit]);
+    appendFileSync(path.join(fixture, 'SIDE.txt'), 'side branch\n');
+    fgit(['add', '-A']);
+    fgit(['commit', '-q', '-m', 'fixture: side commit']);
+    const sideCommit = fgit(['rev-parse', 'HEAD']);
+    const sideTree = fgit(['rev-parse', 'HEAD^{tree}']);
+    fgit(['checkout', '-q', '-']);
+    void sideBase;
+    const nonAncestor = { ...attestation, attestationId: 'ATT-LINEAGE-NON-ANCESTOR', reviewedCommit: sideCommit, reviewedTreeHash: sideTree };
+    nonAncestor.attestationHash = canonicalJsonHash((({ attestationHash, ...rest }) => rest)(nonAncestor));
+    writeFileSync(path.join(attestationsDir, 'ATT-LINEAGE-NON-ANCESTOR.json'), JSON.stringify(nonAncestor, null, 2) + '\n');
+    const nonAncestorRun = spawnCli(fixture, binPath, ['authorization-lineage']);
+    unlinkSync(path.join(attestationsDir, 'ATT-LINEAGE-NON-ANCESTOR.json'));
+    results.push({
+      control: 'lineage-non-ancestor-reviewed-revision-rejected',
+      ok: nonAncestorRun.exitCode !== 0 && nonAncestorRun.stdout.includes('not an ancestor'),
+      detail: nonAncestorRun.exitCode !== 0 ? 'a reviewed revision that is not an ancestor of the consuming revision is rejected' : 'non-ancestor reviewed revision was NOT rejected'
+    });
+
+    const wrongCommit = { ...attestation, attestationId: 'ATT-LINEAGE-WRONG-COMMIT', reviewedCommit: fgit(['rev-parse', 'HEAD']) , reviewedTreeHash: fgit(['rev-parse', 'HEAD^{tree}']) };
+    wrongCommit.attestationHash = canonicalJsonHash((({ attestationHash, ...rest }) => rest)(wrongCommit));
+    writeFileSync(path.join(attestationsDir, 'ATT-LINEAGE-WRONG-COMMIT.json'), JSON.stringify(wrongCommit, null, 2) + '\n');
+    const wrongCommitRun = spawnCli(fixture, binPath, ['authorization-lineage']);
+    unlinkSync(path.join(attestationsDir, 'ATT-LINEAGE-WRONG-COMMIT.json'));
+    results.push({
+      control: 'lineage-review-against-wrong-commit-rejected',
+      ok: wrongCommitRun.exitCode !== 0 && wrongCommitRun.stdout.includes('wrong commit'),
+      detail: wrongCommitRun.exitCode !== 0 ? 'an attestation whose reviewed revision differs from the witness declaration is rejected (review against the wrong commit)' : 'wrong-commit review was NOT rejected'
+    });
+
+    const noRevisionWitness = { ...witness, witnessId: 'AUTH-WITNESS-NO-REVISION' };
+    delete (/** @type {any} */ (noRevisionWitness)).reviewedRevision;
+    writeFileSync(path.join(witnessesDir, 'AUTH-WITNESS-NO-REVISION.json'), JSON.stringify(noRevisionWitness, null, 2) + '\n');
+    const noRevisionRun = spawnCli(fixture, binPath, ['authorization-lineage']);
+    unlinkSync(path.join(witnessesDir, 'AUTH-WITNESS-NO-REVISION.json'));
+    results.push({
+      control: 'lineage-missing-reviewed-revision-rejected',
+      ok: noRevisionRun.exitCode !== 0 && (noRevisionRun.stdout.includes('reviewedRevision') || noRevisionRun.stdout.includes('reviewed revision')),
+      detail: noRevisionRun.exitCode !== 0 ? 'a witness without an exact reviewed revision fails (schema and lineage both reject it)' : 'missing reviewed revision was NOT rejected'
+    });
+
+    writeFileSync(allowlistPath, JSON.stringify({ identities: [{ identityId: 'identity.someone-new', kind: 'github-account', value: 'someone-new' }] }, null, 2) + '\n');
+    fgit(['add', '-A']);
+    fgit(['commit', '-q', '-m', 'fixture: change allowlist after approval']);
+    const allowlistChanged = spawnCli(fixture, binPath, ['authorization-lineage']);
+    results.push({
+      control: 'lineage-allowlist-change-invalidates',
+      ok: allowlistChanged.exitCode !== 0 && allowlistChanged.stdout.includes('allowlist'),
+      detail: allowlistChanged.exitCode !== 0 ? 'changing the applicable identity allowlist after approval invalidates the attestation' : 'allowlist change after approval was NOT rejected'
+    });
+  } finally {
+    rmSync(fixture, { recursive: true, force: true, maxRetries: 3 });
+  }
+  return results;
+}
+
+import cryptoModule from 'node:crypto';
+
+/**
+ * Semantic-negative controls (spec §14.5/§7.10B): structurally valid but
+ * semantically inadequate records rejected with independently attributable
+ * signatures. Each mutation edits a cloned fixture and runs the public CLI.
+ * @param {string} repoRoot @param {string} binPath
+ * @returns {ControlResult[]}
+ */
+export function semanticNegativeControls(repoRoot, binPath) {
+  /** @type {ControlResult[]} */
+  const results = [];
+  const fixture = cloneFixture(repoRoot);
+  const bindingPath = path.join(fixture, 'verification', 'binding', 'project-verification-binding.json');
+  const claimPath = path.join(fixture, 'verification', 'claims', 'CLAIM-MILK-EXPR-OPERATORS.json');
+  const comparatorPath = path.join(fixture, 'verification', 'comparators', 'CMP-EXACT-JSON.json');
+  const evidencePath = path.join(fixture, 'verification', 'evidence', 'EV-MILK-EXPR-EXPECTED.json');
+  const fixtureRecordPath = path.join(fixture, 'verification', 'fixtures', 'records', 'FIX-MILK-EXPR-OPERATORS.json');
+  const adapterPath = path.join(fixture, 'verification', 'adapters', 'ADP-PHOSPHENE-SUBJECT.json');
+
+  /** @param {string} name @param {() => void} mutate @param {string} code @param {string} needle @param {string[]} [args] */
+  function scenario(name, mutate, code, needle, args = ['requirement', 'REQ-MILK-EXPR-OPERATORS']) {
+    mutate();
+    const run = spawnCli(fixture, binPath, args);
+    restoreFixture(fixture);
+    const present = run.stdout.includes(code) && run.stdout.includes(needle);
+    results.push({
+      control: `semantic-negative:${name}`,
+      ok: run.exitCode !== 0 && present,
+      detail: run.exitCode !== 0 && present
+        ? `structurally valid but semantically inadequate record rejected with ${code} naming '${needle}'`
+        : `exit ${run.exitCode}, intended signature present: ${present}`
+    });
+  }
+
+  try {
+    scenario('positive-control-not-consumed', () => {
+      const b = JSON.parse(readFileSync(bindingPath, 'utf8'));
+      const rc = b.requirementClasses.find((/** @type {any} */ c) => c.requirementClassId === 'requirement-class.milkdrop-expression');
+      rc.mandatoryPositiveControls = ['CHK-SELFTEST-CRC32-EXEC'];
+      writeFileSync(bindingPath, JSON.stringify(b, null, 2) + '\n');
+    }, 'SEMANTIC_PROXY_SUBSTITUTION', 'does not register positive control');
+
+    scenario('product-path-dependence-unregistered', () => {
+      const b = JSON.parse(readFileSync(bindingPath, 'utf8'));
+      const rc = b.requirementClasses.find((/** @type {any} */ c) => c.requirementClassId === 'requirement-class.milkdrop-expression');
+      rc.productPathDependenceControls = [];
+      writeFileSync(bindingPath, JSON.stringify(b, null, 2) + '\n');
+    }, 'SEMANTIC_PROXY_SUBSTITUTION', 'no registered product-path dependence control');
+
+    scenario('authority-coverage-omitted-constituent', () => {
+      const c = JSON.parse(readFileSync(claimPath, 'utf8'));
+      c.perConstituentAuthority = [{ constituent: 'partial', authorityId: 'AUTH-MILKDROP-EEL-PARSER', coversPaths: ['pools[].a'] }];
+      writeFileSync(claimPath, JSON.stringify(c, null, 2) + '\n');
+    }, 'AUTHORITY_SOURCE_AMBIGUOUS', 'has no authority assignment');
+
+    scenario('authority-coverage-unrelated-substitution', () => {
+      const c = JSON.parse(readFileSync(claimPath, 'utf8'));
+      c.perConstituentAuthority = [{ constituent: 'bogus', authorityId: 'AUTH-MILKDROP-EEL-PARSER', coversPaths: ['bogus'] }];
+      writeFileSync(claimPath, JSON.stringify(c, null, 2) + '\n');
+    }, 'AUTHORITY_SOURCE_AMBIGUOUS', 'unrelated substitution');
+
+    scenario('authority-coverage-conflicting-duplicate', () => {
+      const c = JSON.parse(readFileSync(claimPath, 'utf8'));
+      c.perConstituentAuthority.push({ constituent: 'duplicate', authorityId: 'AUTH-RFC1952', coversPaths: ['pools[].a'] });
+      writeFileSync(claimPath, JSON.stringify(c, null, 2) + '\n');
+    }, 'AUTHORITY_SOURCE_AMBIGUOUS', 'duplicate conflicting assignment');
+
+    scenario('divergence-evidence-does-not-justify', () => {
+      const cmp = JSON.parse(readFileSync(comparatorPath, 'utf8'));
+      cmp.equalityMode = 'toleranced';
+      cmp.tolerance = 0.5;
+      cmp.toleranceJustification = 'cites real evidence that does not establish this magnitude';
+      cmp.evidenceRefs = ['EV-MILK-EXPR-EXPECTED'];
+      writeFileSync(comparatorPath, JSON.stringify(cmp, null, 2) + '\n');
+    }, 'DIVERGENCE_CLASSIFICATION_UNJUSTIFIED', 'no cited record establishes');
+
+    scenario('evidence-class-present-but-unconsumed', () => {
+      const ev = JSON.parse(readFileSync(evidencePath, 'utf8'));
+      ev.expectedResultArtifact = 'verification/fixtures/inputs/FIX-MILK-EXPR-OPERATORS.input.json';
+      writeFileSync(evidencePath, JSON.stringify(ev, null, 2) + '\n');
+    }, 'EVIDENCE_MISSING', 'no claim fixture consumes its artifact');
+
+    scenario('stronger-oracle-bypass', () => {
+      const c = JSON.parse(readFileSync(claimPath, 'utf8'));
+      c.actualExpectedValueOrigin = 'controlled-observation';
+      writeFileSync(claimPath, JSON.stringify(c, null, 2) + '\n');
+    }, 'STRONGER_ORACLE_BYPASSED', 'reference-execution');
+
+    scenario('inventory-item-unclaimed', () => {
+      const c = JSON.parse(readFileSync(claimPath, 'utf8'));
+      c.inventoryItemIds = c.inventoryItemIds.filter((/** @type {string} */ id) => id !== 'STMT-4');
+      writeFileSync(claimPath, JSON.stringify(c, null, 2) + '\n');
+    }, 'INVENTORY_ITEM_UNCLAIMED', 'STMT-4');
+
+    scenario('inventory-coverage-coarse', () => {
+      const f = JSON.parse(readFileSync(fixtureRecordPath, 'utf8'));
+      f.inventoryItemIds = f.inventoryItemIds.filter((/** @type {string} */ id) => id !== 'STMT-3');
+      writeFileSync(fixtureRecordPath, JSON.stringify(f, null, 2) + '\n');
+    }, 'CLAIM_COVERAGE_COARSE', 'STMT-3');
+
+    scenario('capability-unavailable', () => {
+      const a = JSON.parse(readFileSync(adapterPath, 'utf8'));
+      a.capabilities[0].module = 'phosphene/adapters/does-not-exist.mjs';
+      writeFileSync(adapterPath, JSON.stringify(a, null, 2) + '\n');
+    }, 'SUBJECT_EXECUTION_UNAVAILABLE', 'does-not-exist.mjs');
+
+    scenario('non-discriminating-fixture', () => {
+      const evPath = path.join(fixture, 'verification', 'evaluators', 'EVAL-MILK-IDENTITY.json');
+      const ev = JSON.parse(readFileSync(evPath, 'utf8'));
+      ev.entryPoint = { module: 'tooling/reference-adapters/milkdrop-eel/adapter.mjs', export: 'referenceEelOperators' };
+      writeFileSync(evPath, JSON.stringify(ev, null, 2) + '\n');
+    }, 'FIXTURE_NONDISCRIMINATING', 'ALT-COMPAT-IDENTITY-COPY');
+
+    scenario('oracle-hand-derived-rejected', () => {
+      const c = JSON.parse(readFileSync(claimPath, 'utf8'));
+      c.actualExpectedValueOrigin = 'hand-derived-exact';
+      writeFileSync(claimPath, JSON.stringify(c, null, 2) + '\n');
+    }, 'EXPECTED_VALUE_ORIGIN_UNACCEPTABLE', 'hand-derived-exact');
+
+    scenario('category-uncovered', () => {
+      const b = JSON.parse(readFileSync(bindingPath, 'utf8'));
+      const rc = b.requirementClasses.find((/** @type {any} */ x) => x.requirementClassId === 'requirement-class.milkdrop-expression');
+      rc.mandatoryVerificationCategories.push('nonexistent-category');
+      writeFileSync(bindingPath, JSON.stringify(b, null, 2) + '\n');
+    }, 'PROJECT_UNDERBOUND', "'nonexistent-category'");
+
+    scenario('provider-unconfigured', () => {
+      const b = JSON.parse(readFileSync(bindingPath, 'utf8'));
+      const rc = b.requirementClasses.find((/** @type {any} */ x) => x.requirementClassId === 'requirement-class.milkdrop-expression');
+      rc.mandatoryProviders.push('PROVIDER-DOES-NOT-EXIST');
+      writeFileSync(bindingPath, JSON.stringify(b, null, 2) + '\n');
+    }, 'PROVIDER_UNAVAILABLE', "'PROVIDER-DOES-NOT-EXIST'");
+
+    // Product-path bypass: adapter keeps the 'product' role label but its
+    // module computes results without the graph/executor. The removal
+    // intervention exposes the lie: deleting the executor no longer changes
+    // the claim result.
+    {
+      const a = JSON.parse(readFileSync(adapterPath, 'utf8'));
+      a.capabilities = a.capabilities.map((/** @type {any} */ cap) => cap.capabilityId === 'phosphene-execute-graph-step'
+        ? { ...cap, module: 'tooling/verification-kit/src/self-test/mutants/bypass-product-adapter.mjs', export: 'executeMilkExprBypassingGraph' }
+        : cap);
+      writeFileSync(adapterPath, JSON.stringify(a, null, 2) + '\n');
+      const bypassPasses = spawnCli(fixture, binPath, ['claim', 'CLAIM-MILK-EXPR-OPERATORS']);
+      unlinkSync(path.join(fixture, 'phosphene', 'src', 'exec', 'executor.mjs'));
+      const afterRemoval = spawnCli(fixture, binPath, ['claim', 'CLAIM-MILK-EXPR-OPERATORS']);
+      restoreFixture(fixture);
+      const bypassDetected = bypassPasses.exitCode === 0 && afterRemoval.exitCode === 0;
+      results.push({
+        control: 'semantic-negative:product-path-bypass-detected-by-removal',
+        ok: bypassDetected,
+        detail: bypassDetected
+          ? "an adapter labelled 'product' that bypasses the graph/executor still passes after the executor is deleted — the removal intervention detects exactly this, which is why the role label alone is never accepted"
+          : `expected bypass to survive executor removal (bypass run exit ${bypassPasses.exitCode}, post-removal exit ${afterRemoval.exitCode})`
+      });
+    }
+  } finally {
+    rmSync(fixture, { recursive: true, force: true, maxRetries: 3 });
+  }
+  return results;
+}
+
+/**
+ * Conformance-governance controls (spec §7.10A/§7.10B): tampering with the
+ * canonical suite manifest is rejected, and a bootstrap record cannot
+ * self-certify.
+ * @param {string} repoRoot @param {string} binPath
+ * @returns {ControlResult[]}
+ */
+export function conformanceGovernanceControls(repoRoot, binPath) {
+  /** @type {ControlResult[]} */
+  const results = [];
+  const fixture = cloneFixture(repoRoot);
+  const manifestPath = path.join(fixture, 'verification', 'framework-conformance', 'canonical-suite', 'manifest.json');
+  const bootstrapPath = path.join(fixture, 'verification', 'framework-conformance', 'bootstrap-conformance.json');
+  try {
+    if (existsSync(manifestPath)) {
+      const original = readFileSync(manifestPath, 'utf8');
+      const weakened = JSON.parse(original);
+      const anyNegative = (weakened.controlScenarios ?? []).find((/** @type {any} */ s) => s.condition !== 'positive');
+      if (anyNegative) anyNegative.expectedOutcomes[0].expectedFailureCode = 'CHECK_FAILED';
+      writeFileSync(manifestPath, JSON.stringify(weakened, null, 2) + '\n');
+      const run = spawnCli(fixture, binPath, ['framework-conformance-suite']);
+      restoreFixture(fixture);
+      results.push({
+        control: 'conformance-suite-weakening-rejected',
+        ok: run.exitCode !== 0 && run.stdout.includes('CONFORMANCE_SUITE_UNAUTHORIZED'),
+        detail: run.exitCode !== 0 && run.stdout.includes('CONFORMANCE_SUITE_UNAUTHORIZED')
+          ? 'changing a canonical control expected signature without authenticated authorization is rejected (manifest hash mismatch)'
+          : `expected CONFORMANCE_SUITE_UNAUTHORIZED, got exit ${run.exitCode}`
+      });
+    } else {
+      results.push({ control: 'conformance-suite-weakening-rejected', ok: false, detail: 'canonical suite manifest absent in fixture' });
+    }
+
+    if (existsSync(bootstrapPath)) {
+      const b = JSON.parse(readFileSync(bootstrapPath, 'utf8'));
+      b.status = 'established';
+      b.independentBootstrapWitnessId = null;
+      writeFileSync(bootstrapPath, JSON.stringify(b, null, 2) + '\n');
+      const run = spawnCli(fixture, binPath, ['framework-bootstrap-conformance']);
+      restoreFixture(fixture);
+      results.push({
+        control: 'bootstrap-self-certification-rejected',
+        ok: run.exitCode !== 0 && run.stdout.includes('FRAMEWORK_BOOTSTRAP_UNWITNESSED'),
+        detail: run.exitCode !== 0 && run.stdout.includes('FRAMEWORK_BOOTSTRAP_UNWITNESSED')
+          ? "a bootstrap record marked 'established' without an authenticated independent witness is rejected — the implementation cannot certify itself"
+          : `expected FRAMEWORK_BOOTSTRAP_UNWITNESSED, got exit ${run.exitCode}`
+      });
+
+      const b2 = JSON.parse(readFileSync(bootstrapPath, 'utf8'));
+      if (b2.frameworkImplementation?.trustBearingArtifactHashes?.[0]) {
+        b2.frameworkImplementation.trustBearingArtifactHashes[0].sha256 = '0'.repeat(64);
+        writeFileSync(bootstrapPath, JSON.stringify(b2, null, 2) + '\n');
+        const run2 = spawnCli(fixture, binPath, ['framework-bootstrap-conformance']);
+        restoreFixture(fixture);
+        results.push({
+          control: 'bootstrap-core-hash-mismatch-rejected',
+          ok: run2.exitCode !== 0 && run2.stdout.includes('trust-bearing core changed'),
+          detail: run2.exitCode !== 0 && run2.stdout.includes('trust-bearing core changed')
+            ? 'a bootstrap record bound to different trust-bearing core hashes is rejected; a material core change invalidates the prior judgment'
+            : `expected trust-core mismatch rejection, got exit ${run2.exitCode}`
+        });
+      }
+    } else {
+      results.push({ control: 'bootstrap-self-certification-rejected', ok: false, detail: 'bootstrap-conformance record absent in fixture' });
+      results.push({ control: 'bootstrap-core-hash-mismatch-rejected', ok: false, detail: 'bootstrap-conformance record absent in fixture' });
+    }
+  } finally {
+    rmSync(fixture, { recursive: true, force: true, maxRetries: 3 });
+  }
+  return results;
+}
+
+/**
  * Finding 5 negative control: a producer-authored witness referencing a
  * nonexistent GitHub approval event is rejected by live verification.
  * Requires an authenticated gh CLI; reports that dependency honestly otherwise.
@@ -312,9 +724,11 @@ export function forgedWitnessLiveControls(repoRoot, binPath) {
   try {
     const witnessDir = path.join(fixture, 'verification', 'authorization', 'witnesses');
     mkdirSync(witnessDir, { recursive: true });
+    const fixtureHead = execFileSync('git', ['-C', fixture, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
     const forged = {
       witnessId: 'AUTH-WITNESS-FORGED-CONTROL',
       authorizationType: 'scope-approval',
+      reviewedRevision: fixtureHead,
       decision: 'forged decision for the negative control',
       affectedIds: ['scope.phosphene'],
       authorizingIdentity: 'nonexistent-user-for-control',

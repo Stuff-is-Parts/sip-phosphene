@@ -3,23 +3,23 @@
   "covers": [
     {
       "path": "verification/binding/project-verification-binding.json",
-      "sha256": "5479a64306b1b2279b76ce223cd1c2f8b9e246d4025e9afc150c344d64498430",
-      "bytes": 24695
+      "sha256": "2750d275558d4a3cafe01ee63ed2d5f73c01b195b4bc36a6eff1b31caca53f90",
+      "bytes": 123255
     }
   ],
   "meta": {
-    "reason": "regenerate binding after enforcement fixes (audit execution rule): prose placeholders replaced with enforceable check/evaluator patterns",
+    "reason": "semantic-control-sharing revision: contracts, lineage policy, canonical suite, pending bootstrap record",
     "command": "verify binding-lock",
-    "time": "2026-07-16T22:15:16.016Z",
-    "commit": "eb4308ee45c1f1bcba5aa428129713765c3faa48",
+    "time": "2026-07-16T23:19:45.529Z",
+    "commit": "970c2256e871dc90554555c583ccf1c547f9fdbf",
     "dirtyWorktree": true,
     "authorizationWitnessId": null,
     "changes": [
       {
         "path": "verification/binding/project-verification-binding.json",
         "kind": "changed",
-        "oldSha256": "e13ec53fa6aeb15749017dddd5d2eb059b7b7c0c7e8641b3a5c6b96f223011da",
-        "newSha256": "5479a64306b1b2279b76ce223cd1c2f8b9e246d4025e9afc150c344d64498430"
+        "oldSha256": "5479a64306b1b2279b76ce223cd1c2f8b9e246d4025e9afc150c344d64498430",
+        "newSha256": "2750d275558d4a3cafe01ee63ed2d5f73c01b195b4bc36a6eff1b31caca53f90"
       }
     ]
   }

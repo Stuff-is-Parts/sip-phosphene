@@ -20,12 +20,15 @@
   ],
   "perConstituentAuthority": [
     {
-      "constituent": "pools[*] expected values (measurement)",
-      "authorityId": "AUTH-MILKDROP-EEL-PARSER"
-    },
-    {
-      "constituent": "EEL operator grammar and precedence (required behavior)",
-      "authorityId": "AUTH-NSEEL2-CALTAB"
+      "constituent": "expected pools[].{a,b,q1,c,d} values (measurement; ns-eel2 tier-1 sources define the required behavior and stay in authorityIds)",
+      "authorityId": "AUTH-MILKDROP-EEL-PARSER",
+      "coversPaths": [
+        "pools[].a",
+        "pools[].b",
+        "pools[].q1",
+        "pools[].c",
+        "pools[].d"
+      ]
     }
   ],
   "fact": "The exact variable pool after each of N sequential evaluation passes of the fixture's operator-only EEL program, as computed by executing the milkdrop-eel-parser conversion verbatim over the explicit initial pool. Authority priority note: ns-eel2 (tier 1) defines the required behavior; the parser (tier 3) supplies executable measurements and may not silently override it — any observed disagreement becomes an authority-conflict record and the requirement stays FAIL until resolved.",

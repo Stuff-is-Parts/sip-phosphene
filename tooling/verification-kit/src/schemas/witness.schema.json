@@ -4,7 +4,7 @@
   "additionalProperties": false,
   "required": [
     "witnessId", "authorizationType", "decision", "affectedIds",
-    "authorizingIdentity", "verificationMethod", "timestamp"
+    "authorizingIdentity", "verificationMethod", "timestamp", "reviewedRevision"
   ],
   "properties": {
     "$schema": { "type": "string" },
@@ -14,8 +14,15 @@
       "enum": [
         "scope-approval", "scope-change", "scope-exclusion",
         "interpretive-judgment", "regression-authorization",
-        "binding-adoption", "binding-adequacy", "allowlist-change", "other-reserved-action"
+        "binding-adoption", "binding-adequacy", "allowlist-change",
+        "framework-bootstrap-conformance", "framework-change",
+        "residual-completeness", "other-reserved-action"
       ]
+    },
+    "reviewedRevision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "The exact immutable revision the authorization reviews (framework spec §7.10). Mandatory: a witness without it fails AUTHORIZATION_LINEAGE_INVALID."
     },
     "decision": { "type": "string", "minLength": 1 },
     "affectedIds": { "type": "array", "items": { "type": "string" } },

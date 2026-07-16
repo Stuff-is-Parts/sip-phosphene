@@ -17,6 +17,7 @@ export function lockSurfaces(tree) {
       lockPath: tree.authorizationLock,
       covers: [tree.allowlist, tree.bootstrap, tree.witnessesDir, tree.attestationsDir]
     },
+    'framework-conformance': { lockPath: tree.frameworkConformanceLock, covers: [tree.frameworkConformanceDir] },
     profiles: { lockPath: tree.profilesLock, covers: [tree.profilesDir] },
     binding: { lockPath: tree.bindingLock, covers: [tree.binding] },
     authorities: { lockPath: tree.authoritiesLock, covers: [tree.authorities, tree.conflictsDir, tree.rawDir] },

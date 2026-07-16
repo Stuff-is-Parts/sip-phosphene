@@ -175,6 +175,39 @@
   "customMechanismSelfTestRules": {
     "publicCommandOrProcessBoundaryRequired": true,
     "internalDecisionLogicMayNotBeImportedOrDuplicated": true,
-    "observableFailureSignatureRequired": true
+    "observableFailureSignatureRequired": true,
+    "structurallyValidSemanticallyInadequateControlRequired": true,
+    "proxyRequiresIndependentEquivalenceProof": true,
+    "threeControlConditionsPerSemanticContractRequired": true,
+    "sharedControlScenariosPermitted": true,
+    "contractCoverageMustBeIndependentlyAttributable": true,
+    "fixtureCountIsNotCoverageMetric": true
+  },
+  "semanticConformanceMutations": [
+    {
+      "mutationId": "SEMANTIC-MUTATION-REPLACE",
+      "categoryId": "CATEGORY-REPLACE",
+      "structurallyValid": true,
+      "semanticDefect": "REPLACE_POPULATED_BUT_INADEQUATE_BEHAVIOR",
+      "expectedFailureCode": "SEMANTIC_PROXY_SUBSTITUTION",
+      "expectedFirstFailureOrDivergence": "REPLACE_FAILURE_PATH",
+      "coversSemanticContractIds": [
+        "SEMANTIC-CONTRACT-REPLACE"
+      ],
+      "expectedOutcomes": [
+        {
+          "semanticContractId": "SEMANTIC-CONTRACT-REPLACE",
+          "expectedFailureCode": "SEMANTIC_PROXY_SUBSTITUTION",
+          "expectedFirstFailureOrDivergence": "REPLACE_FAILURE_PATH"
+        }
+      ]
+    }
+  ],
+  "conformanceSuiteGovernance": {
+    "canonicalSuiteId": "framework-conformance-suite.REPLACE",
+    "canonicalSuiteVersion": "REPLACE_VERSION",
+    "canonicalSuiteManifestHash": "sha256:REPLACE",
+    "producerMayAddStricterControls": true,
+    "canonicalControlRemovalWeakeningOrReinterpretationRequiresAuthenticatedAuthorization": true
   }
 }

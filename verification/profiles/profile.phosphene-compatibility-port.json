@@ -2,7 +2,7 @@
   "profileId": "profile.phosphene-compatibility-port",
   "name": "PHOSPHENE compatibility port — source-format behavior reproduction",
   "version": "0.1.0",
-  "hash": "sha256:7a934e0572935b3014e170dbe0ede0be16b615f3f75051fc92848f01af6d8d9d",
+  "hash": "sha256:f5bc3741d1e35ce81c002683c567fa35778b56ecd59869c6e64d50fe8e3d9b81",
   "technicalDomainOrProductForm": "compatibility port: exact reproduction of MilkDrop and Plane9 source-defined behavior through a native graph/executor per PHOSPHENE-GOAL.md",
   "categoriesSupplied": [
     "source-format-parsing",
@@ -298,6 +298,8 @@
   "customMechanismSelfTestRules": {
     "publicCommandOrProcessBoundaryRequired": true,
     "internalDecisionLogicMayNotBeImportedOrDuplicated": true,
-    "observableFailureSignatureRequired": true
+    "observableFailureSignatureRequired": true,
+    "structurallyValidSemanticallyInadequateControlRequired": true,
+    "proxyRequiresIndependentEquivalenceProof": true
   }
 }

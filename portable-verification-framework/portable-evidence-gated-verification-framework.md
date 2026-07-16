@@ -69,6 +69,10 @@ The framework is designed to prevent the following recurring failures:
 - **Binding-adequacy laundering:** adopting or changing a producer-authored project binding because it is authenticated or structurally complete without an explicit external judgment that its oracle policies, inventories, categories, providers, adapter capabilities, alternatives, fixtures, and controls are sufficient for the approved scope.
 - **Administrative-first displacement:** building locks, inventories, reports, and control surfaces before establishing the end-to-end oracle-to-subject verification path they exist to protect.
 - **Self-authored-control collusion:** allowing a custom mechanism, its defect control, its expected signature, and its self-test to share the same internal decision logic and certify one another.
+- **Bootstrap self-certification:** allowing an initial framework implementation to establish its own conformance through tests, interpretations, or reports produced by the same correlated producer.
+- **Semantic proxy substitution:** replacing the operative meaning of a required property with an easier correlated condition such as field presence, registration, a declared role, or unrelated downstream PASS.
+- **Conformance-suite capture:** allowing the framework implementer to remove, weaken, reinterpret, or replace the tests that define whether the implementation conforms.
+- **Authorization-lineage deadlock:** binding an attestation to the commit that contains the attestation itself, creating an impossible or self-invalidating revision cycle instead of binding approval to the reviewed revision and protected artifacts.
 
 These names describe failure mechanisms, not accepted project states. When any occurs, the affected requirement remains FAIL until the underlying condition is corrected and the complete verification chain passes again.
 
@@ -108,7 +112,11 @@ The framework must:
 26. test trust-bearing custom mechanisms through public black-box interfaces rather than duplicated internal decision logic;
 27. require an authenticated adequacy judgment for every project-binding adoption or change;
 28. forbid hand-derived expected values by default unless an applicable rule explicitly authorizes them;
-29. avoid becoming a parallel development process or substitute project.
+29. avoid becoming a parallel development process or substitute project;
+30. require an independently authenticated bootstrap-conformance judgment before an initial framework implementation may establish PASS;
+31. reject semantic proxy substitution and require controls for structurally valid but semantically inadequate records;
+32. bind authorization attestations to reviewed revisions and protected artifact hashes through mechanically verified descendant lineage rather than current-HEAD equality;
+33. preserve a separately governed canonical conformance suite that the framework producer may extend but may not weaken without authenticated framework-change authorization.
 
 Do not implement project product behavior as part of this assignment except for a deliberately minimal self-test subject used only to prove the framework.
 
@@ -226,7 +234,10 @@ A requirement passes only when all of the following are current and valid:
 17. the actual subject implementation is exercised;
 18. the required checks pass;
 19. required providers and instrumentation are available;
-20. no relevant dependency, adapter, comparator, fixture, alternative evaluator, oracle policy, inventory mapping, implementation, authority, profile, project binding, or evidence change has invalidated the result.
+20. no relevant dependency, adapter, comparator, fixture, alternative evaluator, oracle policy, inventory mapping, implementation, authority, profile, project binding, or evidence change has invalidated the result;
+21. the initial or materially changed trust-bearing framework core has a current independently authenticated bootstrap-conformance judgment;
+22. the canonical framework conformance-suite version and hash are current and any weakening or replacement is authenticated;
+23. every mandatory field and policy establishes its complete operative meaning rather than only a correlated structural proxy, or the irreducible remainder has an authenticated adequacy judgment.
 
 Anything else is FAIL.
 
@@ -274,6 +285,10 @@ Failure reasons must be precise and machine-readable. Examples include:
 - `EQUIVALENCE_UNPROVEN`
 - `RUNTIME_EFFECT_UNWITNESSED`
 - `REGRESSION_UNAUTHORIZED`
+- `FRAMEWORK_BOOTSTRAP_UNWITNESSED`
+- `SEMANTIC_PROXY_SUBSTITUTION`
+- `CONFORMANCE_SUITE_UNAUTHORIZED`
+- `AUTHORIZATION_LINEAGE_INVALID`
 - `EXTERNAL_DEPENDENCY`
 
 Failure codes explain the active failure. They do not authorize stopping or deferral.
@@ -333,6 +348,13 @@ verification/
     witnesses/
     attestations/
     authorization.lock.json
+  framework-conformance/
+    bootstrap-conformance.json
+    canonical-suite/
+      manifest.json
+      fixtures/
+      expected/
+    framework-conformance.lock.json
   authorities/
     authorities.json
     authorities.lock.json
@@ -785,36 +807,92 @@ Each attestation includes:
 
 - stable attestation ID;
 - repository identity;
-- exact commit or tree hash;
+- exact reviewed commit and tree hash;
+- exact repository-host event or signature identity;
+- authenticated approval author or signing identity;
 - witness ID and witness-object hash;
 - exact authorized decision and affected artifact IDs;
-- base identity-allowlist hash;
+- cryptographic hashes of every protected affected artifact and governing authorization surface at the reviewed revision;
+- base revision and base identity-allowlist hash when the decision changes the trust root;
 - project-binding hash when the decision affects project verification;
 - verification provider and version;
 - repository-host event or signature-verification result;
 - verification timestamp;
 - attestation hash.
 
-An attestation is valid only for the exact repository, commit, witness, decision, affected artifacts, and base allowlist recorded in it.
+The reviewed revision is mandatory. The attestation does not bind approval to the later commit that merely retains the attestation.
 
-It is invalidated when any bound value changes, including:
+An attestation may be consumed from the reviewed revision or from a descendant revision only when mechanical lineage verification proves all of the following:
 
-- commit or tree;
-- witness object;
-- authorized decision;
-- affected scope or project binding;
-- identity allowlist;
-- repository identity;
-- verification-provider interpretation.
+1. the reviewed revision is an ancestor of the consuming revision;
+2. the witness object, authorized decision, repository identity, and applicable base allowlist are unchanged;
+3. every protected affected artifact and governing authorization surface has the same cryptographic hash at the consuming revision as at the reviewed revision;
+4. the repository-host event or signature authenticates the exact reviewed revision and authorizing identity;
+5. the attestation itself is hash-valid and was not producer-authored as a substitute for live verification.
 
-A clean or network-isolated run may verify the hash, linkage, and exact binding of a previously live-verified attestation. It may not claim that it independently re-authenticated the external actor.
+Adding or refreshing the attestation in a descendant commit does not by itself invalidate the approval. Changing any protected artifact, witness, decision, governing authorization surface, applicable base allowlist, repository identity, or verification-provider interpretation does invalidate it and requires a new live approval.
+
+For trust-root changes, the applicable authorization identity must be resolved from the declared base revision. The proposed revision's allowlist cannot authorize its own adoption.
+
+A clean or network-isolated run may verify the attestation hash, reviewed-revision ancestry, protected-artifact hashes, and exact linkage. It may not claim that it independently re-authenticated the external actor.
 
 Final authorization-dependent PASS requires both:
 
-1. a live authenticated verification job producing or refreshing the attestation; and
-2. the clean-environment job verifying the retained attestation's integrity and exact linkage.
+1. a live authenticated verification job producing or refreshing the attestation for the exact reviewed revision; and
+2. the clean-environment job verifying the retained attestation's integrity and descendant-lineage linkage.
 
-A stale, mismatched, merely present, or producer-authored attestation produces `AUTHORIZATION_ATTESTATION_INVALID`.
+Missing reviewed-revision metadata, current-HEAD equality in place of lineage verification, a non-ancestor consuming revision, or any changed protected artifact produces `AUTHORIZATION_LINEAGE_INVALID`. A stale, mismatched, merely present, or producer-authored attestation produces `AUTHORIZATION_ATTESTATION_INVALID`.
+
+### 7.10A Framework Bootstrap-Conformance Record
+
+The initial implementation of this framework may not establish its own conformance to this specification.
+
+A framework bootstrap-conformance record includes:
+
+- stable bootstrap record ID;
+- exact framework-core implementation commit, tree hash, and trust-bearing artifact hashes;
+- canonical conformance-suite ID, version, and manifest hash;
+- independent authorizing identity and authenticated witness ID;
+- exact decision stating whether the implementation conforms to this specification;
+- reviewed limitations or unresolved deviations;
+- verification timestamp and retained result.
+
+The bootstrap judgment must come from an authenticated authority outside the correlated producer that authored the implementation and its tests. Agreement among agents, reviewers, or models sharing the same implementation assumptions is not independent bootstrap verification.
+
+Until the exact trust-bearing core and canonical suite have a valid bootstrap-conformance witness, framework verification remains FAIL with `FRAMEWORK_BOOTSTRAP_UNWITNESSED`, even when internal self-tests pass.
+
+A material change to the PASS/FAIL engine, scope aggregation, authorization verification, hashing, lock validation, conformance-suite runner, or other trust-bearing core invalidates the prior bootstrap judgment unless an authenticated framework-change rule explicitly establishes that the change is non-trust-bearing and the canonical conformance suite proves that classification.
+
+### 7.10B Canonical Framework Conformance-Suite Record
+
+The canonical framework conformance suite is a governed artifact separate from the framework implementation.
+
+Its manifest includes:
+
+- stable suite ID;
+- version and manifest hash;
+- governing specification hash;
+- exact public command or process boundary used to run it;
+- for every mandatory semantic acceptance contract: demonstrated positive, structurally invalid negative, and structurally valid but semantically inadequate control conditions;
+- explicit contract-to-control mappings and independently attributable expected outcomes when one fixture, mutation scenario, or fixture repository covers more than one contract;
+- expected failure codes, affected records, and first failure or divergence paths;
+- trust-bearing implementation surfaces covered;
+- authenticated governance witness for adoption or change.
+
+The producer may add stricter controls. The producer may not remove, weaken, reinterpret, replace, or mark canonical controls inapplicable without authenticated framework-change authorization that names the exact controls and reasons.
+
+These are required control conditions, not a requirement for three physically separate fixtures per contract. One fixture, mutation scenario, or fixture repository may cover multiple semantic contracts only when:
+
+- every covered contract is named explicitly;
+- the expected outcome for each contract is independently attributable by failure code and first failure or divergence path;
+- disabling or weakening one contract's enforcement causes that contract's designated control condition to fail; and
+- shared scenarios do not hide an uncovered contract behind aggregate fixture counts or unrelated failures.
+
+Coverage is measured by satisfied contract conditions, not by the number of fixture files.
+
+In this specification, a **mandatory semantic acceptance contract** is the semantic acceptance contract for any mandatory field, policy, provider contract, or verification control whose satisfaction can affect PASS or FAIL. No separate narrower category of “load-bearing” mandatory contracts exists.
+
+A conformance result is valid only when the implementation runs the exact governed suite version and manifest hash through public boundaries. A producer-local substitute suite, silently weakened expected signature, or unauthorized suite change produces `CONFORMANCE_SUITE_UNAUTHORIZED`.
 
 ### 7.11 Reusable Profile Record
 
@@ -916,6 +994,7 @@ Implement lockfiles for:
 
 - approved scope;
 - authorization identities, bootstrap record, witnesses, and attestations;
+- framework bootstrap-conformance record and canonical conformance-suite manifest, fixtures, expected signatures, and governance witness;
 - selected reusable profiles;
 - the project verification binding;
 - authorities;
@@ -929,6 +1008,7 @@ Expose commands equivalent to:
 ```text
 verify scope-lock --reason "..." --authorization-witness "..."
 verify authorization-lock --reason "..." --authorization-witness "..."
+verify framework-conformance-lock --reason "..." --authorization-witness "..."
 verify project-binding-lock --reason "..." --authorization-witness "..."
 verify evidence-lock --reason "..."
 ```
@@ -954,7 +1034,10 @@ A lock check must fail when:
 - a scope change lacks a verified authorization witness;
 - an authorization witness is producer-mintable or cannot be authenticated;
 - an identity-allowlist or bootstrap-record change lacks base-allowlist or repository-administration authorization;
-- an authorization attestation is stale, mismatched, or unbound;
+- an authorization attestation is stale, mismatched, unbound, or lacks valid reviewed-revision lineage;
+- the framework bootstrap-conformance record is absent, stale, self-certified, or bound to different trust-bearing core or suite hashes;
+- the canonical conformance suite changed without authenticated framework-change authorization;
+- a semantic acceptance contract or its structurally valid semantic-negative control changed without invalidation;
 - the repository lacks a project verification binding;
 - a requirement is underbound relative to the project binding;
 - a selected reusable profile is missing or stale;
@@ -1314,12 +1397,39 @@ A negative control that fails for the wrong reason is itself FAIL.
 
 ---
 
+
+### 14.5 Semantic Acceptance and Proxy Rejection
+
+Reading a field, resolving an ID, finding a registered check, observing a declared adapter role, or seeing another claim PASS does not by itself establish the operative meaning of a requirement.
+
+For every mandatory field, policy, provider contract, and verification control, the implementation must retain a semantic acceptance contract that identifies:
+
+- the exact property the rule is intended to establish;
+- the direct observation, execution, comparison, or authenticated judgment that establishes it;
+- the public command or process boundary that consumes the rule;
+- one valid positive control;
+- one structurally missing or malformed negative control;
+- one structurally valid but semantically inadequate negative control;
+- the precise failure code and first failure or divergence path;
+- any irreducible residual judgment and its required authenticated witness.
+
+A correlated proxy may be used only when an independent equivalence claim proves that the proxy is sufficient for the complete property over the applicable domain. The proxy-equivalence assertion is itself a claim and inherits the full evidence, oracle, fixture, and control burden.
+
+When complete mechanical enforcement is impossible, the mechanism must expose the unresolved semantic remainder and require an authenticated adequacy judgment. Until that judgment exists, the affected requirement remains FAIL.
+
+A populated record that passes because the verifier checks only presence, naming, registration, self-declared role, or unrelated downstream success produces `SEMANTIC_PROXY_SUBSTITUTION`.
+
+
 ## 15. Framework Coverage Matrix
 
 `verify framework` must derive, not manually maintain, a machine-readable coverage matrix.
 
 For every core mechanism, provider, profile, and selected category, report:
 
+- independent bootstrap-conformance witness current for the exact trust-bearing core and canonical suite hashes;
+- canonical conformance-suite ID, version, manifest hash, and governance authorization current;
+- semantic acceptance contract present for every mandatory property;
+- structurally valid but semantically inadequate negative control present and rejected for the intended reason;
 - implementation present;
 - schema present;
 - positive control present;
@@ -1385,6 +1495,10 @@ The framework must fail when:
 - the project binding contains a governing specification category with no concrete mechanism;
 - a selected reusable profile is not consumed by the project binding;
 - a report category affects no completion decision;
+- a framework bootstrap-conformance record is not consumed by the global framework result;
+- a canonical conformance control has no public-boundary executor or expected failure signature;
+- a mandatory semantic property has no semantic acceptance contract or no structurally valid semantic-negative control;
+- a correlated proxy is accepted without an independently proven equivalence claim;
 - a maintained framework artifact has no gate that reads it;
 - a gate reads data with no maintained source.
 
@@ -1461,16 +1575,18 @@ A clean or network-isolated environment is not required to hold repository-host 
 The clean run must verify:
 
 - attestation hash;
-- repository and commit binding;
+- repository identity and exact reviewed revision;
+- ancestry from the reviewed revision to the consuming revision;
 - witness-object hash;
 - exact authorized decision;
-- affected artifact IDs;
-- base identity-allowlist hash;
+- affected artifact IDs and their reviewed-revision hashes;
+- unchanged protected artifact and governing authorization-surface hashes at the consuming revision;
+- base identity-allowlist hash and base revision where applicable;
 - project-binding hash where applicable.
 
 The clean run must not describe this as live authentication. Final authorization-dependent PASS requires the separate live authenticated verification job and the clean attestation-integrity result.
 
-A missing or invalid required attestation fails with `AUTHORIZATION_ATTESTATION_INVALID`; the clean runner must not silently relax authorization because network access is unavailable.
+A missing or invalid required attestation fails with `AUTHORIZATION_ATTESTATION_INVALID`; invalid revision ancestry or changed protected artifacts fail with `AUTHORIZATION_LINEAGE_INVALID`. The clean runner must not silently relax authorization because network access is unavailable.
 
 ---
 
@@ -1480,10 +1596,14 @@ Expose a cross-platform CLI equivalent to:
 
 ```text
 verify init
+verify framework-bootstrap-conformance
+verify framework-conformance-suite
 verify framework
+verify semantic-acceptance
 verify scope
 verify authorization
 verify authorization-attestations
+verify authorization-lineage
 verify profiles
 verify project-binding
 verify authorities
@@ -1503,7 +1623,11 @@ verify
 
 Command rules:
 
-- `verify framework` proves the framework's own mechanisms and controls.
+- `verify framework-bootstrap-conformance` verifies the independent bootstrap record against the exact trust-bearing core and canonical suite hashes.
+- `verify framework-conformance-suite` runs the governed canonical controls through their public boundaries and verifies suite governance.
+- `verify semantic-acceptance` rejects mandatory fields or policies implemented only through correlated proxies.
+- `verify authorization-lineage` verifies reviewed-revision ancestry and unchanged protected artifacts for retained attestations.
+- `verify framework` proves the framework's own mechanisms and controls and consumes all four commands above.
 - Targeted commands support implementation work but do not define project completion.
 - `verify change-integrity` is a merge-integrity comparison. It makes no claim that the project is complete or healthy.
 - `verify` is the sole global completion gate.
@@ -1521,6 +1645,9 @@ Command rules:
 - an expected result, comparator, divergence classification, authority resolution, selected profile, profile alternative catalog, alternative evaluator, or project binding changing without the required witness and invalidation record;
 - any head effective alternative set that is narrower than the base set without authenticated authorization grounded in the base revision;
 - an identity-allowlist or bootstrap-record change lacking authorization verified against the base revision's allowlist or a repository-administration event;
+- a trust-bearing framework-core change without invalidation or renewed bootstrap-conformance authorization;
+- removal, weakening, reinterpretation, or replacement of a canonical conformance control without authenticated framework-change authorization;
+- a semantic acceptance contract weakened from direct evidence to a correlated proxy without an independently proven equivalence claim;
 - hidden, omitted, or falsely reported regressions;
 - a head result represented as completion when global `verify` still fails.
 
@@ -1733,6 +1860,10 @@ Its function is only to prove the portable core.
 
 It must exercise:
 
+- independently authenticated bootstrap-conformance enforcement and rejection of framework self-certification;
+- canonical conformance-suite version/hash enforcement and rejection of unauthorized suite weakening;
+- semantic-proxy rejection using structurally valid but semantically inadequate records;
+- authorization descendant-lineage acceptance for unchanged protected artifacts and rejection after protected-artifact mutation;
 - scope locking;
 - authenticated authorization-witness verification and forgery rejection;
 - reusable-profile selection and project-binding underbinding rejection;
@@ -1771,14 +1902,19 @@ It must exercise:
 - black-box execution of every trust-bearing custom mechanism through its public CLI or process boundary;
 - rejection of a self-test that duplicates or imports the mechanism's internal decision logic.
 
-For every mechanism include:
+For every trust-bearing mechanism include at least one positive control and at least one negative control appropriate to its failure model.
 
-- one positive control;
-- one isolated defect;
-- the expected failure signature;
-- a test proving the mechanism rejects that defect for the intended reason.
+For every mandatory semantic acceptance contract, demonstrate three control conditions:
 
-Self-test evidence must be clearly identified as framework-only and may never satisfy a host-product requirement.
+- a positive condition establishing the operative property;
+- a structurally missing or malformed negative condition;
+- a structurally valid but semantically inadequate negative condition.
+
+Retain the expected failure signature for each negative condition and prove rejection for the intended reason through the public command or process boundary. A single fixture, mutation scenario, or fixture repository may demonstrate conditions for multiple contracts only under the explicit mapping and independent-attribution rules in §7.10B. The suite must not require duplicate artifacts merely to increase fixture count.
+
+Self-test evidence must be clearly identified as framework-only and may never satisfy a host-product requirement. Internal self-test success may not substitute for the independent bootstrap-conformance judgment required by §7.10A.
+
+The canonical conformance suite is governed separately from the implementation under §7.10B. Producer-added tests may strengthen it but may not redefine the minimum conformance surface.
 
 ---
 
@@ -1791,7 +1927,10 @@ Create GitHub Actions templates using immutable action revisions where practical
 The generic merge-blocking jobs are:
 
 ```text
+framework-bootstrap-conformance
+framework-conformance-suite-integrity
 framework-self-test
+semantic-acceptance-integrity
 scope-integrity
 authorization-integrity
 authorization-live-verification
@@ -1839,11 +1978,16 @@ This separation prevents permanent-red merge gates and red-CI habituation withou
 
 CI must:
 
+- require a current independently authenticated framework bootstrap-conformance record for the exact trust-bearing core and canonical suite hashes;
+- run the exact governed canonical conformance-suite version and reject unauthorized removal, weakening, reinterpretation, or replacement of canonical controls;
+- execute all three required control conditions for every mandatory semantic acceptance contract, permitting shared scenarios only when contract coverage and failure attribution remain independently demonstrable under §7.10B;
 - install strictly from lockfiles;
 - run the current framework package, not a globally installed copy;
 - verify authorization witnesses live through the configured repository-host or signature mechanism;
-- produce hash-bound authorization attestations;
-- verify clean-run attestation integrity and linkage;
+- produce hash-bound authorization attestations for exact reviewed revisions and protected artifact hashes;
+- verify reviewed-revision ancestry and unchanged protected artifacts before consuming an attestation from a descendant revision;
+- reject current-HEAD equality as a substitute for authorization lineage;
+- verify clean-run attestation integrity and lineage linkage;
 - reject identity-allowlist changes not authorized by the base revision's allowlist or repository administration;
 - compare the project verification binding against every applicable requirement;
 - require an authenticated project-binding adequacy witness that explicitly covers the binding's load-bearing verification surfaces;
@@ -1934,16 +2078,23 @@ Before declaring this framework complete:
 29. demonstrate rejection of a coarse claim whose fixtures or checks do not independently exercise every mapped inventory item;
 30. demonstrate rejection of `hand-derived-exact` when it appears without an explicit applicable authorization rule;
 31. demonstrate a trust-bearing custom mechanism tested through its public command boundary and rejection of a circular internal-logic self-test;
-32. demonstrate the first complete oracle-to-subject vertical path before administrative expansion without representing it as framework completion;
-33. demonstrate `change-integrity` passing an honest non-regressing incomplete change and rejecting an unauthorized PASS-to-FAIL regression;
-34. activate every deliberate negative control;
-35. prove each intended gate fails for the intended reason;
-36. restore the correct implementation;
-37. rerun the complete framework suite successfully;
-38. run the clean-environment gate;
-39. inspect the final diff;
-40. remove accidental, generated, redundant, misleading, unused, or unrelated artifacts;
-41. run the global `verify` command and retain its result.
+32. demonstrate rejection of an initial framework implementation that lacks an independently authenticated bootstrap-conformance judgment even when its internal self-tests pass;
+33. demonstrate acceptance only after an independent witness explicitly covers the exact trust-bearing core hashes and canonical conformance-suite manifest hash;
+34. demonstrate rejection of a structurally complete record whose populated fields satisfy a correlated proxy but not the operative semantic property;
+35. demonstrate that the canonical conformance suite cannot be removed, weakened, reinterpreted, or replaced without authenticated framework-change authorization;
+36. demonstrate acceptance of an authorization attestation retained in a descendant commit when the reviewed revision is an ancestor and every protected artifact remains hash-identical;
+37. demonstrate rejection for missing reviewed-revision metadata, a non-ancestor revision, a wrong host-event revision, or a changed protected artifact;
+38. demonstrate that adding the attestation artifact itself in a descendant revision does not invalidate the reviewed approval;
+39. demonstrate the first complete oracle-to-subject vertical path before administrative expansion without representing it as framework completion;
+40. demonstrate `change-integrity` passing an honest non-regressing incomplete change and rejecting an unauthorized PASS-to-FAIL regression;
+41. activate every deliberate negative control;
+42. prove each intended gate fails for the intended reason;
+43. restore the correct implementation;
+44. rerun the complete framework suite successfully;
+45. run the clean-environment gate;
+46. inspect the final diff;
+47. remove accidental, generated, redundant, misleading, unused, or unrelated artifacts;
+48. run the global `verify` command and retain its result.
 
 The framework assignment is complete only when the framework itself passes.
 

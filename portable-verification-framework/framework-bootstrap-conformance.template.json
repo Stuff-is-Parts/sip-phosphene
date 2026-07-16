@@ -1,0 +1,25 @@
+{
+  "$schema": "verification/schemas/framework-bootstrap-conformance.schema.json",
+  "bootstrapRecordId": "framework-bootstrap.REPLACE",
+  "frameworkSpecificationHash": "sha256:REPLACE",
+  "frameworkImplementation": {
+    "repositoryIdentity": "REPLACE_OWNER/REPLACE_REPOSITORY",
+    "reviewedCommit": "REPLACE_FULL_COMMIT_SHA",
+    "reviewedTreeHash": "REPLACE_TREE_HASH",
+    "trustBearingArtifactHashes": [
+      {
+        "path": "REPLACE_TRUST_BEARING_PATH",
+        "sha256": "REPLACE"
+      }
+    ]
+  },
+  "canonicalConformanceSuite": {
+    "suiteId": "framework-conformance-suite.REPLACE",
+    "version": "REPLACE_VERSION",
+    "manifestHash": "sha256:REPLACE"
+  },
+  "independentBootstrapWitnessId": "AUTH-WITNESS-FRAMEWORK-BOOTSTRAP-REPLACE",
+  "decision": "REPLACE_EXPLICIT_CONFORMANCE_DECISION",
+  "reviewedLimitationsOrDeviations": [],
+  "status": "pending"
+}

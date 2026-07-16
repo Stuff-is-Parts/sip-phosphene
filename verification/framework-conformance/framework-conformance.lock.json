@@ -1,0 +1,37 @@
+{
+  "lockId": "lock.framework-conformance",
+  "covers": [
+    {
+      "path": "verification/framework-conformance/bootstrap-conformance.json",
+      "sha256": "2b0afee0efe15d86e3715b4bf2c698dfd926f4c95a35342ebb775c6f5bf1cb03",
+      "bytes": 10010
+    },
+    {
+      "path": "verification/framework-conformance/canonical-suite/manifest.json",
+      "sha256": "96b3e3df9eb8193458dc162aad7c140aaf3be30cd1d549baab3ccb59b2d65d3c",
+      "bytes": 44904
+    }
+  ],
+  "meta": {
+    "reason": "semantic-control-sharing revision: contracts, lineage policy, canonical suite, pending bootstrap record",
+    "command": "verify framework-conformance-lock",
+    "time": "2026-07-16T23:19:45.373Z",
+    "commit": "970c2256e871dc90554555c583ccf1c547f9fdbf",
+    "dirtyWorktree": true,
+    "authorizationWitnessId": null,
+    "changes": [
+      {
+        "path": "verification/framework-conformance/bootstrap-conformance.json",
+        "kind": "added",
+        "oldSha256": null,
+        "newSha256": "2b0afee0efe15d86e3715b4bf2c698dfd926f4c95a35342ebb775c6f5bf1cb03"
+      },
+      {
+        "path": "verification/framework-conformance/canonical-suite/manifest.json",
+        "kind": "added",
+        "oldSha256": null,
+        "newSha256": "96b3e3df9eb8193458dc162aad7c140aaf3be30cd1d549baab3ccb59b2d65d3c"
+      }
+    ]
+  }
+}

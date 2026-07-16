@@ -3,19 +3,53 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "attestationId", "repositoryIdentity", "commit", "witnessId", "witnessObjectHash",
-    "decision", "affectedIds", "baseAllowlistHash", "verificationProvider",
-    "verificationResult", "verificationTimestamp", "attestationHash"
+    "attestationId", "repositoryIdentity", "reviewedCommit", "reviewedTreeHash",
+    "hostEvent", "approvingIdentity", "authorizationType", "witnessId",
+    "witnessObjectHash", "decision", "affectedIds", "protectedArtifactHashes",
+    "baseAllowlistHash", "verificationProvider", "verificationResult",
+    "verificationTimestamp", "attestationHash"
   ],
   "properties": {
     "$schema": { "type": "string" },
     "attestationId": { "type": "string", "minLength": 1 },
     "repositoryIdentity": { "type": "string", "minLength": 1 },
-    "commit": { "type": "string", "minLength": 1 },
+    "reviewedCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "The exact revision the approval reviewed (framework spec §7.10). The approval binds here — never to the later commit that retains this attestation."
+    },
+    "reviewedTreeHash": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "hostEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "prNumber", "reviewId"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["pr-review"] },
+        "prNumber": { "type": "integer", "minimum": 1 },
+        "reviewId": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "approvingIdentity": { "type": "string", "minLength": 1 },
+    "authorizationType": { "type": "string", "minLength": 1 },
     "witnessId": { "type": "string", "minLength": 1 },
     "witnessObjectHash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
     "decision": { "type": "string", "minLength": 1 },
     "affectedIds": { "type": "array", "items": { "type": "string" } },
+    "protectedArtifactHashes": {
+      "type": "array",
+      "minItems": 1,
+      "description": "sha256 of every protected affected artifact and governing authorization surface at the reviewed revision. Lineage consumption requires these to be unchanged at the consuming revision.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": { "type": "string" },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    },
+    "baseRevision": { "type": "string", "description": "Required for trust-root (allowlist) changes: the revision whose allowlist judges the change." },
     "baseAllowlistHash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
     "projectBindingHash": { "type": "string" },
     "verificationProvider": { "type": "string", "minLength": 1 },

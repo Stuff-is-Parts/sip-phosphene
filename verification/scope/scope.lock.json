@@ -13,19 +13,12 @@
     }
   ],
   "meta": {
-    "reason": "add scope decomposition record (audit finding 4): coverage flows only through decomposition, never requirement citation",
+    "reason": "semantic-control-sharing revision: contracts, lineage policy, canonical suite, pending bootstrap record",
     "command": "verify scope-lock",
-    "time": "2026-07-16T22:15:15.863Z",
-    "commit": "eb4308ee45c1f1bcba5aa428129713765c3faa48",
+    "time": "2026-07-16T23:19:45.060Z",
+    "commit": "970c2256e871dc90554555c583ccf1c547f9fdbf",
     "dirtyWorktree": true,
     "authorizationWitnessId": null,
-    "changes": [
-      {
-        "path": "verification/scope/decomposition.json",
-        "kind": "added",
-        "oldSha256": null,
-        "newSha256": "5ce0c117fc4da81d3733324ca685b51c13ebaaa27c69c2fba745c6310c426533"
-      }
-    ]
+    "changes": []
   }
 }

@@ -3,28 +3,34 @@
   "covers": [
     {
       "path": "verification/evidence/EV-MILK-EXPR-EXPECTED.json",
-      "sha256": "0856a6284b869bc0255c8c37922ada332bc6a7889d5a43ce0eedadc20d147ab4",
-      "bytes": 2325
+      "sha256": "086782241ac257c5923080f7c49d46c1bb8df49aa4373bcf823f8f7af2fd52c2",
+      "bytes": 2417
     },
     {
       "path": "verification/evidence/EV-SELFTEST-CRC32-EXPECTED.json",
-      "sha256": "a64ee82f6006b5752829319f474581fa53e92cee2379cc8c6043b80d7268738d",
-      "bytes": 1775
+      "sha256": "b073e24a29660177b10c4715df38c35ea4de49501cba098a913d3d4d4a51cc89",
+      "bytes": 1786
     }
   ],
   "meta": {
-    "reason": "register MilkDrop EEL operator claim: ns-eel2 + eel-parser authorities, reference-captured expected values, binding class milkdrop-expression",
+    "reason": "semantic-control-sharing revision: contracts, lineage policy, canonical suite, pending bootstrap record",
     "command": "verify evidence-lock",
-    "time": "2026-07-16T21:32:38.960Z",
-    "commit": "596a64cc4b9bbc14d3bae8cf04ab29f2843286d5",
+    "time": "2026-07-16T23:19:45.841Z",
+    "commit": "970c2256e871dc90554555c583ccf1c547f9fdbf",
     "dirtyWorktree": true,
     "authorizationWitnessId": null,
     "changes": [
       {
         "path": "verification/evidence/EV-MILK-EXPR-EXPECTED.json",
-        "kind": "added",
-        "oldSha256": null,
-        "newSha256": "0856a6284b869bc0255c8c37922ada332bc6a7889d5a43ce0eedadc20d147ab4"
+        "kind": "changed",
+        "oldSha256": "0856a6284b869bc0255c8c37922ada332bc6a7889d5a43ce0eedadc20d147ab4",
+        "newSha256": "086782241ac257c5923080f7c49d46c1bb8df49aa4373bcf823f8f7af2fd52c2"
+      },
+      {
+        "path": "verification/evidence/EV-SELFTEST-CRC32-EXPECTED.json",
+        "kind": "changed",
+        "oldSha256": "a64ee82f6006b5752829319f474581fa53e92cee2379cc8c6043b80d7268738d",
+        "newSha256": "b073e24a29660177b10c4715df38c35ea4de49501cba098a913d3d4d4a51cc89"
       }
     ]
   }
