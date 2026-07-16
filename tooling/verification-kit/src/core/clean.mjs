@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -38,6 +38,15 @@ export function runClean(repoRoot) {
     return { cloneDir, steps };
   }
   run('npm-ci', 'npm', ['ci', '--no-fund', '--no-audit'], kit);
+  const adaptersDir = path.join(cloneDir, 'tooling', 'reference-adapters');
+  if (existsSync(adaptersDir)) {
+    for (const entry of readdirSync(adaptersDir)) {
+      const pkgDir = path.join(adaptersDir, entry);
+      if (existsSync(path.join(pkgDir, 'package.json'))) {
+        run(`npm-ci-reference-adapter-${entry}`, 'npm', ['ci', '--no-fund', '--no-audit'], pkgDir);
+      }
+    }
+  }
   run('framework', 'node', [path.join('bin', 'verify.mjs'), 'framework', '--skip-clean'], kit);
   run('global-verify', 'node', [path.join('bin', 'verify.mjs')], kit);
   try {

@@ -32,14 +32,14 @@ export async function invokeCapability(store, adapterId, capabilityId, payload) 
   if (!resolved.ok) return resolved;
   const adapter = store.adapters.find((a) => a.adapterId === adapterId);
   const cap = adapter.capabilities.find((/** @type {any} */ c) => c.capabilityId === capabilityId);
-  const mod = await import(pathToFileURL(abs(store.repoRoot, cap.module)).href);
-  const fn = mod[cap.export];
-  if (typeof fn !== 'function') return { ok: false, reason: `export '${cap.export}' is not a function in ${cap.module}` };
   try {
+    const mod = await import(pathToFileURL(abs(store.repoRoot, cap.module)).href);
+    const fn = mod[cap.export];
+    if (typeof fn !== 'function') return { ok: false, reason: `export '${cap.export}' is not a function in ${cap.module}` };
     const result = await fn(payload);
     return { ok: true, result };
   } catch (e) {
-    return { ok: false, reason: `capability threw: ${/** @type {Error} */ (e).message}` };
+    return { ok: false, reason: `capability failed: ${/** @type {Error} */ (e).message}` };
   }
 }
 
@@ -53,13 +53,13 @@ export async function invokeCapability(store, adapterId, capabilityId, payload) 
 export async function invokeEvaluator(store, evaluator, payload) {
   const moduleAbs = abs(store.repoRoot, evaluator.entryPoint.module);
   if (!existsSync(moduleAbs)) return { ok: false, reason: `evaluator module missing: ${evaluator.entryPoint.module}` };
-  const mod = await import(pathToFileURL(moduleAbs).href);
-  const fn = mod[evaluator.entryPoint.export];
-  if (typeof fn !== 'function') return { ok: false, reason: `export '${evaluator.entryPoint.export}' is not a function in ${evaluator.entryPoint.module}` };
   try {
+    const mod = await import(pathToFileURL(moduleAbs).href);
+    const fn = mod[evaluator.entryPoint.export];
+    if (typeof fn !== 'function') return { ok: false, reason: `export '${evaluator.entryPoint.export}' is not a function in ${evaluator.entryPoint.module}` };
     const result = await fn(payload);
     return { ok: true, result };
   } catch (e) {
-    return { ok: false, reason: `evaluator threw: ${/** @type {Error} */ (e).message}` };
+    return { ok: false, reason: `evaluator failed: ${/** @type {Error} */ (e).message}` };
   }
 }
