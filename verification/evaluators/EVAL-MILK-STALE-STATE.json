@@ -1,0 +1,22 @@
+{
+  "evaluatorId": "EVAL-MILK-STALE-STATE",
+  "alternativeId": "ALT-COMPAT-STALE-STATE",
+  "defectClass": "stale-state-reuse-or-persistence-leakage",
+  "statefulness": "stateful",
+  "applicableClasses": ["requirement-class.milkdrop-expression"],
+  "entryPoint": {
+    "module": "tooling/reference-adapters/milkdrop-eel/evaluators.mjs",
+    "export": "staleStateReuse"
+  },
+  "inputPreconditions": "at least two steps and a program that accumulates state across steps (q1)",
+  "expectedDivergence": "pools[1].q1",
+  "grounding": {
+    "type": "witnessed-failure",
+    "reference": "WITNESSED-FAILURE-MODES.md #4 — state carried (or not carried) across a lifecycle boundary contrary to the source; persistence omission loses accumulation the source retains"
+  },
+  "negativeControlSignature": {
+    "expectedFailureCode": "CHECK_FAILED",
+    "expectedFirstDivergence": "pools[1].q1",
+    "intendedCheckId": "CHK-MILK-EXPR-EXEC"
+  }
+}

@@ -3,23 +3,23 @@
   "covers": [
     {
       "path": "verification/binding/project-verification-binding.json",
-      "sha256": "c6abeb388a67fc77c5291acc3197333d16c6e83268baa1476ccc708f9ebf9b60",
-      "bytes": 19013
+      "sha256": "e13ec53fa6aeb15749017dddd5d2eb059b7b7c0c7e8641b3a5c6b96f223011da",
+      "bytes": 23751
     }
   ],
   "meta": {
-    "reason": "propose PHOSPHENE project binding from verbatim user-authored oracle and inventory policies; adoption and adequacy witnesses pending user authorization",
+    "reason": "register MilkDrop EEL operator claim: ns-eel2 + eel-parser authorities, reference-captured expected values, binding class milkdrop-expression",
     "command": "verify binding-lock",
-    "time": "2026-07-16T21:16:36.156Z",
-    "commit": "4e8bf98e15e097449a35fbb734a62a75588de00c",
+    "time": "2026-07-16T21:32:39.292Z",
+    "commit": "596a64cc4b9bbc14d3bae8cf04ab29f2843286d5",
     "dirtyWorktree": true,
     "authorizationWitnessId": null,
     "changes": [
       {
         "path": "verification/binding/project-verification-binding.json",
-        "kind": "added",
-        "oldSha256": null,
-        "newSha256": "c6abeb388a67fc77c5291acc3197333d16c6e83268baa1476ccc708f9ebf9b60"
+        "kind": "changed",
+        "oldSha256": "c6abeb388a67fc77c5291acc3197333d16c6e83268baa1476ccc708f9ebf9b60",
+        "newSha256": "e13ec53fa6aeb15749017dddd5d2eb059b7b7c0c7e8641b3a5c6b96f223011da"
       }
     ]
   }

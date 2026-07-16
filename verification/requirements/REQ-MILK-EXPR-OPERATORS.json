@@ -1,0 +1,17 @@
+{
+  "requirementId": "REQ-MILK-EXPR-OPERATORS",
+  "scopeItemIds": ["scope-item.compatibility-goal", "scope-item.native-architecture"],
+  "statement": "PHOSPHENE's native execution path evaluates MilkDrop per-frame EEL programs in the operator-only subset (assignment, +, -, *, unary minus, parentheses, sequential statements, explicit variable pools) exactly as the reference execution defines, including cross-step state threading by the native executor.",
+  "applicability": "MilkDrop per-frame expression programs restricted to the operator-only subset over fully explicit variable pools; division, uninitialized-read defaults, and the EEL function library are separate requirements with their own authorities and oracles",
+  "authorityIds": ["AUTH-NSEEL2-CALTAB", "AUTH-NSEEL2-COMPILER", "AUTH-NSEEL2-EVAL", "AUTH-MILKDROP-EEL-PARSER"],
+  "requirementClass": "requirement-class.milkdrop-expression",
+  "verificationCategories": ["expression-evaluation", "state-lifecycles"],
+  "claimIds": ["CLAIM-MILK-EXPR-OPERATORS"],
+  "implementationSurfaces": [
+    "phosphene/src/expr/eel-evaluate.mjs",
+    "phosphene/src/graph/graph.mjs",
+    "phosphene/src/exec/executor.mjs"
+  ],
+  "requiredProviders": ["PROVIDER-NODE-RUNTIME"],
+  "completionRelevance": "first product-specific vertical path; scoped requirement counted by the global verify gate"
+}

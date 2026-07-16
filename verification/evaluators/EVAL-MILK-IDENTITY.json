@@ -1,0 +1,22 @@
+{
+  "evaluatorId": "EVAL-MILK-IDENTITY",
+  "alternativeId": "ALT-COMPAT-IDENTITY-COPY",
+  "defectClass": "copy-or-identity-instead-of-computation",
+  "statefulness": "stateless",
+  "applicableClasses": ["requirement-class.milkdrop-expression"],
+  "entryPoint": {
+    "module": "tooling/reference-adapters/milkdrop-eel/evaluators.mjs",
+    "export": "identityCopy"
+  },
+  "inputPreconditions": "any operator-only EEL program with a non-trivial assignment",
+  "expectedDivergence": "pools[0].a",
+  "grounding": {
+    "type": "witnessed-failure",
+    "reference": "WITNESSED-FAILURE-MODES.md #1 — semantic drift under citation cover: an operation that returns its input under a computation's name"
+  },
+  "negativeControlSignature": {
+    "expectedFailureCode": "CHECK_FAILED",
+    "expectedFirstDivergence": "pools[0].a",
+    "intendedCheckId": "CHK-MILK-EXPR-EXEC"
+  }
+}

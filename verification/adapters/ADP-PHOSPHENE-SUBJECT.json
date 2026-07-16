@@ -1,0 +1,17 @@
+{
+  "adapterId": "ADP-PHOSPHENE-SUBJECT",
+  "role": "product",
+  "description": "Executes claims through the ACTUAL PHOSPHENE native product path: graph construction plus the native executor (phosphene/src/graph, phosphene/src/exec). Not a direct-evaluator shortcut.",
+  "capabilities": [
+    {
+      "capabilityId": "phosphene-execute-graph-step",
+      "module": "phosphene/adapters/subject-adapter.mjs",
+      "export": "executeMilkExprThroughGraph"
+    },
+    {
+      "capabilityId": "phosphene-inspect-state",
+      "module": "phosphene/adapters/subject-adapter.mjs",
+      "export": "inspectMilkExprState"
+    }
+  ]
+}

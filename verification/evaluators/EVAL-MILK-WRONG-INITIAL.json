@@ -1,0 +1,22 @@
+{
+  "evaluatorId": "EVAL-MILK-WRONG-INITIAL",
+  "alternativeId": "ALT-COMPAT-WRONG-DEFAULT",
+  "defectClass": "wrong-default-or-substituted-constant",
+  "statefulness": "stateless",
+  "applicableClasses": ["requirement-class.milkdrop-expression"],
+  "entryPoint": {
+    "module": "tooling/reference-adapters/milkdrop-eel/evaluators.mjs",
+    "export": "wrongInitialValue"
+  },
+  "inputPreconditions": "an initial pool carrying at least one zero value that a statement reads before assigning",
+  "expectedDivergence": "pools[0].q1",
+  "grounding": {
+    "type": "witnessed-failure",
+    "reference": "WITNESSED-FAILURE-MODES.md #5 — silent authority mixing delivered wrong defaults: vol reconstructed as (bass+mid+treb)/3 instead of the source-provided value"
+  },
+  "negativeControlSignature": {
+    "expectedFailureCode": "CHECK_FAILED",
+    "expectedFirstDivergence": "pools[0].q1",
+    "intendedCheckId": "CHK-MILK-EXPR-EXEC"
+  }
+}

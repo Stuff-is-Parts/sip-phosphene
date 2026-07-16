@@ -33,6 +33,88 @@
   ],
   "requirementClasses": [
     {
+      "requirementClassId": "requirement-class.milkdrop-expression",
+      "description": "MilkDrop per-frame EEL expression evaluation over explicit variable pools — operator subset first, function library and uninitialized-read semantics as subsequent claims. Listed before requirement-class.milkdrop-behavior because pattern matching selects the first matching class.",
+      "match": {
+        "requirementIdPatterns": ["REQ-MILK-EXPR-*"],
+        "governingSpecificationRefs": ["SPEC-PHOSPHENE-GOAL"]
+      },
+      "mandatoryVerificationCategories": ["expression-evaluation", "state-lifecycles"],
+      "mandatoryAdapterCapabilities": ["phosphene-execute-graph-step", "phosphene-inspect-state", "reference-execute-milkdrop-behavior"],
+      "mandatoryProviders": ["PROVIDER-NODE-RUNTIME"],
+      "mandatoryPositiveControls": ["POS-COMPAT-VERTICAL-PATH"],
+      "mandatoryNegativeControlDefectClasses": ["copy-or-identity-instead-of-computation", "execution-or-pass-reordering", "stale-state-reuse-or-persistence-leakage"],
+      "mandatoryProductPathChecks": ["subject execution routed through phosphene/src/exec/executor.mjs executeGraph, never a direct evaluator call"],
+      "requiredInventoryProcedures": [
+        {
+          "procedureId": "INV-MILK-EXPR-STATEMENTS",
+          "source": "verification/fixtures/inputs/FIX-MILK-EXPR-OPERATORS.input.json (program statements)",
+          "commandOrProvider": "node tooling/reference-adapters/milkdrop-eel/extract-inventory.mjs",
+          "expectedOutput": "verification/inventory/INV-MILK-EXPR-STATEMENTS.json",
+          "stableInventoryIdField": "inventoryItemId",
+          "outputHashRequired": true
+        }
+      ],
+      "mandatoryEvidenceClasses": ["raw-authority", "reference-execution"],
+      "evidenceClassSemantics": {
+        "mandatoryEvidenceClassesGovern": "required retained evidence artifacts",
+        "expectedValueOriginGovernedExclusivelyBy": "oraclePrecedencePolicy",
+        "artifactPresenceDoesNotAuthorizeExpectedValueOrigin": true
+      },
+      "authorityIdentityRule": "per-expected-constituent",
+      "mandatoryFixtureDiscriminationChecks": ["CHK-MILK-EXPR-DISCRIMINATION"],
+      "equivalenceClaimPolicy": {
+        "allowed": true,
+        "proofRequired": true,
+        "completeApplicableDomainRequired": true,
+        "authorizedExclusionsOnly": true
+      },
+      "mandatoryRuntimeEffectChecks": [],
+      "mandatoryPlausibleAlternativeClasses": [
+        { "alternativeId": "ALT-COMPAT-IDENTITY-COPY", "defectClass": "copy-or-identity-instead-of-computation", "statefulness": "stateless" },
+        { "alternativeId": "ALT-COMPAT-REORDER", "defectClass": "execution-or-pass-reordering", "statefulness": "stateless" },
+        { "alternativeId": "ALT-COMPAT-STALE-STATE", "defectClass": "stale-state-reuse-or-persistence-leakage", "statefulness": "stateful" }
+      ],
+      "mandatoryAlternativeEvaluatorIds": [
+        "EVAL-MILK-IDENTITY",
+        "EVAL-MILK-REORDER",
+        "EVAL-MILK-STALE-STATE"
+      ],
+      "mandatoryStatefulAlternativeClasses": ["ALT-COMPAT-STALE-STATE"],
+      "divergenceClassificationPolicy": {
+        "representationLevelRequiresEvidence": true,
+        "behavioralOrPathChangeRequiresEquivalenceClaim": true,
+        "observedPlatformDifferenceAloneIsInsufficient": true
+      },
+      "oraclePrecedencePolicy": {
+        "policyId": "ORACLE-POLICY-MILK-EXPR",
+        "orderedOracleClassesStrongestFirst": ["reference-execution", "mechanical-extraction", "formal-derivation", "controlled-observation"],
+        "requiredProviderOrCapabilityByClass": {
+          "reference-execution": ["reference-execute-milkdrop-behavior"],
+          "mechanical-extraction": ["mechanical-extract-source-values"]
+        },
+        "strongestAvailableRequired": true,
+        "everyBypassedStrongerClassRequiresUnavailabilityEvidence": true,
+        "producerConvenienceIsNotUnavailability": true,
+        "optionalOracleClasses": {
+          "hand-derived-exact": {
+            "defaultPermission": "forbidden-unless-explicitly-authorized",
+            "requiresApplicabilityRule": true,
+            "requiresAuthoritativePremisesAndReproducibleProcedure": true,
+            "requiresStrongerOracleUnavailabilityEvidence": true
+          }
+        }
+      },
+      "inventoryCoveragePolicy": {
+        "everyInventoryItemRequiresClaimMapping": true,
+        "everyInventoryItemRequiresFixtureMapping": true,
+        "everyInventoryItemRequiresExecutableCheckMapping": true,
+        "claimAggregationMayNotReduceOracleFixtureAlternativeOrExecutionSurface": true,
+        "mechanicallyEnumerableSourcesMustBeExtracted": true,
+        "residualCompletenessRequiresAuthenticatedWitness": true
+      }
+    },
+    {
       "requirementClassId": "requirement-class.milkdrop-behavior",
       "description": "Every MilkDrop source-defined behavior in the accepted formats, reproduced through the PHOSPHENE native execution path per PHOSPHENE-GOAL.md.",
       "match": {

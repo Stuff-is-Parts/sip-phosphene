@@ -1,0 +1,37 @@
+{
+  "procedureId": "INV-MILK-EXPR-STATEMENTS",
+  "source": "verification/fixtures/inputs/FIX-MILK-EXPR-OPERATORS.input.json (program statements)",
+  "commandOrProvider": "node tooling/reference-adapters/milkdrop-eel/extract-inventory.mjs",
+  "extractionToolVersion": "node v24.18.0",
+  "extractedAt": "2026-07-16T21:32:28.658Z",
+  "outputHash": "sha256:82b928a3d4b2529d3426bbfea89e29b03aa79e3256f924d1aa699d8a1111b3c4",
+  "mechanicallyComplete": true,
+  "residualCompletenessWitnessId": null,
+  "items": [
+    {
+      "inventoryItemId": "STMT-0",
+      "behavior": "EEL statement: a = 1 + 2 * 3",
+      "sourceLocation": "verification/fixtures/inputs/FIX-MILK-EXPR-OPERATORS.input.json program statement index 0"
+    },
+    {
+      "inventoryItemId": "STMT-1",
+      "behavior": "EEL statement: b = (a - 10) * 0.25",
+      "sourceLocation": "verification/fixtures/inputs/FIX-MILK-EXPR-OPERATORS.input.json program statement index 1"
+    },
+    {
+      "inventoryItemId": "STMT-2",
+      "behavior": "EEL statement: q1 = q1 + b + 0.5",
+      "sourceLocation": "verification/fixtures/inputs/FIX-MILK-EXPR-OPERATORS.input.json program statement index 2"
+    },
+    {
+      "inventoryItemId": "STMT-3",
+      "behavior": "EEL statement: c = -q1",
+      "sourceLocation": "verification/fixtures/inputs/FIX-MILK-EXPR-OPERATORS.input.json program statement index 3"
+    },
+    {
+      "inventoryItemId": "STMT-4",
+      "behavior": "EEL statement: d = c * 2 - b",
+      "sourceLocation": "verification/fixtures/inputs/FIX-MILK-EXPR-OPERATORS.input.json program statement index 4"
+    }
+  ]
+}

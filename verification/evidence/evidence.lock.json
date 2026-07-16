@@ -2,24 +2,29 @@
   "lockId": "lock.evidence",
   "covers": [
     {
+      "path": "verification/evidence/EV-MILK-EXPR-EXPECTED.json",
+      "sha256": "0856a6284b869bc0255c8c37922ada332bc6a7889d5a43ce0eedadc20d147ab4",
+      "bytes": 2325
+    },
+    {
       "path": "verification/evidence/EV-SELFTEST-CRC32-EXPECTED.json",
       "sha256": "a64ee82f6006b5752829319f474581fa53e92cee2379cc8c6043b80d7268738d",
       "bytes": 1775
     }
   ],
   "meta": {
-    "reason": "initial lock: framework self-test vertical path",
+    "reason": "register MilkDrop EEL operator claim: ns-eel2 + eel-parser authorities, reference-captured expected values, binding class milkdrop-expression",
     "command": "verify evidence-lock",
-    "time": "2026-07-16T21:09:48.826Z",
-    "commit": "4e8bf98e15e097449a35fbb734a62a75588de00c",
+    "time": "2026-07-16T21:32:38.960Z",
+    "commit": "596a64cc4b9bbc14d3bae8cf04ab29f2843286d5",
     "dirtyWorktree": true,
     "authorizationWitnessId": null,
     "changes": [
       {
-        "path": "verification/evidence/EV-SELFTEST-CRC32-EXPECTED.json",
+        "path": "verification/evidence/EV-MILK-EXPR-EXPECTED.json",
         "kind": "added",
         "oldSha256": null,
-        "newSha256": "a64ee82f6006b5752829319f474581fa53e92cee2379cc8c6043b80d7268738d"
+        "newSha256": "0856a6284b869bc0255c8c37922ada332bc6a7889d5a43ce0eedadc20d147ab4"
       }
     ]
   }

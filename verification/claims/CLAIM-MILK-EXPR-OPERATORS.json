@@ -1,0 +1,33 @@
+{
+  "claimId": "CLAIM-MILK-EXPR-OPERATORS",
+  "requirementIds": ["REQ-MILK-EXPR-OPERATORS"],
+  "kind": "behavior",
+  "assertion": "For the fixture program, N sequential evaluation passes through the PHOSPHENE native graph + executor produce, at every step, a variable pool exactly equal to the reference execution's pool (butterchurn milkdrop-eel-parser conversion executed verbatim), with state threaded across steps by the executor.",
+  "subjectOperation": "executeMilkExprThroughGraph (phosphene/adapters/subject-adapter.mjs) — graph construction + native executor",
+  "productPathEntryPoint": "phosphene/src/exec/executor.mjs executeGraph",
+  "expectedResultRefs": ["verification/fixtures/expected/FIX-MILK-EXPR-OPERATORS.expected.json"],
+  "perConstituentAuthority": [
+    { "constituent": "pools[*] expected values (measurement)", "authorityId": "AUTH-MILKDROP-EEL-PARSER" },
+    { "constituent": "EEL operator grammar and precedence (required behavior)", "authorityId": "AUTH-NSEEL2-CALTAB" },
+    { "constituent": "EEL sequential statement execution (required behavior)", "authorityId": "AUTH-NSEEL2-EVAL" }
+  ],
+  "authorityIds": ["AUTH-NSEEL2-CALTAB", "AUTH-NSEEL2-COMPILER", "AUTH-NSEEL2-EVAL", "AUTH-MILKDROP-EEL-PARSER"],
+  "conflictIds": [],
+  "evidenceIds": ["EV-MILK-EXPR-EXPECTED"],
+  "fixtureIds": ["FIX-MILK-EXPR-OPERATORS"],
+  "comparatorIds": ["CMP-EXACT-JSON"],
+  "checkIds": ["CHK-MILK-EXPR-EXEC", "CHK-MILK-EXPR-DISCRIMINATION"],
+  "adapterCapabilities": ["phosphene-execute-graph-step", "phosphene-inspect-state", "reference-execute-milkdrop-behavior"],
+  "providerIds": ["PROVIDER-NODE-RUNTIME"],
+  "implementationPaths": [
+    "phosphene/src/expr/eel-evaluate.mjs",
+    "phosphene/src/graph/graph.mjs",
+    "phosphene/src/exec/executor.mjs",
+    "phosphene/adapters/subject-adapter.mjs"
+  ],
+  "inventoryItemIds": ["STMT-0", "STMT-1", "STMT-2", "STMT-3", "STMT-4"],
+  "oraclePrecedencePolicyId": "ORACLE-POLICY-MILK-EXPR",
+  "actualExpectedValueOrigin": "reference-execution",
+  "plausibleAlternatives": [],
+  "verificationCategories": ["expression-evaluation", "state-lifecycles"]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "milkdrop-eel-reference-adapter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Reference-execution oracle for MilkDrop EEL expression semantics via butterchurn's milkdrop-eel-parser (pinned; tarball retained as raw authority AUTH-MILKDROP-EEL-PARSER)",
+  "dependencies": {
+    "milkdrop-eel-parser": "0.0.4"
+  }
+}

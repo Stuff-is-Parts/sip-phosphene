@@ -1,0 +1,8 @@
+{
+  "checkId": "CHK-MILK-EXPR-EXEC",
+  "claimIds": ["CLAIM-MILK-EXPR-OPERATORS"],
+  "checkType": "subject-execution",
+  "adapterId": "ADP-PHOSPHENE-SUBJECT",
+  "capabilityId": "phosphene-execute-graph-step",
+  "operation": "execute the fixture program through the actual PHOSPHENE native graph + executor and compare every step's pool against the reference-execution expected artifact via CMP-EXACT-JSON"
+}
