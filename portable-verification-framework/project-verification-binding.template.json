@@ -1,0 +1,157 @@
+{
+  "$schema": "verification/schemas/project-verification-binding.schema.json",
+  "bindingId": "project-binding.REPLACE",
+  "repository": {
+    "repositoryId": "REPLACE_OWNER/REPLACE_REPOSITORY",
+    "canonicalRemote": "REPLACE_CANONICAL_REMOTE"
+  },
+  "approvedScopeHash": "sha256:REPLACE",
+  "governingSpecifications": [
+    {
+      "specificationId": "SPEC-REPLACE",
+      "pathOrLocator": "REPLACE_PATH_OR_LOCATOR",
+      "versionOrHash": "REPLACE_VERSION_OR_HASH"
+    }
+  ],
+  "selectedProfiles": [
+    {
+      "profileId": "profile.REPLACE",
+      "version": "REPLACE_VERSION",
+      "hash": "sha256:REPLACE"
+    }
+  ],
+  "requirementClasses": [
+    {
+      "requirementClassId": "requirement-class.REPLACE",
+      "description": "REPLACE_EXACT_REQUIREMENT_CLASS",
+      "match": {
+        "requirementIdPatterns": [
+          "REQ-REPLACE-*"
+        ],
+        "governingSpecificationRefs": [
+          "SPEC-REPLACE"
+        ]
+      },
+      "mandatoryVerificationCategories": [
+        "CATEGORY-REPLACE"
+      ],
+      "mandatoryAdapterCapabilities": [
+        "CAPABILITY-REPLACE"
+      ],
+      "mandatoryProviders": [
+        "PROVIDER-REPLACE"
+      ],
+      "mandatoryPositiveControls": [
+        "POSITIVE-CONTROL-REPLACE"
+      ],
+      "mandatoryNegativeControlDefectClasses": [
+        "NEGATIVE-DEFECT-CLASS-REPLACE"
+      ],
+      "mandatoryProductPathChecks": [
+        "PRODUCT-PATH-CHECK-REPLACE"
+      ],
+      "requiredInventoryProcedures": [
+        {
+          "procedureId": "INVENTORY-REPLACE",
+          "source": "REPLACE_ENUMERABLE_SOURCE",
+          "commandOrProvider": "REPLACE_COMMAND_OR_PROVIDER",
+          "expectedOutput": "REPLACE_MACHINE_READABLE_OUTPUT",
+          "stableInventoryIdField": "inventoryItemId",
+          "outputHashRequired": true
+        }
+      ],
+      "mandatoryEvidenceClasses": [
+        "raw-authority",
+        "derived-evidence"
+      ],
+      "evidenceClassSemantics": {
+        "mandatoryEvidenceClassesGovern": "required retained evidence artifacts",
+        "expectedValueOriginGovernedExclusivelyBy": "oraclePrecedencePolicy",
+        "artifactPresenceDoesNotAuthorizeExpectedValueOrigin": true
+      },
+      "authorityIdentityRule": "per-expected-constituent",
+      "mandatoryFixtureDiscriminationChecks": [
+        "DISCRIMINATION-CHECK-REPLACE"
+      ],
+      "equivalenceClaimPolicy": {
+        "allowed": true,
+        "proofRequired": true,
+        "completeApplicableDomainRequired": true,
+        "authorizedExclusionsOnly": true
+      },
+      "mandatoryRuntimeEffectChecks": [
+        "RUNTIME-EFFECT-CHECK-REPLACE"
+      ],
+      "mandatoryPlausibleAlternativeClasses": [
+        {
+          "alternativeId": "ALTERNATIVE-REPLACE",
+          "defectClass": "REPLACE_DEFECT_CLASS",
+          "statefulness": "stateless"
+        },
+        {
+          "alternativeId": "STATEFUL-ALTERNATIVE-REPLACE",
+          "defectClass": "REPLACE_STATEFUL_DEFECT_CLASS",
+          "statefulness": "stateful"
+        }
+      ],
+      "mandatoryAlternativeEvaluatorIds": [
+        "ALTERNATIVE-EVALUATOR-REPLACE",
+        "STATEFUL-ALTERNATIVE-EVALUATOR-REPLACE"
+      ],
+      "mandatoryStatefulAlternativeClasses": [
+        "STATEFUL-ALTERNATIVE-REPLACE"
+      ],
+      "divergenceClassificationPolicy": {
+        "representationLevelRequiresEvidence": true,
+        "behavioralOrPathChangeRequiresEquivalenceClaim": true,
+        "observedPlatformDifferenceAloneIsInsufficient": true
+      },
+      "oraclePrecedencePolicy": {
+        "policyId": "ORACLE-POLICY-REPLACE",
+        "orderedOracleClassesStrongestFirst": [
+          "reference-execution",
+          "mechanical-extraction",
+          "formal-derivation",
+          "controlled-observation"
+        ],
+        "strongestAvailableRequired": true,
+        "everyBypassedStrongerClassRequiresUnavailabilityEvidence": true,
+        "producerConvenienceIsNotUnavailability": true,
+        "optionalOracleClasses": {
+          "hand-derived-exact": {
+            "defaultPermission": "forbidden-unless-explicitly-authorized",
+            "requiresApplicabilityRule": true,
+            "requiresAuthoritativePremisesAndReproducibleProcedure": true,
+            "requiresStrongerOracleUnavailabilityEvidence": true
+          }
+        }
+      },
+      "inventoryCoveragePolicy": {
+        "everyInventoryItemRequiresClaimMapping": true,
+        "everyInventoryItemRequiresFixtureMapping": true,
+        "everyInventoryItemRequiresExecutableCheckMapping": true,
+        "claimAggregationMayNotReduceOracleFixtureAlternativeOrExecutionSurface": true,
+        "mechanicallyEnumerableSourcesMustBeExtracted": true,
+        "residualCompletenessRequiresAuthenticatedWitness": true
+      }
+    }
+  ],
+  "repositorySpecificRules": [],
+  "bindingAuthorization": {
+    "adoptionOrChangeWitnessId": "AUTH-WITNESS-BINDING-ADOPTION-REPLACE",
+    "adequacyWitnessId": "AUTH-WITNESS-BINDING-ADEQUACY-REPLACE",
+    "sameWitnessMayServeBothOnlyWhenDecisionExplicitlyCoversAdequacy": true,
+    "adequacyCriteriaExplicitlyJudged": [
+      "oracle-policies",
+      "inventory-procedures",
+      "verification-categories",
+      "providers",
+      "adapter-capabilities",
+      "plausible-alternatives",
+      "alternative-evaluators",
+      "fixture-discrimination-checks",
+      "product-path-checks",
+      "other-binding-controls"
+    ]
+  }
+}
