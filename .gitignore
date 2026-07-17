@@ -1,0 +1,6 @@
+# Local working material — not tracked while the design is still being derived.
+# Contains source-engine corpora, retained excerpts, and in-progress design docs.
+# Remove an entry here when its contents are ready to be committed.
+design/
+scenes/
+sources/
