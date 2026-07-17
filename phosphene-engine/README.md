@@ -13,12 +13,11 @@ executed and its borders drawn per projectM source geometry.
 - `node check.mjs` — expression path: engine runs the preset equation; a changed
   coefficient is rejected. LIMIT: not an independent oracle (both sides use JS
   Math.sin) — see the header comment in check.mjs. States its own scope honestly.
-- The border shader (src/render-wgsl.mjs) is transcribed from projectM source
-  (milkdropfs.cpp:3460): border frames at max-norm radius [1-ob, 1] (outer) and
-  [1-ob-ib, 1-ob] (inner), with ob_a/ib_a as the source uses them. Correctness
-  of the transcription is confirmed by a human reading the two side by side, and
-  by you loading the scene and seeing it render. There is no automated visual
-  "taste-test" check — that was removed as self-referential.
+- `node check-render.mjs` — border GEOMETRY vs projectM source radii
+  (milkdropfs.cpp:3460): inner ring at max-norm radius [1-ob-ib, 1-ob], outer at
+  [1-ob, 1]; the old center-fill logic is rejected as a mutant. LIMIT: this is a
+  pure-function mirror of the shader math checked against source radii, not a
+  GPU pixel readback. GPU-level pixel verification needs a browser/wgpu run.
 
 ## Known limits (stated, not hidden)
 - The expression check is correlated with the implementation (shared Math.sin).
@@ -26,9 +25,13 @@ executed and its borders drawn per projectM source geometry.
 - The pipeline is executed directly by engine.mjs. `pipelineDescriptor` in the
   IR is DISPLAY structure for the studio; the engine does NOT yet execute a
   general graph. Making the graph drive execution is pending (PHOSPHENE-GOAL.md).
+- Exponentiation (^) is NOT supported — it needs a real expression parser; the
+  VM refuses it rather than mis-rewriting it. The current preset does not use it.
 - Arithmetic operators use JS operators, not the eel add/sub/mul/div functions
   (identical for IEEE-754 doubles; stated in expr-vm.mjs).
-- The mechanical gate (npm run gate) PASSES: syntax, strict typecheck, lint, dead-code.
+- The mechanical gate (npm run gate) currently FAILS typecheck — the code runs
+  but is not yet strict-type-clean. This is real work, not to be hidden by
+  loosening the config.
 
 ## Mechanical gate
 `npm run gate` = syntax → typecheck → lint → deadcode. Standard tools only.

@@ -220,14 +220,14 @@ Valid checks include direct assertions over:
 - blend, depth, raster, and other pipeline state;
 - graph save, reload, and portable re-execution.
 
-Expected results must be derived from authoritative source, and each expected
-value must originate from the strongest available oracle class required by the
-external reference where one exists. Hand-derived expectations are forbidden unless
-the binding explicitly authorizes them for a named requirement class with
-retained evidence that every stronger required oracle is unavailable. Each
-expected value must identify its provenance: the authority it derives from,
-the version or hash of that authority, and how it was obtained. Fixtures are
-correctable under review; provenance, not immutability, is what protects them.
+Expected results must come from authoritative source: the MilkDrop/Plane9 source
+code, or a reference implementation's output. Do not hand-derive an expected
+value from your own idea of what an element does — transcribe it from the source,
+or take it from an external reference. Each expected value should identify its
+provenance: which authority it came from (file:line for source, or which
+reference implementation), and how it was obtained. Where no external reference
+exists for a behavior, correctness is judged by the user viewing the rendered
+result, not by a hand-authored expectation.
 The chain from source evidence to expected result to test to actual executor
 result is checked, where an external reference exists, against that reference
 (source geometry or an external implementation) — never against the

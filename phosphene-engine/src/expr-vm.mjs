@@ -42,17 +42,14 @@ function translate(/** @type {string} */ stmt) {
     if (name in eelSubject) return `F.${name}(`;
     throw new Error(`unknown function in expression: ${name}()`);
   });
-  // EEL uses ^ for exponentiation; JS ^ is bitwise xor. Rewrite a^b -> F.pow(a,b).
-  rhs = rewriteCaret(rhs);
+  // EEL uses ^ for exponentiation. Reliable translation needs a real expression
+  // parser (operator precedence, right-assoc, function-call operands). We do NOT
+  // have one yet, so rather than mis-rewrite it, REFUSE ^ until parsing supports
+  // it. The current preset does not use ^; this keeps us honest instead of
+  // silently producing wrong values for sin(x)^2, 2^3^2, (a+b)^(c+d).
+  if (/\^/.test(rhs)) {
+    throw new Error('exponentiation (^) not yet supported: needs an expression parser');
+  }
   return { lhs, code: `${lhs} = ${rhs};` };
 }
 
-// Turn a^b into F.pow(a,b), handling simple operands (identifiers, numbers,
-// parenthesised groups). Left-associative, evaluated repeatedly until stable.
-function rewriteCaret(/** @type {string} */ expr) {
-  const operand = String.raw`(\w+(?:\.\w+)?|\([^()]*\))`;
-  const re = new RegExp(operand + String.raw`\s*\^\s*` + operand);
-  let prev;
-  do { prev = expr; expr = expr.replace(re, 'F.pow($1,$2)'); } while (expr !== prev);
-  return expr;
-}

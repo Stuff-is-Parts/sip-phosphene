@@ -1,15 +1,23 @@
-name: mechanical-gate
+name: ci
 on: [push, pull_request]
 jobs:
-  gate:
+  mechanical-gate:
+    # ONLY the four standard tools — this is `npm run gate`. No behavioral checks.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
       - run: npm ci
-      - run: npm run syntax
-      - run: npm run lint
-      - run: npm run deadcode
+      - run: npm run gate
+
+  behavioral-smoke:
+    # NOT part of the mechanical gate. A limited, self-correlated development
+    # check (see check.mjs header). It is explicitly NOT external verification.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm ci
       - run: node phosphene-engine/check.mjs
-      - run: npm run typecheck
