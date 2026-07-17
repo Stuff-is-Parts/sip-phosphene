@@ -1,7 +1,7 @@
-// The engine core: takes the runtime IR of a .phos scene, derives its pass
-// order FROM THE GRAPH (edges determine execution, not hardcode), runs the
-// per-frame expressions, and produces per-frame render state by walking the
-// ordered nodes. Headless-capable (no GPU dependency) so it's testable.
+// The engine core: takes the runtime IR of a .phos scene and runs the
+// per-frame expressions. The graph controls topology validation, ordering,
+// and render-state assembly under a fixed GPU pipeline — it does not drive
+// GPU dispatch. Headless-capable (no GPU dependency) so it's testable.
 import { compileEEL } from './expr-vm.mjs';
 import { Timekeeper } from './timekeeper.mjs';
 
@@ -28,7 +28,7 @@ export class Engine {
     /** @type {{out:string,in:string}[]} */
     const edges = scene.edges ?? [];
     if (!Array.isArray(edges) || edges.length !== nodes.length - 1) {
-      throw new Error(`Engine: expected a linear chain (${nodes.length - 1} edges for ${nodes.length} nodes), got ${edges ? edges.length : 'none'} — the graph drives execution, refusing`);
+      throw new Error(`Engine: expected a linear chain (${nodes.length - 1} edges for ${nodes.length} nodes), got ${edges ? edges.length : 'none'} — refusing`);
     }
     const nextOf = new Map(edges.map((e) => [e.out.split('.')[0], e.in.split('.')[0]]));
     const hasIncoming = new Set(edges.map((e) => e.in.split('.')[0]));
@@ -114,10 +114,9 @@ export class Engine {
     this.frame = 0; this.timekeeper.reset();
   }
 
-  // Render state assembled by WALKING THE GRAPH ORDER: each node contributes
+  // Render state assembled by walking the graph order: each node contributes
   // the state its op defines, from its own port values in the pool. Removing
-  // or rewiring a node in the .phos changes (or refuses) this output — the
-  // graph is behavior, not display.
+  // or rewiring a node in the .phos changes (or refuses) this output.
   renderState() {
     const p = this.pool;
     const t = this.timekeeper.time;

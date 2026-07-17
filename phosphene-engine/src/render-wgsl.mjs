@@ -48,16 +48,20 @@ struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> };
   // crop: the source quad is scaled up by (xmult,ymult), so the screen shows
   // the central 1/mult region of the texture (:4101-4114)
   let uv = vec2(0.5 + (in.uv.x - 0.5) / cu.xmult, 0.5 + (in.uv.y - 0.5) / cu.ymult);
-  // echo layer UV: centered zoom then orientation flips (:4179-4200)
-  var e = vec2(0.5 + (uv.x - 0.5) / cu.echoZoom, 0.5 + (uv.y - 0.5) / cu.echoZoom);
-  if (cu.echoOrient % 2.0 >= 1.0) { e.x = 1.0 - e.x; }
-  if (cu.echoOrient >= 2.0) { e.y = 1.0 - e.y; }
   let base = textureSample(t, s, uv).rgb;
-  let echo = textureSample(t, s, e).rgb;
-  // echo applies only above the source threshold (if (fVideoEchoAlpha > 0.001f),
-  // milkdropfs.cpp:4168); below it the source takes the single-layer path
-  let a = select(0.0, cu.echoAlpha, cu.echoAlpha > 0.001);
-  let mixed = (1.0 - a) * base + a * echo;
+  // the source BRANCHES AROUND the whole echo operation at the threshold
+  // (if (fVideoEchoAlpha > 0.001f), milkdropfs.cpp:4168) — below it, no echo
+  // coordinates are computed and no echo sample is taken, so a zero or invalid
+  // echoZoom cannot produce a division by zero while echo is disabled
+  var mixed = base;
+  if (cu.echoAlpha > 0.001) {
+    // echo layer UV: centered zoom then orientation flips (:4179-4200)
+    var e = vec2(0.5 + (uv.x - 0.5) / cu.echoZoom, 0.5 + (uv.y - 0.5) / cu.echoZoom);
+    if (cu.echoOrient % 2.0 >= 1.0) { e.x = 1.0 - e.x; }
+    if (cu.echoOrient >= 2.0) { e.y = 1.0 - e.y; }
+    let echo = textureSampleLevel(t, s, e, 0.0).rgb; // single-mip texture; level 0 == sample
+    mixed = (1.0 - cu.echoAlpha) * base + cu.echoAlpha * echo;
+  }
   // gammaAdj via additive redraws nets to a saturating multiply (:4240-4260)
   return vec4(min(vec3(1.0), mixed * cu.gamma), 1.0);
 }`;

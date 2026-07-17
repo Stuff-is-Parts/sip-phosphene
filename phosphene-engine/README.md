@@ -2,7 +2,7 @@
 
 A narrow, honest slice: a browser player + studio over a WebGPU feedback engine
 that renders ONE scene. The scene is a native `.phos` file
-(`scenes/101-per_frame.phos`), transcribed by `src/phos.mjs` from the MilkDrop
+(`scenes/md-101-per_frame.phos`), transcribed by `src/phos.mjs` from the MilkDrop
 preset `101-per_frame.milk` with hash-pinned provenance in `meta.source`. All
 pages load the `.phos`; the `.milk` is the retained source recipe. Format spec:
 `design/PHOS-FORMAT.md`; commented creator template: `scenes/TEMPLATE.phos`.
@@ -26,12 +26,12 @@ pages load the `.phos`; the `.milk` is the retained source recipe. Format spec:
 ## Known limits (stated, not hidden)
 - The expression check is correlated with the implementation (shared Math.sin).
   A truly independent check requires butterchurn or retained projectM output.
-- The graph drives execution at slice scale: the engine derives its pass order
-  from the scene's edges (reversed or broken chains are refused — checked), and
-  render state is assembled by walking the ordered nodes. The executor supports
-  the three ops this scene family uses; arbitrary topologies arrive with the
-  scene that forces them (falsifier: no current content or surface exercises
-  them).
+- The graph controls topology validation, ordering, and render-state assembly
+  under a fixed GPU pipeline (reversed, broken, or off-contract chains are
+  refused — checked); it does not drive GPU dispatch. The engine enforces the
+  fixed-pipeline contract exactly (warp-feedback → borders → composite,
+  owner-ratified); per-vertex programs are refused at import and at engine
+  construction until the engine executes them.
 - The studio saves the edited scene to .phos (updateScene writes pool edits
   back into the scene document's ports and equations; check.mjs proves the
   edit round-trip) and separately exports .milk back to the source format.

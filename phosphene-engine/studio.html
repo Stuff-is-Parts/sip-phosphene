@@ -62,8 +62,13 @@ const sceneText = await (await fetch('./scenes/md-101-per_frame.phos')).text();
 let sceneDoc = parsePhos(sceneText);        // the durable scene document
 let scene = toRuntime(sceneDoc);            // flattened runtime IR the engine consumes
 let engine = new Engine(scene);
+// immutable serialization of the loaded scene — Reset re-parses THIS, so it
+// restores everything: metadata, vars, equations, engine state, UI, dirty
+let baselineText = serializePhos(sceneDoc);
 
-// swap in a different scene document (template button, future file-open)
+// load a new scene document as the baseline (initial load, template button)
+function loadDoc(doc){ baselineText = serializePhos(doc); applyScene(doc); }
+// swap in a scene document and refresh the whole UI
 function applyScene(doc){
   sceneDoc = doc; scene = toRuntime(doc); engine = new Engine(scene);
   renderGraph(); renderMetaInputs();
@@ -92,7 +97,7 @@ renderMetaInputs();
 
 // ---- new scene from the commented template (VSLICE-MOSCOW template UI) ----
 document.getElementById('newScene').onclick = async () => {
-  applyScene(parsePhos(await (await fetch('./scenes/TEMPLATE.phos')).text()));
+  loadDoc(parsePhos(await (await fetch('./scenes/TEMPLATE.phos')).text()));
 };
 
 // ---- render the IR as a node graph (MUST: show IR, ports, values) ----
@@ -150,12 +155,11 @@ eqEl.addEventListener('change', () => {
 let playing = true;
 document.getElementById('play').onclick = e => { playing = !playing; e.target.textContent = playing ? '⏸ Pause' : '▶ Play'; };
 document.getElementById('reset').onclick = () => {
-  engine.reset(); // restores the load-time baseline (vars + equations + engine state)
-  renderGraph();  // input fields re-read the restored scene.vars
-  eqEl.value = scene.expressions.perFrame.join('\n');
+  // restore the COMPLETE loaded scene — metadata, vars, equations, engine
+  // state, and every input field — by re-parsing the load-time serialization
+  applyScene(parsePhos(baselineText));
   eqEl.classList.remove('dirty');
   document.getElementById('eqstatus').textContent = '';
-  setDirty(false);
 };
 // ---- save .phos (MUST: native save — VSLICE-MOSCOW) ----
 document.getElementById('savePhos').onclick = async () => {

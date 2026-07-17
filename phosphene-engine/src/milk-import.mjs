@@ -25,10 +25,10 @@ export function importMilk(/** @type {string} */ text) {
       if (code) perFrame.push(code);
       else if (val.trim()) perFrameComments.push(val.trim());
     } else if (/^per_pixel_\d+$/.test(key) || /^per_vertex_\d+$/.test(key)) {
-      // the engine does not yet execute per-vertex programs — refuse at import
-      // rather than carrying code that would never run (design/PHOS-FORMAT.md)
-      const code = val.replace(/\/\/.*$/, '').trim();
-      if (code) throw new Error(`importMilk: "${key}" carries per-vertex code, which the engine does not yet execute — refusing`);
+      // the engine does not yet execute per-vertex programs — refuse the key
+      // entirely (code OR comment-only: both are source content, and dropping
+      // a comment line silently would break the no-silent-drop claim)
+      throw new Error(`importMilk: "${key}" is a per-vertex line, which the engine does not yet execute — refusing`);
     } else if (key.startsWith('per_frame') || key.startsWith('per_pixel') || key.startsWith('per_vertex')) {
       // per_frame_init_N, per_pixel_init_N, malformed indices — real preset
       // content this importer does not yet support. Refuse, never drop.

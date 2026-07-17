@@ -119,6 +119,7 @@ const importerRefusals = [
   ['trailing garbage on number', (() => { try { importMilk(text + 'zoom=1.5abc\n'); return false; } catch { return true; } })()],
   ['unknown section header', (() => { try { importMilk('[preset99]\n' + text); return false; } catch { return true; } })()],
   ['per-vertex code', (() => { try { importMilk(text + 'per_pixel_1=zoom=zoom+0.1;\n'); return false; } catch { return true; } })()],
+  ['per-vertex comment-only line', (() => { try { importMilk(text + 'per_pixel_1=// note\n'); return false; } catch { return true; } })()],
 ];
 const importerRefused = importerRefusals.every(([, ok]) => ok);
 
@@ -135,9 +136,10 @@ const engineRefusesMissing = (() => {
   try { new Engine(r); return false; } catch { return true; }
 })();
 
-// (i2) Graph-drives-execution witnesses: the pass order comes from the edges;
-//      reversed edges or a broken chain are refused, and the derived order is
-//      exactly warp-feedback -> borders -> composite.
+// (i2) Graph-contract witnesses: the graph controls topology validation,
+//      ordering, and render-state assembly under the fixed pipeline; reversed
+//      edges or a broken chain are refused, and the derived order is exactly
+//      warp-feedback -> borders -> composite.
 const executorOk = (() => {
   const good = new Engine(toRuntime(parsePhos(phosText)));
   const orderOk = JSON.stringify(good.renderState().passes) === JSON.stringify(['warp-feedback', 'borders', 'composite']);
@@ -440,7 +442,7 @@ console.log('source comment lines retained through .phos:', commentsRetained ? '
 console.log('engine refuses missing required var:', engineRefusesMissing ? 'OK' : 'FAIL');
 console.log('duplicate value-port name refused:', duplicatePortRefused ? 'OK' : 'FAIL');
 console.log('studio save: edit round-trip + comment retention + unmapped refusal:', editRoundTrip ? 'OK' : 'FAIL');
-console.log('graph drives execution: edge-derived order + reversed/broken refused:', executorOk ? 'OK' : 'FAIL');
+console.log('graph contract: edge-derived order + reversed/broken refused:', executorOk ? 'OK' : 'FAIL');
 console.log('warp oscillators vs milkdropfs.cpp:1782-1787 recompute (exact):', oscOk ? 'OK' : 'FAIL');
 console.log('EEL parser vs Compiler.y:55-75 grammar expectations (16 cases):', parserOk ? 'OK' : 'FAIL');
 console.log('\n=== EEL functions — sources/EEL-FUNCTIONS.md (projectm-eval@da885dc) ===');
