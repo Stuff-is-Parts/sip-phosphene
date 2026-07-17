@@ -58,7 +58,7 @@ import { Engine, CONSUMED_PORTS } from './src/engine.mjs';
 import { feedbackWGSL, compositeWGSL } from './src/render-wgsl.mjs';
 
 // ---- load content (native .phos scene; .milk remains an export format) ----
-const sceneText = await (await fetch('./scenes/101-per_frame.phos')).text();
+const sceneText = await (await fetch('./scenes/md-101-per_frame.phos')).text();
 let sceneDoc = parsePhos(sceneText);        // the durable scene document
 let scene = toRuntime(sceneDoc);            // flattened runtime IR the engine consumes
 let engine = new Engine(scene);
@@ -112,8 +112,10 @@ function renderGraph() {
       const inp = document.createElement('input'); inp.type = 'text'; inp.value = scene.vars[key]; inp.dataset.key = key;
       if (CONSUMED_PORTS.includes(key)) {
         inp.addEventListener('change', () => {
-          const val = parseFloat(inp.value);
-          if (!Number.isNaN(val)) { engine.setVar(key, val); setDirty(true); }
+          // the COMPLETE input must be a number — no prefix truncation
+          const vt = inp.value.trim();
+          if (/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(vt)) { engine.setVar(key, parseFloat(vt)); setDirty(true); }
+          else { inp.value = String(scene.vars[key]); } // reject invalid input, restore current value
         });
       } else {
         // honest marking: this port is parsed and pooled but nothing in the
@@ -147,7 +149,14 @@ eqEl.addEventListener('change', () => {
 // ---- transport (MUST: play/pause) ----
 let playing = true;
 document.getElementById('play').onclick = e => { playing = !playing; e.target.textContent = playing ? '⏸ Pause' : '▶ Play'; };
-document.getElementById('reset').onclick = () => { engine.reset(); setDirty(false); };
+document.getElementById('reset').onclick = () => {
+  engine.reset(); // restores the load-time baseline (vars + equations + engine state)
+  renderGraph();  // input fields re-read the restored scene.vars
+  eqEl.value = scene.expressions.perFrame.join('\n');
+  eqEl.classList.remove('dirty');
+  document.getElementById('eqstatus').textContent = '';
+  setDirty(false);
+};
 // ---- save .phos (MUST: native save — VSLICE-MOSCOW) ----
 document.getElementById('savePhos').onclick = async () => {
   const eqLines = eqEl.value.split('\n').map(s=>s.trim()).filter(Boolean);

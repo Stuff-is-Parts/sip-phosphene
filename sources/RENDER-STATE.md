@@ -22,6 +22,7 @@ ships.** Source: MilkDrop2 @ Doormatty/MilkDrop2 d0670a3.
 | Aspect factors | texture-based: (texY>texX)? texX/texY : 1 (plugin.cpp:2027-2029) | 1.0 with square 1024² target | match — square texture yields exactly 1 in the source's own formula |
 | rad | sqrt(x²·aX² + y²·aY²) (plugin.cpp:2281) | sqrt(x²+y²), aspect 1 | match (aspect=1) |
 | Half-texel offset | 0.5/texSize (:1786-1787 region) | 0.5/textureDimensions | match |
+| Border alpha gate | each ring draws only if a > 0.001 (:3451) | was unconditional | **FIXED** — thresholds added |
 
 ## Composite pass (ShowToUser_NoShaders, milkdropfs.cpp:4050-4260)
 
@@ -29,7 +30,7 @@ ships.** Source: MilkDrop2 @ Doormatty/MilkDrop2 d0670a3.
 |---|---|---|---|
 | Screen mapping | quad scaled LARGER than screen — aspect CROP + 1+1/W overscan (:4089-4114) | was stretch via canvas-pixels ÷ TEXTURE dims (also misplaced for canvas ≠ 1024) | **FIXED** — compositeWGSL crop with per-frame xmult/ymult |
 | gammaAdj | iterative additive redraws; net = min(1, color·gamma); DEFAULT 2.0 (state.cpp:541) | was absent (plain blit — half the source's brightness at defaults) | **FIXED** — saturating multiply, default materialized into .phos comp node |
-| Video echo | second zoomed/flipped layer mixed by echo alpha (:4169-4200); defaults zoom 2, alpha 0, orient 0 (state.cpp:542-544) | was absent | **FIXED** — implemented in compositeWGSL; alpha 0 default = off, editable in studio |
+| Video echo | second zoomed/flipped layer mixed by echo alpha, applied only above the 0.001 threshold (:4168-4200); defaults zoom 2, alpha 0, orient 0 (state.cpp:542-544) | was absent | **FIXED** — implemented in compositeWGSL with the threshold |
 | Hue shade (fShader) | animated per-vertex tint when fShader > 0; default 0 (state.cpp:552) | not implemented; shade=1 at default | match at default — row unlocks when content sets fShader |
 | Blend states | ONE/ZERO first draw, ONE/ONE additive redraws (:4171-4247) | folded into the min() closed form (valid: non-negative adds with per-channel clamp are order-insensitive) | match by equivalence, stated |
 

@@ -1,7 +1,7 @@
 {
   "format": "phos/1",
   "meta": {
-    "name": "101-per_frame",
+    "name": "md-101-per_frame",
     "sourceEngine": "milkdrop",
     "source": {
       "engine": "milkdrop",

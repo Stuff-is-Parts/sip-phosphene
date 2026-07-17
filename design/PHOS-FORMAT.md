@@ -44,6 +44,27 @@ phosphene-engine/scenes/TEMPLATE.phos.
 data (not as strippable `//` annotations), so they survive parse→serialize
 round-trips. [DERIVED — exactness: source content is never silently dropped]
 
+**Converted-scene naming:** the converter prefixes the scene name and file
+with its source engine — `md-` for MilkDrop, `p9-` for Plane9 when that
+converter exists — so provenance shows in the filename as well as in
+`meta.source`.
+
+**Per-vertex stage:** `"per-vertex"` parses as a valid stage (the format is
+ahead of the engine here by design), but BOTH execution entries refuse it
+until the engine runs per-vertex programs: the MilkDrop importer refuses
+`per_pixel_N`/`per_vertex_N` lines carrying code, and the Engine refuses any
+runtime scene whose perVertex list is non-empty. Accepted-but-unexecuted code
+is the structure-claimed-as-function failure mode.
+
+**Fixed-pipeline contract (owner-ratified 2026-07-17):** the engine accepts
+exactly the op sequence `warp-feedback -> borders -> composite` — the graph
+controls topology validation, ordering, and state assembly, and the fixed GPU
+pipeline realizes those ops. Any other shape is refused: the source pipeline
+is fixed (milkdropfs.cpp:1048-1214) and inventing semantics for other shapes
+would fill missing knowledge with plausible behavior, which PHOSPHENE-GOAL.md
+prohibits. Generality arrives with the scene that forces it, by a further
+owner decision.
+
 `meta.source` is the transpiler map made durable: every ported .phos names the
 recipe file it was transcribed from, hash-pinned. [DERIVED — goal-doc Validation
 Rule: expected values identify provenance]
@@ -83,11 +104,11 @@ no silent flattening]
 | per_frame_N | expressions[] | per-frame equations (milkdropfs.cpp:471+, row 1) |
 
 Canonical wiring for the MilkDrop import: `warp.out → borders.in`,
-`borders.out → comp.in` (render-type ports). The engine does not yet execute
-this graph — it runs the fixed pipeline and the loader flattens port values
-into the runtime pool. The .phos file is the durable scene; the runtime IR
-conforms to it, not the reverse. Making the graph drive execution is the named
-pending work (PHOSPHENE-GOAL.md).
+`borders.out → comp.in` (render-type ports). The engine derives ordering and
+render-state assembly from these edges under the fixed-pipeline contract
+above; the loader flattens port values into the runtime pool and the fixed
+GPU pipeline realizes the ops. The .phos file is the durable scene; the
+runtime IR conforms to it, not the reverse.
 
 The converter (`milkToPhos`) throws on any .milk key not in this table —
 completeness by refusal, no silent drops. [DERIVED — "nothing may be flattened

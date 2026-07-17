@@ -11,7 +11,11 @@ export function importMilk(/** @type {string} */ text) {
   /** @type {string[]} */ const perFrameComments = []; // comment-only per_frame lines, verbatim
   for (const raw of lines) {
     const line = raw.trim();
-    if (!line || line.startsWith('[')) continue;
+    if (!line) continue;
+    if (line.startsWith('[')) {
+      if (line === '[preset00]') continue; // the one section header the format defines
+      throw new Error(`importMilk: unknown section "${line}" — refusing`);
+    }
     const eq = line.indexOf('=');
     if (eq < 0) throw new Error(`importMilk: line without '=' is not supported: "${line}"`);
     const key = line.slice(0, eq).trim();
@@ -21,16 +25,22 @@ export function importMilk(/** @type {string} */ text) {
       if (code) perFrame.push(code);
       else if (val.trim()) perFrameComments.push(val.trim());
     } else if (/^per_pixel_\d+$/.test(key) || /^per_vertex_\d+$/.test(key)) {
+      // the engine does not yet execute per-vertex programs — refuse at import
+      // rather than carrying code that would never run (design/PHOS-FORMAT.md)
       const code = val.replace(/\/\/.*$/, '').trim();
-      if (code) perVertex.push(code);
+      if (code) throw new Error(`importMilk: "${key}" carries per-vertex code, which the engine does not yet execute — refusing`);
     } else if (key.startsWith('per_frame') || key.startsWith('per_pixel') || key.startsWith('per_vertex')) {
       // per_frame_init_N, per_pixel_init_N, malformed indices — real preset
       // content this importer does not yet support. Refuse, never drop.
       throw new Error(`importMilk: unsupported equation key "${key}" — extend the importer before converting this preset`);
     } else {
-      const num = parseFloat(val);
-      if (Number.isNaN(num)) throw new Error(`importMilk: non-numeric value for "${key}" (${JSON.stringify(val)}) — unsupported, refusing rather than dropping`);
-      vars[key] = num;
+      const vt = val.trim();
+      // the COMPLETE value must be a number — parseFloat's prefix parsing would
+      // silently accept trailing garbage
+      if (!/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(vt)) {
+        throw new Error(`importMilk: value for "${key}" is not a complete number (${JSON.stringify(val)}) — refusing`);
+      }
+      vars[key] = parseFloat(vt);
     }
   }
   return {

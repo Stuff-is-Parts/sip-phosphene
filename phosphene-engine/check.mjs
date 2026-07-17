@@ -20,7 +20,7 @@ import { Timekeeper } from './src/timekeeper.mjs';
 
 const text = readFileSync(new URL('./101-per_frame.milk', import.meta.url), 'utf8');
 const scene = importMilk(text);
-const phosText = readFileSync(new URL('./scenes/101-per_frame.phos', import.meta.url), 'utf8');
+const phosText = readFileSync(new URL('./scenes/md-101-per_frame.phos', import.meta.url), 'utf8');
 
 // --- REFERENCE: the preset defines ib_r = 0.7 + 0.4*sin(3*time) ---
 const refIbR = (/** @type {number} */ t) => 0.7 + 0.4 * Math.sin(3 * t);
@@ -116,6 +116,9 @@ const converterRefusesUnmapped = (() => {
 const importerRefusals = [
   ['per_frame_init line', (() => { try { importMilk(text + 'per_frame_init_1=x=1;\n'); return false; } catch { return true; } })()],
   ['non-numeric value', (() => { try { importMilk(text + 'szName=hello\n'); return false; } catch { return true; } })()],
+  ['trailing garbage on number', (() => { try { importMilk(text + 'zoom=1.5abc\n'); return false; } catch { return true; } })()],
+  ['unknown section header', (() => { try { importMilk('[preset99]\n' + text); return false; } catch { return true; } })()],
+  ['per-vertex code', (() => { try { importMilk(text + 'per_pixel_1=zoom=zoom+0.1;\n'); return false; } catch { return true; } })()],
 ];
 const importerRefused = importerRefusals.every(([, ok]) => ok);
 
@@ -361,7 +364,37 @@ const timekeeperOk = (() => {
   return results.every(Boolean);
 })();
 
-const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced;
+// (q) Contract + per-vertex refusals and the reset baseline regression.
+const contractOk = (() => {
+  const base = toRuntime(parsePhos(phosText));
+  // two-node warp->composite: legal shape, outside the fixed-pipeline contract
+  const twoNode = {
+    ...base,
+    pipelineDescriptor: base.pipelineDescriptor.filter((/** @type {{stage:string}} */ n) => n.stage !== 'borders'),
+    edges: [{ out: 'warp.out', in: 'comp.in' }],
+  };
+  const refusesTwoNode = (() => { try { new Engine(twoNode); return false; } catch { return true; } })();
+  const withPv = { ...toRuntime(parsePhos(phosText)) };
+  withPv.expressions = { ...withPv.expressions, perVertex: ['zoom=zoom+0.1;'] };
+  const refusesPerVertex = (() => { try { new Engine(withPv); return false; } catch { return true; } })();
+  return refusesTwoNode && refusesPerVertex;
+})();
+const resetOk = (() => {
+  const e2 = new Engine(toRuntime(parsePhos(phosText)));
+  const baseIbG = e2.scene.vars.ib_g;
+  const baseEqs = JSON.stringify(e2.scene.expressions.perFrame);
+  e2.setVar('ib_g', 0.123);
+  e2.recompile(['ib_r=0.1;']);
+  e2.step(1 / 60);
+  e2.reset();
+  return e2.scene.vars.ib_g === baseIbG
+    && JSON.stringify(e2.scene.expressions.perFrame) === baseEqs
+    && e2.pool.ib_g === baseIbG
+    && e2.frame === 0 && e2.time === 0
+    && e2.step(1 / 60).innerBox.g === baseIbG;
+})();
+
+const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk;
 
 const eelFnCount = Object.keys(eelSubject).length;
 const eelCoveredCount = new Set(eelCases.map((c) => c[0])).size;
@@ -423,6 +456,8 @@ console.log('band boundary at bin 85 discriminates bass/mid:', boundaryOk ? 'OK'
 console.log('PCM ring intake: order-independent newest-576 + non-trivial:', ringOk ? 'OK' : 'FAIL');
 console.log('timekeeper vs pluginshell.cpp recompute (exact at 4 frames):', timekeeperOk ? 'OK' : 'FAIL');
 console.log('index.html == player.html (byte guard):', pagesSynced ? 'OK' : 'FAIL');
+console.log('fixed-pipeline contract refuses 2-node graph + per-vertex code:', contractOk ? 'OK' : 'FAIL');
+console.log('reset restores load-time baseline (vars/equations/state):', resetOk ? 'OK' : 'FAIL');
 for (const [name, args] of eelFailures) { const fn = eelSubject[name]; console.log(`  FAIL: ${name}(${args.join(',')}) = ${fn ? fn(...args) : 'missing'}`); }
 console.log(`\nRESULT: ${pass ? 'PASS' : 'FAIL'}`);
 process.exit(pass ? 0 : 1);

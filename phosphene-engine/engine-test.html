@@ -7,7 +7,7 @@ import { parsePhos, toRuntime } from './src/phos.mjs';
 import { Engine } from './src/engine.mjs';
 import { feedbackWGSL, compositeWGSL } from './src/render-wgsl.mjs';
 
-const sceneText = await (await fetch('./scenes/101-per_frame.phos')).text();
+const sceneText = await (await fetch('./scenes/md-101-per_frame.phos')).text();
 const scene = toRuntime(parsePhos(sceneText));
 const engine = new Engine(scene);
 

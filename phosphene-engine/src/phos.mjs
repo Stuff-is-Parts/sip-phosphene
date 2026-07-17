@@ -302,7 +302,9 @@ export function milkToPhos(/** @type {{vars:Record<string,number>, expressions:{
     expressions.push(prog);
   }
   if (ir.expressions.perVertex.length > 0) expressions.push({ id: 'preset-per-vertex', stage: 'per-vertex', code: ir.expressions.perVertex });
-  const name = source.file.replace(/\.[^.]+$/, '');
+  // converted-scene naming: source-engine prefix (md- for MilkDrop, p9- for
+  // Plane9 when that converter exists) so provenance shows in the filename
+  const name = 'md-' + source.file.replace(/\.[^.]+$/, '');
   return /** @type {Scene} */ ({
     format: 'phos/1',
     meta: { name, sourceEngine: 'milkdrop', source: { engine: 'milkdrop', file: source.file, sha256: source.sha256 } },

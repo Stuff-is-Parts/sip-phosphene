@@ -70,8 +70,10 @@ import { feedbackWGSL, compositeWGSL } from './src/render-wgsl.mjs';
 import { AudioEngine } from './src/audio/sources.mjs';
 
 const audio = new AudioEngine();
-const sceneText = await (await fetch('./scenes/101-per_frame.phos')).text();
-let engine = new Engine(toRuntime(parsePhos(sceneText)));
+const sceneText = await (await fetch('./scenes/md-101-per_frame.phos')).text();
+const initialRt = toRuntime(parsePhos(sceneText));
+let engine = new Engine(initialRt);
+document.getElementById('sceneName').textContent = initialRt.meta.name;
 
 // open a .phos scene from disk (MUST: portable load — VSLICE-MOSCOW)
 function loadSceneFile(/* File */ f){

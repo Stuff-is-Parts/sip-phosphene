@@ -48,6 +48,12 @@ pages load the `.phos`; the `.milk` is the retained source recipe. Format spec:
   port edit now has a visible effect. zoom flows to the mesh unclamped exactly as the
   source runs it (the range-check block at milkdropfs.cpp:677-679 clamps only
   gamma and echo_zoom), so whatever the preset writes is what renders.
+- The warp field is evaluated per fragment as a PROVISIONAL APPROXIMATION of
+  the source's finite-mesh-plus-interpolation path (see src/render-wgsl.mjs
+  header); the finite-mesh implementation is mandated by the exactness
+  standard and triggers at the first warp-exercising content.
+- Border rings and video echo apply only above the source's 0.001 alpha
+  thresholds (milkdropfs.cpp:3451, :4168), matching the source's skip paths.
 - The composite is transcribed from ShowToUser_NoShaders (milkdropfs.cpp:4050-4260):
   aspect CROP with overscan (not stretch), video echo (zoom/flip layer mixed by
   echo alpha), and gammaAdj as a saturating multiply — with the source defaults
@@ -74,6 +80,11 @@ pages load the `.phos`; the `.milk` is the retained source recipe. Format spec:
 
 ## Mechanical gate
 `npm run gate` = syntax → typecheck → lint → deadcode. Standard tools only.
+Knip's entries are the real roots (check.mjs, the four HTML-imported modules,
+and pcm-tap.js which loads by string URL); orphan files and unused exports in
+non-entry modules are detected (both proven with planted cases). BLIND SPOT,
+stated: unused exports OF the entry modules themselves are exempt — those are
+covered by review, not by knip.
 It proves the code is well-formed, NOT that it is behaviorally correct.
 Behavior is judged by a human viewing the output.
 

@@ -43,17 +43,33 @@ export class Engine {
       cur = nodes.find((n) => n.id === nid);
     }
     if (this.order.length !== nodes.length) throw new Error('Engine: edges do not form a single chain covering all nodes — refusing');
+    // FIXED-PIPELINE CONTRACT (owner-ratified 2026-07-17): the renderer realizes
+    // exactly this op sequence, so the engine accepts exactly it — an accepted
+    // graph can never exceed the renderer (Complete Representation; the source
+    // pipeline is fixed per milkdropfs.cpp:1048-1214, and inventing semantics
+    // for other shapes would fill missing knowledge with plausible behavior,
+    // which PHOSPHENE-GOAL.md prohibits). Generality arrives with the scene
+    // that forces it, by a further owner decision.
+    const CONTRACT = ['warp-feedback', 'borders', 'composite'];
+    const stages = this.order.map((n) => n.stage);
+    if (JSON.stringify(stages) !== JSON.stringify(CONTRACT)) {
+      throw new Error(`Engine: op sequence [${stages.join(' -> ')}] is outside the fixed-pipeline contract [${CONTRACT.join(' -> ')}] — refusing`);
+    }
     for (const n of this.order) {
-      const required = OP_PORTS[n.stage];
-      if (!required) throw new Error(`Engine: unsupported op "${n.stage}" — the executor implements [${Object.keys(OP_PORTS).join(', ')}], refusing`);
-      for (const k of required) {
+      for (const k of /** @type {string[]} */ (OP_PORTS[n.stage])) {
         if (typeof scene.vars[k] !== 'number') throw new Error(`Engine: node "${n.id}" (${n.stage}) requires variable "${k}" — missing from the scene, refusing`);
       }
     }
-    const last = this.order[this.order.length - 1];
-    if (!last || last.stage !== 'composite') throw new Error('Engine: the chain must terminate at a composite node — refusing');
+    // per-vertex programs parse but are REFUSED at execution until the engine
+    // runs them (design/PHOS-FORMAT.md) — accepted-but-unexecuted code is the
+    // structure-claimed-as-function failure mode.
+    if (scene.expressions.perVertex && scene.expressions.perVertex.length > 0) {
+      throw new Error('Engine: scene carries per-vertex code, which the engine does not yet execute — refusing rather than silently ignoring');
+    }
 
     this.scene = scene;
+    // immutable load-time baseline: Reset restores THIS, not the edited state
+    this.baseline = { vars: { ...scene.vars }, perFrame: [...scene.expressions.perFrame] };
     this.pool = /** @type {Record<string,number>} */ ({ ...scene.vars }); // live variable pool
     this.perFrame = compileEEL(scene.expressions.perFrame);
     this.frame = 0;
@@ -89,7 +105,12 @@ export class Engine {
     this.perFrame = compileEEL(perFrameSource);
   }
   reset() {
-    this.pool = { ...this.scene.vars };
+    // restore the load-time baseline (edits mutate scene.vars, so copying from
+    // it would restore the edited state — the aliasing bug the review caught)
+    this.scene.vars = { ...this.baseline.vars };
+    this.scene.expressions.perFrame = [...this.baseline.perFrame];
+    this.pool = { ...this.baseline.vars };
+    this.perFrame = compileEEL(this.baseline.perFrame);
     this.frame = 0; this.timekeeper.reset();
   }
 

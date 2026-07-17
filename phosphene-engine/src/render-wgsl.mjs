@@ -3,10 +3,14 @@
 // The warp math is transcribed from MilkDrop2 @ Doormatty/MilkDrop2 d0670a3,
 // milkdropfs.cpp:1877-1918 (per-vertex UV computation) with the per-frame
 // oscillators f0..f3 and warpTime computed CPU-side per :1782-1787 and passed
-// as uniforms. MilkDrop evaluates this on a mesh grid with interpolation; we
-// evaluate the same formula per pixel — MilkDrop's own mesh size is a user
-// quality setting, not preset semantics, so per-pixel is the formula at
-// maximum mesh resolution. rad = sqrt(x²·aspectX² + y²·aspectY²) per
+// as uniforms. APPROXIMATION, stated: MilkDrop evaluates this formula at
+// finite mesh vertices and linearly interpolates between them; we evaluate it
+// per fragment. For a nonlinear field these are NOT equivalent at any mesh
+// size — per-fragment smooths interpolation character that is part of the
+// source's look. The finite-mesh path is mandated by the exactness standard
+// ("the graph and executor must be extended when the source behavior requires
+// it"); its trigger is the first warp-exercising content, per the falsifier
+// rule in CLAUDE.md. rad = sqrt(x²·aspectX² + y²·aspectY²) per
 // plugin.cpp:2281; our render target is square so both aspect factors are 1
 // and the aspect apply/undo steps (:1881-1884, :1920-1922) are identity.
 // The 1024² target is a value inside the source's own config space (the
@@ -50,7 +54,10 @@ struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> };
   if (cu.echoOrient >= 2.0) { e.y = 1.0 - e.y; }
   let base = textureSample(t, s, uv).rgb;
   let echo = textureSample(t, s, e).rgb;
-  let mixed = (1.0 - cu.echoAlpha) * base + cu.echoAlpha * echo;
+  // echo applies only above the source threshold (if (fVideoEchoAlpha > 0.001f),
+  // milkdropfs.cpp:4168); below it the source takes the single-layer path
+  let a = select(0.0, cu.echoAlpha, cu.echoAlpha > 0.001);
+  let mixed = (1.0 - a) * base + a * echo;
   // gammaAdj via additive redraws nets to a saturating multiply (:4240-4260)
   return vec4(min(vec3(1.0), mixed * cu.gamma), 1.0);
 }`;
@@ -114,10 +121,12 @@ struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> };
   var prev = textureSample(prevTex, prevSamp, vec2(uu, vv)).rgb * u.decay;
   // border frames — milkdropfs.cpp:3460. Screen edge is radius 1 in max-norm.
   let c = max(abs(in.uv.x - 0.5), abs(in.uv.y - 0.5)) * 2.0;  // 0 center .. 1 edge
-  if (c >= 1.0 - u.ob_size && c <= 1.0) {
+  // each ring draws only when its alpha exceeds the source threshold
+  // (if (a > 0.001f), milkdropfs.cpp:3451)
+  if (u.ob_a > 0.001 && c >= 1.0 - u.ob_size && c <= 1.0) {
     prev = mix(prev, vec3(u.ob_r, u.ob_g, u.ob_b), u.ob_a);
   }
-  if (c >= 1.0 - u.ob_size - u.ib_size && c < 1.0 - u.ob_size) {
+  if (u.ib_a > 0.001 && c >= 1.0 - u.ob_size - u.ib_size && c < 1.0 - u.ob_size) {
     prev = mix(prev, vec3(u.ib_r, u.ib_g, u.ib_b), u.ib_a);
   }
   return vec4(prev, 1.0);
