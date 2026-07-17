@@ -6,6 +6,19 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    languageOptions: {
+      globals: {
+        // browser
+        window: 'readonly', document: 'readonly', navigator: 'readonly',
+        requestAnimationFrame: 'readonly', devicePixelRatio: 'readonly',
+        AudioContext: 'readonly', AnalyserNode: 'readonly', MediaStream: 'readonly',
+        setInterval: 'readonly', clearInterval: 'readonly', setTimeout: 'readonly',
+        fetch: 'readonly', Blob: 'readonly', URL: 'readonly',
+        GPUShaderStage: 'readonly', GPUTextureUsage: 'readonly', GPUBufferUsage: 'readonly',
+        // node
+        console: 'readonly', process: 'readonly',
+      },
+    },
     rules: {
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': 'error',      // catches scaffolding never wired

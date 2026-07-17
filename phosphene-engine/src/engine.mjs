@@ -6,15 +6,15 @@
 import { compileEEL } from './expr-vm.mjs';
 
 export class Engine {
-  constructor(scene) {
+  constructor(/** @type {any} */ scene) {
     this.scene = scene;
-    this.pool = { ...scene.vars };           // live variable pool
+    this.pool = /** @type {Record<string,number>} */ ({ ...scene.vars }); // live variable pool
     this.perFrame = compileEEL(scene.expressions.perFrame);
     this.frame = 0;
     this.time = 0;
   }
   // advance one frame. audio = {bass,mid,treb,...}; time in seconds.
-  step(dt, audio = {}) {
+  step(/** @type {number} */ dt, /** @type {{bass?:number,mid?:number,treb?:number}} */ audio = {}) {
     this.time += dt;
     this.frame += 1;
     // inject engine-provided variables (milkdropfs.cpp:471+ sets these pre-eval)
@@ -30,8 +30,8 @@ export class Engine {
   }
 
   // --- studio live-edit surface ---
-  setVar(name, value) { this.scene.vars[name] = value; this.pool[name] = value; }
-  recompile(perFrameSource) {
+  setVar(/** @type {string} */ name, /** @type {number} */ value) { this.scene.vars[name] = value; this.pool[name] = value; }
+  recompile(/** @type {string[]} */ perFrameSource) {
     // perFrameSource: array of equation strings (edited in the studio)
     this.scene.expressions.perFrame = perFrameSource;
     this.perFrame = compileEEL(perFrameSource);

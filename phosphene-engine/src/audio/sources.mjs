@@ -6,10 +6,14 @@ export class AudioEngine {
   analysis = new Analysis();
   source = 'none';
   label = 'no source — idle signal';
-  #ctx = null; #analyser = null; #demoNodes = []; #demoTimer = null;
-  #micStream = null; #fileSrc = null;
+  /** @type {AudioContext|null} */ #ctx = null;
+  /** @type {AnalyserNode|null} */ #analyser = null;
+  /** @type {AudioNode[]} */ #demoNodes = [];
+  /** @type {ReturnType<typeof setInterval>|null} */ #demoTimer = null;
+  /** @type {MediaStream|null} */ #micStream = null;
+  /** @type {AudioBufferSourceNode|null} */ #fileSrc = null;
 
-  #ensure() {
+  /** @returns {AudioContext} */ #ensure() {
     if (!this.#ctx) {
       this.#ctx = new AudioContext();
       this.#analyser = this.#ctx.createAnalyser();
@@ -22,12 +26,12 @@ export class AudioEngine {
   }
   #stopAll() {
     for (const n of this.#demoNodes) {
-      try { n.stop?.(); } catch { /* not started */ }
+      try { /** @type {any} */ (n).stop?.(); } catch { /* not started */ }
       try { n.disconnect(); } catch { /* detached */ }
     }
     this.#demoNodes = [];
     if (this.#demoTimer) { clearInterval(this.#demoTimer); this.#demoTimer = null; }
-    this.#micStream?.getTracks().forEach((t) => t.stop());
+    this.#micStream?.getTracks().forEach((/** @type {MediaStreamTrack} */ t) => t.stop());
     this.#micStream = null;
     try { this.#fileSrc?.stop(); } catch { /* not started */ }
     this.#fileSrc = null;
@@ -36,6 +40,7 @@ export class AudioEngine {
   startDemo() {
     const ctx = this.#ensure(); this.#stopAll();
     const analyser = this.#analyser;
+    if (!analyser) return;
     const out = ctx.createGain(); out.gain.value = 0.8;
     out.connect(analyser); analyser.connect(ctx.destination);
     this.#demoNodes.push(out);
@@ -74,7 +79,7 @@ export class AudioEngine {
         }
         {
           const o = ctx.createOscillator(), g = ctx.createGain(), bf = ctx.createBiquadFilter();
-          o.type = 'square'; o.frequency.value = bassN[bar % 4] * (s8 === 6 ? 1.5 : 1);
+          o.type = 'square'; o.frequency.value = (bassN[bar % 4] ?? 55) * (s8 === 6 ? 1.5 : 1);
           bf.type = 'lowpass'; bf.frequency.value = 340;
           g.gain.setValueAtTime(0.22, t); g.gain.exponentialRampToValueAtTime(0.001, t + spb * 0.45);
           o.connect(bf); bf.connect(g); g.connect(out); o.start(t); o.stop(t + spb * 0.5);
@@ -89,15 +94,15 @@ export class AudioEngine {
     const ctx = this.#ensure();
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false } });
     this.#stopAll(); this.#micStream = stream;
-    ctx.createMediaStreamSource(stream).connect(this.#analyser);
+    if (this.#analyser) ctx.createMediaStreamSource(stream).connect(this.#analyser);
     this.source = 'mic'; this.label = 'microphone input';
   }
-  async playFile(file) {
+  async playFile(/** @type {File} */ file) {
     const ctx = this.#ensure();
     const buf = await ctx.decodeAudioData(await file.arrayBuffer());
     this.#stopAll();
     const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
-    src.connect(this.#analyser); this.#analyser.connect(ctx.destination); src.start();
+    if (this.#analyser) { src.connect(this.#analyser); this.#analyser.connect(ctx.destination); } src.start();
     this.#fileSrc = src; this.source = 'file'; this.label = '♪ ' + file.name;
   }
 }

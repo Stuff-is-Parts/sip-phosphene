@@ -25,11 +25,16 @@ struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> };
 @fragment fn fs(in: VSOut) -> @location(0) vec4<f32> {
   // sample previous frame, apply decay (feedback) — milkdrop fDecay
   var prev = textureSample(prevTex, prevSamp, in.uv).rgb * u.decay;
-  // centered coords for box drawing
-  let c = abs(in.uv - vec2(0.5, 0.5)) * 2.0;
-  let m = max(c.x, c.y);
-  // outer box then inner box, drawn as filled squares of given size
-  if (m < u.ob_size) { prev = mix(prev, vec3(u.ob_r,u.ob_g,u.ob_b), u.ob_a); }
-  if (m < u.ib_size) { prev = mix(prev, vec3(u.ib_r,u.ib_g,u.ib_b), u.ib_a); }
+  // border frames — milkdropfs.cpp:3460. Screen edge is radius 1 in max-norm.
+  // outer border: radius [1-ob_size, 1]; inner border: [1-ob_size-ib_size, 1-ob_size].
+  let c = max(abs(in.uv.x - 0.5), abs(in.uv.y - 0.5)) * 2.0;  // 0 center .. 1 edge
+  // outer border ring
+  if (c >= 1.0 - u.ob_size && c <= 1.0) {
+    prev = mix(prev, vec3(u.ob_r, u.ob_g, u.ob_b), u.ob_a);
+  }
+  // inner border ring (just inside the outer)
+  if (c >= 1.0 - u.ob_size - u.ib_size && c < 1.0 - u.ob_size) {
+    prev = mix(prev, vec3(u.ib_r, u.ib_g, u.ib_b), u.ib_a);
+  }
   return vec4(prev, 1.0);
 }`;

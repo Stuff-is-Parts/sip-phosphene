@@ -67,9 +67,9 @@ document.getElementById('meta').textContent = 'preset00 · ' + scene.expressions
 const graphEl = document.getElementById('graph');
 function renderGraph() {
   graphEl.innerHTML = '';
-  for (const node of scene.nodes) {
+  for (const node of scene.pipelineDescriptor) {
     const n = document.createElement('div'); n.className = 'node';
-    n.innerHTML = `<div class="node-h">${node.id}<span class="prim">${node.primitive}·${node.op}</span></div>`;
+    n.innerHTML = `<div class="node-h">${node.id}<span class="prim">${node.stage}</span></div>`;
     // show the vars this node consumes as editable ports
     const portsForNode = node.id === 'warp'
       ? ['fDecay','zoom','rot','warp','ib_size','ib_r','ib_g','ib_b','ib_a','ob_size','ob_r','ob_g','ob_b','ob_a']

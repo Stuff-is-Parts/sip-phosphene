@@ -82,14 +82,6 @@ When authoritative sources disagree, the conflict must be documented and
 resolved from stronger evidence. Missing knowledge must remain explicit; it
 must never be filled with plausible behavior.
 
-### Authority and Oracle Distinction
-
-Authority priority determines what behavior is required. Oracle precedence
-determines how expected values are obtained. An executable lower-tier
-implementation may provide measurements but does not supersede a stronger
-authority. Any disagreement must enter an authority-conflict record and keep
-the affected requirement at FAIL until resolved from stronger evidence.
-
 ## Scope of Accepted Formats
 
 The accepted format versions and their authoritative specifications define
@@ -99,9 +91,7 @@ define completeness.
 
 For Plane9, which has no published specification, scope is bounded by the
 tier 1 and tier 2 evidence above. Behavior that no retained evidence resolves
-remains required and produces FAIL with a precise missing-evidence or
-external-dependency reason. It must never be approximated or treated as
-complete.
+remains explicitly unresolved.
 
 ## Exactness Standard
 
@@ -130,7 +120,7 @@ An LLM may research source code, extract technical behavior, propose
 architecture, generate implementation code, write tests, execute tools,
 diagnose failures, and produce other technical artifacts.
 
-All such output is unaccepted until independently verified.
+All such output is candidate work only.
 
 An LLM's statement that it examined the source, preserved the source behavior,
 completed an implementation, passed validation, or satisfied this goal is not
@@ -174,46 +164,10 @@ An LLM may produce technical work, but it may not certify its own work.
 Correctness and completion exist only where the repository contains
 independently inspectable evidence that demonstrates them.
 
-When adequate external verification has not been established, the affected
-requirement remains FAIL with the precise missing evidence, implementation,
-instrumentation, execution capability, or external dependency recorded. It
-must not be accepted on the basis of model confidence, plausibility,
-consensus, or apparent visual success.
-
-## Behavior Verification Controls
-
-The Portable Evidence-Gated Verification Framework is normative for
-verification mechanism details. This section states PHOSPHENE-specific
-obligations and may strengthen, but may not weaken, narrow, replace, or
-independently redefine the framework's controls.
-
-Every behavioral fixture must distinguish the required behavior from the
-complete applicable union of registered plausible alternatives. Claim-level
-alternatives may add coverage but may not remove, replace, narrow, or shadow
-alternatives required by an applicable profile or the project binding.
-
-Structural presence does not prove runtime effect. Acceptance requires a
-runtime-effect witness showing that the actual product path reaches the
-implementation and that a controlled intervention produces the expected
-change in observed state or result.
-
-Any claim that a different algorithm, execution path, ordering, state
-transition, or implementation is equivalent to the source is itself a
-required claim. It must be established by an authority-derived proof or by
-differential checks over the complete applicable input domain before the
-source-defined path may be omitted.
-
-Raw authority artifacts must remain byte-exact and separate from excerpts,
-annotations, normalization, commentary, and other derived evidence. Every
-expected constituent must retain the identity, version or hash, and exact
-location of the authority from which it derives. Facts from multiple
-authorities may not be silently combined; disagreements require an explicit
-authority-conflict record.
-
-Every mechanically enumerable source behavior must receive a stable inventory
-ID mapped to sufficient claims, fixtures, checks, oracle outputs, and actual
-PHOSPHENE-executor execution. Aggregating behaviors into broader claims may
-organize records but may not reduce the required verification surface.
+When adequate external verification cannot be established, the behavior must
+remain explicitly unresolved or unsupported. It must not be accepted on the
+basis of model confidence, plausibility, consensus, or apparent visual
+success.
 
 ## Implementation Rule
 
@@ -228,20 +182,19 @@ For each source behavior:
 2. Represent that behavior explicitly in the PHOSPHENE graph.
 3. Implement it in the native executor.
 4. Verify it with a direct, reliable semantic check.
-5. Retain precise evidence for any missing knowledge, implementation,
-   instrumentation, or execution capability; the behavior remains FAIL until
-   the condition is corrected.
+5. Record unresolved or unsupported behavior explicitly until it is
+   implemented.
 
 Research, representation, implementation, and testing may proceed together.
 
 During development, behavior whose exact technical basis is not yet
 established must be refused rather than approximated. The project is not
-complete while any required source-defined behavior remains at FAIL.
+complete while ordinary source-defined behavior remains unsupported.
 
-Failure reasons describe why a required behavior does not yet pass. They do
-not authorize deferral, omission, unsupported completion, or a change in
-scope. Stopping is permitted only when the specific indispensable external
-dependency defined in the Execution Standard actually exists.
+"Unresolved" and "unsupported" are truthful classifications of work in
+progress, not stopping states. They permit stopping only when the specific
+indispensable external dependency defined in the Execution Standard actually
+exists.
 
 ## Validation Rule
 
@@ -269,15 +222,16 @@ Valid checks include direct assertions over:
 
 Expected results must be derived from authoritative source, and each expected
 value must originate from the strongest available oracle class required by the
-project verification binding. Hand-derived expectations are forbidden unless
+external reference where one exists. Hand-derived expectations are forbidden unless
 the binding explicitly authorizes them for a named requirement class with
 retained evidence that every stronger required oracle is unavailable. Each
 expected value must identify its provenance: the authority it derives from,
 the version or hash of that authority, and how it was obtained. Fixtures are
 correctable under review; provenance, not immutability, is what protects them.
 The chain from source evidence to expected result to test to actual executor
-result is machine-checked through the verification framework and its
-authenticated project binding.
+result is checked, where an external reference exists, against that reference
+(source geometry or an external implementation) — never against the
+implementation itself.
 
 Use exact equality. Any floating-point tolerance must be justified by the
 specific rounding or precision path being tested. A changed algorithm, state
@@ -299,44 +253,15 @@ The assignment is complete only when:
 - all source-defined behavior required by the accepted formats is represented
   and implemented;
 - direct tests cover the implemented behavior and pass;
-- no required behavior depends on the original engine at runtime;
+- no supported behavior depends on the original engine at runtime;
 - imported graphs remain editable, saveable, reloadable, and portable;
-- malformed input is rejected according to the source-defined format
-  behavior and covered by direct tests;
-- no scoped requirement remains at FAIL because of an indispensable external
-  dependency; such a dependency keeps the global project result at FAIL unless
-  the user explicitly changes the approved scope;
+- unsupported behavior is limited to genuinely malformed or externally
+  unresolvable input and is identified with direct evidence;
 - the product uses the completed native graph path;
 - the complete build and test suite passes from a clean checkout.
 
 Partial subsystem success, parser coverage, lit pixels, visual resemblance,
 commit count, or progress documentation do not satisfy completion.
-
-## Required Starting Artifacts and Implementation Order
-
-Before product implementation begins, the repository must contain:
-
-1. the installed Portable Evidence-Gated Verification Framework;
-2. authenticated reusable compatibility-port and graphics/runtime profiles
-   containing the mandatory domain-specific verification mechanisms;
-3. an authenticated, adequacy-witnessed PHOSPHENE project verification
-   binding;
-4. mechanically extracted MilkDrop and Plane9 behavior inventories to the
-   extent supported by the retained evidence;
-5. operational reference adapters for every behavior class whose strongest
-   binding-required oracle is executable.
-
-Implementation begins by establishing one complete vertical path:
-
-```text
-authority → reference oracle → expected result → discriminating fixture
-→ PHOSPHENE executor → comparator → PASS/FAIL
-```
-
-This order ensures that independent expected values and actual-executor
-verification exist before broader product translation. It is implementation
-order, not a phase boundary, reduced assignment, accepted partial framework,
-or permission to stop before every scoped requirement passes.
 
 ## Execution Standard
 
@@ -362,23 +287,26 @@ identify the precise action required.
 
 ## Enforcement
 
-This document is operationalized by the Portable Evidence-Gated Verification
-Framework, the authenticated reusable profiles selected by the project, and
-an authenticated, adequacy-witnessed project verification binding.
+This document is a target specification and human-read checklist. It is NOT
+enforced by an automated verification framework — the previously specified
+portable verification framework was scrapped (see project history) after two
+independent audits found it corrupt at the trust root.
 
-Precedence: this document defines required behavior and approved scope; the
-framework defines acceptance mechanics; reusable profiles define mandatory
-domain-specific mechanisms; and the binding maps this document's requirements
-to the complete applicable verification surface. Profiles and the binding may
-add rigor but may not weaken, narrow, or bypass any governing document.
+Enforcement is by two means, matching CLAUDE.md:
 
-Changes to this document's goal or scope, and adoption or change of the
-binding, require the framework's authenticated authorization and adequacy
-witnesses. A producer-authored artifact claiming approval does not satisfy
-this requirement.
+1. A mechanical gate of standard off-the-shelf tools (types, lint, syntax,
+   dead-code) that proves code is well-formed AS CODE. It does not prove
+   behavioral correctness.
 
-Completion additionally requires that the framework's global verification
-gate computes PASS for every scoped requirement derived from this document.
+2. Human judgment of behavioral correctness, aided where possible by cheap
+   checks whose expected values come from an authority OTHER than the
+   implementation (source geometry, or an external reference implementation
+   such as butterchurn / retained projectM output). The producing agent may
+   not certify its own work; behavior is judged by a person viewing output.
+
+Where a behavior can be checked against source or an external reference
+mechanically, it should be. Where it cannot, it is judged by a human. No
+self-referential or producer-controlled check counts as verification.
 
 ## Repository Authority
 
@@ -402,7 +330,7 @@ Known-false or misleading artifacts must be corrected or removed when
 discovered.
 
 LLM-generated code, tests, analyses, source interpretations, reviews, and
-completion claims have no special authority. They remain unaccepted until
-they satisfy the same evidence and execution requirements as every other
-technical claim. The fact that an artifact was generated, reviewed, or
-endorsed by multiple models does not constitute independent verification.
+completion claims have no special authority. They are candidate artifacts
+subject to the same evidence requirements as any other unsupported claim. The
+fact that an artifact was generated, reviewed, or endorsed by multiple models
+does not constitute independent verification.

@@ -1,8 +1,8 @@
 // .milk importer: source preset -> PHOSPHENE scene IR.
 // Parses the key=value format (milkdrop2 state.cpp:CState::Import model).
-export function importMilk(text) {
+export function importMilk(/** @type {string} */ text) {
   const lines = text.split(/\r?\n/);
-  const vars = {};           // baseline preset variables (defaults + literals)
+  const vars = /** @type {Record<string,number>} */ ({});           // baseline preset variables (defaults + literals)
   const perFrame = [];       // per_frame_N equations, in order
   const perVertex = [];      // per_pixel_N equations
   for (const raw of lines) {
@@ -29,10 +29,13 @@ export function importMilk(text) {
     format: 'phos/1',
     vars,
     expressions: { perFrame, perVertex },
-    // canonical MilkDrop pipeline as graph nodes (fixed order)
-    nodes: [
-      { id: 'warp', primitive: 'graph', op: 'warp-feedback' },
-      { id: 'comp', primitive: 'shader', op: 'composite' },
+    // NOTE: this is a DESCRIPTOR of the fixed MilkDrop pipeline for display in
+    // the studio. It is NOT yet an executable graph — the engine currently runs
+    // the pipeline directly (engine.mjs), not by traversing these nodes. Making
+    // the engine execute the graph is pending work (see PHOSPHENE-GOAL.md).
+    pipelineDescriptor: [
+      { id: 'warp', stage: 'warp-feedback' },
+      { id: 'comp', stage: 'composite' },
     ],
   };
 }
