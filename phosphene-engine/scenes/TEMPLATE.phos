@@ -1,0 +1,94 @@
+{
+  "//": "PHOSPHENE scene template — a legal, runnable .phos file. Copy it, rename it, edit it.",
+  "// carrier": "Strict JSON. Keys beginning with // are authoring comments: the loader ignores and STRIPS them (they do not survive a studio save). Any other key the spec does not define is a load error — a scene never half-loads. Spec: design/PHOS-FORMAT.md.",
+
+  "format": "phos/1",
+
+  "meta": {
+    "//": "name is required; everything else here is optional.",
+    "name": "template",
+    "description": "Minimal scene: feedback decay with a pulsing inner border.",
+    "author": "your name",
+    "// source": "Ported scenes carry meta.sourceEngine plus meta.source {engine,file,sha256} naming the exact source file they were transcribed from. Hand-authored scenes omit both."
+  },
+
+  "// resources": "Textures, meshes, audio bindings. Not yet supported — the loader refuses a non-empty list, so leave it empty.",
+  "resources": [],
+
+  "// nodes": "A scene is a typed node graph: nodes with typed ports, wired by edges. Each node: unique id; primitive (graph|shader|expr|geom|compute); op (the specific operation); ports. Port types: float|vec2|vec3|vec4|color|texture|mesh|effect|render. A float port may carry a constant value — expressions can overwrite it every frame by name.",
+  "nodes": [
+    {
+      "//": "The feedback pass: previous frame is sampled back and faded by fDecay.",
+      "id": "warp",
+      "primitive": "graph",
+      "op": "warp-feedback",
+      "ports": {
+        "//": "Motion params per MilkDrop semantics (defaults from state.cpp:654-665). zoom=1 is identity; warp=0 is no warping.",
+        "fDecay": { "type": "float", "value": 0.97 },
+        "zoom":   { "type": "float", "value": 1 },
+        "rot":    { "type": "float", "value": 0 },
+        "warp":   { "type": "float", "value": 0 },
+        "cx":     { "type": "float", "value": 0.5 },
+        "cy":     { "type": "float", "value": 0.5 },
+        "dx":     { "type": "float", "value": 0 },
+        "dy":     { "type": "float", "value": 0 },
+        "sx":     { "type": "float", "value": 1 },
+        "sy":     { "type": "float", "value": 1 },
+        "fWarpAnimSpeed": { "type": "float", "value": 1 },
+        "fWarpScale":     { "type": "float", "value": 1 },
+        "fZoomExponent":  { "type": "float", "value": 1 },
+        "out":    { "type": "render" }
+      }
+    },
+    {
+      "//": "Outer and inner border frames (MilkDrop ob_*/ib_* semantics: size, color, alpha).",
+      "id": "borders",
+      "primitive": "shader",
+      "op": "borders",
+      "ports": {
+        "ob_size": { "type": "float", "value": 0.05 },
+        "ob_r":    { "type": "float", "value": 0 },
+        "ob_g":    { "type": "float", "value": 0.4 },
+        "ob_b":    { "type": "float", "value": 0.6 },
+        "ob_a":    { "type": "float", "value": 1 },
+        "ib_size": { "type": "float", "value": 0.03 },
+        "ib_r":    { "type": "float", "value": 0 },
+        "ib_g":    { "type": "float", "value": 1 },
+        "ib_b":    { "type": "float", "value": 0.8 },
+        "ib_a":    { "type": "float", "value": 1 },
+        "in":      { "type": "render" },
+        "out":     { "type": "render" }
+      }
+    },
+    {
+      "//": "Composite: the finished frame goes to the screen. gammaAdj brightens by saturating multiply (MilkDrop default is 2); echo layers a zoomed/flipped copy at echoAlpha (0 = off).",
+      "id": "comp",
+      "primitive": "graph",
+      "op": "composite",
+      "ports": {
+        "fGammaAdj":             { "type": "float", "value": 2 },
+        "fVideoEchoZoom":        { "type": "float", "value": 2 },
+        "fVideoEchoAlpha":       { "type": "float", "value": 0 },
+        "nVideoEchoOrientation": { "type": "float", "value": 0 },
+        "in": { "type": "render" }
+      }
+    }
+  ],
+
+  "// edges": "Out->In port connections, 'nodeId.portId' on both ends, types must match.",
+  "edges": [
+    { "out": "warp.out",    "in": "borders.in" },
+    { "out": "borders.out", "in": "comp.in" }
+  ],
+
+  "// expressions": "Programs run by the expression VM. stage per-frame runs once per frame over the variable pool (all float port values by name, plus time/frame/fps/bass/mid/treb). Unknown functions are refused at compile.",
+  "expressions": [
+    {
+      "id": "pulse",
+      "stage": "per-frame",
+      "code": [
+        "ib_g=0.6+0.4*sin(2*time);"
+      ]
+    }
+  ]
+}

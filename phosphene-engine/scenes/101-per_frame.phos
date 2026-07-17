@@ -1,0 +1,179 @@
+{
+  "format": "phos/1",
+  "meta": {
+    "name": "101-per_frame",
+    "sourceEngine": "milkdrop",
+    "source": {
+      "engine": "milkdrop",
+      "file": "101-per_frame.milk",
+      "sha256": "c67614510e18383559ad2ac2a76362ca241a07b865f3ad59731736ae3f7d6ea7"
+    }
+  },
+  "resources": [],
+  "nodes": [
+    {
+      "id": "warp",
+      "primitive": "graph",
+      "op": "warp-feedback",
+      "ports": {
+        "fDecay": {
+          "type": "float",
+          "value": 0.98
+        },
+        "zoom": {
+          "type": "float",
+          "value": 0
+        },
+        "rot": {
+          "type": "float",
+          "value": 0
+        },
+        "warp": {
+          "type": "float",
+          "value": 0
+        },
+        "cx": {
+          "type": "float",
+          "value": 0.5
+        },
+        "cy": {
+          "type": "float",
+          "value": 0.5
+        },
+        "dx": {
+          "type": "float",
+          "value": 0
+        },
+        "dy": {
+          "type": "float",
+          "value": 0
+        },
+        "sx": {
+          "type": "float",
+          "value": 1
+        },
+        "sy": {
+          "type": "float",
+          "value": 1
+        },
+        "fWarpAnimSpeed": {
+          "type": "float",
+          "value": 1
+        },
+        "fWarpScale": {
+          "type": "float",
+          "value": 1
+        },
+        "fZoomExponent": {
+          "type": "float",
+          "value": 1
+        },
+        "out": {
+          "type": "render"
+        }
+      }
+    },
+    {
+      "id": "borders",
+      "primitive": "shader",
+      "op": "borders",
+      "ports": {
+        "ob_size": {
+          "type": "float",
+          "value": 0.2
+        },
+        "ob_r": {
+          "type": "float",
+          "value": 0
+        },
+        "ob_g": {
+          "type": "float",
+          "value": 0
+        },
+        "ob_b": {
+          "type": "float",
+          "value": 0
+        },
+        "ob_a": {
+          "type": "float",
+          "value": 0
+        },
+        "ib_size": {
+          "type": "float",
+          "value": 0.1
+        },
+        "ib_r": {
+          "type": "float",
+          "value": 1
+        },
+        "ib_g": {
+          "type": "float",
+          "value": 0
+        },
+        "ib_b": {
+          "type": "float",
+          "value": 0
+        },
+        "ib_a": {
+          "type": "float",
+          "value": 1
+        },
+        "in": {
+          "type": "render"
+        },
+        "out": {
+          "type": "render"
+        }
+      }
+    },
+    {
+      "id": "comp",
+      "primitive": "graph",
+      "op": "composite",
+      "ports": {
+        "fGammaAdj": {
+          "type": "float",
+          "value": 2
+        },
+        "fVideoEchoZoom": {
+          "type": "float",
+          "value": 2
+        },
+        "fVideoEchoAlpha": {
+          "type": "float",
+          "value": 0
+        },
+        "nVideoEchoOrientation": {
+          "type": "float",
+          "value": 0
+        },
+        "in": {
+          "type": "render"
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "out": "warp.out",
+      "in": "borders.in"
+    },
+    {
+      "out": "borders.out",
+      "in": "comp.in"
+    }
+  ],
+  "expressions": [
+    {
+      "id": "preset-per-frame",
+      "stage": "per-frame",
+      "code": [
+        "ib_r=0.7+0.4*sin(3*time);"
+      ],
+      "comments": [
+        "// one per frame equation",
+        "// varies outer frame color - red only"
+      ]
+    }
+  ]
+}

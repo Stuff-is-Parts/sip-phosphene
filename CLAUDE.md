@@ -42,6 +42,31 @@ in words before editing. (The four-file element-port harness — reference/subje
 mutant/check — lives outside this repo as a development tool; it is not required
 to be present here.)
 
+## Both engines before shared machinery; convert, never emulate
+Shared machinery (timing, audio, rendering, expression semantics — anything
+more than one scene flows through) is derived only after BOTH engines'
+evidence is on the table; deriving from one engine and applying it to all
+scenes is drift. Per PHOSPHENE-GOAL.md (one native execution model, no
+parallel runtimes, behavior represented explicitly in the graph): the native
+substrate is platform APIs (raw frame time, raw audio samples, WebGPU), and
+each source engine's solution CONVERTS into explicit, citable components
+expressed in that substrate — a converted scene carries or references the
+components its behavior depends on. Ambient engine-level switches keyed to a
+scene's source engine are parallel runtimes and are banned. Per behavior,
+assess borrow-vs-modern with both engines' contracts in view: the scene-visible
+contract is non-negotiable; the mechanism beneath it is free to be modern.
+
+## Fix over document — the falsifier test
+A gap may be DOCUMENTED (as a known limit, interim state, or unresolved row)
+ONLY when nothing in the current slice can falsify its closure — no content,
+no editor surface, no check that could catch the fix being wrong. If any
+in-slice surface can catch it, the gap is due work in the current window, not
+a documentation entry. Documenting-instead-of-fixing when the fix costs
+comparable effort is a named failure mode: the documentation performs
+diligence while withholding the work. Before writing any "known limit,"
+apply the test and name the missing falsifier in the entry itself — an entry
+that cannot name one is a fix you are avoiding.
+
 ## Behavior is judged by the human, not the machine
 The user is the frame diff for VISUAL correctness. Do not build a producer-
 controlled universal behavioral-certification system, a frame-diff, or a visual

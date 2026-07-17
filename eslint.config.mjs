@@ -15,6 +15,9 @@ export default tseslint.config(
         setInterval: 'readonly', clearInterval: 'readonly', setTimeout: 'readonly',
         fetch: 'readonly', Blob: 'readonly', URL: 'readonly',
         GPUShaderStage: 'readonly', GPUTextureUsage: 'readonly', GPUBufferUsage: 'readonly',
+        AudioWorkletNode: 'readonly',
+        // AudioWorklet global scope (src/audio/pcm-tap.js)
+        AudioWorkletProcessor: 'readonly', registerProcessor: 'readonly', sampleRate: 'readonly',
         // node
         console: 'readonly', process: 'readonly',
       },

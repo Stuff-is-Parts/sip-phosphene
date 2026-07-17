@@ -1,4 +1,4 @@
 {
-  "entry": ["index.html", "studio.html", "engine-test.html", "check.mjs", "src/**/*.mjs"],
-  "project": ["src/**/*.mjs", "*.mjs"]
+  "entry": ["phosphene-engine/src/**/*.mjs"],
+  "project": ["phosphene-engine/**/*.mjs"]
 }

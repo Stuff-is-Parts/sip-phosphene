@@ -17,5 +17,9 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["phosphene-engine/src/**/*", "phosphene-engine/check.mjs"]
+  "include": ["phosphene-engine/src/**/*", "phosphene-engine/check.mjs"],
+  // pcm-tap.js runs in AudioWorkletGlobalScope, which the DOM lib does not
+  // model (no AudioWorkletProcessor/registerProcessor types); it remains
+  // covered by the syntax and lint gate steps.
+  "exclude": ["phosphene-engine/src/audio/pcm-tap.js"]
 }

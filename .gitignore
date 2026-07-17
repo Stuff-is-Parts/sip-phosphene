@@ -1,4 +1,6 @@
-# Third-party source-engine content — not redistributed via this repo.
-# Everything else under scenes/ (PHOSPHENE-native scenes) is tracked.
-scenes/milkdrop/
-scenes/plane9/
+# Third-party source-engine content (recipes) — not redistributed via this repo.
+# App-native .phos scenes live at phosphene-engine/scenes/ (the Pages deploy root).
+source-scenes/milkdrop/
+source-scenes/plane9/
+
+node_modules/

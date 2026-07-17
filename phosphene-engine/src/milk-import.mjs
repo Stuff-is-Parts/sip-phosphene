@@ -1,38 +1,44 @@
-// .milk importer: source preset -> PHOSPHENE scene IR.
+// .milk importer: source preset -> PHOSPHENE runtime IR.
 // Parses the key=value format (milkdrop2 state.cpp:CState::Import model).
+// REFUSAL DISCIPLINE (PHOSPHENE-GOAL.md): unsupported source content throws
+// naming the line — nothing is silently dropped. Comment-only equation lines
+// are source content and are retained verbatim in expressions.perFrameComments.
 export function importMilk(/** @type {string} */ text) {
   const lines = text.split(/\r?\n/);
   const vars = /** @type {Record<string,number>} */ ({});           // baseline preset variables (defaults + literals)
-  const perFrame = [];       // per_frame_N equations, in order
-  const perVertex = [];      // per_pixel_N equations
+  /** @type {string[]} */ const perFrame = [];       // per_frame_N equations, in order
+  /** @type {string[]} */ const perVertex = [];      // per_pixel_N / per_vertex_N equations
+  /** @type {string[]} */ const perFrameComments = []; // comment-only per_frame lines, verbatim
   for (const raw of lines) {
     const line = raw.trim();
     if (!line || line.startsWith('[')) continue;
     const eq = line.indexOf('=');
-    if (eq < 0) continue;
+    if (eq < 0) throw new Error(`importMilk: line without '=' is not supported: "${line}"`);
     const key = line.slice(0, eq).trim();
     const val = line.slice(eq + 1);
     if (/^per_frame_\d+$/.test(key)) {
       const code = val.replace(/\/\/.*$/, '').trim();
       if (code) perFrame.push(code);
+      else if (val.trim()) perFrameComments.push(val.trim());
     } else if (/^per_pixel_\d+$/.test(key) || /^per_vertex_\d+$/.test(key)) {
       const code = val.replace(/\/\/.*$/, '').trim();
       if (code) perVertex.push(code);
-    } else if (!key.startsWith('per_frame') && !key.startsWith('per_pixel')) {
+    } else if (key.startsWith('per_frame') || key.startsWith('per_pixel') || key.startsWith('per_vertex')) {
+      // per_frame_init_N, per_pixel_init_N, malformed indices — real preset
+      // content this importer does not yet support. Refuse, never drop.
+      throw new Error(`importMilk: unsupported equation key "${key}" — extend the importer before converting this preset`);
+    } else {
       const num = parseFloat(val);
-      if (!Number.isNaN(num)) vars[key] = num;
+      if (Number.isNaN(num)) throw new Error(`importMilk: non-numeric value for "${key}" (${JSON.stringify(val)}) — unsupported, refusing rather than dropping`);
+      vars[key] = num;
     }
   }
-  // Emit the scene IR: a graph with one warp/feedback pass + composite,
-  // driven by the expression programs. (SCENE-ANATOMY structure.)
   return {
     format: 'phos/1',
     vars,
-    expressions: { perFrame, perVertex },
-    // NOTE: this is a DESCRIPTOR of the fixed MilkDrop pipeline for display in
-    // the studio. It is NOT yet an executable graph — the engine currently runs
-    // the pipeline directly (engine.mjs), not by traversing these nodes. Making
-    // the engine execute the graph is pending work (see PHOSPHENE-GOAL.md).
+    expressions: { perFrame, perVertex, perFrameComments },
+    // Legacy display descriptor. The .phos scene graph (src/phos.mjs) is the
+    // authoritative structure; this remains only for the check's import path.
     pipelineDescriptor: [
       { id: 'warp', stage: 'warp-feedback' },
       { id: 'comp', stage: 'composite' },

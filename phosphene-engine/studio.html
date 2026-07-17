@@ -37,9 +37,13 @@
   <div class="row">
     <button id="play">⏸ Pause</button>
     <button id="reset">↺ Reset</button>
-    <button id="save">⭳ Save .milk</button>
+    <button id="savePhos">⭳ Save .phos</button>
+    <button id="save">⭳ Export .milk</button>
+    <button id="newScene">✦ New</button>
     <a href="./index.html" style="margin-left:auto;font-size:11px;letter-spacing:.06em;padding:5px 10px;background:var(--edge);border:1px solid #4a4020;color:#f2d97d;text-decoration:none;border-radius:4px">← PLAYER</a>
   </div>
+  <h2>Metadata</h2>
+  <div id="metaEdit"></div>
   <h2>Graph (IR)</h2>
   <div id="graph"></div>
   <h2>Per-frame equations</h2>
@@ -49,19 +53,47 @@
   <div id="vars"></div>
 </div>
 <script type="module">
-import { importMilk } from './src/milk-import.mjs';
-import { Engine } from './src/engine.mjs';
-import { feedbackWGSL } from './src/render-wgsl.mjs';
+import { parsePhos, toRuntime, serializePhos, updateScene } from './src/phos.mjs';
+import { Engine, CONSUMED_PORTS } from './src/engine.mjs';
+import { feedbackWGSL, compositeWGSL } from './src/render-wgsl.mjs';
 
-// ---- load content ----
-let presetText = await (await fetch('./101-per_frame.milk')).text();
-let scene = importMilk(presetText);
-const engine = new Engine(scene);
+// ---- load content (native .phos scene; .milk remains an export format) ----
+const sceneText = await (await fetch('./scenes/101-per_frame.phos')).text();
+let sceneDoc = parsePhos(sceneText);        // the durable scene document
+let scene = toRuntime(sceneDoc);            // flattened runtime IR the engine consumes
+let engine = new Engine(scene);
+
+// swap in a different scene document (template button, future file-open)
+function applyScene(doc){
+  sceneDoc = doc; scene = toRuntime(doc); engine = new Engine(scene);
+  renderGraph(); renderMetaInputs();
+  eqEl.value = scene.expressions.perFrame.join('\n');
+  document.getElementById('meta').textContent = scene.meta.name + ' · ' + scene.expressions.perFrame.length + ' per-frame eq · ' + Object.keys(scene.vars).length + ' vars';
+  setDirty(false);
+}
 let dirty = false;
 const setDirty = v => { dirty = v; document.getElementById('dirty').innerHTML = v ? '<span class="dirty-dot">● modified</span>' : ''; };
 
-// ---- metadata ----
-document.getElementById('meta').textContent = 'preset00 · ' + scene.expressions.perFrame.length + ' per-frame eq · ' + Object.keys(scene.vars).length + ' vars';
+// ---- metadata (view + edit — VSLICE-MOSCOW metadata editing) ----
+document.getElementById('meta').textContent = scene.meta.name + ' · ' + scene.expressions.perFrame.length + ' per-frame eq · ' + Object.keys(scene.vars).length + ' vars';
+const metaEl = document.getElementById('metaEdit');
+function renderMetaInputs(){
+  metaEl.innerHTML = '';
+  for (const key of ['name','author','description']) {
+    const p = document.createElement('div'); p.className = 'port';
+    p.innerHTML = `<label>${key}</label>`;
+    const inp = document.createElement('input'); inp.type = 'text';
+    inp.value = typeof sceneDoc.meta[key] === 'string' ? sceneDoc.meta[key] : '';
+    inp.addEventListener('change', () => { sceneDoc.meta[key] = inp.value; setDirty(true); });
+    p.append(inp); metaEl.append(p);
+  }
+}
+renderMetaInputs();
+
+// ---- new scene from the commented template (VSLICE-MOSCOW template UI) ----
+document.getElementById('newScene').onclick = async () => {
+  applyScene(parsePhos(await (await fetch('./scenes/TEMPLATE.phos')).text()));
+};
 
 // ---- render the IR as a node graph (MUST: show IR, ports, values) ----
 const graphEl = document.getElementById('graph');
@@ -70,24 +102,35 @@ function renderGraph() {
   for (const node of scene.pipelineDescriptor) {
     const n = document.createElement('div'); n.className = 'node';
     n.innerHTML = `<div class="node-h">${node.id}<span class="prim">${node.stage}</span></div>`;
-    // show the vars this node consumes as editable ports
-    const portsForNode = node.id === 'warp'
-      ? ['fDecay','zoom','rot','warp','ib_size','ib_r','ib_g','ib_b','ib_a','ob_size','ob_r','ob_g','ob_b','ob_a']
-      : [];
+    // ports come from the scene graph itself (no hardcoded list): the
+    // descriptor carries each node's value-carrying port names from the .phos
+    const portsForNode = node.ports;
     for (const key of portsForNode) {
       if (!(key in scene.vars)) continue;
       const p = document.createElement('div'); p.className = 'port';
       p.innerHTML = `<label>${key}</label>`;
       const inp = document.createElement('input'); inp.type = 'text'; inp.value = scene.vars[key]; inp.dataset.key = key;
-      inp.addEventListener('change', () => {
-        const val = parseFloat(inp.value);
-        if (!Number.isNaN(val)) { engine.setVar(key, val); setDirty(true); }
-      });
+      if (CONSUMED_PORTS.includes(key)) {
+        inp.addEventListener('change', () => {
+          const val = parseFloat(inp.value);
+          if (!Number.isNaN(val)) { engine.setVar(key, val); setDirty(true); }
+        });
+      } else {
+        // honest marking: this port is parsed and pooled but nothing in the
+        // current fixed pipeline renders it — an edit would silently do nothing
+        inp.disabled = true;
+        inp.title = 'parsed, not yet executed by the render pipeline';
+        p.style.opacity = '0.45';
+      }
       const live = document.createElement('span'); live.className = 'live'; live.dataset.live = key;
       p.append(inp, live); n.append(p);
     }
     graphEl.append(n);
   }
+  // wiring (MUST: nodes + ports + wiring) — the scene's edges, verbatim
+  const w = document.createElement('div'); w.className = 'meta';
+  w.textContent = scene.edges.map(e => `${e.out} → ${e.in}`).join('   ·   ');
+  graphEl.append(w);
 }
 renderGraph();
 
@@ -105,7 +148,18 @@ eqEl.addEventListener('change', () => {
 let playing = true;
 document.getElementById('play').onclick = e => { playing = !playing; e.target.textContent = playing ? '⏸ Pause' : '▶ Play'; };
 document.getElementById('reset').onclick = () => { engine.reset(); setDirty(false); };
-// ---- save (+1C) ----
+// ---- save .phos (MUST: native save — VSLICE-MOSCOW) ----
+document.getElementById('savePhos').onclick = async () => {
+  const eqLines = eqEl.value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const out = serializePhos(updateScene(sceneDoc, scene.vars, eqLines));
+  const blob = new Blob([out], {type:'application/json'});
+  const name = (scene.meta.name || 'scene') + '.phos';
+  if (window.showSaveFilePicker) {
+    try { const h = await showSaveFilePicker({suggestedName:name}); const w = await h.createWritable(); await w.write(blob); await w.close(); setDirty(false); }
+    catch(e){ /* cancelled */ }
+  } else { const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setDirty(false); }
+};
+// ---- export .milk (share back to source format) ----
 document.getElementById('save').onclick = async () => {
   const out = serializeMilk(scene, eqEl.value);
   const blob = new Blob([out], {type:'text/plain'});
@@ -136,17 +190,13 @@ else {
   resize(); addEventListener('resize',resize);
   ctx.configure({device,format:fmt,alphaMode:'opaque'});
   const mod = device.createShaderModule({code:feedbackWGSL});
-  const blitMod = device.createShaderModule({code:`
-    @vertex fn vs(@builtin(vertex_index) i:u32)->@builtin(position) vec4<f32>{
-      var p=array<vec2<f32>,3>(vec2(-1.,-3.),vec2(-1.,1.),vec2(3.,1.)); return vec4(p[i],0.,1.);}
-    @group(0) @binding(0) var t:texture_2d<f32>; @group(0) @binding(1) var s:sampler;
-    @fragment fn fs(@builtin(position) c:vec4<f32>)->@location(0) vec4<f32>{
-      let d=vec2<f32>(f32(textureDimensions(t).x),f32(textureDimensions(t).y)); return textureSample(t,s,c.xy/d);}`});
+  const blitMod = device.createShaderModule({code:compositeWGSL});
   const W=1024,H=1024,U=GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING;
   let tA=device.createTexture({size:[W,H],format:'rgba8unorm',usage:U});
   let tB=device.createTexture({size:[W,H],format:'rgba8unorm',usage:U});
-  const samp=device.createSampler({magFilter:'linear',minFilter:'linear'});
-  const ubuf=device.createBuffer({size:48,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+  const samp=device.createSampler({magFilter:'linear',minFilter:'linear',addressModeU:'repeat',addressModeV:'repeat'});
+  const ubuf=device.createBuffer({size:112,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+  const cbuf=device.createBuffer({size:32,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
   const bgl=device.createBindGroupLayout({entries:[
     {binding:0,visibility:GPUShaderStage.FRAGMENT,texture:{}},
     {binding:1,visibility:GPUShaderStage.FRAGMENT,sampler:{}},
@@ -160,13 +210,17 @@ else {
     const dt=Math.min(0.05,(now-last)/1000); last=now;
     if(playing){
       const st=engine.step(dt,{bass:1,mid:1,treb:1});
-      const u=new Float32Array([st.decay,st.innerBox.size,st.innerBox.r,st.innerBox.g,st.innerBox.b,st.innerBox.a,st.outerBox.size,st.outerBox.r,st.outerBox.g,st.outerBox.b,st.outerBox.a,0]);
+      const m=st.motion,ib=st.innerBox,ob=st.outerBox;
+      const u=new Float32Array([m.decay,ib.size,ib.r,ib.g,ib.b,ib.a,ob.size,ob.r,ob.g,ob.b,ob.a,m.zoom,m.zoomExp,m.rot,m.warp,m.cx,m.cy,m.dx,m.dy,m.sx,m.sy,m.warpTime,m.warpScaleInv,m.f0,m.f1,m.f2,m.f3,0]);
       device.queue.writeBuffer(ubuf,0,u);
       const bg=device.createBindGroup({layout:bgl,entries:[{binding:0,resource:tA.createView()},{binding:1,resource:samp},{binding:2,resource:{buffer:ubuf}}]});
       const enc=device.createCommandEncoder();
       let rp=enc.beginRenderPass({colorAttachments:[{view:tB.createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
       rp.setPipeline(pipe);rp.setBindGroup(0,bg);rp.draw(3);rp.end();
-      const bbg=device.createBindGroup({layout:blitPipe.getBindGroupLayout(0),entries:[{binding:0,resource:tB.createView()},{binding:1,resource:samp}]});
+      const aspect=canvas.width/canvas.height;
+      const cx2=(aspect>1?1:1/aspect)*(1+1/canvas.width), cy2=(aspect>1?aspect:1)*(1+1/canvas.height);
+      device.queue.writeBuffer(cbuf,0,new Float32Array([st.comp.gamma,st.comp.echoAlpha,st.comp.echoZoom,st.comp.echoOrient,cx2,cy2,0,0]));
+      const bbg=device.createBindGroup({layout:blitPipe.getBindGroupLayout(0),entries:[{binding:0,resource:tB.createView()},{binding:1,resource:samp},{binding:2,resource:{buffer:cbuf}}]});
       rp=enc.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
       rp.setPipeline(blitPipe);rp.setBindGroup(0,bbg);rp.draw(3);rp.end();
       device.queue.submit([enc.finish()]);

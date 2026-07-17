@@ -1,25 +1,30 @@
-// Audio input — demo/mic/file sources feeding an AnalyserNode.
-// Lifted from the prior build (engine-independent). Drives the Analysis class.
+// Audio input — demo/mic/file sources feeding the pcm-tap AudioWorklet, which
+// streams every sample block to Analysis.addSamples (the PCM::AddToBuffer
+// model — see analysis.mjs). No AnalyserNode: the analysis chain is the
+// derived MilkDrop FFT, not the browser's. If AudioWorklet is unavailable the
+// source refuses to start rather than silently degrading.
 import { Analysis } from './analysis.mjs';
 
 export class AudioEngine {
   analysis = new Analysis();
   source = 'none';
-  label = 'no source — idle signal';
+  label = 'no source';
   /** @type {AudioContext|null} */ #ctx = null;
-  /** @type {AnalyserNode|null} */ #analyser = null;
+  /** @type {AudioWorkletNode|null} */ #tap = null;
   /** @type {AudioNode[]} */ #demoNodes = [];
   /** @type {ReturnType<typeof setInterval>|null} */ #demoTimer = null;
   /** @type {MediaStream|null} */ #micStream = null;
   /** @type {AudioBufferSourceNode|null} */ #fileSrc = null;
 
-  /** @returns {AudioContext} */ #ensure() {
+  /** @returns {Promise<AudioContext>} */ async #ensure() {
     if (!this.#ctx) {
-      this.#ctx = new AudioContext();
-      this.#analyser = this.#ctx.createAnalyser();
-      this.#analyser.fftSize = 2048;
-      this.#analyser.smoothingTimeConstant = 0.72;
-      this.analysis.attach(this.#analyser);
+      const ctx = new AudioContext();
+      if (!ctx.audioWorklet) throw new Error('AudioWorklet unavailable — refusing to run without the derived PCM tap');
+      await ctx.audioWorklet.addModule(new URL('./pcm-tap.js', import.meta.url));
+      const tap = new AudioWorkletNode(ctx, 'pcm-tap');
+      tap.port.onmessage = (e) => this.analysis.addSamples(e.data.l, e.data.r);
+      tap.connect(ctx.destination); // silent output; keeps the node processing
+      this.#ctx = ctx; this.#tap = tap;
     }
     if (this.#ctx.state === 'suspended') void this.#ctx.resume();
     return this.#ctx;
@@ -35,14 +40,13 @@ export class AudioEngine {
     this.#micStream = null;
     try { this.#fileSrc?.stop(); } catch { /* not started */ }
     this.#fileSrc = null;
-    try { this.#analyser?.disconnect(); } catch { /* detached */ }
   }
-  startDemo() {
-    const ctx = this.#ensure(); this.#stopAll();
-    const analyser = this.#analyser;
-    if (!analyser) return;
+  async startDemo() {
+    const ctx = await this.#ensure(); this.#stopAll();
+    const tap = this.#tap;
+    if (!tap) return;
     const out = ctx.createGain(); out.gain.value = 0.8;
-    out.connect(analyser); analyser.connect(ctx.destination);
+    out.connect(tap); out.connect(ctx.destination);
     this.#demoNodes.push(out);
     const padF = ctx.createBiquadFilter();
     padF.type = 'lowpass'; padF.frequency.value = 600; padF.Q.value = 2;
@@ -91,18 +95,19 @@ export class AudioEngine {
     this.source = 'demo'; this.label = 'internal demo · 124 bpm';
   }
   async startMic() {
-    const ctx = this.#ensure();
+    const ctx = await this.#ensure();
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false } });
     this.#stopAll(); this.#micStream = stream;
-    if (this.#analyser) ctx.createMediaStreamSource(stream).connect(this.#analyser);
+    if (this.#tap) ctx.createMediaStreamSource(stream).connect(this.#tap);
     this.source = 'mic'; this.label = 'microphone input';
   }
   async playFile(/** @type {File} */ file) {
-    const ctx = this.#ensure();
+    const ctx = await this.#ensure();
     const buf = await ctx.decodeAudioData(await file.arrayBuffer());
     this.#stopAll();
     const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
-    if (this.#analyser) { src.connect(this.#analyser); this.#analyser.connect(ctx.destination); } src.start();
+    if (this.#tap) { src.connect(this.#tap); src.connect(ctx.destination); }
+    src.start();
     this.#fileSrc = src; this.source = 'file'; this.label = '♪ ' + file.name;
   }
 }

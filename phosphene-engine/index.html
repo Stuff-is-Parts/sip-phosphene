@@ -27,7 +27,6 @@ kbd{border:1px solid var(--line);padding:0 5px;border-radius:2px;font-size:10px}
 #src{font-size:10px;color:var(--dim)}
 .btnlink{font-size:11px;letter-spacing:.06em;padding:6px 10px;background:rgba(22,20,36,.8);border:1px solid #4a4020;color:var(--gold);text-decoration:none;border-radius:2px}
 .btnlink:hover{border-color:var(--gold)}
-#beatDot{width:8px;height:8px;border-radius:50%;background:var(--accent);opacity:.15;display:inline-block}
 #dropOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:30;background:rgba(5,5,8,.8);border:2px dashed var(--accent);color:var(--accent);letter-spacing:.2em}
 </style></head>
 <body>
@@ -42,12 +41,22 @@ kbd{border:1px solid var(--line);padding:0 5px;border-radius:2px;font-size:10px}
     <button id="bMic">USE MICROPHONE</button>
   </div>
   <div class="err" id="err"></div>
-  <div class="hint"><kbd>SPACE</kbd> pause · <kbd>F</kbd> fullscreen · <kbd>H</kbd> hide interface · drop an audio file anytime</div>
+  <div class="hint"><kbd>SPACE</kbd> pause · <kbd>F</kbd> fullscreen · <kbd>H</kbd> hide interface · <kbd>F1</kbd> help · drop an audio or .phos file anytime</div>
+</div>
+<div id="help" style="display:none;position:fixed;inset:0;z-index:40;background:rgba(5,5,8,.94);padding:60px;font-size:13px;line-height:2.2">
+  <div style="letter-spacing:.2em;color:var(--accent);margin-bottom:14px">PHOSPHENE — HELP</div>
+  <div><kbd>SPACE</kbd> play / pause</div>
+  <div><kbd>F</kbd> fullscreen</div>
+  <div><kbd>H</kbd> hide / show interface</div>
+  <div><kbd>F1</kbd> this help</div>
+  <div>drop an audio file to play it · drop a <b>.phos</b> scene file to load it</div>
+  <div style="margin-top:14px;color:var(--dim)">STUDIO edits the scene live — button in the lower right.</div>
 </div>
 <div id="hud" class="hidden">
   <div class="stack"><div id="sceneName">101-per_frame</div><div id="src">—</div></div>
   <div class="stack right"><div class="row">
-    <span id="beatDot"></span><span id="bpm" style="font-size:10px;color:var(--dim)">— BPM</span>
+    <span id="bass" style="font-size:10px;color:var(--dim)">bass —</span>
+    <span id="pfps" style="font-size:10px;color:var(--dim)">— fps</span>
     <button id="hPause">⏸</button><button id="hFull">⛶</button>
     <a class="btnlink" href="./studio.html">OPEN STUDIO →</a>
   </div></div>
@@ -55,14 +64,23 @@ kbd{border:1px solid var(--line);padding:0 5px;border-radius:2px;font-size:10px}
 <div id="dropOverlay">DROP AUDIO FILE TO PLAY</div>
 <input type="file" id="file" accept="audio/*" hidden>
 <script type="module">
-import { importMilk } from './src/milk-import.mjs';
+import { parsePhos, toRuntime } from './src/phos.mjs';
 import { Engine } from './src/engine.mjs';
-import { feedbackWGSL } from './src/render-wgsl.mjs';
+import { feedbackWGSL, compositeWGSL } from './src/render-wgsl.mjs';
 import { AudioEngine } from './src/audio/sources.mjs';
 
 const audio = new AudioEngine();
-const presetText = await (await fetch('./101-per_frame.milk')).text();
-const engine = new Engine(importMilk(presetText));
+const sceneText = await (await fetch('./scenes/101-per_frame.phos')).text();
+let engine = new Engine(toRuntime(parsePhos(sceneText)));
+
+// open a .phos scene from disk (MUST: portable load — VSLICE-MOSCOW)
+function loadSceneFile(/* File */ f){
+  f.text().then(text => {
+    const rt = toRuntime(parsePhos(text));
+    engine = new Engine(rt);
+    document.getElementById('sceneName').textContent = rt.meta.name;
+  }).catch(e => { err.textContent = 'scene load failed: ' + e.message; });
+}
 
 const splash = document.getElementById('splash');
 const hud = document.getElementById('hud');
@@ -86,7 +104,7 @@ document.getElementById('file').onchange = e => { const f=e.target.files[0]; if(
 // drag-drop audio
 addEventListener('dragover', e=>{e.preventDefault();document.getElementById('dropOverlay').style.display='flex';});
 addEventListener('dragleave', ()=>document.getElementById('dropOverlay').style.display='none');
-addEventListener('drop', e=>{e.preventDefault();document.getElementById('dropOverlay').style.display='none';const f=e.dataTransfer.files[0];if(f&&f.type.startsWith('audio'))begin(()=>audio.playFile(f));});
+addEventListener('drop', e=>{e.preventDefault();document.getElementById('dropOverlay').style.display='none';const f=e.dataTransfer.files[0];if(!f)return;if(f.name.endsWith('.phos'))loadSceneFile(f);else if(f.type.startsWith('audio'))begin(()=>audio.playFile(f));});
 
 // keyboard
 let playing = true, uiHidden = false;
@@ -94,6 +112,8 @@ addEventListener('keydown', e=>{
   if(e.key===' '){e.preventDefault();playing=!playing;}
   else if(e.key==='f'||e.key==='F'){ if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen(); }
   else if(e.key==='h'||e.key==='H'){ uiHidden=!uiHidden; hud.classList.toggle('hidden',uiHidden); }
+  else if(e.key==='F1'){ e.preventDefault(); const h=document.getElementById('help'); h.style.display=h.style.display==='none'?'block':'none'; }
+  else if(e.key==='Escape'){ document.getElementById('help').style.display='none'; }
 });
 document.getElementById('hPause').onclick=()=>playing=!playing;
 document.getElementById('hFull').onclick=()=>{if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();};
@@ -110,17 +130,14 @@ function initGPU(){
     resize();addEventListener('resize',resize);
     ctx.configure({device,format:fmt,alphaMode:'opaque'});
     const mod=device.createShaderModule({code:feedbackWGSL});
-    const blitMod=device.createShaderModule({code:`
-      @vertex fn vs(@builtin(vertex_index) i:u32)->@builtin(position) vec4<f32>{
-        var p=array<vec2<f32>,3>(vec2(-1.,-3.),vec2(-1.,1.),vec2(3.,1.));return vec4(p[i],0.,1.);}
-      @group(0) @binding(0) var t:texture_2d<f32>;@group(0) @binding(1) var s:sampler;
-      @fragment fn fs(@builtin(position) c:vec4<f32>)->@location(0) vec4<f32>{
-        let d=vec2<f32>(f32(textureDimensions(t).x),f32(textureDimensions(t).y));return textureSample(t,s,c.xy/d);}`});
+    const blitMod=device.createShaderModule({code:compositeWGSL});
     const W=1024,H=1024,U=GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING;
     let tA=device.createTexture({size:[W,H],format:'rgba8unorm',usage:U});
     let tB=device.createTexture({size:[W,H],format:'rgba8unorm',usage:U});
-    const samp=device.createSampler({magFilter:'linear',minFilter:'linear'});
-    const ubuf=device.createBuffer({size:48,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+    // WRAP addressing per the source's sampler states (milkdropfs.cpp:976-981)
+    const samp=device.createSampler({magFilter:'linear',minFilter:'linear',addressModeU:'repeat',addressModeV:'repeat'});
+    const ubuf=device.createBuffer({size:112,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+    const cbuf=device.createBuffer({size:32,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
     const bgl=device.createBindGroupLayout({entries:[
       {binding:0,visibility:GPUShaderStage.FRAGMENT,texture:{}},
       {binding:1,visibility:GPUShaderStage.FRAGMENT,sampler:{}},
@@ -128,27 +145,34 @@ function initGPU(){
     const pipe=device.createRenderPipeline({layout:device.createPipelineLayout({bindGroupLayouts:[bgl]}),
       vertex:{module:mod,entryPoint:'vs'},fragment:{module:mod,entryPoint:'fs',targets:[{format:'rgba8unorm'}]},primitive:{topology:'triangle-list'}});
     const blitPipe=device.createRenderPipeline({layout:'auto',vertex:{module:blitMod,entryPoint:'vs'},fragment:{module:blitMod,entryPoint:'fs',targets:[{format:fmt}]},primitive:{topology:'triangle-list'}});
-    const beatDot=document.getElementById('beatDot'), bpmEl=document.getElementById('bpm');
-    let last=performance.now();
+    const bassEl=document.getElementById('bass'), fpsEl=document.getElementById('pfps');
+    let last=performance.now(),fpsAcc=0,fpsN=0;
     function frame(now){
       const dt=Math.min(0.05,(now-last)/1000);last=now;
-      audio.analysis.update(now/1000);
+      audio.analysis.update(dt);
       if(playing){
         const a=audio.analysis;
-        const st=engine.step(dt,{bass:0.5+a.bass*2,mid:0.5+a.mid*2,treb:0.5+a.treble*2});
-        const u=new Float32Array([st.decay,st.innerBox.size,st.innerBox.r,st.innerBox.g,st.innerBox.b,st.innerBox.a,st.outerBox.size,st.outerBox.r,st.outerBox.g,st.outerBox.b,st.outerBox.a,0]);
+        // derived relative-loudness values pass straight to the pool — no scaling
+        // belongs between analyzer and engine (sources/AUDIO-PATH.md implication 1)
+        const st=engine.step(dt,{bass:a.bass,mid:a.mid,treb:a.treb,bass_att:a.bassAtt,mid_att:a.midAtt,treb_att:a.trebAtt,vol:a.vol,vol_att:a.volAtt});
+        const m=st.motion,ib=st.innerBox,ob=st.outerBox;
+        const u=new Float32Array([m.decay,ib.size,ib.r,ib.g,ib.b,ib.a,ob.size,ob.r,ob.g,ob.b,ob.a,m.zoom,m.zoomExp,m.rot,m.warp,m.cx,m.cy,m.dx,m.dy,m.sx,m.sy,m.warpTime,m.warpScaleInv,m.f0,m.f1,m.f2,m.f3,0]);
         device.queue.writeBuffer(ubuf,0,u);
         const bg=device.createBindGroup({layout:bgl,entries:[{binding:0,resource:tA.createView()},{binding:1,resource:samp},{binding:2,resource:{buffer:ubuf}}]});
         const enc=device.createCommandEncoder();
         let rp=enc.beginRenderPass({colorAttachments:[{view:tB.createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
         rp.setPipeline(pipe);rp.setBindGroup(0,bg);rp.draw(3);rp.end();
-        const bbg=device.createBindGroup({layout:blitPipe.getBindGroupLayout(0),entries:[{binding:0,resource:tB.createView()},{binding:1,resource:samp}]});
+        // composite crop factors per milkdropfs.cpp:4089-4114 (square texture => InvAspectY=1)
+        const aspect=canvas.width/canvas.height;
+        const cx2=(aspect>1?1:1/aspect)*(1+1/canvas.width), cy2=(aspect>1?aspect:1)*(1+1/canvas.height);
+        device.queue.writeBuffer(cbuf,0,new Float32Array([st.comp.gamma,st.comp.echoAlpha,st.comp.echoZoom,st.comp.echoOrient,cx2,cy2,0,0]));
+        const bbg=device.createBindGroup({layout:blitPipe.getBindGroupLayout(0),entries:[{binding:0,resource:tB.createView()},{binding:1,resource:samp},{binding:2,resource:{buffer:cbuf}}]});
         rp=enc.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
         rp.setPipeline(blitPipe);rp.setBindGroup(0,bbg);rp.draw(3);rp.end();
         device.queue.submit([enc.finish()]);
         [tA,tB]=[tB,tA];
-        beatDot.style.opacity=(0.15+a.beat*0.85).toFixed(2);
-        if(a.bpm)bpmEl.textContent=a.bpm+' BPM';
+        bassEl.textContent='bass '+a.bass.toFixed(2);
+        fpsAcc+=1/dt;fpsN++; if(fpsN>=15){fpsEl.textContent=Math.round(fpsAcc/fpsN)+' fps';fpsAcc=0;fpsN=0;}
       }
       requestAnimationFrame(frame);
     }
