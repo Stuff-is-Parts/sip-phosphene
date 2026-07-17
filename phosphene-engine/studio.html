@@ -1,0 +1,184 @@
+<!doctype html><html><head><meta charset="utf-8"><title>PHOSPHENE Studio</title>
+<style>
+  :root{--bg:#0b0d10;--panel:#14181d;--edge:#232a31;--fg:#c9d3dd;--dim:#6b7885;--accent:#4ea1ff;--good:#3ddc84}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.4 ui-monospace,monospace;height:100vh;display:grid;grid-template-columns:1fr 380px;overflow:hidden}
+  #stage{position:relative;background:#000}
+  canvas{width:100%;height:100%;display:block}
+  #hud{position:absolute;top:8px;left:8px;color:var(--dim);font-size:11px}
+  #hud b{color:var(--good)}
+  #panel{background:var(--panel);border-left:1px solid var(--edge);overflow-y:auto;padding:12px}
+  h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:16px 0 8px;font-weight:600}
+  h2:first-child{margin-top:0}
+  .node{border:1px solid var(--edge);border-radius:6px;margin-bottom:8px;background:#0f1317}
+  .node-h{padding:6px 8px;border-bottom:1px solid var(--edge);color:var(--accent);font-weight:600;display:flex;justify-content:space-between}
+  .node-h .prim{color:var(--dim);font-weight:400;font-size:10px}
+  .port{display:flex;align-items:center;padding:3px 8px;gap:6px}
+  .port label{color:var(--dim);width:78px;flex:none;font-size:11px}
+  .port input{background:#0b0d10;border:1px solid var(--edge);color:var(--fg);border-radius:3px;padding:2px 5px;width:100%;font:inherit}
+  .port input:focus{outline:none;border-color:var(--accent)}
+  .live{color:var(--good);width:64px;flex:none;text-align:right;font-variant-numeric:tabular-nums}
+  .eq{width:100%;background:#0b0d10;border:1px solid var(--edge);color:var(--fg);border-radius:3px;padding:6px;font:inherit;resize:vertical;min-height:52px}
+  .eq.dirty{border-color:var(--accent)}
+  .row{display:flex;gap:8px;align-items:center;margin:6px 0}
+  button{background:var(--edge);color:var(--fg);border:1px solid #2c3540;border-radius:4px;padding:5px 10px;cursor:pointer;font:inherit}
+  button:hover{border-color:var(--accent)}
+  .meta{color:var(--dim);font-size:11px}
+  .meta .dirty-dot{color:var(--accent)}
+  #vars{font-size:11px}
+  #vars .v{display:flex;justify-content:space-between;padding:1px 0;color:var(--dim)}
+  #vars .v b{color:var(--fg);font-weight:400;font-variant-numeric:tabular-nums}
+</style></head>
+<body>
+<div id="stage"><canvas id="c"></canvas><div id="hud">PHOSPHENE Studio · <b id="fps">0</b> fps · frame <b id="fr">0</b></div></div>
+<div id="panel">
+  <h2>Scene <span id="dirty" class="meta"></span></h2>
+  <div class="meta" id="meta"></div>
+  <div class="row">
+    <button id="play">⏸ Pause</button>
+    <button id="reset">↺ Reset</button>
+    <button id="save">⭳ Save .milk</button>
+  </div>
+  <h2>Graph (IR)</h2>
+  <div id="graph"></div>
+  <h2>Per-frame equations</h2>
+  <textarea id="eq" class="eq" spellcheck="false"></textarea>
+  <div class="meta" id="eqstatus"></div>
+  <h2>Live variables</h2>
+  <div id="vars"></div>
+</div>
+<script type="module">
+import { importMilk } from './src/milk-import.mjs';
+import { Engine } from './src/engine.mjs';
+import { feedbackWGSL } from './src/render-wgsl.mjs';
+
+// ---- load content ----
+let presetText = await (await fetch('./101-per_frame.milk')).text();
+let scene = importMilk(presetText);
+const engine = new Engine(scene);
+let dirty = false;
+const setDirty = v => { dirty = v; document.getElementById('dirty').innerHTML = v ? '<span class="dirty-dot">● modified</span>' : ''; };
+
+// ---- metadata ----
+document.getElementById('meta').textContent = 'preset00 · ' + scene.expressions.perFrame.length + ' per-frame eq · ' + Object.keys(scene.vars).length + ' vars';
+
+// ---- render the IR as a node graph (MUST: show IR, ports, values) ----
+const graphEl = document.getElementById('graph');
+function renderGraph() {
+  graphEl.innerHTML = '';
+  for (const node of scene.nodes) {
+    const n = document.createElement('div'); n.className = 'node';
+    n.innerHTML = `<div class="node-h">${node.id}<span class="prim">${node.primitive}·${node.op}</span></div>`;
+    // show the vars this node consumes as editable ports
+    const portsForNode = node.id === 'warp'
+      ? ['fDecay','zoom','rot','warp','ib_size','ib_r','ib_g','ib_b','ib_a','ob_size','ob_r','ob_g','ob_b','ob_a']
+      : [];
+    for (const key of portsForNode) {
+      if (!(key in scene.vars)) continue;
+      const p = document.createElement('div'); p.className = 'port';
+      p.innerHTML = `<label>${key}</label>`;
+      const inp = document.createElement('input'); inp.type = 'text'; inp.value = scene.vars[key]; inp.dataset.key = key;
+      inp.addEventListener('change', () => {
+        const val = parseFloat(inp.value);
+        if (!Number.isNaN(val)) { engine.setVar(key, val); setDirty(true); }
+      });
+      const live = document.createElement('span'); live.className = 'live'; live.dataset.live = key;
+      p.append(inp, live); n.append(p);
+    }
+    graphEl.append(n);
+  }
+}
+renderGraph();
+
+// ---- equation editor (MUST: edit equation live) ----
+const eqEl = document.getElementById('eq');
+eqEl.value = scene.expressions.perFrame.join('\n');
+eqEl.addEventListener('input', () => { eqEl.classList.add('dirty'); setDirty(true); });
+eqEl.addEventListener('change', () => {
+  const src = eqEl.value.split('\n').map(s=>s.trim()).filter(Boolean);
+  try { engine.recompile(src); document.getElementById('eqstatus').textContent = 'compiled ✓'; document.getElementById('eqstatus').style.color='var(--good)'; eqEl.classList.remove('dirty'); }
+  catch(err){ document.getElementById('eqstatus').textContent = 'error: '+err.message; document.getElementById('eqstatus').style.color='#ff6b6b'; }
+});
+
+// ---- transport (MUST: play/pause) ----
+let playing = true;
+document.getElementById('play').onclick = e => { playing = !playing; e.target.textContent = playing ? '⏸ Pause' : '▶ Play'; };
+document.getElementById('reset').onclick = () => { engine.reset(); setDirty(false); };
+// ---- save (+1C) ----
+document.getElementById('save').onclick = async () => {
+  const out = serializeMilk(scene, eqEl.value);
+  const blob = new Blob([out], {type:'text/plain'});
+  if (window.showSaveFilePicker) {
+    try { const h = await showSaveFilePicker({suggestedName:'edited.milk'}); const w = await h.createWritable(); await w.write(blob); await w.close(); setDirty(false); }
+    catch(e){ /* cancelled */ }
+  } else { const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='edited.milk'; a.click(); setDirty(false); }
+};
+function serializeMilk(scene, eqText) {
+  let s = '[preset00]\n';
+  const eqs = eqText.split('\n').map(x=>x.trim()).filter(Boolean);
+  eqs.forEach((e,i)=> s += `per_frame_${i+1}=${e}\n`);
+  s += '\n';
+  for (const [k,v] of Object.entries(scene.vars)) s += `${k}=${v}\n`;
+  return s;
+}
+
+// ---- WebGPU render (MUST: running visual) ----
+const canvas = document.getElementById('c');
+if (!navigator.gpu) { document.getElementById('hud').innerHTML = 'WebGPU not available'; }
+else {
+  const adapter = await navigator.gpu.requestAdapter();
+  const device = await adapter.requestDevice();
+  const ctx = canvas.getContext('webgpu');
+  const fmt = navigator.gpu.getPreferredCanvasFormat();
+  const dpr = devicePixelRatio||1;
+  const resize=()=>{canvas.width=canvas.clientWidth*dpr;canvas.height=canvas.clientHeight*dpr;};
+  resize(); addEventListener('resize',resize);
+  ctx.configure({device,format:fmt,alphaMode:'opaque'});
+  const mod = device.createShaderModule({code:feedbackWGSL});
+  const blitMod = device.createShaderModule({code:`
+    @vertex fn vs(@builtin(vertex_index) i:u32)->@builtin(position) vec4<f32>{
+      var p=array<vec2<f32>,3>(vec2(-1.,-3.),vec2(-1.,1.),vec2(3.,1.)); return vec4(p[i],0.,1.);}
+    @group(0) @binding(0) var t:texture_2d<f32>; @group(0) @binding(1) var s:sampler;
+    @fragment fn fs(@builtin(position) c:vec4<f32>)->@location(0) vec4<f32>{
+      let d=vec2<f32>(f32(textureDimensions(t).x),f32(textureDimensions(t).y)); return textureSample(t,s,c.xy/d);}`});
+  const W=1024,H=1024,U=GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING;
+  let tA=device.createTexture({size:[W,H],format:'rgba8unorm',usage:U});
+  let tB=device.createTexture({size:[W,H],format:'rgba8unorm',usage:U});
+  const samp=device.createSampler({magFilter:'linear',minFilter:'linear'});
+  const ubuf=device.createBuffer({size:48,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+  const bgl=device.createBindGroupLayout({entries:[
+    {binding:0,visibility:GPUShaderStage.FRAGMENT,texture:{}},
+    {binding:1,visibility:GPUShaderStage.FRAGMENT,sampler:{}},
+    {binding:2,visibility:GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}}]});
+  const pipe=device.createRenderPipeline({layout:device.createPipelineLayout({bindGroupLayouts:[bgl]}),
+    vertex:{module:mod,entryPoint:'vs'},fragment:{module:mod,entryPoint:'fs',targets:[{format:'rgba8unorm'}]},primitive:{topology:'triangle-list'}});
+  const blitPipe=device.createRenderPipeline({layout:'auto',vertex:{module:blitMod,entryPoint:'vs'},fragment:{module:blitMod,entryPoint:'fs',targets:[{format:fmt}]},primitive:{topology:'triangle-list'}});
+
+  let last=performance.now(),fpsAcc=0,fpsN=0;
+  function frame(now){
+    const dt=Math.min(0.05,(now-last)/1000); last=now;
+    if(playing){
+      const st=engine.step(dt,{bass:1,mid:1,treb:1});
+      const u=new Float32Array([st.decay,st.innerBox.size,st.innerBox.r,st.innerBox.g,st.innerBox.b,st.innerBox.a,st.outerBox.size,st.outerBox.r,st.outerBox.g,st.outerBox.b,st.outerBox.a,0]);
+      device.queue.writeBuffer(ubuf,0,u);
+      const bg=device.createBindGroup({layout:bgl,entries:[{binding:0,resource:tA.createView()},{binding:1,resource:samp},{binding:2,resource:{buffer:ubuf}}]});
+      const enc=device.createCommandEncoder();
+      let rp=enc.beginRenderPass({colorAttachments:[{view:tB.createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
+      rp.setPipeline(pipe);rp.setBindGroup(0,bg);rp.draw(3);rp.end();
+      const bbg=device.createBindGroup({layout:blitPipe.getBindGroupLayout(0),entries:[{binding:0,resource:tB.createView()},{binding:1,resource:samp}]});
+      rp=enc.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
+      rp.setPipeline(blitPipe);rp.setBindGroup(0,bbg);rp.draw(3);rp.end();
+      device.queue.submit([enc.finish()]);
+      [tA,tB]=[tB,tA];
+      // MUST: live variable readout + live port values
+      document.getElementById('fr').textContent=engine.frame;
+      fpsAcc+=1/dt;fpsN++; if(fpsN>=15){document.getElementById('fps').textContent=Math.round(fpsAcc/fpsN);fpsAcc=0;fpsN=0;}
+      const vd=document.getElementById('vars'); vd.innerHTML='';
+      for(const k of ['time','ib_r','ib_g','ib_b','decay']){ const val=k==='decay'?engine.pool.fDecay:engine.pool[k]; if(val!=null){const r=document.createElement('div');r.className='v';r.innerHTML=`<span>${k}</span><b>${(+val).toFixed(4)}</b>`;vd.append(r);} }
+      document.querySelectorAll('[data-live]').forEach(el=>{const v=engine.pool[el.dataset.live];if(v!=null)el.textContent=(+v).toFixed(3);});
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+</script></body></html>

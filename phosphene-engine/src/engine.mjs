@@ -28,6 +28,19 @@ export class Engine {
     // the resulting pool IS the render state: decay, zoom, rot, warp, ib_*, ob_*
     return this.renderState();
   }
+
+  // --- studio live-edit surface ---
+  setVar(name, value) { this.scene.vars[name] = value; this.pool[name] = value; }
+  recompile(perFrameSource) {
+    // perFrameSource: array of equation strings (edited in the studio)
+    this.scene.expressions.perFrame = perFrameSource;
+    this.perFrame = compileEEL(perFrameSource);
+  }
+  reset() {
+    this.pool = { ...this.scene.vars };
+    this.frame = 0; this.time = 0;
+  }
+
   renderState() {
     const p = this.pool;
     return {

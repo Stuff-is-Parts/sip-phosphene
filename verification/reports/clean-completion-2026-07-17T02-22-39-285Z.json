@@ -1,0 +1,35 @@
+{
+  "command": "clean-completion",
+  "repositoryCommit": "2f6a45b8e828f15a916b3f8ec90bfd03a1dfc584",
+  "dirtyWorktree": false,
+  "operatingSystem": "win32 10.0.26200",
+  "nodeVersion": "v24.18.0",
+  "time": "2026-07-17T02:22:39.283Z",
+  "result": "FAIL",
+  "failures": [
+    {
+      "code": "CHECK_FAILED",
+      "detail": "target 'verify (global)' exited 1 in the clean checkout — this result propagates (audit finding 6)"
+    }
+  ],
+  "surface": "the global completion gate executed in a clean checkout; its actual result propagates",
+  "cleanCheckoutSourceCommit": "1eccd0cbb7a4e5c35ccc92b13a26eb7083806bf1",
+  "steps": [
+    {
+      "step": "clone",
+      "exitCode": 0
+    },
+    {
+      "step": "npm-ci",
+      "exitCode": 0
+    },
+    {
+      "step": "npm-ci-reference-adapter-milkdrop-eel",
+      "exitCode": 0
+    },
+    {
+      "step": "target:verify (global)",
+      "exitCode": 1
+    }
+  ]
+}

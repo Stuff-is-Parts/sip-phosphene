@@ -1,6 +1,8 @@
 {
   "entry": [
     "phosphene-engine/index.html",
+    "phosphene-engine/player.html",
+    "phosphene-engine/studio.html",
     "phosphene-engine/check.mjs"
   ],
   "project": [
