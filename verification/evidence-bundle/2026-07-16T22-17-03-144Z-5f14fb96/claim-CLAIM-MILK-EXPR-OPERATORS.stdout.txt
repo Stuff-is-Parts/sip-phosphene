@@ -1,2 +1,0 @@
-claim: PASS
-report: verification/reports/claim-2026-07-16T22-17-15-032Z.json

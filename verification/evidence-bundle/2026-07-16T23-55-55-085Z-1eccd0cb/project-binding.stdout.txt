@@ -1,4 +1,0 @@
-project-binding: FAIL
-  AUTHORIZATION_WITNESS_MISSING: binding adoption witness missing: no witness referenced
-  BINDING_ADEQUACY_UNWITNESSED: binding adequacy witness missing: no witness referenced
-report: verification/reports/project-binding-2026-07-17T00-15-34-614Z.json

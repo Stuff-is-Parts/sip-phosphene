@@ -1,2 +1,0 @@
-authorities: PASS
-report: verification/reports/authorities-2026-07-17T00-15-34-833Z.json

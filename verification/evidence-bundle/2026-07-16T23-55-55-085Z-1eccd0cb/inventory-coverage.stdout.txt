@@ -1,2 +1,0 @@
-inventory-coverage: PASS
-report: verification/reports/inventory-coverage-2026-07-17T00-15-33-493Z.json

@@ -1,3 +1,0 @@
-requirements: FAIL
-  CHECK_FAILED: requirement 'REQ-MILK-EXPR-OPERATORS' fails (SCOPE_APPROVAL_MISSING)
-report: verification/reports/requirements-2026-07-16T22-17-12-487Z.json

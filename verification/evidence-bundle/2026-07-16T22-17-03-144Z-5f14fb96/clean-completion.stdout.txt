@@ -1,3 +1,0 @@
-clean-completion: FAIL
-  CHECK_FAILED: target 'verify (global)' exited 1 in the clean checkout — this result propagates (audit finding 6)
-report: verification/reports/clean-completion-2026-07-16T22-17-43-566Z.json

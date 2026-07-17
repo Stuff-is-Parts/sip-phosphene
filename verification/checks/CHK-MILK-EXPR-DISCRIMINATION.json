@@ -1,8 +1,0 @@
-{
-  "checkId": "CHK-MILK-EXPR-DISCRIMINATION",
-  "claimIds": ["CLAIM-MILK-EXPR-OPERATORS"],
-  "checkType": "fixture-discrimination",
-  "adapterId": "ADP-PHOSPHENE-SUBJECT",
-  "capabilityId": "phosphene-execute-graph-step",
-  "operation": "execute every effective-union plausible-alternative evaluator on the fixture input and prove each diverges from the reference-execution expected result at its declared path"
-}

@@ -1,5 +1,0 @@
-requirement: FAIL
-  SCOPE_APPROVAL_MISSING: scope approval has no authorization witness (no witness referenced)
-  AUTHORIZATION_WITNESS_MISSING: project-binding adoption witness missing (no witness referenced)
-  BINDING_ADEQUACY_UNWITNESSED: project-binding adequacy witness missing (no witness referenced)
-report: verification/reports/requirement-2026-07-17T00-15-36-378Z.json

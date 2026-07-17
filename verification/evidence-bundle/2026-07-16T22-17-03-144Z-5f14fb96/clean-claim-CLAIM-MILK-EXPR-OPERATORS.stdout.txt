@@ -1,2 +1,0 @@
-clean-claim: PASS
-report: verification/reports/clean-claim-2026-07-16T22-17-18-158Z.json

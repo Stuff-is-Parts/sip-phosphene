@@ -1,3 +1,0 @@
-clean-requirement: FAIL
-  CHECK_FAILED: target 'requirement REQ-MILK-EXPR-OPERATORS' exited 1 in the clean checkout — this result propagates (audit finding 6)
-report: verification/reports/clean-requirement-2026-07-16T22-17-20-840Z.json
