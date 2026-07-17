@@ -1,0 +1,80 @@
+<!doctype html><html><head><meta charset="utf-8"><title>PHOSPHENE</title>
+<style>body{margin:0;background:#000;overflow:hidden}canvas{width:100vw;height:100vh;display:block}
+#i{position:fixed;top:8px;left:8px;color:#0f0;font:12px monospace;opacity:.7}</style></head>
+<body><canvas id="c"></canvas><div id="i">PHOSPHENE — 101-per_frame.milk</div>
+<script type="module">
+import { importMilk } from './src/milk-import.mjs';
+import { Engine } from './src/engine.mjs';
+import { feedbackWGSL } from './src/render-wgsl.mjs';
+
+const presetText = await (await fetch('./101-per_frame.milk')).text();
+const scene = importMilk(presetText);
+const engine = new Engine(scene);
+
+const canvas = document.getElementById('c');
+if (!navigator.gpu) { document.getElementById('i').textContent = 'WebGPU not available in this browser'; throw new Error('no webgpu'); }
+const adapter = await navigator.gpu.requestAdapter();
+const device = await adapter.requestDevice();
+const ctx = canvas.getContext('webgpu');
+const fmt = navigator.gpu.getPreferredCanvasFormat();
+const dpr = devicePixelRatio || 1;
+function resize(){ canvas.width = innerWidth*dpr; canvas.height = innerHeight*dpr; }
+resize(); addEventListener('resize', resize);
+ctx.configure({ device, format: fmt, alphaMode: 'opaque' });
+
+const mod = device.createShaderModule({ code: feedbackWGSL });
+const W = 1024, H = 1024;
+const texUsage = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING;
+let texA = device.createTexture({ size:[W,H], format:'rgba8unorm', usage:texUsage });
+let texB = device.createTexture({ size:[W,H], format:'rgba8unorm', usage:texUsage });
+const samp = device.createSampler({ magFilter:'linear', minFilter:'linear' });
+const ubuf = device.createBuffer({ size:48, usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST });
+
+const bgl = device.createBindGroupLayout({ entries:[
+  {binding:0,visibility:GPUShaderStage.FRAGMENT,texture:{}},
+  {binding:1,visibility:GPUShaderStage.FRAGMENT,sampler:{}},
+  {binding:2,visibility:GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}} ]});
+const pipe = device.createRenderPipeline({ layout: device.createPipelineLayout({bindGroupLayouts:[bgl]}),
+  vertex:{module:mod,entryPoint:'vs'}, fragment:{module:mod,entryPoint:'fs',targets:[{format:'rgba8unorm'}]},
+  primitive:{topology:'triangle-list'} });
+// composite pass: copy the offscreen feedback texture to the swapchain
+const blitMod = device.createShaderModule({ code:`
+@vertex fn vs(@builtin(vertex_index) i:u32)->@builtin(position) vec4<f32>{
+  var p=array<vec2<f32>,3>(vec2(-1.,-3.),vec2(-1.,1.),vec2(3.,1.));
+  return vec4(p[i],0.,1.);
+}
+@group(0) @binding(0) var t:texture_2d<f32>;
+@group(0) @binding(1) var s:sampler;
+@fragment fn fs(@builtin(position) c:vec4<f32>)->@location(0) vec4<f32>{
+  let dim = vec2<f32>(f32(textureDimensions(t).x), f32(textureDimensions(t).y));
+  return textureSample(t, s, c.xy / dim);
+}` });
+const blitPipe = device.createRenderPipeline({layout:'auto',
+  vertex:{module:blitMod,entryPoint:'vs'},
+  fragment:{module:blitMod,entryPoint:'fs',targets:[{format:fmt}]},
+  primitive:{topology:'triangle-list'}});
+
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(0.05,(now-last)/1000); last = now;
+  const st = engine.step(dt, {bass:1,mid:1,treb:1});
+  const u = new Float32Array([st.decay, st.innerBox.size,st.innerBox.r,st.innerBox.g,st.innerBox.b,st.innerBox.a,
+    st.outerBox.size,st.outerBox.r,st.outerBox.g,st.outerBox.b,st.outerBox.a, 0]);
+  device.queue.writeBuffer(ubuf,0,u);
+  const bg = device.createBindGroup({layout:bgl,entries:[
+    {binding:0,resource:texA.createView()},{binding:1,resource:samp},
+    {binding:2,resource:{buffer:ubuf}} ]});
+  const enc = device.createCommandEncoder();
+  const rp = enc.beginRenderPass({colorAttachments:[{view:texB.createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
+  rp.setPipeline(pipe); rp.setBindGroup(0,bg); rp.draw(3); rp.end();
+  // blit texB to screen
+  const bbg = device.createBindGroup({layout:blitPipe.getBindGroupLayout(0),entries:[
+    {binding:0,resource:texB.createView()},{binding:1,resource:samp}]});
+  const rp2 = enc.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
+  rp2.setPipeline(blitPipe); rp2.setBindGroup(0,bbg); rp2.draw(3); rp2.end();
+  device.queue.submit([enc.finish()]);
+  [texA,texB] = [texB,texA]; // feedback ping-pong
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script></body></html>

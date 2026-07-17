@@ -10,7 +10,9 @@ exercises — not a stripped demo.
 - `src/expr-vm.mjs` — compiles EEL equations → JS, runs against the variable pool (P4)
 - `src/engine.mjs` — the core: per-frame execution, variable pool, feedback state → render state
 - `src/render-wgsl.mjs` — the warp-feedback + box-draw WGSL pass
-- `index.html` — browser build: runs on a real WebGPU canvas with feedback ping-pong
+- `index.html` — player: WebGPU canvas, splash + HUD, scene navigation, audio inputs (renamed from `player.html` when it became the site root)
+- `studio.html` — node-graph editor over the same engine
+- `tech.html` — minimal tech-slice demo: runs the 101-per_frame preset directly on a WebGPU canvas with feedback ping-pong (kept as a diagnostic page)
 - `check.mjs` — the gate: import + per-frame execution vs independent reference + mutant
 
 ## What was PROVEN (by execution, not inspection)
