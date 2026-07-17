@@ -1,0 +1,9 @@
+{
+  "entry": [
+    "phosphene-engine/index.html",
+    "phosphene-engine/check.mjs"
+  ],
+  "project": [
+    "phosphene-engine/**/*.mjs"
+  ]
+}

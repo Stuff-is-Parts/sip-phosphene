@@ -1,0 +1,21 @@
+{
+  "name": "phosphene-engine",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "PHOSPHENE engine \u2014 vertical slice",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint phosphene-engine/src phosphene-engine/check.mjs",
+    "deadcode": "knip",
+    "syntax": "for f in phosphene-engine/src/*.mjs phosphene-engine/check.mjs; do node --check \"$f\" || exit 1; done",
+    "audit": "npm audit --omit=dev || true",
+    "gate": "npm run syntax && npm run typecheck && npm run lint && npm run deadcode"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "eslint": "^9.17.0",
+    "typescript-eslint": "^8.18.0",
+    "@eslint/js": "^9.17.0",
+    "knip": "^5.41.0"
+  }
+}
