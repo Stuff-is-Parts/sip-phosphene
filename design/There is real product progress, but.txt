@@ -1,0 +1,71 @@
+There is real product progress, but version 4 is currently a convincing prototype wrapped in claims that exceed what the code establishes.
+
+What is genuinely better
+
+You now have an actual vertical slice: a browser player, WebGPU feedback rendering, audio-file/microphone/demo inputs, a studio, live equation editing, variable controls, playback controls and .milk export. This is substantially closer to something a person can use than the previous verification-system work.
+
+The reduced mechanical gate is also a sensible correction. It explicitly limits itself to syntax, types, linting and dead-code detection rather than pretending those tools prove compatibility.
+
+The most important problem: the chosen preset is rendered incorrectly
+
+The shader treats ib_size and ob_size as filled squares centered on the screen:
+
+if (m < u.ob_size) ...
+if (m < u.ib_size) ...
+
+The projectM source implements them as border rings around the outside of the frame, using outer and inner radii and an eight-vertex border mesh.
+
+For 101-per_frame.milk, PHOSPHENE therefore displays a pulsing red center square where the source behavior calls for a pulsing inner screen border. The current “end-to-end proof” is proving the wrong visual behavior.
+
+The verification is still self-referential
+
+check.mjs calls its expected result an “independent reference,” but both sides ultimately use JavaScript’s Math.sin:
+
+expected: 0.7 + 0.4 * Math.sin(3 * t);
+subject: sin is routed to eelSubject.sin;
+eelSubject.sin is also Math.sin.
+
+The expected calculation also uses eng.pool.time, the subject’s own time value, so incorrect time progression could remain invisible. The mutant demonstrates that changing 3 to 4 is detectable; it does not independently validate MilkDrop expression or timing semantics.
+
+The expression VM is much narrower than its description
+
+The VM is essentially textual rewriting followed by new Function and with(pool). Arithmetic operators pass directly through as JavaScript operators; the EEL add, sub, mul and div implementations are not involved. Unknown calls are left untouched rather than refused. The comment says ^ is handled, but no transformation exists.
+
+There is also a likely state bug: assigning to a variable that does not already exist in pool does not necessarily add it to pool; in this non-strict with execution it can resolve outside the intended variable store. The claim that line 36 “ensures lhs exists on pool” is not implemented.
+
+The “graph” is currently presentation scaffolding
+
+The importer always manufactures two fixed nodes—warp and comp. The engine never reads or executes scene.nodes; it directly compiles per-frame equations and returns a hard-coded render-state object.
+
+The studio displays those nodes and manually assigns a predetermined list of variables to the warp node. That is useful UI prototyping, but it is not yet the editable native graph execution model required by the project goal.
+
+The repository’s instructions contradict one another
+
+CLAUDE.md says behavioral oracles are prohibited and visual correctness is judged by the user.
+
+PHOSPHENE-GOAL.md says visual appearance is not proof, requires direct semantic checks, and still declares the discarded portable framework normative and mandatory before implementation.
+
+CLAUDE.md also instructs agents to read Witnessed-Failure-Modes and use phosphene-port/, but those materials are not present in the current working tree after the framework-scrapping commit.
+
+Evidence and repository hygiene need cleanup
+The current head has no CI status or associated workflow run.
+The retained “latest clean completion” report is from the discarded framework, targets earlier commits and records FAIL.
+There is no committed package-lock.json, so the dependency installation is not pinned.
+The README claims real naga/wgpu compilation, headless rendering and exact pixel results, but no current command, script or retained result establishing those claims is in this version. It is also already stale: it says there is no studio and audio is stubbed, although both were subsequently added.
+Duplicate copies of engine.mjs, expr-vm.mjs and milk-import.mjs exist both in the folder root and under src/; the copies have already diverged.
+My overall judgment
+
+Version 4 is meaningful progress as an interface and execution prototype. It is much healthier than spending all effort on the verification framework.
+
+But it is not yet a trustworthy MilkDrop compatibility slice. The central visual behavior of the single preset is wrong, the “independent” check is correlated with the implementation, and the native graph currently exists primarily as displayed structure rather than as the execution architecture.
+
+The next work should be narrowly ordered:
+
+Correct the inner/outer border rendering from authoritative source.
+Replace the current equation check with an actually independent reference execution or retained source-runtime outputs.
+Make the graph drive execution—or stop calling the fixed descriptor an executable graph.
+Reconcile PHOSPHENE-GOAL.md and CLAUDE.md.
+Remove duplicate and stale artifacts.
+Add a lockfile and CI that runs the mechanical gate, the behavioral check and shader compilation against the exact commit.
+
+I inspected current head eaaf81e2eb4a6cd5cf042981ea1cbf513c484762. I could not independently execute it because there is no current CI result and this environment could not clone GitHub, so the judgment above is source inspection rather than a successful runtime verification.

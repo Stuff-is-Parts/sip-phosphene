@@ -1,6 +1,4 @@
-# Local working material — not tracked while the design is still being derived.
-# Contains source-engine corpora, retained excerpts, and in-progress design docs.
-# Remove an entry here when its contents are ready to be committed.
-design/
-scenes/
-sources/
+# Third-party source-engine content — not redistributed via this repo.
+# Everything else under scenes/ (PHOSPHENE-native scenes) is tracked.
+scenes/milkdrop/
+scenes/plane9/
