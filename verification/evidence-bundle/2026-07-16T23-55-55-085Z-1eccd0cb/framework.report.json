@@ -1,0 +1,1461 @@
+{
+  "command": "framework",
+  "repositoryCommit": "1eccd0cbb7a4e5c35ccc92b13a26eb7083806bf1",
+  "dirtyWorktree": false,
+  "operatingSystem": "win32 10.0.26200",
+  "nodeVersion": "v24.18.0",
+  "time": "2026-07-17T00:15:32.143Z",
+  "result": "FAIL",
+  "failures": [
+    {
+      "code": "CHECK_MISSING",
+      "detail": "[orphan] binding requirement class 'requirement-class.plane9-behavior' matches no registered requirement (mechanism with no consumer yet)"
+    },
+    {
+      "code": "CHECK_MISSING",
+      "detail": "[orphan] binding requirement class 'requirement-class.native-core' matches no registered requirement (mechanism with no consumer yet)"
+    },
+    {
+      "code": "FRAMEWORK_BOOTSTRAP_UNWITNESSED",
+      "detail": "[bootstrap-conformance] trust-bearing core changed since the bootstrap record was drawn: tooling/verification-kit/src/core/controls.mjs (recorded 32afb3e1afcf…, current b0c2c8878bd9…) — a material core change invalidates the prior judgment (§7.10A)"
+    },
+    {
+      "code": "FRAMEWORK_BOOTSTRAP_UNWITNESSED",
+      "detail": "[bootstrap-conformance] bootstrap-conformance status is 'pending': the independent judgment from an authority outside the correlated producer does not exist yet; internal self-test success does not substitute (§7.10A)"
+    },
+    {
+      "code": "CHECK_MISSING",
+      "detail": "[conformance-suite] canonical scenario 'CS-RUNTIME-EFFECT-SEM' has no executor yet (PENDING:registered-runtime-effect-claim-kind); the suite result stays FAIL until it runs"
+    },
+    {
+      "code": "CHECK_MISSING",
+      "detail": "[conformance-suite] canonical scenario 'CS-EQUIVALENCE-POLICY-POS' has no executor yet (PENDING:first-equivalence-claim); the suite result stays FAIL until it runs"
+    },
+    {
+      "code": "CHECK_MISSING",
+      "detail": "[conformance-suite] canonical scenario 'CS-EQUIVALENCE-POLICY-STRUCT' has no executor yet (PENDING:first-equivalence-claim); the suite result stays FAIL until it runs"
+    },
+    {
+      "code": "CHECK_MISSING",
+      "detail": "[conformance-suite] canonical scenario 'CS-EQUIVALENCE-POLICY-SEM' has no executor yet (PENDING:incomplete-domain-disproof-scenario); the suite result stays FAIL until it runs"
+    },
+    {
+      "code": "CHECK_MISSING",
+      "detail": "[conformance-suite] canonical scenario 'CS-VERIFICATION-CATEGORIES-SEM' has no executor yet (PENDING:per-category-exercise-attribution); the suite result stays FAIL until it runs"
+    },
+    {
+      "code": "CHECK_MISSING",
+      "detail": "[conformance-suite] canonical scenario 'CS-PROVIDERS-SEM' has no executor yet (PENDING:provider-version-probe); the suite result stays FAIL until it runs"
+    },
+    {
+      "code": "CHECK_MISSING",
+      "detail": "[conformance-suite] canonical scenario 'CS-BOOTSTRAP-CONFORMANCE-POS' has no executor yet (PENDING:independent-bootstrap-judgment (user-side action, blocked until the lineage path can retain it)); the suite result stays FAIL until it runs"
+    },
+    {
+      "code": "CHECK_MISSING",
+      "detail": "[conformance-suite] canonical scenario 'CS-CONFORMANCE-GOVERNANCE-POS' has no executor yet (PENDING:suite-green-after-scenario-buildout); the suite result stays FAIL until it runs"
+    },
+    {
+      "code": "CHECK_MISSING",
+      "detail": "[conformance-suite] canonical scenario 'CS-CONFORMANCE-GOVERNANCE-SEM' has no executor yet (PENDING:reinterpretation-without-hash-change-detection); the suite result stays FAIL until it runs"
+    },
+    {
+      "code": "SEMANTIC_PROXY_SUBSTITUTION",
+      "detail": "[conformance-suite] mandatory semantic acceptance contract 'SC-RUNTIME-EFFECT' lacks a demonstrated semantic control condition this run (§7.10B: presence, registration, and declared roles are insufficient)"
+    },
+    {
+      "code": "SEMANTIC_PROXY_SUBSTITUTION",
+      "detail": "[conformance-suite] mandatory semantic acceptance contract 'SC-EQUIVALENCE-POLICY' lacks a demonstrated positive control condition this run (§7.10B: presence, registration, and declared roles are insufficient)"
+    },
+    {
+      "code": "SEMANTIC_PROXY_SUBSTITUTION",
+      "detail": "[conformance-suite] mandatory semantic acceptance contract 'SC-EQUIVALENCE-POLICY' lacks a demonstrated structural control condition this run (§7.10B: presence, registration, and declared roles are insufficient)"
+    },
+    {
+      "code": "SEMANTIC_PROXY_SUBSTITUTION",
+      "detail": "[conformance-suite] mandatory semantic acceptance contract 'SC-EQUIVALENCE-POLICY' lacks a demonstrated semantic control condition this run (§7.10B: presence, registration, and declared roles are insufficient)"
+    },
+    {
+      "code": "SEMANTIC_PROXY_SUBSTITUTION",
+      "detail": "[conformance-suite] mandatory semantic acceptance contract 'SC-VERIFICATION-CATEGORIES' lacks a demonstrated semantic control condition this run (§7.10B: presence, registration, and declared roles are insufficient)"
+    },
+    {
+      "code": "SEMANTIC_PROXY_SUBSTITUTION",
+      "detail": "[conformance-suite] mandatory semantic acceptance contract 'SC-PROVIDERS' lacks a demonstrated semantic control condition this run (§7.10B: presence, registration, and declared roles are insufficient)"
+    },
+    {
+      "code": "SEMANTIC_PROXY_SUBSTITUTION",
+      "detail": "[conformance-suite] mandatory semantic acceptance contract 'SC-BOOTSTRAP-CONFORMANCE' lacks a demonstrated positive control condition this run (§7.10B: presence, registration, and declared roles are insufficient)"
+    },
+    {
+      "code": "SEMANTIC_PROXY_SUBSTITUTION",
+      "detail": "[conformance-suite] mandatory semantic acceptance contract 'SC-CONFORMANCE-GOVERNANCE' lacks a demonstrated positive control condition this run (§7.10B: presence, registration, and declared roles are insufficient)"
+    },
+    {
+      "code": "SEMANTIC_PROXY_SUBSTITUTION",
+      "detail": "[conformance-suite] mandatory semantic acceptance contract 'SC-CONFORMANCE-GOVERNANCE' lacks a demonstrated semantic control condition this run (§7.10B: presence, registration, and declared roles are insufficient)"
+    },
+    {
+      "code": "NEGATIVE_CONTROL_INVALID",
+      "detail": "[matrix] mechanism 'schema-validation' has no executed negative control"
+    },
+    {
+      "code": "NEGATIVE_CONTROL_INVALID",
+      "detail": "[matrix] mechanism 'lock-system' has no executed negative control"
+    },
+    {
+      "code": "NEGATIVE_CONTROL_INVALID",
+      "detail": "[matrix] mechanism 'orphan-detection' has no executed negative control"
+    },
+    {
+      "code": "CHECK_FAILED",
+      "detail": "[matrix] mechanism 'orphan-detection' control failing"
+    },
+    {
+      "code": "NEGATIVE_CONTROL_INVALID",
+      "detail": "[matrix] mechanism 'oracle-precedence' has no executed negative control"
+    },
+    {
+      "code": "NEGATIVE_CONTROL_INVALID",
+      "detail": "[matrix] mechanism 'alternative-union' has no executed negative control"
+    },
+    {
+      "code": "NEGATIVE_CONTROL_INVALID",
+      "detail": "[matrix] mechanism 'negative-control-machinery' has no executed negative control"
+    },
+    {
+      "code": "CHECK_MISSING",
+      "detail": "[matrix] mechanism 'authorization-witness-verification' has no executed positive control"
+    },
+    {
+      "code": "CHECK_MISSING",
+      "detail": "[matrix] mechanism 'live-host-authorization' has no executed positive control"
+    },
+    {
+      "code": "CHECK_FAILED",
+      "detail": "[matrix] mechanism 'bootstrap-conformance' control failing"
+    },
+    {
+      "code": "CHECK_FAILED",
+      "detail": "[matrix] mechanism 'conformance-suite-governance' control failing"
+    },
+    {
+      "code": "NEGATIVE_CONTROL_INVALID",
+      "detail": "[matrix] mechanism 'inventory-coverage' has no executed negative control"
+    },
+    {
+      "code": "CHECK_MISSING",
+      "detail": "[matrix] mechanism 'change-integrity' has no executed positive control"
+    },
+    {
+      "code": "NEGATIVE_CONTROL_INVALID",
+      "detail": "[matrix] mechanism 'change-integrity' has no executed negative control"
+    },
+    {
+      "code": "CHECK_MISSING",
+      "detail": "[matrix] mechanism 'clean-environment' has no executed positive control"
+    },
+    {
+      "code": "NEGATIVE_CONTROL_INVALID",
+      "detail": "[matrix] mechanism 'clean-environment' has no executed negative control"
+    },
+    {
+      "code": "NEGATIVE_CONTROL_INVALID",
+      "detail": "[matrix] mechanism 'structured-reports' has no executed negative control"
+    },
+    {
+      "code": "CHECK_MISSING",
+      "detail": "[matrix] mechanism 'evidence-bundle' has no executed positive control"
+    },
+    {
+      "code": "NEGATIVE_CONTROL_INVALID",
+      "detail": "[matrix] mechanism 'evidence-bundle' has no executed negative control"
+    },
+    {
+      "code": "CHECK_MISSING",
+      "detail": "[matrix] mechanism 'equivalence-claims' has no executed positive control"
+    },
+    {
+      "code": "NEGATIVE_CONTROL_INVALID",
+      "detail": "[matrix] mechanism 'equivalence-claims' has no executed negative control"
+    },
+    {
+      "code": "NEGATIVE_CONTROL_INVALID",
+      "detail": "[matrix] mechanism 'capture-oracle' has no executed negative control"
+    },
+    {
+      "code": "NEGATIVE_CONTROL_INVALID",
+      "detail": "[matrix] mechanism 'binding-field:equivalenceClaimPolicy' has no executed negative control"
+    }
+  ],
+  "coverageMatrix": [
+    {
+      "mechanism": "schema-validation",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "ABSENT",
+      "detail": "invalid-record rejection scenario not yet registered"
+    },
+    {
+      "mechanism": "lock-system",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "ABSENT",
+      "detail": "stale-hash rejection scenario not yet registered"
+    },
+    {
+      "mechanism": "orphan-detection",
+      "implementationPresent": true,
+      "positiveControl": "FAIL",
+      "negativeControl": "ABSENT",
+      "detail": "seeded-orphan rejection scenario not yet registered"
+    },
+    {
+      "mechanism": "oracle-precedence",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "ABSENT",
+      "detail": "stronger-oracle-bypass rejection scenario not yet registered"
+    },
+    {
+      "mechanism": "alternative-union",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "ABSENT",
+      "detail": "claim-level trimming rejection scenario not yet registered"
+    },
+    {
+      "mechanism": "fixture-discrimination",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "evaluator mutants rejected through the subject-execution check"
+    },
+    {
+      "mechanism": "comparator-exactness",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "mutant divergences detected by exact comparison"
+    },
+    {
+      "mechanism": "subject-execution",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "actual subject executed through registered adapter capability"
+    },
+    {
+      "mechanism": "negative-control-machinery",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "ABSENT",
+      "detail": "wrong-reason-failure rejection scenario not yet registered"
+    },
+    {
+      "mechanism": "authorization-witness-verification",
+      "implementationPresent": true,
+      "positiveControl": "ABSENT",
+      "negativeControl": "PASS",
+      "detail": "positive control requires the first real repository-host approval event (user action); forged-witness rejection is executable"
+    },
+    {
+      "mechanism": "live-host-authorization",
+      "implementationPresent": true,
+      "positiveControl": "ABSENT",
+      "negativeControl": "PASS",
+      "detail": "live gh verification implemented with reviewed-revision binding; NOT operational until a real host approval event is authenticated"
+    },
+    {
+      "mechanism": "authorization-lineage",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "reviewed-revision ancestry + protected-artifact hash verification; fixture-based algorithm controls, never represented as live approval (§7.10)"
+    },
+    {
+      "mechanism": "attestation-integrity",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "attestation hash + witness binding + lineage verified through fixture controls; live-produced attestation still pending the first real approval"
+    },
+    {
+      "mechanism": "bootstrap-conformance",
+      "implementationPresent": true,
+      "positiveControl": "FAIL",
+      "negativeControl": "PASS",
+      "detail": "FAIL until an authenticated authority outside the correlated producer judges the exact trust-bearing core and suite hashes (§7.10A); self-certification rejected"
+    },
+    {
+      "mechanism": "conformance-suite-governance",
+      "implementationPresent": true,
+      "positiveControl": "FAIL",
+      "negativeControl": "PASS",
+      "detail": "canonical suite hash-governed separately from the implementation; weakening a canonical control is rejected (§7.10B)"
+    },
+    {
+      "mechanism": "semantic-acceptance",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "every mandatory semantic acceptance contract enforced against its complete operative meaning; structurally valid but semantically inadequate records rejected (§14.5)"
+    },
+    {
+      "mechanism": "inventory-coverage",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "ABSENT",
+      "detail": "unclaimed-item rejection scenario not yet registered"
+    },
+    {
+      "mechanism": "scope-decomposition-coverage",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "scope items covered only through decomposition records; citation never covers (audit finding 4)"
+    },
+    {
+      "mechanism": "global-gate-composition",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "global verify consumes the structured framework result (audit finding 2)"
+    },
+    {
+      "mechanism": "completion-report-exit-propagation",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "pipefail captures the verify process exit, not tee (audit finding 1)"
+    },
+    {
+      "mechanism": "binding-field-enforcement",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "every mandatory binding field has a reader; underbound records rejected per field (audit finding 3)"
+    },
+    {
+      "mechanism": "product-path-dependence",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "subject/reference separation scanned; removal interventions witness the graph+executor path (audit finding 8)"
+    },
+    {
+      "mechanism": "change-integrity",
+      "implementationPresent": true,
+      "positiveControl": "ABSENT",
+      "negativeControl": "ABSENT",
+      "detail": "positive and regression scenarios not yet registered; command executable via verify change-integrity"
+    },
+    {
+      "mechanism": "clean-environment",
+      "implementationPresent": true,
+      "positiveControl": "ABSENT",
+      "negativeControl": "ABSENT",
+      "detail": "clean-integrity/clean-completion/clean-claim/clean-requirement commands run via CLI and CI; in-run scenario would recurse"
+    },
+    {
+      "mechanism": "structured-reports",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "ABSENT",
+      "detail": "this run writes structured reports"
+    },
+    {
+      "mechanism": "evidence-bundle",
+      "implementationPresent": true,
+      "positiveControl": "ABSENT",
+      "negativeControl": "ABSENT",
+      "detail": "regenerable via verify evidence-bundle; bundle retained under verification/evidence-bundle/"
+    },
+    {
+      "mechanism": "initializer",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "idempotence and non-Node host proven black-box; missing-scope loud failure is the negative control"
+    },
+    {
+      "mechanism": "equivalence-claims",
+      "implementationPresent": true,
+      "positiveControl": "ABSENT",
+      "negativeControl": "ABSENT",
+      "detail": "no equivalence claim registered yet; circular-equivalence rejection scenario pending"
+    },
+    {
+      "mechanism": "runtime-effect-witnessing",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "removal-intervention witnesses for the product path; registered runtime-effect claim kind still pending"
+    },
+    {
+      "mechanism": "capture-oracle",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "ABSENT",
+      "detail": "drift-rejection scenario not yet registered"
+    },
+    {
+      "mechanism": "binding-field:mandatoryEvidenceClasses",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "bindingfields.enforceBindingClassFields — pass: every mandatory class has a retained evidence artifact that the claim verification chain actually consumes; fails EVIDENCE_MISSING"
+    },
+    {
+      "mechanism": "binding-field:mandatoryPositiveControls",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "bindingfields.enforceBindingClassFields — pass: the named control resolves to an executable check, is registered on every class claim, and its OWN retained execution result passes; fails SEMANTIC_PROXY_SUBSTITUTION"
+    },
+    {
+      "mechanism": "binding-field:mandatoryNegativeControlDefectClasses",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "bindingfields.enforceBindingClassFields — pass: each defect class has a registered evaluator exercised by a fixture of the class; fails NEGATIVE_CONTROL_INVALID"
+    },
+    {
+      "mechanism": "binding-field:mandatoryProductPathChecks",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "bindingfields.enforceBindingClassFields — pass: each claim registers the matching role=product check AND a registered runtime dependence control whose removal targets exist; the control suite executes the interventions; fails SEMANTIC_PROXY_SUBSTITUTION"
+    },
+    {
+      "mechanism": "binding-field:mandatoryFixtureDiscriminationChecks",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "bindingfields.enforceBindingClassFields — pass: each behavior claim registers a matching fixture-discrimination check; fails PROJECT_UNDERBOUND"
+    },
+    {
+      "mechanism": "binding-field:mandatoryRuntimeEffectChecks",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "bindingfields.enforceBindingClassFields — pass: each mandatory pattern is met by a runtime-effect claim with a matching runtime-effect check; fails RUNTIME_EFFECT_UNWITNESSED"
+    },
+    {
+      "mechanism": "binding-field:mandatoryAlternativeEvaluatorIds",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "bindingfields.enforceBindingClassFields — pass: each mandatory evaluator resolves, its module exists, and a class fixture exercises it; fails ALTERNATIVE_EVALUATOR_MISSING"
+    },
+    {
+      "mechanism": "binding-field:divergenceClassificationPolicy",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "bindingfields.enforceBindingClassFields — pass: every toleranced comparator cites evidence whose representationVariation names the cause and establishes permittedMagnitude >= the actual tolerance; fails DIVERGENCE_CLASSIFICATION_UNJUSTIFIED"
+    },
+    {
+      "mechanism": "binding-field:equivalenceClaimPolicy",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "ABSENT",
+      "detail": "bindingfields.enforceBindingClassFields — pass: no equivalence claims when allowed=false; proof enforcement in engine when allowed=true; fails EQUIVALENCE_UNPROVEN"
+    },
+    {
+      "mechanism": "binding-field:authorityIdentityRule",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "bindingfields.enforceBindingClassFields — pass: the derived constituent set of every expected artifact is covered exactly, with resolving authorities, no omissions, no unrelated paths, and no conflicting duplicates; fails AUTHORITY_SOURCE_AMBIGUOUS"
+    },
+    {
+      "mechanism": "binding-field:evidenceClassSemantics",
+      "implementationPresent": true,
+      "positiveControl": "PASS",
+      "negativeControl": "PASS",
+      "detail": "engine.oracleCheck (expected-value origin) + schema consts — pass: expected-value origin judged only against oraclePrecedencePolicy; artifact presence never authorizes origin; fails EXPECTED_VALUE_ORIGIN_UNACCEPTABLE"
+    }
+  ],
+  "selfTest": [
+    {
+      "requirementId": "REQ-SELFTEST-CRC32",
+      "result": "PASS",
+      "failures": [],
+      "claims": [
+        {
+          "claimId": "CLAIM-SELFTEST-CRC32",
+          "result": "PASS",
+          "failures": [],
+          "trace": {
+            "requirementIds": [
+              "REQ-SELFTEST-CRC32"
+            ],
+            "oracle": {
+              "policy": "ORACLE-POLICY-SELFTEST",
+              "actual": "reference-execution",
+              "bypassed": []
+            },
+            "discrimination": [
+              {
+                "fixtureId": "FIX-SELFTEST-CRC32",
+                "alternativeId": "ALT-SELFTEST-IDENTITY",
+                "evaluatorId": "EVAL-SELFTEST-IDENTITY",
+                "diverged": true,
+                "firstDivergence": "results[0]"
+              },
+              {
+                "fixtureId": "FIX-SELFTEST-CRC32",
+                "alternativeId": "ALT-SELFTEST-NO-FINAL-XOR",
+                "evaluatorId": "EVAL-SELFTEST-NO-FINAL-XOR",
+                "diverged": true,
+                "firstDivergence": "results[0]"
+              },
+              {
+                "fixtureId": "FIX-SELFTEST-CRC32",
+                "alternativeId": "ALT-SELFTEST-REORDER",
+                "evaluatorId": "EVAL-SELFTEST-REORDER",
+                "diverged": true,
+                "firstDivergence": "results[0]"
+              },
+              {
+                "fixtureId": "FIX-SELFTEST-CRC32",
+                "alternativeId": "ALT-SELFTEST-STALE-STATE",
+                "evaluatorId": "EVAL-SELFTEST-STALE-STATE",
+                "diverged": true,
+                "firstDivergence": "results[1]"
+              }
+            ],
+            "checks": [
+              {
+                "checkId": "CHK-SELFTEST-CRC32-EXEC",
+                "fixtureId": "FIX-SELFTEST-CRC32",
+                "executed": true,
+                "pass": true,
+                "firstDivergence": null
+              },
+              {
+                "checkId": "CHK-SELFTEST-CRC32-DISCRIMINATION",
+                "kind": "fixture-discrimination",
+                "note": "executed by fixturesCheck"
+              }
+            ]
+          }
+        }
+      ],
+      "bindingFieldAudit": [
+        {
+          "field": "mandatoryEvidenceClasses",
+          "reader": "bindingfields.enforceBindingClassFields",
+          "passCondition": "every mandatory class has a retained evidence artifact that the claim verification chain actually consumes",
+          "failureCode": "EVIDENCE_MISSING",
+          "status": "PASS"
+        },
+        {
+          "field": "mandatoryPositiveControls",
+          "reader": "bindingfields.enforceBindingClassFields",
+          "passCondition": "the named control resolves to an executable check, is registered on every class claim, and its OWN retained execution result passes",
+          "failureCode": "SEMANTIC_PROXY_SUBSTITUTION",
+          "status": "PASS"
+        },
+        {
+          "field": "mandatoryNegativeControlDefectClasses",
+          "reader": "bindingfields.enforceBindingClassFields",
+          "passCondition": "each defect class has a registered evaluator exercised by a fixture of the class",
+          "failureCode": "NEGATIVE_CONTROL_INVALID",
+          "status": "PASS"
+        },
+        {
+          "field": "mandatoryProductPathChecks",
+          "reader": "bindingfields.enforceBindingClassFields",
+          "passCondition": "each claim registers the matching role=product check AND a registered runtime dependence control whose removal targets exist; the control suite executes the interventions",
+          "failureCode": "SEMANTIC_PROXY_SUBSTITUTION",
+          "status": "PASS"
+        },
+        {
+          "field": "mandatoryFixtureDiscriminationChecks",
+          "reader": "bindingfields.enforceBindingClassFields",
+          "passCondition": "each behavior claim registers a matching fixture-discrimination check",
+          "failureCode": "PROJECT_UNDERBOUND",
+          "status": "PASS"
+        },
+        {
+          "field": "mandatoryRuntimeEffectChecks",
+          "reader": "bindingfields.enforceBindingClassFields",
+          "passCondition": "each mandatory pattern is met by a runtime-effect claim with a matching runtime-effect check",
+          "failureCode": "RUNTIME_EFFECT_UNWITNESSED",
+          "status": "PASS"
+        },
+        {
+          "field": "mandatoryAlternativeEvaluatorIds",
+          "reader": "bindingfields.enforceBindingClassFields",
+          "passCondition": "each mandatory evaluator resolves, its module exists, and a class fixture exercises it",
+          "failureCode": "ALTERNATIVE_EVALUATOR_MISSING",
+          "status": "PASS"
+        },
+        {
+          "field": "divergenceClassificationPolicy",
+          "reader": "bindingfields.enforceBindingClassFields",
+          "passCondition": "every toleranced comparator cites evidence whose representationVariation names the cause and establishes permittedMagnitude >= the actual tolerance",
+          "failureCode": "DIVERGENCE_CLASSIFICATION_UNJUSTIFIED",
+          "status": "PASS"
+        },
+        {
+          "field": "equivalenceClaimPolicy",
+          "reader": "bindingfields.enforceBindingClassFields",
+          "passCondition": "no equivalence claims when allowed=false; proof enforcement in engine when allowed=true",
+          "failureCode": "EQUIVALENCE_UNPROVEN",
+          "status": "PASS"
+        },
+        {
+          "field": "authorityIdentityRule",
+          "reader": "bindingfields.enforceBindingClassFields",
+          "passCondition": "the derived constituent set of every expected artifact is covered exactly, with resolving authorities, no omissions, no unrelated paths, and no conflicting duplicates",
+          "failureCode": "AUTHORITY_SOURCE_AMBIGUOUS",
+          "status": "PASS"
+        },
+        {
+          "field": "evidenceClassSemantics",
+          "reader": "engine.oracleCheck (expected-value origin) + schema consts",
+          "passCondition": "expected-value origin judged only against oraclePrecedencePolicy; artifact presence never authorizes origin",
+          "failureCode": "EXPECTED_VALUE_ORIGIN_UNACCEPTABLE",
+          "status": "PASS"
+        }
+      ]
+    }
+  ],
+  "negativeControls": [
+    {
+      "evaluatorId": "EVAL-MILK-IDENTITY",
+      "ok": true,
+      "detail": "rejected with intended signature: CHECK_FAILED at pools[0].a"
+    },
+    {
+      "evaluatorId": "EVAL-MILK-OMISSION",
+      "ok": true,
+      "detail": "rejected with intended signature: CHECK_FAILED at pools[0].d"
+    },
+    {
+      "evaluatorId": "EVAL-MILK-REORDER",
+      "ok": true,
+      "detail": "rejected with intended signature: CHECK_FAILED at pools[0].b"
+    },
+    {
+      "evaluatorId": "EVAL-MILK-SIGN-REVERSAL",
+      "ok": true,
+      "detail": "rejected with intended signature: CHECK_FAILED at pools[0].c"
+    },
+    {
+      "evaluatorId": "EVAL-MILK-STALE-STATE",
+      "ok": true,
+      "detail": "rejected with intended signature: CHECK_FAILED at pools[1].q1"
+    },
+    {
+      "evaluatorId": "EVAL-MILK-WRONG-INITIAL",
+      "ok": true,
+      "detail": "rejected with intended signature: CHECK_FAILED at pools[0].q1"
+    },
+    {
+      "evaluatorId": "EVAL-SELFTEST-IDENTITY",
+      "ok": true,
+      "detail": "rejected with intended signature: CHECK_FAILED at results[0]"
+    },
+    {
+      "evaluatorId": "EVAL-SELFTEST-NO-FINAL-XOR",
+      "ok": true,
+      "detail": "rejected with intended signature: CHECK_FAILED at results[0]"
+    },
+    {
+      "evaluatorId": "EVAL-SELFTEST-REORDER",
+      "ok": true,
+      "detail": "rejected with intended signature: CHECK_FAILED at results[0]"
+    },
+    {
+      "evaluatorId": "EVAL-SELFTEST-STALE-STATE",
+      "ok": true,
+      "detail": "rejected with intended signature: CHECK_FAILED at results[1]"
+    }
+  ],
+  "fixtureRepoScenarios": [
+    {
+      "scenario": "init-empty-git-repo",
+      "ok": true,
+      "detail": "created 30 paths, refused 2 (scope and binding are user-authored)"
+    },
+    {
+      "scenario": "init-idempotence",
+      "ok": true,
+      "detail": "second init created nothing and preserved everything"
+    },
+    {
+      "scenario": "init-non-node-host-repo",
+      "ok": true,
+      "detail": "initialized without assuming host language; unrelated files preserved"
+    },
+    {
+      "scenario": "missing-scope-fails-loudly",
+      "ok": true,
+      "detail": "scope command fails with a structured FAIL report when the user-authored scope is absent"
+    }
+  ],
+  "auditControls": [
+    {
+      "control": "completion-report-exit-defect-demonstrated",
+      "ok": true,
+      "detail": "without pipefail, a failing command piped through tee is captured as exit 0 — the audited mislabeling reproduced"
+    },
+    {
+      "control": "completion-report-exit-fix-verified",
+      "ok": true,
+      "detail": "with pipefail, the failing verification is captured as exit 1 (reported FAIL) while the report script itself exits 0 (non-blocking job succeeds)"
+    },
+    {
+      "control": "global-fails-on-framework-while-product-claim-passes",
+      "ok": true,
+      "detail": "product claim PASS (exit 0) while global verify FAIL carries [framework]-prefixed failures in its own failure list"
+    },
+    {
+      "control": "narrow-requirement-cannot-cover-broad-scope-item",
+      "ok": true,
+      "detail": "REQ-MILK-EXPR-OPERATORS cites scope-item.compatibility-goal, yet the item carries an uncovered failure code — citation does not cover"
+    },
+    {
+      "control": "underbound-binding:mandatoryEvidenceClasses",
+      "ok": true,
+      "detail": "underbound record rejected with EVIDENCE_MISSING naming mandatory class 'controlled-observation'; signature absent from unmutated baseline"
+    },
+    {
+      "control": "underbound-binding:mandatoryPositiveControls",
+      "ok": true,
+      "detail": "underbound record rejected with SEMANTIC_PROXY_SUBSTITUTION naming 'POS-NONEXISTENT' resolves to no executable check record; signature absent from unmutated baseline"
+    },
+    {
+      "control": "underbound-binding:mandatoryNegativeControlDefectClasses",
+      "ok": true,
+      "detail": "underbound record rejected with NEGATIVE_CONTROL_INVALID naming 'fabricated-defect-class'; signature absent from unmutated baseline"
+    },
+    {
+      "control": "underbound-binding:mandatoryProductPathChecks",
+      "ok": true,
+      "detail": "underbound record rejected with SEMANTIC_PROXY_SUBSTITUTION naming no check matching mandatory product-path pattern 'CHK-DOES-NOT-EXIST'; signature absent from unmutated baseline"
+    },
+    {
+      "control": "underbound-binding:mandatoryFixtureDiscriminationChecks",
+      "ok": true,
+      "detail": "underbound record rejected with PROJECT_UNDERBOUND naming 'CHK-NOPE'; signature absent from unmutated baseline"
+    },
+    {
+      "control": "underbound-binding:mandatoryRuntimeEffectChecks",
+      "ok": true,
+      "detail": "underbound record rejected with RUNTIME_EFFECT_UNWITNESSED naming 'CHK-RTE-REQUIRED'; signature absent from unmutated baseline"
+    },
+    {
+      "control": "underbound-binding:mandatoryAlternativeEvaluatorIds",
+      "ok": true,
+      "detail": "underbound record rejected with ALTERNATIVE_EVALUATOR_MISSING naming 'EVAL-FABRICATED'; signature absent from unmutated baseline"
+    },
+    {
+      "control": "underbound-binding:divergenceClassificationPolicy",
+      "ok": true,
+      "detail": "underbound record rejected with DIVERGENCE_CLASSIFICATION_UNJUSTIFIED naming 'CMP-EXACT-JSON'; signature absent from unmutated baseline"
+    },
+    {
+      "control": "underbound-binding:authorityIdentityRule",
+      "ok": true,
+      "detail": "underbound record rejected with AUTHORITY_SOURCE_AMBIGUOUS naming no authority assignment; signature absent from unmutated baseline"
+    },
+    {
+      "control": "subject-reference-separation",
+      "ok": true,
+      "detail": "4 subject modules import neither the reference adapter nor the parser; 3 reference modules import no PHOSPHENE code"
+    },
+    {
+      "control": "product-path-removal-witness:executor.mjs",
+      "ok": true,
+      "detail": "removing phosphene/src/exec/executor.mjs flips subject execution from running to unavailable — the product path invokes it (removal intervention per §14.3)"
+    },
+    {
+      "control": "product-path-removal-witness:graph.mjs",
+      "ok": true,
+      "detail": "removing phosphene/src/graph/graph.mjs flips subject execution from running to unavailable — the product path invokes it (removal intervention per §14.3)"
+    },
+    {
+      "control": "live-authorization-forged-witness-rejected",
+      "ok": true,
+      "detail": "producer-authored witness referencing a nonexistent host approval event rejected by live verification"
+    },
+    {
+      "control": "lineage-unchanged-descendant-accepted",
+      "ok": true,
+      "detail": "attestation retained two descendant commits after the reviewed revision is accepted: ancestry holds and every protected artifact is unchanged (retention itself does not invalidate)"
+    },
+    {
+      "control": "lineage-protected-artifact-change-invalidates",
+      "ok": true,
+      "detail": "changing a protected artifact after approval invalidates the attestation with AUTHORIZATION_LINEAGE_INVALID naming the changed file"
+    },
+    {
+      "control": "lineage-wrong-repository-rejected",
+      "ok": true,
+      "detail": "attestation bound to a different repository identity is rejected"
+    },
+    {
+      "control": "lineage-non-ancestor-reviewed-revision-rejected",
+      "ok": true,
+      "detail": "a reviewed revision that is not an ancestor of the consuming revision is rejected"
+    },
+    {
+      "control": "lineage-review-against-wrong-commit-rejected",
+      "ok": true,
+      "detail": "an attestation whose reviewed revision differs from the witness declaration is rejected (review against the wrong commit)"
+    },
+    {
+      "control": "lineage-missing-reviewed-revision-rejected",
+      "ok": true,
+      "detail": "a witness without an exact reviewed revision fails (schema and lineage both reject it)"
+    },
+    {
+      "control": "lineage-allowlist-change-invalidates",
+      "ok": true,
+      "detail": "changing the applicable identity allowlist after approval invalidates the attestation"
+    },
+    {
+      "control": "semantic-negative:positive-control-not-consumed",
+      "ok": true,
+      "detail": "structurally valid but semantically inadequate record rejected with SEMANTIC_PROXY_SUBSTITUTION naming 'does not register positive control'"
+    },
+    {
+      "control": "semantic-negative:product-path-dependence-unregistered",
+      "ok": true,
+      "detail": "structurally valid but semantically inadequate record rejected with SEMANTIC_PROXY_SUBSTITUTION naming 'no registered product-path dependence control'"
+    },
+    {
+      "control": "semantic-negative:authority-coverage-omitted-constituent",
+      "ok": true,
+      "detail": "structurally valid but semantically inadequate record rejected with AUTHORITY_SOURCE_AMBIGUOUS naming 'has no authority assignment'"
+    },
+    {
+      "control": "semantic-negative:authority-coverage-unrelated-substitution",
+      "ok": true,
+      "detail": "structurally valid but semantically inadequate record rejected with AUTHORITY_SOURCE_AMBIGUOUS naming 'unrelated substitution'"
+    },
+    {
+      "control": "semantic-negative:authority-coverage-conflicting-duplicate",
+      "ok": true,
+      "detail": "structurally valid but semantically inadequate record rejected with AUTHORITY_SOURCE_AMBIGUOUS naming 'duplicate conflicting assignment'"
+    },
+    {
+      "control": "semantic-negative:divergence-evidence-does-not-justify",
+      "ok": true,
+      "detail": "structurally valid but semantically inadequate record rejected with DIVERGENCE_CLASSIFICATION_UNJUSTIFIED naming 'no cited record establishes'"
+    },
+    {
+      "control": "semantic-negative:evidence-class-present-but-unconsumed",
+      "ok": true,
+      "detail": "structurally valid but semantically inadequate record rejected with EVIDENCE_MISSING naming 'no claim fixture consumes its artifact'"
+    },
+    {
+      "control": "semantic-negative:stronger-oracle-bypass",
+      "ok": true,
+      "detail": "structurally valid but semantically inadequate record rejected with STRONGER_ORACLE_BYPASSED naming 'reference-execution'"
+    },
+    {
+      "control": "semantic-negative:inventory-item-unclaimed",
+      "ok": true,
+      "detail": "structurally valid but semantically inadequate record rejected with INVENTORY_ITEM_UNCLAIMED naming 'STMT-4'"
+    },
+    {
+      "control": "semantic-negative:inventory-coverage-coarse",
+      "ok": true,
+      "detail": "structurally valid but semantically inadequate record rejected with CLAIM_COVERAGE_COARSE naming 'STMT-3'"
+    },
+    {
+      "control": "semantic-negative:capability-unavailable",
+      "ok": true,
+      "detail": "structurally valid but semantically inadequate record rejected with SUBJECT_EXECUTION_UNAVAILABLE naming ''phosphene-execute-graph-step' is unavailable'"
+    },
+    {
+      "control": "semantic-negative:non-discriminating-fixture",
+      "ok": true,
+      "detail": "structurally valid but semantically inadequate record rejected with FIXTURE_NONDISCRIMINATING naming 'ALT-COMPAT-IDENTITY-COPY'"
+    },
+    {
+      "control": "semantic-negative:oracle-hand-derived-rejected",
+      "ok": true,
+      "detail": "structurally valid but semantically inadequate record rejected with EXPECTED_VALUE_ORIGIN_UNACCEPTABLE naming 'hand-derived-exact'"
+    },
+    {
+      "control": "semantic-negative:category-uncovered",
+      "ok": true,
+      "detail": "structurally valid but semantically inadequate record rejected with PROJECT_UNDERBOUND naming ''nonexistent-category''"
+    },
+    {
+      "control": "semantic-negative:provider-unconfigured",
+      "ok": true,
+      "detail": "structurally valid but semantically inadequate record rejected with PROVIDER_UNAVAILABLE naming ''PROVIDER-DOES-NOT-EXIST''"
+    },
+    {
+      "control": "semantic-negative:product-path-bypass-detected-by-removal",
+      "ok": true,
+      "detail": "an adapter labelled 'product' that bypasses the graph/executor computes the same result after the executor is deleted — the removal intervention's job is to make exactly this bypass observable, which is why the role label alone is never accepted"
+    },
+    {
+      "control": "conformance-suite-weakening-rejected",
+      "ok": true,
+      "detail": "changing a canonical control expected signature without authenticated authorization is rejected (manifest hash mismatch)"
+    },
+    {
+      "control": "bootstrap-self-certification-rejected",
+      "ok": true,
+      "detail": "a bootstrap record marked 'established' without an authenticated independent witness is rejected — the implementation cannot certify itself"
+    },
+    {
+      "control": "bootstrap-core-hash-mismatch-rejected",
+      "ok": true,
+      "detail": "a bootstrap record bound to different trust-bearing core hashes is rejected; a material core change invalidates the prior judgment"
+    }
+  ],
+  "bindingFieldAudit": [
+    {
+      "requirementId": "REQ-SELFTEST-CRC32",
+      "field": "mandatoryEvidenceClasses",
+      "reader": "bindingfields.enforceBindingClassFields",
+      "passCondition": "every mandatory class has a retained evidence artifact that the claim verification chain actually consumes",
+      "failureCode": "EVIDENCE_MISSING",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "REQ-SELFTEST-CRC32",
+      "field": "mandatoryPositiveControls",
+      "reader": "bindingfields.enforceBindingClassFields",
+      "passCondition": "the named control resolves to an executable check, is registered on every class claim, and its OWN retained execution result passes",
+      "failureCode": "SEMANTIC_PROXY_SUBSTITUTION",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "REQ-SELFTEST-CRC32",
+      "field": "mandatoryNegativeControlDefectClasses",
+      "reader": "bindingfields.enforceBindingClassFields",
+      "passCondition": "each defect class has a registered evaluator exercised by a fixture of the class",
+      "failureCode": "NEGATIVE_CONTROL_INVALID",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "REQ-SELFTEST-CRC32",
+      "field": "mandatoryProductPathChecks",
+      "reader": "bindingfields.enforceBindingClassFields",
+      "passCondition": "each claim registers the matching role=product check AND a registered runtime dependence control whose removal targets exist; the control suite executes the interventions",
+      "failureCode": "SEMANTIC_PROXY_SUBSTITUTION",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "REQ-SELFTEST-CRC32",
+      "field": "mandatoryFixtureDiscriminationChecks",
+      "reader": "bindingfields.enforceBindingClassFields",
+      "passCondition": "each behavior claim registers a matching fixture-discrimination check",
+      "failureCode": "PROJECT_UNDERBOUND",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "REQ-SELFTEST-CRC32",
+      "field": "mandatoryRuntimeEffectChecks",
+      "reader": "bindingfields.enforceBindingClassFields",
+      "passCondition": "each mandatory pattern is met by a runtime-effect claim with a matching runtime-effect check",
+      "failureCode": "RUNTIME_EFFECT_UNWITNESSED",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "REQ-SELFTEST-CRC32",
+      "field": "mandatoryAlternativeEvaluatorIds",
+      "reader": "bindingfields.enforceBindingClassFields",
+      "passCondition": "each mandatory evaluator resolves, its module exists, and a class fixture exercises it",
+      "failureCode": "ALTERNATIVE_EVALUATOR_MISSING",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "REQ-SELFTEST-CRC32",
+      "field": "divergenceClassificationPolicy",
+      "reader": "bindingfields.enforceBindingClassFields",
+      "passCondition": "every toleranced comparator cites evidence whose representationVariation names the cause and establishes permittedMagnitude >= the actual tolerance",
+      "failureCode": "DIVERGENCE_CLASSIFICATION_UNJUSTIFIED",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "REQ-SELFTEST-CRC32",
+      "field": "equivalenceClaimPolicy",
+      "reader": "bindingfields.enforceBindingClassFields",
+      "passCondition": "no equivalence claims when allowed=false; proof enforcement in engine when allowed=true",
+      "failureCode": "EQUIVALENCE_UNPROVEN",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "REQ-SELFTEST-CRC32",
+      "field": "authorityIdentityRule",
+      "reader": "bindingfields.enforceBindingClassFields",
+      "passCondition": "the derived constituent set of every expected artifact is covered exactly, with resolving authorities, no omissions, no unrelated paths, and no conflicting duplicates",
+      "failureCode": "AUTHORITY_SOURCE_AMBIGUOUS",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "REQ-SELFTEST-CRC32",
+      "field": "evidenceClassSemantics",
+      "reader": "engine.oracleCheck (expected-value origin) + schema consts",
+      "passCondition": "expected-value origin judged only against oraclePrecedencePolicy; artifact presence never authorizes origin",
+      "failureCode": "EXPECTED_VALUE_ORIGIN_UNACCEPTABLE",
+      "status": "PASS"
+    }
+  ],
+  "bootstrapConformance": {
+    "status": "pending",
+    "failures": [
+      {
+        "code": "FRAMEWORK_BOOTSTRAP_UNWITNESSED",
+        "detail": "trust-bearing core changed since the bootstrap record was drawn: tooling/verification-kit/src/core/controls.mjs (recorded 32afb3e1afcf…, current b0c2c8878bd9…) — a material core change invalidates the prior judgment (§7.10A)"
+      },
+      {
+        "code": "FRAMEWORK_BOOTSTRAP_UNWITNESSED",
+        "detail": "bootstrap-conformance status is 'pending': the independent judgment from an authority outside the correlated producer does not exist yet; internal self-test success does not substitute (§7.10A)"
+      }
+    ]
+  },
+  "conformanceSuite": {
+    "scenarioResults": [
+      {
+        "scenarioId": "CS-EVIDENCE-CLASSES-POS",
+        "executed": true,
+        "ok": true,
+        "detail": "1 framework-only requirement(s) PASS through oracle→fixture→subject→comparator"
+      },
+      {
+        "scenarioId": "CS-EVIDENCE-CLASSES-STRUCT",
+        "executed": true,
+        "ok": true,
+        "detail": "underbound record rejected with EVIDENCE_MISSING naming mandatory class 'controlled-observation'; signature absent from unmutated baseline"
+      },
+      {
+        "scenarioId": "CS-EVIDENCE-CLASSES-SEM",
+        "executed": true,
+        "ok": true,
+        "detail": "structurally valid but semantically inadequate record rejected with EVIDENCE_MISSING naming 'no claim fixture consumes its artifact'"
+      },
+      {
+        "scenarioId": "CS-POSITIVE-CONTROLS-POS",
+        "executed": true,
+        "ok": true,
+        "detail": "1 framework-only requirement(s) PASS through oracle→fixture→subject→comparator"
+      },
+      {
+        "scenarioId": "CS-POSITIVE-CONTROLS-STRUCT",
+        "executed": true,
+        "ok": true,
+        "detail": "underbound record rejected with SEMANTIC_PROXY_SUBSTITUTION naming 'POS-NONEXISTENT' resolves to no executable check record; signature absent from unmutated baseline"
+      },
+      {
+        "scenarioId": "CS-POSITIVE-CONTROLS-SEM",
+        "executed": true,
+        "ok": true,
+        "detail": "structurally valid but semantically inadequate record rejected with SEMANTIC_PROXY_SUBSTITUTION naming 'does not register positive control'"
+      },
+      {
+        "scenarioId": "CS-NEGATIVE-CONTROL-DEFECTS-POS",
+        "executed": true,
+        "ok": true,
+        "detail": "rejected with intended signature: CHECK_FAILED at pools[1].q1"
+      },
+      {
+        "scenarioId": "CS-NEGATIVE-CONTROL-DEFECTS-STRUCT",
+        "executed": true,
+        "ok": true,
+        "detail": "underbound record rejected with NEGATIVE_CONTROL_INVALID naming 'fabricated-defect-class'; signature absent from unmutated baseline"
+      },
+      {
+        "scenarioId": "CS-NEGATIVE-CONTROL-DEFECTS-SEM",
+        "executed": true,
+        "ok": true,
+        "detail": "underbound record rejected with ALTERNATIVE_EVALUATOR_MISSING naming 'EVAL-FABRICATED'; signature absent from unmutated baseline"
+      },
+      {
+        "scenarioId": "CS-PRODUCT-PATH-POS",
+        "executed": true,
+        "ok": true,
+        "detail": "removing phosphene/src/exec/executor.mjs flips subject execution from running to unavailable — the product path invokes it (removal intervention per §14.3)"
+      },
+      {
+        "scenarioId": "CS-PRODUCT-PATH-STRUCT",
+        "executed": true,
+        "ok": true,
+        "detail": "underbound record rejected with SEMANTIC_PROXY_SUBSTITUTION naming no check matching mandatory product-path pattern 'CHK-DOES-NOT-EXIST'; signature absent from unmutated baseline"
+      },
+      {
+        "scenarioId": "CS-PRODUCT-PATH-SEM",
+        "executed": true,
+        "ok": true,
+        "detail": "an adapter labelled 'product' that bypasses the graph/executor computes the same result after the executor is deleted — the removal intervention's job is to make exactly this bypass observable, which is why the role label alone is never accepted"
+      },
+      {
+        "scenarioId": "CS-FIXTURE-DISCRIMINATION-POS",
+        "executed": true,
+        "ok": true,
+        "detail": "1 framework-only requirement(s) PASS through oracle→fixture→subject→comparator"
+      },
+      {
+        "scenarioId": "CS-FIXTURE-DISCRIMINATION-STRUCT",
+        "executed": true,
+        "ok": true,
+        "detail": "underbound record rejected with PROJECT_UNDERBOUND naming 'CHK-NOPE'; signature absent from unmutated baseline"
+      },
+      {
+        "scenarioId": "CS-FIXTURE-DISCRIMINATION-SEM",
+        "executed": true,
+        "ok": true,
+        "detail": "structurally valid but semantically inadequate record rejected with FIXTURE_NONDISCRIMINATING naming 'ALT-COMPAT-IDENTITY-COPY'"
+      },
+      {
+        "scenarioId": "CS-RUNTIME-EFFECT-POS",
+        "executed": true,
+        "ok": true,
+        "detail": "removing phosphene/src/graph/graph.mjs flips subject execution from running to unavailable — the product path invokes it (removal intervention per §14.3)"
+      },
+      {
+        "scenarioId": "CS-RUNTIME-EFFECT-STRUCT",
+        "executed": true,
+        "ok": true,
+        "detail": "underbound record rejected with RUNTIME_EFFECT_UNWITNESSED naming 'CHK-RTE-REQUIRED'; signature absent from unmutated baseline"
+      },
+      {
+        "scenarioId": "CS-RUNTIME-EFFECT-SEM",
+        "executed": false,
+        "ok": false,
+        "detail": "PENDING:registered-runtime-effect-claim-kind"
+      },
+      {
+        "scenarioId": "CS-ALTERNATIVE-EVALUATORS-POS",
+        "executed": true,
+        "ok": true,
+        "detail": "rejected with intended signature: CHECK_FAILED at pools[0].a"
+      },
+      {
+        "scenarioId": "CS-ALTERNATIVE-EVALUATORS-STRUCT",
+        "executed": true,
+        "ok": true,
+        "detail": "underbound record rejected with ALTERNATIVE_EVALUATOR_MISSING naming 'EVAL-FABRICATED'; signature absent from unmutated baseline"
+      },
+      {
+        "scenarioId": "CS-ALTERNATIVE-EVALUATORS-SEM",
+        "executed": true,
+        "ok": true,
+        "detail": "structurally valid but semantically inadequate record rejected with FIXTURE_NONDISCRIMINATING naming 'ALT-COMPAT-IDENTITY-COPY'"
+      },
+      {
+        "scenarioId": "CS-DIVERGENCE-CLASSIFICATION-POS",
+        "executed": true,
+        "ok": true,
+        "detail": "1 framework-only requirement(s) PASS through oracle→fixture→subject→comparator"
+      },
+      {
+        "scenarioId": "CS-DIVERGENCE-CLASSIFICATION-STRUCT",
+        "executed": true,
+        "ok": true,
+        "detail": "underbound record rejected with DIVERGENCE_CLASSIFICATION_UNJUSTIFIED naming 'CMP-EXACT-JSON'; signature absent from unmutated baseline"
+      },
+      {
+        "scenarioId": "CS-DIVERGENCE-CLASSIFICATION-SEM",
+        "executed": true,
+        "ok": true,
+        "detail": "structurally valid but semantically inadequate record rejected with DIVERGENCE_CLASSIFICATION_UNJUSTIFIED naming 'no cited record establishes'"
+      },
+      {
+        "scenarioId": "CS-EQUIVALENCE-POLICY-POS",
+        "executed": false,
+        "ok": false,
+        "detail": "PENDING:first-equivalence-claim"
+      },
+      {
+        "scenarioId": "CS-EQUIVALENCE-POLICY-STRUCT",
+        "executed": false,
+        "ok": false,
+        "detail": "PENDING:first-equivalence-claim"
+      },
+      {
+        "scenarioId": "CS-EQUIVALENCE-POLICY-SEM",
+        "executed": false,
+        "ok": false,
+        "detail": "PENDING:incomplete-domain-disproof-scenario"
+      },
+      {
+        "scenarioId": "CS-AUTHORITY-IDENTITY-POS",
+        "executed": true,
+        "ok": true,
+        "detail": "1 framework-only requirement(s) PASS through oracle→fixture→subject→comparator"
+      },
+      {
+        "scenarioId": "CS-AUTHORITY-IDENTITY-STRUCT",
+        "executed": true,
+        "ok": true,
+        "detail": "underbound record rejected with AUTHORITY_SOURCE_AMBIGUOUS naming no authority assignment; signature absent from unmutated baseline"
+      },
+      {
+        "scenarioId": "CS-AUTHORITY-IDENTITY-SEM",
+        "executed": true,
+        "ok": true,
+        "detail": "structurally valid but semantically inadequate record rejected with AUTHORITY_SOURCE_AMBIGUOUS naming 'has no authority assignment'"
+      },
+      {
+        "scenarioId": "CS-ORACLE-PRECEDENCE-POS",
+        "executed": true,
+        "ok": true,
+        "detail": "1 framework-only requirement(s) PASS through oracle→fixture→subject→comparator"
+      },
+      {
+        "scenarioId": "CS-ORACLE-PRECEDENCE-STRUCT",
+        "executed": true,
+        "ok": true,
+        "detail": "structurally valid but semantically inadequate record rejected with EXPECTED_VALUE_ORIGIN_UNACCEPTABLE naming 'hand-derived-exact'"
+      },
+      {
+        "scenarioId": "CS-ORACLE-PRECEDENCE-SEM",
+        "executed": true,
+        "ok": true,
+        "detail": "structurally valid but semantically inadequate record rejected with STRONGER_ORACLE_BYPASSED naming 'reference-execution'"
+      },
+      {
+        "scenarioId": "CS-INVENTORY-COVERAGE-POS",
+        "executed": true,
+        "ok": true,
+        "detail": "1 framework-only requirement(s) PASS through oracle→fixture→subject→comparator"
+      },
+      {
+        "scenarioId": "CS-INVENTORY-COVERAGE-STRUCT",
+        "executed": true,
+        "ok": true,
+        "detail": "structurally valid but semantically inadequate record rejected with INVENTORY_ITEM_UNCLAIMED naming 'STMT-4'"
+      },
+      {
+        "scenarioId": "CS-INVENTORY-COVERAGE-SEM",
+        "executed": true,
+        "ok": true,
+        "detail": "structurally valid but semantically inadequate record rejected with CLAIM_COVERAGE_COARSE naming 'STMT-3'"
+      },
+      {
+        "scenarioId": "CS-VERIFICATION-CATEGORIES-POS",
+        "executed": true,
+        "ok": true,
+        "detail": "1 framework-only requirement(s) PASS through oracle→fixture→subject→comparator"
+      },
+      {
+        "scenarioId": "CS-VERIFICATION-CATEGORIES-STRUCT",
+        "executed": true,
+        "ok": true,
+        "detail": "structurally valid but semantically inadequate record rejected with PROJECT_UNDERBOUND naming ''nonexistent-category''"
+      },
+      {
+        "scenarioId": "CS-VERIFICATION-CATEGORIES-SEM",
+        "executed": false,
+        "ok": false,
+        "detail": "PENDING:per-category-exercise-attribution"
+      },
+      {
+        "scenarioId": "CS-ADAPTER-CAPABILITIES-POS",
+        "executed": true,
+        "ok": true,
+        "detail": "1 framework-only requirement(s) PASS through oracle→fixture→subject→comparator"
+      },
+      {
+        "scenarioId": "CS-ADAPTER-CAPABILITIES-STRUCT",
+        "executed": true,
+        "ok": true,
+        "detail": "structurally valid but semantically inadequate record rejected with SUBJECT_EXECUTION_UNAVAILABLE naming ''phosphene-execute-graph-step' is unavailable'"
+      },
+      {
+        "scenarioId": "CS-ADAPTER-CAPABILITIES-SEM",
+        "executed": true,
+        "ok": true,
+        "detail": "an adapter labelled 'product' that bypasses the graph/executor computes the same result after the executor is deleted — the removal intervention's job is to make exactly this bypass observable, which is why the role label alone is never accepted"
+      },
+      {
+        "scenarioId": "CS-PROVIDERS-POS",
+        "executed": true,
+        "ok": true,
+        "detail": "1 framework-only requirement(s) PASS through oracle→fixture→subject→comparator"
+      },
+      {
+        "scenarioId": "CS-PROVIDERS-STRUCT",
+        "executed": true,
+        "ok": true,
+        "detail": "structurally valid but semantically inadequate record rejected with PROVIDER_UNAVAILABLE naming ''PROVIDER-DOES-NOT-EXIST''"
+      },
+      {
+        "scenarioId": "CS-PROVIDERS-SEM",
+        "executed": false,
+        "ok": false,
+        "detail": "PENDING:provider-version-probe"
+      },
+      {
+        "scenarioId": "CS-AUTHORIZATION-LINEAGE-POS",
+        "executed": true,
+        "ok": true,
+        "detail": "attestation retained two descendant commits after the reviewed revision is accepted: ancestry holds and every protected artifact is unchanged (retention itself does not invalidate)"
+      },
+      {
+        "scenarioId": "CS-AUTHORIZATION-LINEAGE-STRUCT",
+        "executed": true,
+        "ok": true,
+        "detail": "a witness without an exact reviewed revision fails (schema and lineage both reject it)"
+      },
+      {
+        "scenarioId": "CS-AUTHORIZATION-LINEAGE-SEM",
+        "executed": true,
+        "ok": true,
+        "detail": "an attestation whose reviewed revision differs from the witness declaration is rejected (review against the wrong commit)"
+      },
+      {
+        "scenarioId": "CS-BOOTSTRAP-CONFORMANCE-POS",
+        "executed": false,
+        "ok": false,
+        "detail": "PENDING:independent-bootstrap-judgment (user-side action, blocked until the lineage path can retain it)"
+      },
+      {
+        "scenarioId": "CS-BOOTSTRAP-CONFORMANCE-STRUCT",
+        "executed": true,
+        "ok": true,
+        "detail": "a bootstrap record bound to different trust-bearing core hashes is rejected; a material core change invalidates the prior judgment"
+      },
+      {
+        "scenarioId": "CS-BOOTSTRAP-CONFORMANCE-SEM",
+        "executed": true,
+        "ok": true,
+        "detail": "a bootstrap record marked 'established' without an authenticated independent witness is rejected — the implementation cannot certify itself"
+      },
+      {
+        "scenarioId": "CS-CONFORMANCE-GOVERNANCE-POS",
+        "executed": false,
+        "ok": false,
+        "detail": "PENDING:suite-green-after-scenario-buildout"
+      },
+      {
+        "scenarioId": "CS-CONFORMANCE-GOVERNANCE-STRUCT",
+        "executed": true,
+        "ok": true,
+        "detail": "changing a canonical control expected signature without authenticated authorization is rejected (manifest hash mismatch)"
+      },
+      {
+        "scenarioId": "CS-CONFORMANCE-GOVERNANCE-SEM",
+        "executed": false,
+        "ok": false,
+        "detail": "PENDING:reinterpretation-without-hash-change-detection"
+      }
+    ],
+    "contractCoverage": [
+      {
+        "semanticContractId": "SC-EVIDENCE-CLASSES",
+        "positive": true,
+        "structural": true,
+        "semantic": true
+      },
+      {
+        "semanticContractId": "SC-POSITIVE-CONTROLS",
+        "positive": true,
+        "structural": true,
+        "semantic": true
+      },
+      {
+        "semanticContractId": "SC-NEGATIVE-CONTROL-DEFECTS",
+        "positive": true,
+        "structural": true,
+        "semantic": true
+      },
+      {
+        "semanticContractId": "SC-PRODUCT-PATH",
+        "positive": true,
+        "structural": true,
+        "semantic": true
+      },
+      {
+        "semanticContractId": "SC-FIXTURE-DISCRIMINATION",
+        "positive": true,
+        "structural": true,
+        "semantic": true
+      },
+      {
+        "semanticContractId": "SC-RUNTIME-EFFECT",
+        "positive": true,
+        "structural": true,
+        "semantic": false
+      },
+      {
+        "semanticContractId": "SC-ALTERNATIVE-EVALUATORS",
+        "positive": true,
+        "structural": true,
+        "semantic": true
+      },
+      {
+        "semanticContractId": "SC-DIVERGENCE-CLASSIFICATION",
+        "positive": true,
+        "structural": true,
+        "semantic": true
+      },
+      {
+        "semanticContractId": "SC-EQUIVALENCE-POLICY",
+        "positive": false,
+        "structural": false,
+        "semantic": false
+      },
+      {
+        "semanticContractId": "SC-AUTHORITY-IDENTITY",
+        "positive": true,
+        "structural": true,
+        "semantic": true
+      },
+      {
+        "semanticContractId": "SC-ORACLE-PRECEDENCE",
+        "positive": true,
+        "structural": true,
+        "semantic": true
+      },
+      {
+        "semanticContractId": "SC-INVENTORY-COVERAGE",
+        "positive": true,
+        "structural": true,
+        "semantic": true
+      },
+      {
+        "semanticContractId": "SC-VERIFICATION-CATEGORIES",
+        "positive": true,
+        "structural": true,
+        "semantic": false
+      },
+      {
+        "semanticContractId": "SC-ADAPTER-CAPABILITIES",
+        "positive": true,
+        "structural": true,
+        "semantic": true
+      },
+      {
+        "semanticContractId": "SC-PROVIDERS",
+        "positive": true,
+        "structural": true,
+        "semantic": false
+      },
+      {
+        "semanticContractId": "SC-AUTHORIZATION-LINEAGE",
+        "positive": true,
+        "structural": true,
+        "semantic": true
+      },
+      {
+        "semanticContractId": "SC-BOOTSTRAP-CONFORMANCE",
+        "positive": false,
+        "structural": true,
+        "semantic": true
+      },
+      {
+        "semanticContractId": "SC-CONFORMANCE-GOVERNANCE",
+        "positive": false,
+        "structural": true,
+        "semantic": false
+      }
+    ]
+  },
+  "attestationLineage": [],
+  "note": "partial framework construction appears as a failed matrix, not a progress narrative (framework spec §15)"
+}

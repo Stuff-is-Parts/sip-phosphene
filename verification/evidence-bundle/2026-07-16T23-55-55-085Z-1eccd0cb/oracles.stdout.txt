@@ -1,0 +1,2 @@
+oracles: PASS
+report: verification/reports/oracles-2026-07-17T00-15-33-274Z.json

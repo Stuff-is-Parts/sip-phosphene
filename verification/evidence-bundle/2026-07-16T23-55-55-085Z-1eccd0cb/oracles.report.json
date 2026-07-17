@@ -1,0 +1,24 @@
+{
+  "command": "oracles",
+  "repositoryCommit": "1eccd0cbb7a4e5c35ccc92b13a26eb7083806bf1",
+  "dirtyWorktree": true,
+  "operatingSystem": "win32 10.0.26200",
+  "nodeVersion": "v24.18.0",
+  "time": "2026-07-17T00:15:33.273Z",
+  "result": "PASS",
+  "failures": [],
+  "oracles": [
+    {
+      "claimId": "CLAIM-MILK-EXPR-OPERATORS",
+      "policy": "ORACLE-POLICY-MILK-EXPR",
+      "actual": "reference-execution",
+      "bypassed": []
+    },
+    {
+      "claimId": "CLAIM-SELFTEST-CRC32",
+      "policy": "ORACLE-POLICY-SELFTEST",
+      "actual": "reference-execution",
+      "bypassed": []
+    }
+  ]
+}

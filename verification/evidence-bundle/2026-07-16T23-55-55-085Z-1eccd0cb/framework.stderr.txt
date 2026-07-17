@@ -1,0 +1,12 @@
+fatal: hardlink different from source at 'C:\Users\tdeme\AppData\Local\Temp\verify-audit-fixture-04YhtP/.git/objects/d0/c6ed650cde0812e18b1cce2a6ce0db004041b8'
+verify: Error: Command failed: git clone --quiet --local C:\Users\tdeme\AppData\Local\Temp\verify-audit-fixture-SCSHpL C:\Users\tdeme\AppData\Local\Temp\verify-audit-fixture-04YhtP
+fatal: hardlink different from source at 'C:\Users\tdeme\AppData\Local\Temp\verify-audit-fixture-04YhtP/.git/objects/d0/c6ed650cde0812e18b1cce2a6ce0db004041b8'
+
+    at genericNodeError (node:internal/errors:985:15)
+    at wrappedFn (node:internal/errors:539:14)
+    at checkExecSyncError (node:child_process:925:11)
+    at execFileSync (node:child_process:961:15)
+    at cloneFixture (file:///C:/Users/tdeme/Repositories/sip-phosphene/tooling/verification-kit/src/core/controls.mjs:119:3)
+    at lineageControls (file:///C:/Users/tdeme/Repositories/sip-phosphene/tooling/verification-kit/src/core/controls.mjs:324:19)
+    at computeFrameworkResult (file:///C:/Users/tdeme/Repositories/sip-phosphene/tooling/verification-kit/src/core/framework.mjs:101:10)
+    at async cmdConformanceSuite (file:///C:/Users/tdeme/Repositories/sip-phosphene/tooling/verification-kit/src/cli/main.mjs:194:14)

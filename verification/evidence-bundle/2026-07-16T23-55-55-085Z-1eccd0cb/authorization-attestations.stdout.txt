@@ -1,0 +1,3 @@
+authorization-attestations: FAIL
+  AUTHORIZATION_WITNESS_MISSING: no authorization witnesses retained
+report: verification/reports/authorization-attestations-2026-07-17T00-15-34-147Z.json

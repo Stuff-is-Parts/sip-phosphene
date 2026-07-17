@@ -1,0 +1,15 @@
+{
+  "command": "scope",
+  "repositoryCommit": "1eccd0cbb7a4e5c35ccc92b13a26eb7083806bf1",
+  "dirtyWorktree": true,
+  "operatingSystem": "win32 10.0.26200",
+  "nodeVersion": "v24.18.0",
+  "time": "2026-07-17T00:15:33.709Z",
+  "result": "FAIL",
+  "failures": [
+    {
+      "code": "SCOPE_APPROVAL_MISSING",
+      "detail": "scope approval witness missing: no witness referenced"
+    }
+  ]
+}
