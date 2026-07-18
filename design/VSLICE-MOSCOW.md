@@ -71,7 +71,7 @@ the fact.
 | Studio scene library panel | [MD-SRC] preset list; [P9-DOC] scene sets | S | now | done (drawer: committed manifest + session imports) |
 | Audio source select in studio (player-identical) | [MD-SRC] [P9-DOC] | S | now | done (demo/file/mic, same labels and order as the player) |
 | Waveform/spectrum scope in studio | [MD-SRC] wave modes; [P9-DOC] waveform/SoundTexture | S | now | done (canvas scope on the derived analysis chain) |
-| Export shareable package (.p9d equivalent) | [P9-DOC] | S | now | done — covered by the Save .phos download (the .phos IS the shareable unit) |
+| Export shareable package (.p9d equivalent) | [P9-DOC] | S | now | done for resource-free scenes only — Save .phos is the shareable unit, but the parser refuses every non-empty resource list, so a package that carries scene ASSETS does not exist; that capability unlocks with the first resource-bearing scene |
 | Node add / wire / delete | [P9-DOC] full node editor | W (slice) | graph-executor generality (scene 2 forces it) | — |
 | Shader editor | [MD-SRC] inline; [P9-DOC] full IDE | W (slice) | first custom-shader scene | — |
 | Undo / redo | [P9-DOC] unlimited | W (slice) | real editor phase | — |

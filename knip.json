@@ -5,8 +5,18 @@
     "phosphene-engine/src/engine.mjs",
     "phosphene-engine/src/render-wgsl.mjs",
     "phosphene-engine/src/audio/sources.mjs",
-    "phosphene-engine/src/audio/pcm-tap.js"
+    "phosphene-engine/src/audio/pcm-tap.js",
+    "phosphene-engine/src/studio.mjs",
+    "phosphene-engine/src/player.mjs"
   ],
-  "project": ["phosphene-engine/**/*.mjs", "phosphene-engine/**/*.js"],
-  "ignore": ["phosphene-engine/vendor/**"]
+  "project": [
+    "phosphene-engine/**/*.mjs",
+    "phosphene-engine/**/*.js"
+  ],
+  "ignore": [
+    "phosphene-engine/vendor/**"
+  ],
+  "ignoreDependencies": [
+    "@webgpu/types"
+  ]
 }

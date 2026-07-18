@@ -2,7 +2,7 @@ name: ci
 on: [push, pull_request]
 jobs:
   mechanical-gate:
-    # ONLY the four standard tools — this is `npm run gate`. No behavioral checks.
+    # ONLY the five standard tools — this is `npm run gate`. No behavioral checks.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

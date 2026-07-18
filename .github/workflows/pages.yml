@@ -14,7 +14,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  gate:
+  # two distinct authorities run before deploy: the mechanical gate (the five
+  # standard tools, `npm run gate`) and the separate project check suite
+  # (`npm run check`). The job name keeps them distinct per CLAUDE.md.
+  gate-and-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +30,7 @@ jobs:
       - run: npm run check
 
   deploy:
-    needs: gate
+    needs: gate-and-check
     runs-on: ubuntu-latest
     environment:
       name: github-pages

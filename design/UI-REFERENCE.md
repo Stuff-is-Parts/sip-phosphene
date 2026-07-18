@@ -53,7 +53,7 @@ these web sources.
    "decorative, not functional at small sizes" (StyleShift) — it never sets
    body text.
 5. **Type scale: 1.125 Major Second, 4px-grid snapped, five steps total.**
-   micro 11px · body 13px · title 15px · mark 20px · splash (clamp, player
+   micro 11px · body 13px · title 15px · mark 24px · splash (clamp, player
    h1 only). Every font-size in the pages maps to a step; a size outside
    the scale is a defect (audit method: extract all unique font sizes,
    map each to a step).
