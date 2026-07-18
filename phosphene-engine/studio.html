@@ -199,16 +199,25 @@ else {
   const ctx = canvas.getContext('webgpu');
   const fmt = navigator.gpu.getPreferredCanvasFormat();
   const dpr = devicePixelRatio||1;
-  const resize=()=>{canvas.width=canvas.clientWidth*dpr;canvas.height=canvas.clientHeight*dpr;engine.setViewport(canvas.width,canvas.height);};
+  const U=GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING;
+  let tA,tB,texW=0,texH=0;
+  // render targets follow the canvas (nTexSize -1 auto-exact, plugin.cpp:1851-1852)
+  // snapped to 16-pixel blocks (:1879-1880); resize recreates them
+  const rebuildTargets=()=>{
+    const w=Math.max(16,Math.ceil(canvas.width/16)*16), h=Math.max(16,Math.ceil(canvas.height/16)*16);
+    if(w===texW&&h===texH)return;
+    texW=w;texH=h;
+    if(tA)tA.destroy();if(tB)tB.destroy();
+    tA=device.createTexture({size:[texW,texH],format:'rgba8unorm',usage:U});
+    tB=device.createTexture({size:[texW,texH],format:'rgba8unorm',usage:U});
+  };
+  const resize=()=>{canvas.width=canvas.clientWidth*dpr;canvas.height=canvas.clientHeight*dpr;rebuildTargets();};
   resize(); addEventListener('resize',resize);
   ctx.configure({device,format:fmt,alphaMode:'opaque'});
   const mod = device.createShaderModule({code:feedbackWGSL});
   const blitMod = device.createShaderModule({code:compositeWGSL});
-  const W=1024,H=1024,U=GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING;
-  let tA=device.createTexture({size:[W,H],format:'rgba8unorm',usage:U});
-  let tB=device.createTexture({size:[W,H],format:'rgba8unorm',usage:U});
   const samp=device.createSampler({magFilter:'linear',minFilter:'linear',addressModeU:'repeat',addressModeV:'repeat'});
-  const ubuf=device.createBuffer({size:112,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+  const ubuf=device.createBuffer({size:128,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
   const cbuf=device.createBuffer({size:32,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
   const bgl=device.createBindGroupLayout({entries:[
     {binding:0,visibility:GPUShaderStage.FRAGMENT,texture:{}},
@@ -222,15 +231,16 @@ else {
   function frame(now){
     const dt=Math.min(0.05,(now-last)/1000); last=now;
     if(playing){
+      engine.setViewport(canvas.width,canvas.height,texW,texH); // live dims each frame (scene swaps replace the engine)
       const st=engine.step(dt,{bass:1,mid:1,treb:1});
       const m=st.motion,ib=st.innerBox,ob=st.outerBox;
-      const u=new Float32Array([m.decay,ib.size,ib.r,ib.g,ib.b,ib.a,ob.size,ob.r,ob.g,ob.b,ob.a,m.zoom,m.zoomExp,m.rot,m.warp,m.cx,m.cy,m.dx,m.dy,m.sx,m.sy,m.warpTime,m.warpScaleInv,m.f0,m.f1,m.f2,m.f3,0]);
+      const u=new Float32Array([m.decay,ib.size,ib.r,ib.g,ib.b,ib.a,ob.size,ob.r,ob.g,ob.b,ob.a,m.zoom,m.zoomExp,m.rot,m.warp,m.cx,m.cy,m.dx,m.dy,m.sx,m.sy,m.warpTime,m.warpScaleInv,m.f0,m.f1,m.f2,m.f3,m.aspectX,m.aspectY,0,0,0]);
       device.queue.writeBuffer(ubuf,0,u);
       const bg=device.createBindGroup({layout:bgl,entries:[{binding:0,resource:tA.createView()},{binding:1,resource:samp},{binding:2,resource:{buffer:ubuf}}]});
       const enc=device.createCommandEncoder();
       let rp=enc.beginRenderPass({colorAttachments:[{view:tB.createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
       rp.setPipeline(pipe);rp.setBindGroup(0,bg);rp.draw(3);rp.end();
-      const aspect=canvas.width/canvas.height;
+      const aspect=canvas.width/(canvas.height*(1/m.aspectY)); // milkdropfs.cpp:4101-4103
       const cx2=(aspect>1?1:1/aspect)*(1+1/canvas.width), cy2=(aspect>1?aspect:1)*(1+1/canvas.height);
       device.queue.writeBuffer(cbuf,0,new Float32Array([st.comp.gamma,st.comp.echoAlpha,st.comp.echoZoom,st.comp.echoOrient,cx2,cy2,0,0]));
       const bbg=device.createBindGroup({layout:blitPipe.getBindGroupLayout(0),entries:[{binding:0,resource:tB.createView()},{binding:1,resource:samp},{binding:2,resource:{buffer:cbuf}}]});

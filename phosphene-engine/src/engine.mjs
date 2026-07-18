@@ -105,7 +105,7 @@ export class Engine {
     this.pool = buildPool(scene.vars); // live variable pool, under EEL names
     this.perFrame = compileEEL(scene.expressions.perFrame);
     this.frame = 0;
-    this.viewportW = 1024; this.viewportH = 1024; // updated by pages via setViewport
+    this.viewportW = 1024; this.viewportH = 1024; this.texW = 1024; this.texH = 1024; // headless defaults; pages overwrite via setViewport
     // INTERIM (design/PHOS-FORMAT.md Semantics): MilkDrop's timekeeping is
     // hardwired here for ALL scenes until the executor supports component
     // nodes that converted scenes can reference. Same for the audio chain.
@@ -132,7 +132,8 @@ export class Engine {
       progress: this.timekeeper.time / 16,
       meshx: 48, meshy: 36,               // grid defaults, plugin.cpp:952-953
       pixelsx: this.viewportW, pixelsy: this.viewportH, // GetWidth/GetHeight, milkdropfs.cpp:543-544
-      aspectx: 1, aspecty: 1,             // m_fInvAspect, 1 for the square target (plugin.cpp:2027-2029)
+      // the pool carries the INVERSE aspect factors (m_fInvAspectX/Y), milkdropfs.cpp:545-546
+      aspectx: 1 / this.aspectX(), aspecty: 1 / this.aspectY(),
     });
     // run per-frame equations (the source-derived expression VM)
     this.perFrame(this.pool);
@@ -145,7 +146,10 @@ export class Engine {
   // --- studio live-edit surface ---
   setVar(/** @type {string} */ name, /** @type {number} */ value) { this.scene.vars[name] = value; this.pool[KEY_TO_EEL[name] ?? name] = value; }
   getVar(/** @type {string} */ name) { return this.pool[KEY_TO_EEL[name] ?? name]; }
-  setViewport(/** @type {number} */ w, /** @type {number} */ h) { this.viewportW = w; this.viewportH = h; }
+  setViewport(/** @type {number} */ w, /** @type {number} */ h, /** @type {number} */ texW = w, /** @type {number} */ texH = h) { this.viewportW = w; this.viewportH = h; this.texW = texW; this.texH = texH; }
+  // aspect factors from the render-target size — plugin.cpp:2027-2028
+  aspectX() { return (this.texH > this.texW) ? this.texW / this.texH : 1; }
+  aspectY() { return (this.texW > this.texH) ? this.texH / this.texW : 1; }
   recompile(/** @type {string[]} */ perFrameSource) {
     this.scene.expressions.perFrame = perFrameSource;
     this.perFrame = compileEEL(perFrameSource);
@@ -172,6 +176,7 @@ export class Engine {
         // per-frame warp oscillators — milkdropfs.cpp:1782-1787
         const warpTime = t * (p.fWarpAnimSpeed ?? 0);
         state.motion = {
+          aspectX: this.aspectX(), aspectY: this.aspectY(), // plugin.cpp:2027-2028
           decay: p.decay ?? 0,
           zoom: p.zoom ?? 0, zoomExp: p.zoomexp ?? 0, rot: p.rot ?? 0, warp: p.warp ?? 0,
           cx: p.cx ?? 0, cy: p.cy ?? 0, dx: p.dx ?? 0, dy: p.dy ?? 0, sx: p.sx ?? 0, sy: p.sy ?? 0,

@@ -10,11 +10,11 @@
 // source's look. The finite-mesh path is mandated by the exactness standard
 // ("the graph and executor must be extended when the source behavior requires
 // it"); its trigger is the first warp-exercising content, per the falsifier
-// rule in CLAUDE.md. rad = sqrt(x²·aspectX² + y²·aspectY²) per
-// plugin.cpp:2281; our render target is square so both aspect factors are 1
-// and the aspect apply/undo steps (:1881-1884, :1920-1922) are identity.
-// The 1024² target is a value inside the source's own config space (the
-// nTexSize ini setting, plugin.cpp:949,1193 — default -1 = auto).
+// rule in CLAUDE.md. The render targets follow the window per the source's
+// DEFAULT texture mode (nTexSize -1 auto-exact: plugin.cpp:949, 1193-1196,
+// 1851-1852; 16-block snap :1879-1880), so the aspect factors
+// (plugin.cpp:2027-2028) and their apply/undo steps (:1881-1882, :1914-1916)
+// are transcribed live rather than assumed identity.
 
 // Composite pass — transcribed from CPlugin::ShowToUser_NoShaders
 // (milkdropfs.cpp:4050-4260). The source draws the internal texture as a
@@ -75,7 +75,7 @@ struct Uniforms {
   cx: f32, cy: f32, dx: f32, dy: f32, sx: f32, sy: f32,
   warpTime: f32, warpScaleInv: f32,
   f0: f32, f1: f32, f2: f32, f3: f32,
-  _pad0: f32,
+  aspectX: f32, aspectY: f32, _pad0: f32, _pad1: f32, _pad2: f32,
 };
 @group(0) @binding(0) var prevTex: texture_2d<f32>;
 @group(0) @binding(1) var prevSamp: sampler;
@@ -93,12 +93,12 @@ struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> };
   // grid coordinates: x,y in [-1,1], y up (verts init; v = -y*0.5+0.5 per :1884)
   let xg = in.uv.x * 2.0 - 1.0;
   let yg = 1.0 - 2.0 * in.uv.y;
-  let rad = sqrt(xg*xg + yg*yg);                       // plugin.cpp:2281, aspect=1
+  let rad = sqrt(xg*xg*u.aspectX*u.aspectX + yg*yg*u.aspectY*u.aspectY); // plugin.cpp:2281
   // zoom with per-radius exponent — :1877
   let zoom2 = pow(u.zoom, pow(u.zoomexp, rad*2.0 - 1.0));
   let zoom2inv = 1.0 / zoom2;                          // :1880
-  var uu =  xg * 0.5 * zoom2inv + 0.5;                 // :1882 (aspect=1)
-  var vv = -yg * 0.5 * zoom2inv + 0.5;                 // :1884
+  var uu =  xg * u.aspectX * 0.5 * zoom2inv + 0.5;     // :1881
+  var vv = -yg * u.aspectY * 0.5 * zoom2inv + 0.5;     // :1882
   // stretch — :1890-1891
   uu = (uu - u.cx) / u.sx + u.cx;
   vv = (vv - u.cy) / u.sy + u.cy;
@@ -117,7 +117,10 @@ struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> };
   // translation — :1911-1912
   uu -= u.dx;
   vv -= u.dy;
-  // aspect undo is identity (square target); half-texel offset — :1925-1926
+  // undo aspect ratio fix — :1914-1916
+  uu = (uu - 0.5) * (1.0 / u.aspectX) + 0.5;
+  vv = (vv - 0.5) * (1.0 / u.aspectY) + 0.5;
+  // final half-texel offset — :1918-1920
   let dims = vec2<f32>(textureDimensions(prevTex));
   uu += 0.5 / dims.x;
   vv += 0.5 / dims.y;

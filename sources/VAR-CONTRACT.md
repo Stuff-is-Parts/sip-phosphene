@@ -37,8 +37,8 @@ records the boundaries the trace settled.
 | bass/mid/treb (+_att) | Loudness chain | sources/AUDIO-PATH.md |
 | progress | time / 16 — (time − presetStart)/(next − start) with start 0 and fTimeBetweenPresets default 16.0 | milkdropfs.cpp:495; plugin.cpp:939. Preset rotation replaces the fixed duration when multi-scene sequencing lands. |
 | meshx, meshy | 48, 36 | grid defaults plugin.cpp:952-953 (GridY = GridX·3/4, :1199) |
-| pixelsx, pixelsy | live canvas pixels via Engine.setViewport (pages call it on resize; headless default 1024) | GetWidth/GetHeight, milkdropfs.cpp:543-544 |
-| aspectx, aspecty | 1 | m_fInvAspectX/Y = 1 for the square 1024² target, plugin.cpp:2027-2029 |
+| pixelsx, pixelsy | live canvas pixels via Engine.setViewport(w, h, texW, texH), called by pages every frame; headless default 1024 | GetWidth/GetHeight, milkdropfs.cpp:543-544 |
+| aspectx, aspecty | inverse aspect factors computed live from the window-matched render-target size | m_fInvAspectX/Y, plugin.cpp:2027-2030; assignment milkdropfs.cpp:545-546 |
 
 ## Boundaries the trace settled
 

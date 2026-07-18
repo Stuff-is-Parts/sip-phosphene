@@ -456,7 +456,21 @@ const varContractOk = (() => {
   return injectedOk && mappedOk && defaultsOk && volAbsent && progressOk;
 })();
 
-const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk;
+// (t) Aspect factors from the render-target size (plugin.cpp:2027-2030) reach
+//     renderState as forward factors and the pool as INVERSE factors
+//     (m_fInvAspectX/Y, milkdropfs.cpp:545-546). Exact recompute, same exprs.
+const aspectOk = (() => {
+  const e6 = new Engine(toRuntime(parsePhos(phosText)));
+  const tw = 1920, th = 1080;
+  e6.setViewport(tw, th, tw, th);
+  const st = e6.step(1 / 60);
+  const aX = (th > tw) ? tw / th : 1; // same exprs as Engine.aspectX/Y (plugin.cpp:2027-2028)
+  const aY = (tw > th) ? th / tw : 1;
+  return st.motion.aspectX === aX && st.motion.aspectY === aY
+    && e6.pool.aspectx === 1 / aX && e6.pool.aspecty === 1 / aY;
+})();
+
+const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk;
 
 const eelFnCount = Object.keys(eelSubject).length;
 const eelCoveredCount = new Set(eelCases.map((c) => c[0])).size;
@@ -522,6 +536,7 @@ console.log('fixed-pipeline contract refuses 2-node graph + per-vertex code:', c
 console.log('reset restores load-time baseline (vars/equations/state):', resetOk ? 'OK' : 'FAIL');
 console.log('post-equation clamps + EEL-name aliasing (gamma/decay/echo_zoom):', clampAliasOk ? 'OK' : 'FAIL');
 console.log('variable-contract ledger: 76 regvars classified + verified, vol absent:', varContractOk ? 'OK' : 'FAIL');
+console.log('aspect factors: forward to renderState, inverse to pool (exact):', aspectOk ? 'OK' : 'FAIL');
 for (const [name, args] of eelFailures) { const fn = eelSubject[name]; console.log(`  FAIL: ${name}(${args.join(',')}) = ${fn ? fn(...args) : 'missing'}`); }
 console.log(`\nRESULT: ${pass ? 'PASS' : 'FAIL'}`);
 process.exit(pass ? 0 : 1);
