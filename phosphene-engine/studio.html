@@ -1,14 +1,30 @@
-<!doctype html><html><head><meta charset="utf-8"><title>PHOSPHENE Studio</title>
+<!doctype html><html class="wa-dark"><head><meta charset="utf-8"><title>PHOSPHENE Studio</title>
+<link rel="stylesheet" href="./vendor/webawesome/styles/webawesome.css">
+<link rel="stylesheet" href="./vendor/webawesome/styles/themes/default.css">
+<script type="module" src="./vendor/webawesome/components/button/button.js"></script>
+<script type="module" src="./vendor/webawesome/components/split-panel/split-panel.js"></script>
+<script type="module" src="./vendor/webawesome/components/tab/tab.js"></script>
+<script type="module" src="./vendor/webawesome/components/tab-group/tab-group.js"></script>
+<script type="module" src="./vendor/webawesome/components/tab-panel/tab-panel.js"></script>
+<script type="module" src="./vendor/webawesome/components/drawer/drawer.js"></script>
 <link rel="stylesheet" href="./vendor/codemirror/codemirror.css">
 <link rel="stylesheet" href="./vendor/codemirror/foldgutter.css">
 <script src="./vendor/codemirror/codemirror.js"></script>
 <script src="./vendor/codemirror/foldcode.js"></script>
 <script src="./vendor/codemirror/foldgutter.js"></script>
 <script src="./vendor/codemirror/brace-fold.js"></script>
+<script src="./vendor/codemirror/javascript.js"></script>
 <style>
   :root{--bg:#0b0d10;--panel:#14181d;--edge:#232a31;--fg:#c9d3dd;--dim:#6b7885;--accent:#4ea1ff;--good:#3ddc84}
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.4 ui-monospace,monospace;height:100vh;display:grid;grid-template-columns:1fr 380px;overflow:hidden}
+  body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.4 ui-monospace,monospace;height:100vh;overflow:hidden}
+  wa-split-panel{height:100vh}
+  #stage{height:100%}
+  #panel{height:100%}
+  .row wa-button{flex:none}
+  #libList wa-button{display:block;margin-bottom:6px}
+  #scope{width:100%;border:1px solid var(--edge);border-radius:4px;background:#07090c}
+  .cm-property{color:#8fa7bd}.cm-string{color:#a9b7c6}.cm-number{color:#c0aac6}.cm-atom{color:#c0aac6}
   #stage{position:relative;background:#000}
   canvas{width:100%;height:100%;display:block}
   #hud{position:absolute;top:8px;left:8px;color:var(--dim);font-size:11px}
@@ -65,31 +81,48 @@
   #srcNote{color:var(--dim);font-size:11px}
 </style></head>
 <body>
-<div id="stage"><canvas id="c"></canvas><div id="hud">PHOSPHENE Studio · <b id="fps">0</b> fps · frame <b id="fr">0</b></div></div>
-<div id="panel">
-  <h2>Scene <span id="dirty" class="meta"></span></h2>
-  <div class="meta" id="meta"></div>
-  <div class="row">
-    <button id="play">⏸ Pause</button>
-    <button id="reset">↺ Reset</button>
-    <button id="savePhos">⭳ Save .phos</button>
-    <button id="save">⭳ Export .milk</button>
-    <button id="importBtn">⭱ Import…</button>
-    <button id="srcView">⇄ Source</button>
-    <input type="file" id="importFile" accept=".milk,.phos,.p9c" hidden>
-    <button id="newScene">✦ New</button>
-    <a href="./index.html" style="margin-left:auto;font-size:11px;letter-spacing:.06em;padding:5px 10px;background:var(--edge);border:1px solid #4a4020;color:#f2d97d;text-decoration:none;border-radius:4px">← PLAYER</a>
+<wa-split-panel position="70" style="height:100vh">
+  <div slot="start" id="stage"><canvas id="c"></canvas><div id="hud">PHOSPHENE Studio · <b id="fps">0</b> fps · frame <b id="fr">0</b></div></div>
+  <div slot="end" id="panel">
+    <h2>Scene <span id="dirty" class="meta"></span></h2>
+    <div class="meta" id="meta"></div>
+    <div class="row">
+      <wa-button size="small" id="play" style="width:96px">⏸ Pause</wa-button>
+      <wa-button size="small" id="reset">↺ Reset</wa-button>
+      <wa-button size="small" id="library">☰ Library</wa-button>
+      <a href="./index.html" style="margin-left:auto;font-size:11px;letter-spacing:.06em;padding:5px 10px;background:var(--edge);border:1px solid #4a4020;color:#f2d97d;text-decoration:none;border-radius:4px">← PLAYER</a>
+    </div>
+    <div class="row">
+      <wa-button size="small" id="savePhos">⭳ Save .phos</wa-button>
+      <wa-button size="small" id="importBtn">⭱ Import…</wa-button>
+      <wa-button size="small" id="srcView" style="min-width:124px">⇄ Source</wa-button>
+      <wa-button size="small" id="newScene">✦ New</wa-button>
+      <input type="file" id="importFile" accept=".milk,.phos,.p9c" hidden>
+    </div>
+    <wa-tab-group>
+      <wa-tab slot="nav" panel="tGraph">Graph</wa-tab>
+      <wa-tab slot="nav" panel="tEq">Equations</wa-tab>
+      <wa-tab slot="nav" panel="tAudio">Audio</wa-tab>
+      <wa-tab slot="nav" panel="tMeta">Metadata</wa-tab>
+      <wa-tab-panel name="tGraph"><div id="graph"></div></wa-tab-panel>
+      <wa-tab-panel name="tEq">
+        <textarea id="eq" class="eq" spellcheck="false"></textarea>
+        <div class="meta" id="eqstatus"></div>
+        <h2>Live variables</h2>
+        <div id="vars"></div>
+      </wa-tab-panel>
+      <wa-tab-panel name="tAudio">
+        <div class="row"><wa-button size="small" id="aDemo">▶ START — DEMO TRACK</wa-button></div>
+        <div class="row"><wa-button size="small" id="aFile">OPEN AUDIO FILE…</wa-button><wa-button size="small" id="aMic">USE MICROPHONE</wa-button></div>
+        <input type="file" id="audioFile" accept="audio/*" hidden>
+        <canvas id="scope" width="352" height="90"></canvas>
+        <div class="meta" id="audioStatus">silent — the engine sees the source's silence semantics (all bands 1.0)</div>
+      </wa-tab-panel>
+      <wa-tab-panel name="tMeta"><div id="metaEdit"></div></wa-tab-panel>
+    </wa-tab-group>
   </div>
-  <h2>Metadata</h2>
-  <div id="metaEdit"></div>
-  <h2>Graph (IR)</h2>
-  <div id="graph"></div>
-  <h2>Per-frame equations</h2>
-  <textarea id="eq" class="eq" spellcheck="false"></textarea>
-  <div class="meta" id="eqstatus"></div>
-  <h2>Live variables</h2>
-  <div id="vars"></div>
-</div>
+</wa-split-panel>
+<wa-drawer id="libDrawer" label="Scene library" placement="start"><div id="libList"></div></wa-drawer>
 <div id="srcOverlay">
   <div class="row" style="margin:0">
     <b style="letter-spacing:.06em">SOURCE ⇄ .PHOS</b>
@@ -105,7 +138,8 @@
 <script type="module">
 import { parsePhos, toRuntime, serializePhos, updateScene, milkToPhos, assessRecords } from './src/phos.mjs';
 import { importMilk, scanMilk } from './src/milk-import.mjs';
-import { Engine, CONSUMED_PORTS } from './src/engine.mjs';
+import { Engine } from './src/engine.mjs';
+import { AudioEngine } from './src/audio/sources.mjs';
 import { feedbackWGSL, compositeWGSL } from './src/render-wgsl.mjs';
 import { buildStripIndices, buildWarpUVs, meshPositions, VERT_COUNT } from './src/warp-mesh.mjs';
 
@@ -167,20 +201,14 @@ function renderGraph() {
       const p = document.createElement('div'); p.className = 'port';
       p.innerHTML = `<label>${key}</label>`;
       const inp = document.createElement('input'); inp.type = 'text'; inp.value = scene.vars[key]; inp.dataset.key = key;
-      if (CONSUMED_PORTS.includes(key)) {
-        inp.addEventListener('change', () => {
-          // the COMPLETE input must be a number — no prefix truncation
-          const vt = inp.value.trim();
-          if (/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(vt)) { engine.setVar(key, parseFloat(vt)); setDirty(true); }
-          else { inp.value = String(scene.vars[key]); } // reject invalid input, restore current value
-        });
-      } else {
-        // honest marking: this port is parsed and pooled but nothing in the
-        // current fixed pipeline renders it — an edit would silently do nothing
-        inp.disabled = true;
-        inp.title = 'parsed, not yet executed by the render pipeline';
-        p.style.opacity = '0.45';
-      }
+      // every port in an accepted scene has a runtime consumer by construction
+      // (Engine refuses undeclared value ports at the OP_PORTS door)
+      inp.addEventListener('change', () => {
+        // the COMPLETE input must be a number — no prefix truncation
+        const vt = inp.value.trim();
+        if (/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(vt)) { engine.setVar(key, parseFloat(vt)); setDirty(true); }
+        else { inp.value = String(scene.vars[key]); } // reject invalid input, restore current value
+      });
       const live = document.createElement('span'); live.className = 'live'; live.dataset.live = key;
       p.append(inp, live); n.append(p);
     }
@@ -224,23 +252,6 @@ document.getElementById('savePhos').onclick = async () => {
     catch(e){ /* cancelled */ }
   } else { const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setDirty(false); }
 };
-// ---- export .milk (share back to source format) ----
-document.getElementById('save').onclick = async () => {
-  const out = serializeMilk(scene, eqEl.value);
-  const blob = new Blob([out], {type:'text/plain'});
-  if (window.showSaveFilePicker) {
-    try { const h = await showSaveFilePicker({suggestedName:'edited.milk'}); const w = await h.createWritable(); await w.write(blob); await w.close(); setDirty(false); }
-    catch(e){ /* cancelled */ }
-  } else { const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='edited.milk'; a.click(); setDirty(false); }
-};
-function serializeMilk(scene, eqText) {
-  let s = '[preset00]\n';
-  const eqs = eqText.split('\n').map(x=>x.trim()).filter(Boolean);
-  eqs.forEach((e,i)=> s += `per_frame_${i+1}=${e}\n`);
-  s += '\n';
-  for (const [k,v] of Object.entries(scene.vars)) s += `${k}=${v}\n`;
-  return s;
-}
 
 // ---- WebGPU render (MUST: running visual) ----
 const canvas = document.getElementById('c');
@@ -296,7 +307,10 @@ else {
     const dt=Math.min(0.05,(now-last)/1000); last=now;
     if(playing){
       engine.setViewport(canvas.width,canvas.height,texW,texH); // live dims each frame (scene swaps replace the engine)
-      const st=engine.step(dt,{bass:1,mid:1,treb:1});
+      audio.analysis.update(dt);
+      const a=audio.analysis;
+      const st=engine.step(dt,{bass:a.bass,mid:a.mid,treb:a.treb,bass_att:a.bassAtt,mid_att:a.midAtt,treb_att:a.trebAtt});
+      drawScope();
       const m=st.motion,ib=st.innerBox,ob=st.outerBox;
       const u=new Float32Array([m.decay,ib.size,ib.r,ib.g,ib.b,ib.a,ib.aGate,ob.size,ob.r,ob.g,ob.b,ob.a,ob.aGate,0,0,0]);
       device.queue.writeBuffer(ubuf,0,u);
@@ -358,7 +372,7 @@ function ensureCMs(){
     cmSrc.on('scroll',()=>{ if(alignScroll&&cmPhos)cmPhos.scrollTo(null,cmSrc.getScrollInfo().top); });
   }
   if(!cmPhos){
-    cmPhos=CodeMirror(document.getElementById('cmPhosHost'),{value:'',readOnly:true,lineNumbers:true,mode:null,
+    cmPhos=CodeMirror(document.getElementById('cmPhosHost'),{value:'',readOnly:true,lineNumbers:true,mode:{name:'javascript',json:true},
       foldGutter:{rangeFinder:blockFinder},
       gutters:['CodeMirror-linenumbers','origin','CodeMirror-foldgutter']});
     cmPhos.on('cursorActivity',()=>{ if(!alignScroll)jumpFromPhos(cmPhos.getCursor().line); });
@@ -597,6 +611,54 @@ function jumpFromPhos(pLine){
   }
   srcNote.textContent='.phos line '+(pLine+1)+': '+m.label;
 }
+// ---- studio audio: player-identical sources feeding the same analysis ----
+const audio=new AudioEngine();
+const audioStatus=document.getElementById('audioStatus');
+async function startAudio(fn,label){
+  try{ await fn(); audioStatus.textContent='source: '+label; }
+  catch(e){ audioStatus.textContent='audio failed: '+(e&&e.message||e); }
+}
+document.getElementById('aDemo').onclick=()=>startAudio(()=>audio.startDemo(),'demo track');
+document.getElementById('aMic').onclick=()=>startAudio(()=>audio.startMic(),'microphone');
+document.getElementById('aFile').onclick=()=>document.getElementById('audioFile').click();
+document.getElementById('audioFile').onchange=e=>{ const f=e.target.files[0]; if(f)startAudio(()=>audio.playFile(f),f.name); e.target.value=''; };
+
+// ---- waveform/spectrum scope (display only; values from the derived chain) ----
+const scopeEl=document.getElementById('scope');
+const scopeCtx=scopeEl.getContext('2d');
+function drawScope(){
+  const a=audio.analysis, w=scopeEl.width, h=scopeEl.height;
+  scopeCtx.clearRect(0,0,w,h);
+  scopeCtx.fillStyle='rgba(78,161,255,.55)';
+  const bins=128, bw=w/bins;
+  for(let i=0;i<bins;i++){ const v=Math.min(1,(a.spectrum[i]||0)/48); scopeCtx.fillRect(i*bw,h-v*h,bw-1,v*h); }
+  const wf=a.waveform;
+  if(wf&&wf.length){
+    scopeCtx.strokeStyle='rgba(61,220,132,.8)'; scopeCtx.beginPath();
+    for(let i=0;i<wf.length;i++){ const x=i/(wf.length-1)*w, y=h/2-((wf[i]||0)/256)*h; if(i)scopeCtx.lineTo(x,y); else scopeCtx.moveTo(x,y); }
+    scopeCtx.stroke();
+  }
+}
+
+// ---- scene library drawer: committed manifest + this-session imports ----
+const importedScenes=[]; // {name, text, ext}
+const libDrawer=document.getElementById('libDrawer');
+async function renderLibrary(){
+  const list=document.getElementById('libList'); list.innerHTML='';
+  let manifest={scenes:[]};
+  try{ const r=await fetch('./scenes/manifest.json'); if(r.ok)manifest=await r.json(); }
+  catch(e){ /* session imports still listed below */ }
+  const add=(label,fn)=>{ const b=document.createElement('wa-button'); b.setAttribute('size','small'); b.textContent=label; b.addEventListener('click',fn); list.append(b); };
+  for(const sc of manifest.scenes||[]) add(sc.name,async()=>{ loadDoc(parsePhos(await (await fetch('./scenes/'+sc.file)).text())); importedSrcText=null; libDrawer.open=false; });
+  for(const sc of importedScenes) add(sc.name+' (imported)',async()=>{ try{ await IMPORTERS[sc.ext](sc.text,sc.name); }catch(e){ if(sc.ext==='milk')openTriage(sc.text,sc.name); } libDrawer.open=false; });
+  if(!(manifest.scenes||[]).length&&!importedScenes.length)list.textContent='no scenes listed';
+}
+document.getElementById('library').onclick=async()=>{
+  await customElements.whenDefined('wa-drawer'); // components register async
+  await renderLibrary();
+  libDrawer.open=true;
+};
+
 // ---- one Import button: dispatch by format, refuse unknowns by name --------
 // .phos loads natively; .milk converts through the strict door (a refusal
 // opens triage instead of importing partially); .p9c refuses until the
@@ -620,7 +682,12 @@ async function importFile(f){
   const handler=IMPORTERS[ext];
   if(!handler){ alert('import: unsupported file type ".'+ext+'" — refusing'); return; }
   const text=await f.text();
-  try{ await handler(text,f.name); }
+  try{
+    await handler(text,f.name);
+    const prior=importedScenes.findIndex(s=>s.name===f.name);
+    const entry={name:f.name,text,ext};
+    if(prior>=0)importedScenes[prior]=entry; else importedScenes.push(entry);
+  }
   catch(e){
     if(ext==='milk')openTriage(text,f.name);
     else alert(String(e&&e.message||e));

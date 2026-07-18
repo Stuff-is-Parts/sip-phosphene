@@ -1,0 +1,8 @@
+Web Awesome 3.10.0 (@awesome.me/webawesome), MIT license (LICENSE.md
+alongside). Vendored from the package's dist-cdn browser build: components
+button, split-panel, tab, tab-group, tab-panel, drawer plus their complete
+chunk import closure (55 chunks, resolved mechanically by walking every
+import statement), and dist/styles/webawesome.css +
+dist/styles/themes/default.css. Consumed by studio.html's chrome only.
+To re-vendor: npm install @awesome.me/webawesome@3.10.0, re-run the closure
+walk (see the fix-batch15 vendor script in repo history), npm uninstall.

@@ -1,0 +1,7 @@
+{
+  "//": "hand-maintained list of committed scenes for the studio library drawer; imported scenes appear alongside these for the session only",
+  "scenes": [
+    { "file": "md-101-per_frame.phos", "name": "md-101-per_frame" },
+    { "file": "TEMPLATE.phos", "name": "TEMPLATE (commented starter)" }
+  ]
+}

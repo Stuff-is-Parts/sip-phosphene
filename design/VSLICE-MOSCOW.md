@@ -63,11 +63,14 @@ the fact.
 | Dirty indicator | [P9-DOC] | S | now | done |
 | FPS / frame counter | [P9-DOC] | S | now | done |
 | Metadata view (name) | [P9-DOC] | S | now | done |
-| Export .milk (share back to source format) | [MD-SRC] copy .milk | S | now | done (lossy — README known limit) |
+| Export .milk (share back to source format) | [MD-SRC] copy .milk | W (owner decision 2026-07-18) | — | removed — the .phos is the shareable unit; source-format write-back is a source-app behavior, not a PHOSPHENE obligation |
 | Color picker on color ports | [P9-DOC] | C | a scene with color-typed ports (scene one has only floats — earlier "now" was wrong) | — |
 | Syntax highlight on equations | cosmetic | C | now | — |
 | Metadata editing (name/author/description) | [P9-DOC] | S | now | done (studio Metadata panel) |
 | New-scene-from-template UI | [P9-DOC] templates | S | now | done (New button loads TEMPLATE.phos) |
+| Studio scene library panel | [MD-SRC] preset list; [P9-DOC] scene sets | S | now | done (drawer: committed manifest + session imports) |
+| Audio source select in studio (player-identical) | [MD-SRC] [P9-DOC] | S | now | done (demo/file/mic, same labels and order as the player) |
+| Waveform/spectrum scope in studio | [MD-SRC] wave modes; [P9-DOC] waveform/SoundTexture | S | now | done (canvas scope on the derived analysis chain) |
 | Export shareable package (.p9d equivalent) | [P9-DOC] | S | now | done — covered by the Save .phos download (the .phos IS the shareable unit) |
 | Node add / wire / delete | [P9-DOC] full node editor | W (slice) | graph-executor generality (scene 2 forces it) | — |
 | Shader editor | [MD-SRC] inline; [P9-DOC] full IDE | W (slice) | first custom-shader scene | — |
