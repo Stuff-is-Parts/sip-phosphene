@@ -17,6 +17,7 @@ export default tseslint.config(
         addEventListener: 'readonly', alert: 'readonly', crypto: 'readonly',
         customElements: 'readonly', innerWidth: 'readonly', innerHeight: 'readonly',
         performance: 'readonly', TextEncoder: 'readonly', TextDecoder: 'readonly',
+        structuredClone: 'readonly',
         GPUShaderStage: 'readonly', GPUTextureUsage: 'readonly', GPUBufferUsage: 'readonly',
         AudioWorkletNode: 'readonly',
         // AudioWorklet global scope (src/audio/pcm-tap.js)

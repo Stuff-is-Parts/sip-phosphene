@@ -182,16 +182,37 @@ function circularInterp(/** @type {number} */ prev, /** @type {number} */ target
  * @typedef {{kind:'composite', comp:any}} CompositePass
  * @typedef {{kind:'clear-color', clear:{r:number, g:number, b:number, a:number}}} ClearPass
  */
-/** @typedef {{kind:'value'|'render', inputs:Record<string,string>, outputs:Record<string,string>, initState?:(inputs:Record<string,any>)=>any, compute?:(ctx:{inputs:Record<string,any>, state:any, dt:number, frame:number, time:number, audio:{musicActive:boolean, rawBeat:number}, rng:Xorshift128})=>Record<string,any>, contribute?:(inputPlans:Record<string,RenderPlan|null>, ports:Record<string,any>, pool:Record<string,number>, eng:Engine)=>Record<string,RenderPlan>}} NativeOp */
+/** @typedef {{kind:'value'|'render', inputs:Record<string,string>, outputs:Record<string,string>, portConstraints?:Record<string, number|number[]>, initState?:(inputs:Record<string,any>)=>any, compute?:(ctx:{inputs:Record<string,any>, state:any, dt:number, frame:number, time:number, audio:{musicActive:boolean, rawBeat:number}, rng:Xorshift128})=>Record<string,any>, contribute?:(inputPlans:Record<string,RenderPlan|null>, ports:Record<string,any>, pool:Record<string,number>, eng:Engine)=>Record<string,RenderPlan>}} NativeOp */
 
-/** Deep-clone a render plan so fan-out consumers cannot share mutable state. */
-function clonePlan(/** @type {RenderPlan} */ plan) {
-  return { passes: plan.passes.map((p) => {
-    if (p.kind === 'warp-feedback') return { kind: 'warp-feedback', motion: { ...p.motion }, borders: { inner: p.borders.inner ? { ...p.borders.inner } : null, outer: p.borders.outer ? { ...p.borders.outer } : null } };
-    if (p.kind === 'composite') return { kind: 'composite', comp: { ...p.comp } };
-    if (p.kind === 'clear-color') return { kind: 'clear-color', clear: { ...p.clear } };
-    return /** @type {any} */ (p);
-  }) };
+/**
+ * Deep-clone a render plan so fan-out consumers cannot share mutable state.
+ * Uses structuredClone so a new pass kind added later without updating this
+ * function cannot silently restore shared references — the whole plan
+ * structure is generic plain data and structuredClone deep-copies all of it.
+ * @param {RenderPlan} plan
+ */
+function clonePlan(plan) {
+  return /** @type {RenderPlan} */ (structuredClone(plan));
+}
+
+/**
+ * The single op-level port-value constraint hook (reviewer 2026-07-18).
+ * Every port write — construction, setVar, and value-edge propagation each
+ * frame — funnels through this hook. An op declares a witnessed value for
+ * a port in its `portConstraints` table; any write that doesn't equal that
+ * value refuses with a message naming the deviating port and expected value.
+ * @param {string} nodeId @param {string} opName @param {string} portName @param {any} value
+ */
+function assertPortValue(nodeId, opName, portName, value) {
+  const op = /** @type {NativeOp|undefined} */ (NATIVE_OPS[opName]);
+  const constraint = op?.portConstraints?.[portName];
+  if (constraint === undefined) return;
+  const matches = Array.isArray(constraint)
+    ? Array.isArray(value) && value.length === constraint.length && value.every((v, i) => v === constraint[i])
+    : value === constraint;
+  if (!matches) {
+    throw new Error(`Engine: node "${nodeId}" (${opName}) port "${portName}"=${JSON.stringify(value)} is outside the witnessed value ${JSON.stringify(constraint)}; ${opName} has no implementation of variant values yet, so only the witnessed value is supported — refusing (sources/PLANE9-CONTRACT.md)`);
+  }
 }
 
 export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
@@ -310,6 +331,15 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       ScaleByAspect: 'float', Render: 'render',
     },
     outputs: { presented: 'render' },
+    // Witnessed geometry-free configuration (79/252 corpus scenes). The
+    // contribute below reads none of these values, so any deviation would
+    // be a declared functional port backed by no behavior. The single
+    // portConstraints hook fires at construction, setVar, and value-edge
+    // propagation — every write path.
+    portConstraints: {
+      Viewport: [0, 0, 1, 1], CamPos: [0, 0, -2], CamRot: [0, 0, 0], CamLookAt: [0, 0, 1],
+      CamLookAtInWorldSpace: 0, CamFov: 45, CamNear: 0.1, CamFar: 1000, ScaleByAspect: 0,
+    },
     contribute(inputPlans) {
       const inPlan = inputPlans.Render;
       if (!inPlan) throw new Error('screen requires an incoming render plan on its "Render" port — refusing');
@@ -363,6 +393,11 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       ITimeMin: 'float', ITimeMax: 'float', ITimeMode: 'float',
     },
     outputs: { Value: 'float' },
+    // Only DelayMode=1 / ITimeMode=1 have implemented behavior (uniform-
+    // random selection over the range). All other values remain
+    // UNRESOLVED against Plane9Engine.dll disassembly. The single
+    // portConstraints hook enforces this at every write path.
+    portConstraints: { DelayMode: 1, ITimeMode: 1 },
     initState(ports) { return minmaxInitState(ports); },
     compute({ inputs, state, dt, rng }) {
       const st = /** @type {ReturnType<typeof minmaxInitState>} */ (state);
@@ -589,52 +624,34 @@ export class Engine {
         }
       }
     }
-    // Screen's declared camera ports (Viewport, CamPos, CamRot, CamLookAt,
-    // CamLookAtInWorldSpace, CamFov, CamNear, CamFar, ScaleByAspect) are
-    // accepted only in the witnessed geometry-free configuration (79/252
-    // corpus scenes carry this exact set). The screen op's contribute reads
-    // none of these values — its implementation is passthrough — so any
-    // deviation from the witnessed set would be a declared port backed by
-    // no behavior. Refuse at construction so an editable .phos cannot alter
-    // Screen away from the witnessed configuration and silently execute
-    // without the port having effect (reviewer 2026-07-18 item 2).
-    const SCREEN_WITNESSED_VALUES = /** @type {Record<string, number|number[]>} */ ({
-      Viewport: [0, 0, 1, 1], CamPos: [0, 0, -2], CamRot: [0, 0, 0], CamLookAt: [0, 0, 1],
-      CamLookAtInWorldSpace: 0, CamFov: 45, CamNear: 0.1, CamFar: 1000, ScaleByAspect: 0,
-    });
+    // Every port that carries a constant value at construction runs the
+    // single op-level constraint hook (assertPortValue above). Every port
+    // that an op declares as constrained refuses an incoming edge, because
+    // an edge could propagate an unwitnessed value each frame around the
+    // hook. And every input port that has BOTH a constant AND an incoming
+    // edge refuses regardless: the constant would be silently overwritten
+    // by the edge — the exact "editable-value-with-no-effect" failure the
+    // reviewer named. These three rules replace the previous per-op
+    // inline blocks with one generic sweep.
     for (const n of nodes) {
-      if (n.op !== 'screen') continue;
-      for (const [portName, expected] of Object.entries(SCREEN_WITNESSED_VALUES)) {
-        const port = n.ports[portName];
-        if (!port || !('value' in port)) throw new Error(`Engine: node "${n.id}" (screen) port "${portName}" has no constant value; screen accepts only the witnessed geometry-free configuration — refusing`);
-        const val = port.value;
-        const matches = Array.isArray(expected)
-          ? Array.isArray(val) && val.length === expected.length && val.every((v, i) => v === expected[i])
-          : val === expected;
-        if (!matches) {
-          throw new Error(`Engine: node "${n.id}" (screen) port "${portName}"=${JSON.stringify(val)} is outside the witnessed geometry-free configuration (${JSON.stringify(expected)}); screen has no camera implementation yet, so only the witnessed values are supported — refusing (sources/PLANE9-CONTRACT.md §Screen)`);
+      const op = opOf(n.op);
+      const constrained = op.portConstraints ?? {};
+      for (const [portName, port] of Object.entries(n.ports)) {
+        const hasConstant = 'value' in port;
+        const hasEdge = edgeDriven.has(n.id + '.' + portName);
+        if (hasConstant && hasEdge) {
+          throw new Error(`Engine: node "${n.id}" (${n.op}) input port "${portName}" carries both a constant and an incoming edge; the edge would silently overwrite the constant — refusing`);
         }
-      }
-    }
-
-    // MinMax's DelayMode and ITimeMode ports have semantics that are only
-    // established for a specific value each (DelayMode=1, ITimeMode=1 —
-    // both are the corpus supermajority; other values are UNRESOLVED per
-    // sources/PLANE9-CONTRACT.md §MinMax). The compute function's
-    // delay/interp-duration selection IS the DelayMode=1 / ITimeMode=1
-    // behavior — that is what "1" means in this executor. Any other value
-    // refuses at construction rather than being accepted-but-ignored, per
-    // sip-phosphene/CLAUDE.md's "fix over document" and PHOSPHENE-GOAL.md's
-    // ban on ports represented as functional while having no effect.
-    for (const n of nodes) {
-      if (n.op !== 'MinMax') continue;
-      const dm = /** @type {{value?:number}|undefined} */ (n.ports.DelayMode);
-      const im = /** @type {{value?:number}|undefined} */ (n.ports.ITimeMode);
-      if (dm === undefined || !('value' in dm) || dm.value !== 1) {
-        throw new Error(`Engine: node "${n.id}" (MinMax) DelayMode=${dm?.value ?? '(unset)'}; only DelayMode=1 (uniform-random-selection) is implemented — other DelayMode values remain UNRESOLVED against Plane9Engine.dll disassembly (sources/PLANE9-CONTRACT.md §MinMax), refusing`);
-      }
-      if (im === undefined || !('value' in im) || im.value !== 1) {
-        throw new Error(`Engine: node "${n.id}" (MinMax) ITimeMode=${im?.value ?? '(unset)'}; only ITimeMode=1 (uniform-random-selection) is implemented — other ITimeMode values remain UNRESOLVED against Plane9Engine.dll disassembly (sources/PLANE9-CONTRACT.md §MinMax), refusing`);
+        if (portName in constrained && hasEdge) {
+          throw new Error(`Engine: node "${n.id}" (${n.op}) port "${portName}" is a witnessed-value port; edges into it would bypass the value constraint at execution — refusing`);
+        }
+        if (hasConstant) assertPortValue(n.id, n.op, portName, /** @type {any} */ (port).value);
+        // A constrained port that has neither a constant nor an incoming
+        // edge is missing a value the executor requires. Every constrained
+        // port must therefore carry its constant.
+        if (portName in constrained && !hasConstant) {
+          throw new Error(`Engine: node "${n.id}" (${n.op}) port "${portName}" is constrained to a witnessed value but the scene omits its constant — refusing`);
+        }
       }
     }
     // --- topological execution order ---
@@ -828,6 +845,14 @@ export class Engine {
           const [, srcPort] = splitRef(edge.out);
           const [dstId, dstPort] = splitRef(edge.in);
           if (outputs[srcPort] !== undefined) {
+            // Run the same op-level port-constraint hook that construction
+            // and setVar use. A value-edge write that violates a witnessed
+            // port constraint refuses here, so no path can bypass the hook
+            // (reviewer 2026-07-18 item 1). The constant-plus-edge
+            // refusal at construction ensures a constrained port has no
+            // incoming edge, so this assertion is defense in depth.
+            const dstNode = /** @type {{op:string}|undefined} */ (this.scene.nodes.find((/** @type {{id:string}} */ n) => n.id === dstId));
+            if (dstNode) assertPortValue(dstId, dstNode.op, dstPort, outputs[srcPort]);
             const dstNs = /** @type {{ports:Record<string,any>}} */ (this.nodeState[dstId]);
             dstNs.ports[dstPort] = outputs[srcPort];
           }
@@ -870,9 +895,15 @@ export class Engine {
     const write = (/** @type {string} */ nid, /** @type {string} */ pname, /** @type {string} */ poolKey) => {
       const ns = /** @type {{ports:Record<string,any>}} */ (this.nodeState[nid]);
       if (!ns) throw new Error(`setVar: node "${nid}" not found`);
+      // Run the same op-level port-constraint hook that construction and
+      // edge propagation use. A live edit that violates a witnessed value
+      // refuses here, so setVar cannot bypass the port constraint at
+      // runtime (reviewer 2026-07-18 item 1).
+      const sceneNode = this.scene.nodes.find((/** @type {{id:string}} */ n) => n.id === nid);
+      const opName = /** @type {string|undefined} */ (sceneNode?.op);
+      if (opName) assertPortValue(nid, opName, pname, value);
       ns.ports[pname] = value;
       this.pool[poolKey] = value;
-      const sceneNode = this.scene.nodes.find((/** @type {{id:string}} */ n) => n.id === nid);
       if (sceneNode) {
         const p = /** @type {Record<string,{value?:number|number[]}>} */ (sceneNode.ports)[pname];
         if (p) p.value = value;
