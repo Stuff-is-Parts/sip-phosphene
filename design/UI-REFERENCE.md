@@ -36,7 +36,10 @@ these web sources.
    carry accent color at normal weight with NO glow; tertiary elements are
    reduced-saturation neutrals. "Box-shadow glow loses impact when applied
    to every element" (StyleShift mistakes list). Live data (meters, canvas)
-   is exempt — it is the focal point by design (palette.site).
+   is exempt — it is the focal point by design (palette.site). The SOLID
+   brand fill is splash-CTA-only: in working views the primary action wears
+   brand outline plus glow, because a filled slab outranks the glowing
+   wordmark and inverts rule 8 (owner audit 2026-07-18, filled Save).
 2. **Two neon families, one dominant.** Electric cyan #00e5ff is the
    dominant identity/action hue; magenta #ff2ec4 is the hot/live-state
    accent. The meter data colors (#39ff14 / #ff2ec4 / #00e5ff) are data,
@@ -84,14 +87,19 @@ the visual, the studio as a locked frame around the scrolling workspace.
 
 | Zone | Studio (panel) | Player (overlay) |
 |---|---|---|
-| 1 Masthead (locked) | wordmark left, nav right (Library, Player link) | wordmark left, nav right (Open Studio) |
-| 2 Scene strip | scene name + dirty + contextual Reset; Save/Import/New/Source | scene name + source label, bottom-left of the bridge |
+| 1 Masthead (locked) | wordmark left, nav right (Player link) | wordmark left, nav right (Open Studio) |
+| 2 Scene strip | scene name + dirty + contextual Reset, Library at the row's right; Save/Import/New/Source as an even grid | scene name + source label, bottom-left of the bridge |
 | 3 Workspace | tabs Graph / Equations / Metadata, scrolling | (the rendered scene IS the workspace) |
 | 4 Audio bridge (locked) | pause + sources + status + scope, bottom | sources + pause + fullscreen + readouts, bottom |
 
 Navigation lives in the masthead on both pages so the Player and Open
-Studio buttons correspond. The library drawer opens on the same side as
-the button that opens it (placement="end").
+Studio buttons correspond. Library sits beside the scene title — the
+loaded scene and the place to load another are one thought — and its
+drawer opens on the same side as the button (placement="end"). Locked
+zones wrap rather than clip: the masthead is flex-wrap because the panel
+frame's overflow clipped the nav at narrow widths (witnessed 2026-07-18),
+and multi-button sets tile as equal-width grid cells so wrapping produces
+clean rows, never an orphaned button.
 
 ## Current spec (implemented in phosphene.theme.css + page CSS)
 

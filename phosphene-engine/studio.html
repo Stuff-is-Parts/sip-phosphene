@@ -33,8 +33,13 @@
   #mark{font-family:'Orbitron',ui-monospace,monospace;font-size:var(--fs-mark);font-weight:700;letter-spacing:.18em;color:var(--accent);text-shadow:0 0 2px rgba(0,229,255,.9),0 0 10px rgba(0,229,255,.55),0 0 28px rgba(0,229,255,.3);margin:0}
   #mark span{font-size:var(--fs-micro);font-weight:500;letter-spacing:.3em;color:var(--dim);text-shadow:none;vertical-align:2px;margin-left:8px}
   /* zone chrome: locked masthead + locked audio bridge, scrolling workspace */
-  #masthead{flex:none;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--edge);background:var(--panel)}
+  /* wrap, never clip: the panel frame's overflow:hidden ate the nav at
+     narrow widths (witnessed 2026-07-18 — the Player button vanished) */
+  #masthead{flex:none;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--edge);background:var(--panel)}
   #masthead nav{display:flex;gap:8px}
+  /* scene actions tile as equal-width cells so narrow panels wrap them into
+     clean rows instead of orphaning one button (owner review 2026-07-18) */
+  #sceneActions{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;margin:8px 0}
   #panelScroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:12px}
   #audioBridge{flex:none;border-top:1px solid var(--edge);padding:8px 12px;background:var(--panel)}
   /* scene strip: the content (scene name) outranks any label */
@@ -121,28 +126,31 @@
     <div id="masthead">
       <div id="mark">PHOSPHENE<span>STUDIO</span></div>
       <nav>
-        <wa-button size="small" appearance="filled-outlined" id="library">☰ Library</wa-button>
         <wa-button size="small" appearance="filled-outlined" href="./index.html">← Player</wa-button>
       </nav>
     </div>
     <div id="panelScroll">
       <!-- zone 2: scene strip — the scene NAME is the title; Reset renders
-           beside the dirty state it acts on, only when there is one -->
+           beside the dirty state it acts on, only when there is one; Library
+           sits at the row's right: here's the loaded scene, here's where you
+           go to load another -->
       <div id="sceneRow">
         <span id="sceneTitle"></span>
         <span id="dirty" class="meta"></span>
         <wa-button size="small" appearance="filled-outlined" id="reset" style="display:none">↺ Reset</wa-button>
+        <wa-button size="small" appearance="filled-outlined" id="library" style="margin-left:auto">☰ Library</wa-button>
       </div>
       <div class="meta" id="meta"></div>
-      <div class="row wa-flex-wrap">
-        <!-- the panel's ONE loud action (UI-REFERENCE rule 1); glow is host
-             inline styling, the sanctioned component surface -->
-        <wa-button size="small" variant="brand" id="savePhos" style="box-shadow:0 0 14px rgba(0,229,255,.4)">⭳ Save .phos</wa-button>
+      <!-- primary action wears brand outline + glow, not the solid fill:
+           the identity tier stays loudest (UI-REFERENCE rule 8; the filled
+           Save outshining the wordmark was the witnessed violation) -->
+      <div id="sceneActions">
+        <wa-button size="small" variant="brand" appearance="filled-outlined" id="savePhos" style="box-shadow:0 0 14px rgba(0,229,255,.35)">⭳ Save .phos</wa-button>
         <wa-button size="small" appearance="filled-outlined" id="importBtn">⭱ Import…</wa-button>
         <wa-button size="small" appearance="filled-outlined" id="newScene">✦ New</wa-button>
-        <wa-button size="small" appearance="filled-outlined" id="srcView" style="min-width:118px">⇄ Source</wa-button>
-        <input type="file" id="importFile" accept=".milk,.phos,.p9c" hidden>
+        <wa-button size="small" appearance="filled-outlined" id="srcView">⇄ Source</wa-button>
       </div>
+      <input type="file" id="importFile" accept=".milk,.phos,.p9c" hidden>
       <!-- zone 3: workspace tabs — visible track + accent indicator through
            the component's custom-property API -->
       <wa-tab-group style="--track-color:var(--edge);--indicator-color:var(--accent)">
