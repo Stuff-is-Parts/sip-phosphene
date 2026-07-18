@@ -113,7 +113,6 @@ export class Analysis {
   bassAtt = 1; midAtt = 1; trebAtt = 1;
   vol = 1; volAtt = 1;
   spectrum = new Float32Array(SPECTRUM_SAMPLES);
-  waveform = new Float32Array(0); // display tap for the studio scope — not consumed by the analysis chain
   #fft = new MilkdropFFT(WAVEFORM_SAMPLES, SPECTRUM_SAMPLES, true); // PCM.hpp:107
   #bassL = new Loudness(0);
   #midL = new Loudness(1);
@@ -147,7 +146,6 @@ export class Analysis {
     const damped = new Array(AUDIO_BUFFER_SAMPLES);
     let oldI = 0;
     for (let i = 0; i < AUDIO_BUFFER_SAMPLES; i++) { damped[i] = 0.5 * ((wave[i] ?? 0) + (wave[oldI] ?? 0)); oldI = i; }
-    this.waveform = Float32Array.from(damped); // display tap (studio scope), copied so the chain's array stays private
     this.spectrum = this.#fft.timeToFrequencyDomain(damped);
     this.#bassL.update(this.spectrum, dt, this.#frame);   // PCM.cpp:70-72
     this.#midL.update(this.spectrum, dt, this.#frame);

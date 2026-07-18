@@ -6,15 +6,18 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "eslint phosphene-engine/src phosphene-engine/check.mjs",
+    "style": "stylelint \"phosphene-engine/*.html\"",
     "deadcode": "knip",
     "syntax": "node scripts/syntax-check.mjs",
     "audit": "npm audit --omit=dev || true",
-    "gate": "npm run syntax && npm run typecheck && npm run lint && npm run deadcode"
+    "gate": "npm run syntax && npm run typecheck && npm run lint && npm run style && npm run deadcode"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "eslint": "^9.17.0",
     "knip": "^5.41.0",
+    "postcss-html": "^1.8.0",
+    "stylelint": "^16.26.0",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.0"
   }

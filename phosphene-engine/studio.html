@@ -1,6 +1,7 @@
-<!doctype html><html class="wa-dark"><head><meta charset="utf-8"><title>PHOSPHENE Studio</title>
+<!doctype html><html class="wa-dark" style="--wa-color-surface-default:#14181d;--wa-color-surface-lowered:#0b0d10;--wa-color-surface-border:#232a31;--wa-color-brand-fill-loud:#4ea1ff;--wa-font-family-body:ui-monospace,monospace;--wa-font-family-code:ui-monospace,monospace"><head><meta charset="utf-8"><title>PHOSPHENE Studio</title>
 <link rel="stylesheet" href="./vendor/webawesome/styles/webawesome.css">
 <link rel="stylesheet" href="./vendor/webawesome/styles/themes/default.css">
+<link rel="stylesheet" href="./vendor/webawesome/styles/utilities.css">
 <script type="module" src="./vendor/webawesome/components/button/button.js"></script>
 <script type="module" src="./vendor/webawesome/components/split-panel/split-panel.js"></script>
 <script type="module" src="./vendor/webawesome/components/tab/tab.js"></script>
@@ -18,13 +19,21 @@
   :root{--bg:#0b0d10;--panel:#14181d;--edge:#232a31;--fg:#c9d3dd;--dim:#6b7885;--accent:#4ea1ff;--good:#3ddc84}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.4 ui-monospace,monospace;height:100vh;overflow:hidden}
-  wa-split-panel{height:100vh}
   #stage{height:100%}
-  #panel{height:100%}
-  .row wa-button{flex:none}
-  #libList wa-button{display:block;margin-bottom:6px}
+  /* custom (no WA utility covers pane overflow): the editor pane scrolls
+     vertically only, and min-width:0 defeats the flex min-content trap that
+     produced the horizontal scrollbar */
+  #panel{height:100%;overflow-y:auto;overflow-x:hidden;min-width:0}
+  #panel canvas,#panel textarea{max-width:100%}
   #scope{width:100%;border:1px solid var(--edge);border-radius:4px;background:#07090c}
-  .cm-property{color:#8fa7bd}.cm-string{color:#a9b7c6}.cm-number{color:#c0aac6}.cm-atom{color:#c0aac6}
+  /* CodeMirror palette through its documented theme-class surface — the
+     default theme scopes colors under .cm-s-default, so overrides must match
+     that specificity (bare .cm-* lost and the JSON strings rendered red) */
+  .cm-s-default .cm-property{color:#8fa7bd}
+  .cm-s-default .cm-string{color:#9fb3c8}
+  .cm-s-default .cm-number{color:#c0aac6}
+  .cm-s-default .cm-atom{color:#c0aac6}
+  .cm-s-default .cm-comment{color:var(--dim)}
   #stage{position:relative;background:#000}
   canvas{width:100%;height:100%;display:block}
   #hud{position:absolute;top:8px;left:8px;color:var(--dim);font-size:11px}
@@ -86,13 +95,13 @@
   <div slot="end" id="panel">
     <h2>Scene <span id="dirty" class="meta"></span></h2>
     <div class="meta" id="meta"></div>
-    <div class="row">
+    <div class="row wa-flex-wrap">
       <wa-button size="small" id="play" style="width:96px">⏸ Pause</wa-button>
       <wa-button size="small" id="reset">↺ Reset</wa-button>
       <wa-button size="small" id="library">☰ Library</wa-button>
       <a href="./index.html" style="margin-left:auto;font-size:11px;letter-spacing:.06em;padding:5px 10px;background:var(--edge);border:1px solid #4a4020;color:#f2d97d;text-decoration:none;border-radius:4px">← PLAYER</a>
     </div>
-    <div class="row">
+    <div class="row wa-flex-wrap">
       <wa-button size="small" id="savePhos">⭳ Save .phos</wa-button>
       <wa-button size="small" id="importBtn">⭱ Import…</wa-button>
       <wa-button size="small" id="srcView" style="min-width:124px">⇄ Source</wa-button>
@@ -116,7 +125,7 @@
         <div class="row"><wa-button size="small" id="aFile">OPEN AUDIO FILE…</wa-button><wa-button size="small" id="aMic">USE MICROPHONE</wa-button></div>
         <input type="file" id="audioFile" accept="audio/*" hidden>
         <canvas id="scope" width="352" height="90"></canvas>
-        <div class="meta" id="audioStatus">silent — the engine sees the source's silence semantics (all bands 1.0)</div>
+        <div class="meta" id="audioStatus">silent — bands hold 1.0 (source silence semantics) · traces: <b style="color:#3ddc84">bass</b> <b style="color:#ffcf6e">mid</b> <b style="color:#7db8ff">treb</b> around baseline · bars: log-frequency spectrum</div>
       </wa-tab-panel>
       <wa-tab-panel name="tMeta"><div id="metaEdit"></div></wa-tab-panel>
     </wa-tab-group>
@@ -623,19 +632,36 @@ document.getElementById('aMic').onclick=()=>startAudio(()=>audio.startMic(),'mic
 document.getElementById('aFile').onclick=()=>document.getElementById('audioFile').click();
 document.getElementById('audioFile').onchange=e=>{ const f=e.target.files[0]; if(f)startAudio(()=>audio.playFile(f),f.name); e.target.value=''; };
 
-// ---- waveform/spectrum scope (display only; values from the derived chain) ----
+// ---- band scope: bass/mid/treb exactly as engine.step receives them, over a
+// log-frequency spectrum with slow auto-gain (all scaling display-only) ----
 const scopeEl=document.getElementById('scope');
 const scopeCtx=scopeEl.getContext('2d');
+const bandHist={bass:[],mid:[],treb:[]};
+const BAND_COLORS={bass:'#3ddc84',mid:'#ffcf6e',treb:'#7db8ff'};
+let specPeak=1e-6;
 function drawScope(){
   const a=audio.analysis, w=scopeEl.width, h=scopeEl.height;
+  for(const k of ['bass','mid','treb']){ bandHist[k].push(a[k]); if(bandHist[k].length>w)bandHist[k].shift(); }
   scopeCtx.clearRect(0,0,w,h);
-  scopeCtx.fillStyle='rgba(78,161,255,.55)';
-  const bins=128, bw=w/bins;
-  for(let i=0;i<bins;i++){ const v=Math.min(1,(a.spectrum[i]||0)/48); scopeCtx.fillRect(i*bw,h-v*h,bw-1,v*h); }
-  const wf=a.waveform;
-  if(wf&&wf.length){
-    scopeCtx.strokeStyle='rgba(61,220,132,.8)'; scopeCtx.beginPath();
-    for(let i=0;i<wf.length;i++){ const x=i/(wf.length-1)*w, y=h/2-((wf[i]||0)/256)*h; if(i)scopeCtx.lineTo(x,y); else scopeCtx.moveTo(x,y); }
+  let frameMax=0;
+  for(let i=1;i<a.spectrum.length;i++)frameMax=Math.max(frameMax,a.spectrum[i]||0);
+  specPeak=Math.max(frameMax,specPeak*0.995,1e-6); // slow-decay auto-gain
+  scopeCtx.fillStyle='rgba(78,161,255,.35)';
+  const N=a.spectrum.length;
+  for(let x=0;x<w;x++){ // log-frequency mapping spreads the low-bin energy
+    const i0=Math.max(1,Math.floor(Math.pow(N-1,x/w)));
+    const i1=Math.max(i0+1,Math.floor(Math.pow(N-1,(x+1)/w)));
+    let v=0; for(let i=i0;i<i1;i++)v=Math.max(v,a.spectrum[i]||0);
+    const y=Math.sqrt(v/specPeak)*h*0.92;
+    scopeCtx.fillRect(x,h-y,1,y);
+  }
+  for(const k of ['bass','mid','treb']){ // traces around the 1.0 baseline
+    const hist=bandHist[k];
+    scopeCtx.strokeStyle=BAND_COLORS[k]; scopeCtx.beginPath();
+    for(let i=0;i<hist.length;i++){
+      const x=w-hist.length+i, y=h*0.5-((hist[i]||1)-1)*h*0.25;
+      if(i)scopeCtx.lineTo(x,y); else scopeCtx.moveTo(x,y);
+    }
     scopeCtx.stroke();
   }
 }
@@ -648,7 +674,7 @@ async function renderLibrary(){
   let manifest={scenes:[]};
   try{ const r=await fetch('./scenes/manifest.json'); if(r.ok)manifest=await r.json(); }
   catch(e){ /* session imports still listed below */ }
-  const add=(label,fn)=>{ const b=document.createElement('wa-button'); b.setAttribute('size','small'); b.textContent=label; b.addEventListener('click',fn); list.append(b); };
+  const add=(label,fn)=>{ const b=document.createElement('wa-button'); b.setAttribute('size','small'); b.style.display='block'; b.style.marginBottom='6px'; b.textContent=label; b.addEventListener('click',fn); list.append(b); };
   for(const sc of manifest.scenes||[]) add(sc.name,async()=>{ loadDoc(parsePhos(await (await fetch('./scenes/'+sc.file)).text())); importedSrcText=null; libDrawer.open=false; });
   for(const sc of importedScenes) add(sc.name+' (imported)',async()=>{ try{ await IMPORTERS[sc.ext](sc.text,sc.name); }catch(e){ if(sc.ext==='milk')openTriage(sc.text,sc.name); } libDrawer.open=false; });
   if(!(manifest.scenes||[]).length&&!importedScenes.length)list.textContent='no scenes listed';

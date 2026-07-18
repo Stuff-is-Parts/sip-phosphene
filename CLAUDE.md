@@ -7,11 +7,13 @@ framework.
 ## The mechanical gate (off-the-shelf, language-level only)
 Before any code is a candidate for review, it must pass:
 
-    npm run gate     # = syntax -> typecheck -> lint -> deadcode
+    npm run gate     # = syntax -> typecheck -> lint -> style -> deadcode
 
 - `syntax`    node --check (does it parse)
 - `typecheck` tsc --strict (types connect; unused locals; unchecked index access)
 - `lint`      eslint + typescript-eslint (no-unused-vars = error)
+- `style`     stylelint (page CSS; bans custom rules targeting shadow-DOM
+              component selectors, enforcing the APIs-over-custom rule below)
 - `deadcode`  knip (no orphan exports/files)
 
 These are standard tools. They prove the code is well-formed AS CODE. They do
@@ -25,10 +27,14 @@ pass/fail depends on knowing what the code is SUPPOSED to do. Any check that
 needs project-specific knowledge of intended behavior is banned by category,
 not evaluated on merit.
 
+Owner amendment 2026-07-18: the gate admitted stylelint as a fifth tool. The
+amendment path is narrow — a standard, off-the-shelf, language-level tool the
+owner ratifies by name. The ban on behavior-knowing checks stands unchanged.
+
 If you find yourself proposing a check to "make sure the gate is meaningful,"
 or explaining why a semantic layer is actually mechanical, STOP. That is the
 inflation that produced the scrapped verification-framework (see
-Witnessed-Failure-Modes-PHOSPHENE.txt #13, #14, #15). The gate is four standard tools. It is
+Witnessed-Failure-Modes-PHOSPHENE.txt #13, #14, #15). The gate is five standard tools. It is
 complete. It needs nothing on top of it.
 
 ## The element-port method (for source translation)
@@ -55,6 +61,20 @@ components its behavior depends on. Ambient engine-level switches keyed to a
 scene's source engine are parallel runtimes and are banned. Per behavior,
 assess borrow-vs-modern with both engines' contracts in view: the scene-visible
 contract is non-negotiable; the mechanism beneath it is free to be modern.
+
+## APIs over custom code (owner-ratified 2026-07-18)
+When the design needs capability the admitted APIs do not provide, the answer
+is admitting a new standard API — pinned, vendored, license and provenance
+beside it — never custom code imitating one. Custom code layered on top of an
+admitted API's own surface is the failure this rule targets (witnessed: a
+hand-rolled one-way fold where CodeMirror ships toggleable folding). Each
+custom rule or behavior that survives carries a one-line comment naming why
+the API had no answer. Boundaries: a library's documented styling surface IS
+its API (CodeMirror's theme classes), so styling through it complies; a
+shadow-DOM component library's internals are not, and the stylelint gate step
+bans stylesheet selectors that reach for them. The JS half of the rule is not
+mechanically checkable — the standing question "does the library already do
+this?" is the instrument there.
 
 ## Fix over document — the falsifier test
 A gap may be DOCUMENTED (as a known limit, interim state, or unresolved row)

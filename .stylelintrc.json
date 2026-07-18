@@ -1,0 +1,17 @@
+{
+  "rules": {},
+  "overrides": [
+    {
+      "files": ["phosphene-engine/*.html"],
+      "customSyntax": "postcss-html",
+      "rules": {
+        "selector-disallowed-list": [
+          ["/wa-/"],
+          {
+            "message": "custom CSS targeting a shadow-DOM component — use the component's API instead (host inline styles, token overrides, shipped utility classes), or admit the missing capability properly (CLAUDE.md: APIs over custom code)"
+          }
+        ]
+      }
+    }
+  ]
+}
