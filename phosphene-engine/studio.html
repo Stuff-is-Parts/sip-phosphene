@@ -21,21 +21,30 @@
   /* page palette + type scale consume design/UI-REFERENCE.md via the theme
      tokens — one color authority; --good and --hot stay data/status colors.
      Scale: 1.125 Major Second snapped to the 4px grid (micro/body/title/mark). */
-  :root{--bg:var(--wa-color-surface-lowered);--panel:var(--wa-color-surface-default);--raised:var(--wa-color-surface-raised);--edge:var(--wa-color-surface-border);--fg:var(--wa-color-text-normal);--dim:var(--wa-color-text-quiet);--accent:var(--wa-color-brand-fill-loud);--good:#3ddc84;--hot:#ff2ec4;--fs-micro:11px;--fs-body:13px;--fs-title:15px;--fs-mark:20px}
+  :root{--bg:var(--wa-color-surface-lowered);--panel:var(--wa-color-surface-default);--raised:var(--wa-color-surface-raised);--edge:var(--wa-color-surface-border);--fg:var(--wa-color-text-normal);--dim:var(--wa-color-text-quiet);--accent:var(--wa-color-brand-fill-loud);--good:#3ddc84;--hot:#ff2ec4;--fs-micro:11px;--fs-body:13px;--fs-title:15px;--fs-mark:24px}
   /* custom (vendored native.css:912 sets input[type=file]{display:block},
      which beats the UA [hidden] rule — the API has no hidden-file-input answer) */
   input[type=file][hidden]{display:none}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--fg);font:var(--fs-body)/1.4 ui-monospace,monospace;height:100vh;overflow:hidden}
   /* identity tier: the ONE glowing chrome element in the panel besides the
-     primary action (UI-REFERENCE rule 1 glow budget) */
-  #mark{font-family:'Orbitron',ui-monospace,monospace;font-size:var(--fs-mark);font-weight:700;letter-spacing:.18em;color:var(--accent);text-shadow:0 0 14px rgba(0,229,255,.55);margin:2px 0 10px}
+     primary action (UI-REFERENCE rule 1). Layered shadows are the neon tube:
+     tight core, mid ring, wide halo — a single blur reads flat. */
+  #mark{font-family:'Orbitron',ui-monospace,monospace;font-size:var(--fs-mark);font-weight:700;letter-spacing:.18em;color:var(--accent);text-shadow:0 0 2px rgba(0,229,255,.9),0 0 10px rgba(0,229,255,.55),0 0 28px rgba(0,229,255,.3);margin:0}
   #mark span{font-size:var(--fs-micro);font-weight:500;letter-spacing:.3em;color:var(--dim);text-shadow:none;vertical-align:2px;margin-left:8px}
+  /* zone chrome: locked masthead + locked audio bridge, scrolling workspace */
+  #masthead{flex:none;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--edge);background:var(--panel)}
+  #masthead nav{display:flex;gap:8px}
+  #panelScroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:12px}
+  #audioBridge{flex:none;border-top:1px solid var(--edge);padding:8px 12px;background:var(--panel)}
+  /* scene strip: the content (scene name) outranks any label */
+  #sceneTitle{font-size:var(--fs-title);font-weight:600;color:var(--fg)}
+  #sceneRow{display:flex;align-items:center;gap:10px;margin-bottom:2px}
   #stage{height:100%}
   /* custom (no WA utility covers pane overflow): the editor pane scrolls
      vertically only, and min-width:0 defeats the flex min-content trap that
      produced the horizontal scrollbar */
-  #panel{height:100%;overflow-y:auto;overflow-x:hidden;min-width:0}
+  #panel{height:100%;display:flex;flex-direction:column;overflow:hidden;min-width:0}
   #panel canvas,#panel textarea{max-width:100%}
   /* the scope is the instrument centerpiece: raised frame, inset screen */
   #scope{width:100%;border:1px solid var(--edge);border-radius:6px;background:#04060a;padding:4px}
@@ -51,7 +60,7 @@
   canvas{width:100%;height:100%;display:block}
   #hud{position:absolute;top:8px;left:8px;color:var(--dim);font-size:11px}
   #hud b{color:var(--good)}
-  #panel{background:var(--panel);border-left:1px solid var(--edge);overflow-y:auto;padding:12px}
+  #panel{background:var(--panel);border-left:1px solid var(--edge)}
   /* section titles: secondary tier — accent color at title size, NO glow
      (UI-REFERENCE rule 1: glow is reserved for the wordmark + primary action) */
   h2{font-size:var(--fs-title);text-transform:uppercase;letter-spacing:.14em;color:var(--accent);margin:20px 0 10px;font-weight:600;border-bottom:1px solid var(--edge);padding-bottom:6px}
@@ -108,61 +117,64 @@
 <wa-split-panel position="70" style="height:100vh">
   <div slot="start" id="stage"><canvas id="c"></canvas><div id="hud">PHOSPHENE Studio · <b id="fps">0</b> fps · frame <b id="fr">0</b></div></div>
   <div slot="end" id="panel">
-    <div id="mark">PHOSPHENE<span>STUDIO</span></div>
-    <h2>Scene <span id="dirty" class="meta"></span></h2>
-    <div class="meta" id="meta"></div>
-    <!-- toolbar: three functional clusters through the API's button-group
-         component — transport / file / views — instead of ragged rows -->
-    <div class="row wa-flex-wrap">
-      <wa-button-group label="Transport">
-        <wa-button size="small" appearance="filled-outlined" id="play" style="width:92px">⏸ Pause</wa-button>
-        <wa-button size="small" appearance="filled-outlined" id="reset">↺ Reset</wa-button>
-      </wa-button-group>
-      <wa-button-group label="File">
+    <!-- zone 1: locked masthead — identity left, navigation right -->
+    <div id="masthead">
+      <div id="mark">PHOSPHENE<span>STUDIO</span></div>
+      <nav>
+        <wa-button size="small" appearance="filled-outlined" id="library">☰ Library</wa-button>
+        <wa-button size="small" appearance="filled-outlined" href="./index.html">← Player</wa-button>
+      </nav>
+    </div>
+    <div id="panelScroll">
+      <!-- zone 2: scene strip — the scene NAME is the title; Reset renders
+           beside the dirty state it acts on, only when there is one -->
+      <div id="sceneRow">
+        <span id="sceneTitle"></span>
+        <span id="dirty" class="meta"></span>
+        <wa-button size="small" appearance="filled-outlined" id="reset" style="display:none">↺ Reset</wa-button>
+      </div>
+      <div class="meta" id="meta"></div>
+      <div class="row wa-flex-wrap">
         <!-- the panel's ONE loud action (UI-REFERENCE rule 1); glow is host
              inline styling, the sanctioned component surface -->
         <wa-button size="small" variant="brand" id="savePhos" style="box-shadow:0 0 14px rgba(0,229,255,.4)">⭳ Save .phos</wa-button>
         <wa-button size="small" appearance="filled-outlined" id="importBtn">⭱ Import…</wa-button>
         <wa-button size="small" appearance="filled-outlined" id="newScene">✦ New</wa-button>
-      </wa-button-group>
-      <wa-button-group label="Views" style="margin-left:auto">
-        <wa-button size="small" appearance="filled-outlined" id="library">☰ Library</wa-button>
         <wa-button size="small" appearance="filled-outlined" id="srcView" style="min-width:118px">⇄ Source</wa-button>
-        <wa-button size="small" appearance="filled-outlined" href="./index.html">← Player</wa-button>
-      </wa-button-group>
-      <input type="file" id="importFile" accept=".milk,.phos,.p9c" hidden>
+        <input type="file" id="importFile" accept=".milk,.phos,.p9c" hidden>
+      </div>
+      <!-- zone 3: workspace tabs — visible track + accent indicator through
+           the component's custom-property API -->
+      <wa-tab-group style="--track-color:var(--edge);--indicator-color:var(--accent)">
+        <wa-tab slot="nav" panel="tGraph">Graph</wa-tab>
+        <wa-tab slot="nav" panel="tEq">Equations</wa-tab>
+        <wa-tab slot="nav" panel="tMeta">Metadata</wa-tab>
+        <wa-tab-panel name="tGraph"><div id="graph"></div></wa-tab-panel>
+        <wa-tab-panel name="tEq">
+          <textarea id="eq" class="eq" spellcheck="false"></textarea>
+          <div class="meta" id="eqstatus"></div>
+          <h2>Live variables</h2>
+          <div id="vars"></div>
+        </wa-tab-panel>
+        <wa-tab-panel name="tMeta"><div id="metaEdit"></div></wa-tab-panel>
+      </wa-tab-group>
     </div>
-    <wa-tab-group>
-      <wa-tab slot="nav" panel="tGraph">Graph</wa-tab>
-      <wa-tab slot="nav" panel="tEq">Equations</wa-tab>
-      <wa-tab slot="nav" panel="tAudio">Audio</wa-tab>
-      <wa-tab slot="nav" panel="tMeta">Metadata</wa-tab>
-      <wa-tab-panel name="tGraph"><div id="graph"></div></wa-tab-panel>
-      <wa-tab-panel name="tEq">
-        <textarea id="eq" class="eq" spellcheck="false"></textarea>
-        <div class="meta" id="eqstatus"></div>
-        <h2>Live variables</h2>
-        <div id="vars"></div>
-      </wa-tab-panel>
-      <wa-tab-panel name="tAudio">
-        <div class="row wa-flex-wrap">
-          <!-- brand-quiet tier: cyan identity without a second loud element
-               competing with Save (UI-REFERENCE rule 1) -->
-          <wa-button size="small" variant="brand" appearance="filled-outlined" id="aDemo">▶ START — DEMO TRACK</wa-button>
-          <wa-button-group label="Audio source">
-            <wa-button size="small" appearance="filled-outlined" id="aFile">OPEN AUDIO FILE…</wa-button>
-            <wa-button size="small" appearance="filled-outlined" id="aMic">USE MICROPHONE</wa-button>
-          </wa-button-group>
-        </div>
-        <input type="file" id="audioFile" accept="audio/*" hidden>
-        <canvas id="scope" width="352" height="140"></canvas>
-        <div class="meta" id="audioStatus">silent — bands hold 1.0 (source silence semantics) · segmented meters: <b style="color:#39ff14">bass</b> <b style="color:#ff2ec4">mid</b> <b style="color:#00e5ff">treb</b> with peak cell, digits = live values, tick = 1.0 · bars: log-frequency spectrum · white wave: raw samples</div>
-      </wa-tab-panel>
-      <wa-tab-panel name="tMeta"><div id="metaEdit"></div></wa-tab-panel>
-    </wa-tab-group>
+    <!-- zone 4: locked audio bridge — the engine is always listening, so
+         sources, transport, and the scope stay visible in every tab -->
+    <div id="audioBridge">
+      <div class="row wa-flex-wrap" style="margin:0 0 6px">
+        <wa-button size="small" appearance="filled-outlined" id="play" style="width:88px">⏸ Pause</wa-button>
+        <wa-button size="small" variant="brand" appearance="filled-outlined" id="aDemo">▶ DEMO</wa-button>
+        <wa-button size="small" appearance="filled-outlined" id="aFile">FILE…</wa-button>
+        <wa-button size="small" appearance="filled-outlined" id="aMic">MIC</wa-button>
+        <span class="meta" id="audioStatus">silent — bands hold 1.0 · <b style="color:#39ff14">bass</b> <b style="color:#ff2ec4">mid</b> <b style="color:#00e5ff">treb</b> · digits = live values</span>
+      </div>
+      <input type="file" id="audioFile" accept="audio/*" hidden>
+      <canvas id="scope" width="352" height="100" title="segmented meters with peak cell · tick = 1.0 · bars: log-frequency spectrum · white wave: raw samples"></canvas>
+    </div>
   </div>
 </wa-split-panel>
-<wa-drawer id="libDrawer" label="Scene library" placement="start"><div id="libList"></div></wa-drawer>
+<wa-drawer id="libDrawer" label="Scene library" placement="end"><div id="libList"></div></wa-drawer>
 <div id="srcOverlay">
   <div class="row" style="margin:0">
     <b style="letter-spacing:.06em">SOURCE ⇄ .PHOS</b>
@@ -199,14 +211,25 @@ function applyScene(doc){
   sceneDoc = doc; scene = toRuntime(doc); engine = new Engine(scene);
   renderGraph(); renderMetaInputs();
   eqEl.value = scene.expressions.perFrame.join('\n');
-  document.getElementById('meta').textContent = scene.meta.name + ' · ' + scene.expressions.perFrame.length + ' per-frame eq · ' + Object.keys(scene.vars).length + ' vars';
+  renderSceneStrip();
   setDirty(false);
 }
+// the scene NAME is the strip's title; the meta line carries counts only
+function renderSceneStrip(){
+  document.getElementById('sceneTitle').textContent = scene.meta.name;
+  document.getElementById('meta').textContent = scene.expressions.perFrame.length + ' per-frame eq · ' + Object.keys(scene.vars).length + ' vars';
+}
 let dirty = false;
-const setDirty = v => { dirty = v; document.getElementById('dirty').innerHTML = v ? '<span class="dirty-dot">● modified</span>' : ''; };
+// Reset acts on the dirty state, so it renders beside the marker and only
+// while something is there to reset (display toggled in JS — a page [hidden]
+// rule on the host would be component-element CSS the stylelint ban rejects)
+const setDirty = v => {
+  dirty = v;
+  document.getElementById('dirty').innerHTML = v ? '<span class="dirty-dot">● modified</span>' : '';
+  document.getElementById('reset').style.display = v ? '' : 'none';
+};
 
 // ---- metadata (view + edit — VSLICE-MOSCOW metadata editing) ----
-document.getElementById('meta').textContent = scene.meta.name + ' · ' + scene.expressions.perFrame.length + ' per-frame eq · ' + Object.keys(scene.vars).length + ' vars';
 const metaEl = document.getElementById('metaEdit');
 function renderMetaInputs(){
   metaEl.innerHTML = '';
@@ -220,6 +243,7 @@ function renderMetaInputs(){
   }
 }
 renderMetaInputs();
+renderSceneStrip();
 
 // ---- new scene from the commented template (VSLICE-MOSCOW template UI) ----
 document.getElementById('newScene').onclick = async () => {

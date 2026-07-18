@@ -42,17 +42,19 @@
   --wa-color-brand-on-normal: #7ce7ff;
   --wa-color-brand-on-loud: #031519;
 
-  /* neutral: dark slabs with visible borders — quiet-tier controls
-     (stock dark theme maps neutral-fill-loud to a light value) */
-  --wa-color-neutral-fill-quiet: #0f1520;
-  --wa-color-neutral-fill-normal: #131a27;
-  --wa-color-neutral-fill-loud: #1a2333;
-  --wa-color-neutral-border-quiet: #1d2536;
-  --wa-color-neutral-border-normal: #263043;
-  --wa-color-neutral-border-loud: #35435c;
-  --wa-color-neutral-on-quiet: #8fa0ad;
-  --wa-color-neutral-on-normal: #b9c7d2;
-  --wa-color-neutral-on-loud: #dde4f5;
+  /* neutral: dark slabs with visible borders — quiet-tier controls.
+     Values sit several steps above the panel surfaces so buttons read as
+     buttons on the near-black ground (witnessed legibility failure at the
+     prior, darker set; stock dark theme maps neutral-fill-loud light). */
+  --wa-color-neutral-fill-quiet: #182233;
+  --wa-color-neutral-fill-normal: #1d293d;
+  --wa-color-neutral-fill-loud: #243044;
+  --wa-color-neutral-border-quiet: #2b3a52;
+  --wa-color-neutral-border-normal: #37496a;
+  --wa-color-neutral-border-loud: #4a608a;
+  --wa-color-neutral-on-quiet: #9aa9b8;
+  --wa-color-neutral-on-normal: #c6d2de;
+  --wa-color-neutral-on-loud: #e6edf7;
 
   /* type: monospace body/technical, Orbitron reserved for headings tier */
   --wa-font-family-body: ui-monospace, Consolas, monospace;

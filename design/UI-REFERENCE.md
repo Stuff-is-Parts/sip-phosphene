@@ -68,18 +68,47 @@ these web sources.
    controls > meta). Any utility element outranking the identity tier is a
    defect. The audit runs against the screenshot, the same way scene
    correctness does.
+9. **Controls live beside the state they act on and render only when
+   actionable.** Reset acts on the dirty state, so it sits next to the dirty
+   marker and exists only while the scene is dirty. Grouping controls by
+   furniture category ("transport", "views") instead of by what they act on
+   is the witnessed failure this rule replaces (owner review 2026-07-18).
+10. **Labels never outrank the content they label.** The scene NAME is the
+    scene strip's title in bright text; a "Scene" heading louder than the
+    name it introduces is an inverted hierarchy (owner-witnessed).
+
+## Layout — shared zone composition
+
+Both pages compose the same zones; the player renders them as overlays on
+the visual, the studio as a locked frame around the scrolling workspace.
+
+| Zone | Studio (panel) | Player (overlay) |
+|---|---|---|
+| 1 Masthead (locked) | wordmark left, nav right (Library, Player link) | wordmark left, nav right (Open Studio) |
+| 2 Scene strip | scene name + dirty + contextual Reset; Save/Import/New/Source | scene name + source label, bottom-left of the bridge |
+| 3 Workspace | tabs Graph / Equations / Metadata, scrolling | (the rendered scene IS the workspace) |
+| 4 Audio bridge (locked) | pause + sources + status + scope, bottom | sources + pause + fullscreen + readouts, bottom |
+
+Navigation lives in the masthead on both pages so the Player and Open
+Studio buttons correspond. The library drawer opens on the same side as
+the button that opens it (placement="end").
 
 ## Current spec (implemented in phosphene.theme.css + page CSS)
 
 - Surfaces: page #06080f · panel #0c1018 · raised #131926 · border #1d2536
 - Text: normal #dde4f5 · quiet #7a86a0 · link #7ce7ff
-- Loud elements: wordmark (Orbitron 20px cyan, text glow) and the primary
-  action (brand-filled button with inline box-shadow glow) — Save .phos in
-  the studio, START in the player splash. Everything else: no glow.
-- Buttons: quiet tier is dark fill + visible border (WA appearance
-  "filled-outlined" on neutral tokens); brand-quiet tier (cyan text/border,
-  dark fill) for secondary brand actions.
-- Scope: full-width raised instrument card, inset near-black screen,
-  segmented meters (6px cells, 2px gaps, peak cell white) with live value
-  digits beneath, log-frequency spectrum in the cyan family, raw waveform
-  in neutral white.
+- Type scale: micro 11 · body 13 · title 15 · mark 24 · splash clamp
+- Loud elements: wordmark (Orbitron 24px cyan with LAYERED shadows — tight
+  core 2px, mid ring 10px, wide halo 28px; a single blur reads flat) and
+  the primary action (brand fill + inline box-shadow glow) — Save .phos in
+  the studio, START on the player splash. Everything else: no glow.
+- Buttons: quiet tier is WA appearance "filled-outlined" on neutral tokens
+  raised well above the surfaces (fill #182233+, border #37496a+, text
+  #c6d2de+) after the witnessed too-dark-to-read failure; brand-quiet tier
+  (cyan text/border, dark fill) for secondary brand actions.
+- Tabs: component custom properties --track-color (border) and
+  --indicator-color (accent) make the strip read as tabs on the dark ground.
+- Scope: bridge-mounted instrument, inset near-black screen, segmented
+  meters (6px cells, 2px gaps, peak cell white) with live value digits
+  beneath, log-frequency spectrum in the cyan family, raw waveform in
+  neutral white.
