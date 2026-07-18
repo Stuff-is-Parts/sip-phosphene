@@ -610,20 +610,27 @@ const cssImportsOk = (() => {
   return seen.size > 0;
 })();
 
-// (aa) Plane9 scanner + HSL formula fingerprint against a retained CC0
-//      fixture. The scene.xml lives at sources/plane9/color-cycle.scene.xml
-//      (extracted verbatim from source-scenes/plane9/Other/Color Cycle.p9c
-//      whose License Type="CC0" allows retention; the parent .p9c stays
-//      gitignored). Provenance and sha256 sit alongside in PROVENANCE.txt.
-//      Expected values come from the source file itself (external authority
-//      per PHOSPHENE-GOAL): 7 nodes, 6 connections, CC0 license line,
-//      FormatVersion="2", and its saved HSLAToColor ports (H 215.7,
-//      S 0.697156, L 0.127359) reproduce its saved Clear.Color (0.03857
-//      0.11049 0.216148) through the standard HSL-to-RGB formula to 1e-5.
-//      This does NOT test a Plane9 runtime — no such native operations
-//      exist yet — it tests only the scanner shape plus HSL math.
+// (aa) Plane9 scanner shape + standard HSL formula fingerprint against a
+//      retained CC0 fixture. The scene.xml lives at
+//      sources/plane9/color-cycle.scene.xml (extracted verbatim from
+//      source-scenes/plane9/Other/Color Cycle.p9c whose License
+//      Type="CC0" allows retention; the parent .p9c stays gitignored).
+//      Provenance and sha256 sit alongside in PROVENANCE.txt.
+//      Expected values are read FROM the fixture — the HSL inputs come
+//      from the scanned HSLAToColor node's Hue/Saturation/Lightness ports
+//      and the RGB expected values come from the scanned Clear1 node's
+//      Color port — so an altered fixture cannot pass. The fixture's
+//      sha256 is verified against PROVENANCE.txt first, so an altered
+//      fixture cannot even reach the value comparison. This does NOT test
+//      a Plane9 runtime — no such native operations exist yet.
 const p9Ok = (() => {
-  const xml = readFileSync(new URL('../sources/plane9/color-cycle.scene.xml', import.meta.url), 'utf8');
+  const xmlBytes = readFileSync(new URL('../sources/plane9/color-cycle.scene.xml', import.meta.url));
+  const provenance = readFileSync(new URL('../sources/plane9/PROVENANCE.txt', import.meta.url), 'utf8');
+  const claimed = provenance.match(/sha256:\s*([0-9a-f]{64})/);
+  if (!claimed) return false;
+  const actual = createHash('sha256').update(xmlBytes).digest('hex');
+  if (actual !== claimed[1]) return false;
+  const xml = xmlBytes.toString('utf8');
   const recs = scanP9(xml);
   const nodes = recs.filter(r => r.kind === 'node' || r.kind === 'node-open');
   const conns = recs.filter(r => r.kind === 'connection');
@@ -636,9 +643,31 @@ const p9Ok = (() => {
   if (!root || !String(root.value).includes('FormatVersion="2"')) return false;
   if (!lic || !lic.raw.includes('CC0')) return false;
   if (notOk.length !== 7 || !notOk.every(d => d.text.includes('no native operation implemented'))) return false;
+  // Extract the HSL inputs and Clear expected values from the scan itself.
+  // Records carry the current node context via the linear order they were
+  // pushed — walk them to associate each port with its owning node.
+  /** @type {Record<string,Record<string,string>>} */
+  const ports = {};
+  let cur = '';
+  for (const rec of recs) {
+    if (rec.kind === 'node' || rec.kind === 'node-open') { cur = /** @type {string} */ (rec.name); ports[cur] = {}; }
+    else if (rec.kind === 'close' && rec.id === 'Node') { cur = ''; }
+    else if (rec.kind === 'port' && cur && rec.id !== undefined && rec.value !== undefined) {
+      /** @type {Record<string,string>} */ (ports[cur])[rec.id] = /** @type {string} */ (rec.value);
+    }
+  }
+  const hsl = Object.values(ports).find(p => 'Hue' in p && 'Saturation' in p && 'Lightness' in p);
+  const clear = Object.values(ports).find(p => 'Color' in p && !('Hue' in p));
+  if (!hsl || !clear) return false;
+  const h = Number(hsl['Hue']);
+  const s = Number(hsl['Saturation']);
+  const l = Number(hsl['Lightness']);
+  const clearRgb = String(clear['Color']).trim().split(/\s+/).map(Number);
+  if (clearRgb.length !== 4) return false;
+  const [er, eg, eb] = clearRgb;
+  if (![h, s, l, er, eg, eb].every((v) => Number.isFinite(v))) return false;
   // Standard HSL-to-RGB (CSS/Wikipedia chroma formulation), inlined here
   // so the check is independent of any runtime module.
-  const h = 215.7, s = 0.697156, l = 0.127359;
   const c = (1 - Math.abs(2 * l - 1)) * s;
   const hp = h / 60;
   const x = c * (1 - Math.abs((hp % 2) - 1));
@@ -649,10 +678,9 @@ const p9Ok = (() => {
   const r = /** @type {number} */ (row[0]) + m;
   const g = /** @type {number} */ (row[1]) + m;
   const b = /** @type {number} */ (row[2]) + m;
-  const expected = [0.03857, 0.11049, 0.216148];
-  return Math.abs(r - /** @type {number} */ (expected[0])) < 1e-5
-      && Math.abs(g - /** @type {number} */ (expected[1])) < 1e-5
-      && Math.abs(b - /** @type {number} */ (expected[2])) < 1e-5;
+  return Math.abs(r - /** @type {number} */ (er)) < 1e-5
+      && Math.abs(g - /** @type {number} */ (eg)) < 1e-5
+      && Math.abs(b - /** @type {number} */ (eb)) < 1e-5;
 })();
 
 const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && p9Ok;

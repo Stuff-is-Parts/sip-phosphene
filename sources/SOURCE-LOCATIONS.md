@@ -1,12 +1,20 @@
 # Source-Location Registry — where authoritative data lives
 
-Policy: NO retained evidence copies in this repo (retained-copy corruption is
-witnessed failure mode #6). This registry records where each engine's
-authoritative data lives and how to open it. Sources are opened LIVE at
-transcription/audit time; every citation names the location + revision (SHA for
-fetched files, install version for local artifacts) actually read. "Unresolved"
-is a legal conclusion only after the relevant sources below were opened and
-searched, with the search named.
+Policy: no wholesale corpus retention in this repo (retained-copy corruption
+is witnessed failure mode #6). Explicitly licensed, provenance-recorded
+fixtures ARE allowed and are how PHOSPHENE-GOAL.md's Completion Condition
+(clean-checkout build and tests) is satisfied for external check inputs.
+A retained fixture carries a `PROVENANCE.txt` sibling naming the source
+container, retention date, byte count, and sha256; the check that consumes
+it verifies that hash before use. The current retained fixture is
+`sources/plane9/color-cycle.scene.xml` (CC0 per the scene's embedded
+License element).
+
+Sources are otherwise opened LIVE at transcription/audit time; every
+citation names the location + revision (SHA for fetched files, install
+version for local artifacts) actually read. "Unresolved" is a legal
+conclusion only after the relevant sources below were opened and searched,
+with the search named.
 
 ## MilkDrop
 

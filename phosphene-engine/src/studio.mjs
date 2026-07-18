@@ -717,8 +717,10 @@ async function importFile(f){
     let xml;
     try{ xml=extractSceneXml(new Uint8Array(await f.arrayBuffer())); }
     catch(e){ alert(errMsg(e)); return; }
-    // the strict door refuses every scene today (node semantics unresolved
-    // per sources/PLANE9-NODES.md), so the catch is the live path
+    // the strict door refuses every scene today (no native Plane9
+    // operation exists in the shared executor yet — see PHOSPHENE-GOAL.md
+    // "one native execution model, no parallel runtimes"), so the catch
+    // is the live path
     try{ importP9(xml); }
     catch{ openTriage(xml, f.name+' :: scene.xml', assessP9Records(scanP9(xml))); }
     const prior=importedScenes.findIndex(s=>s.name===f.name);

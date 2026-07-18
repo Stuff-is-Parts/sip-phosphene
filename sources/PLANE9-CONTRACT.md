@@ -21,10 +21,10 @@ Registry updated with the expreval row.
 |---|---|---|
 | `time` | 175 | count includes GLSL shader uniforms — expression-level vs shader-level split not yet separated |
 | `band(channel, damping, bandnr, nomusic)` | 123 | RESOLVED 2026-07-18 from the official expression reference (plane9.com/wiki/expressionreference, v1.x era): channel (-1 = mono fold [P9-HIST:345,383]), damping, band number, no-music fallback. CONFLICT NOTE: this file previously read the 4th argument as damping from [P9-HIST:254,383]; the explicit reference signature outranks the changelog inference per PHOSPHENE-GOAL source-authority ordering. Exact band-count/edges still unresolved. |
-| `deltatime` | 98 | per-frame elapsed time factor (`x*rate*deltatime` integrators corpus-wide); dll Expression-node docs add: "deltatime (not correct when connected to local port)" (design/plane9-engine-node-strings.txt). Relation to the 30Hz-locked analyzer [P9-HIST:68] still **UNRESOLVED** |
-| `beat(nomusic)` | 52 | RESOLVED 2026-07-18 (official expression reference): returns current beat strength, with the argument as the no-music fallback — the expression-level twin of the Beat node's BeatStrength. The detection ALGORITHM stays unresolved (PLANE9-NODES.md queue). |
+| `deltatime` | 98 | per-frame elapsed time factor (`x*rate*deltatime` integrators corpus-wide); dll Expression-node docs add: "deltatime (not correct when connected to local port)" (witnessed in the Plane9Engine.dll string table at the Expression-node metadata block; extraction not retained). Relation to the 30Hz-locked analyzer [P9-HIST:68] still **UNRESOLVED** |
+| `beat(nomusic)` | 52 | Signature RESOLVED 2026-07-18 (official expression reference): returns current beat strength, with the argument as the no-music fallback — the expression-level twin of the Beat node's BeatStrength. The detection ALGORITHM stays **UNRESOLVED**. |
 | `rand(` | 54 | RESOLVED 2026-07-18 (official expression reference documents the family at Plane9 level): rand()/srand() in [0,1]/[-1,1] on an internal seed, seeded variants rand(&seed)/srand(&seed), plus random(min,max)/srandom(). Bit-exact generator identity still needs expreval source when Expression scenes enter scope. |
-| `aspect` | 20 | RESOLVED 2026-07-18: dll Expression-node docs say "aspect Current render aspect." (design/plane9-engine-node-strings.txt); also perm/permrand documented there (not reset for node life; initial 0 / 0.0-1.0). |
+| `aspect` | 20 | RESOLVED 2026-07-18: dll Expression-node docs say "aspect Current render aspect." (witnessed in the Plane9Engine.dll string table at the Expression-node metadata block); also perm/permrand documented there (not reset for node life; initial 0 / 0.0-1.0). |
 | `frame` | 12 | frame counter candidate — **UNRESOLVED** |
 | `soundlevel`, `fps`, `mouse` | 0 / 0 / 1 | effectively unused by the corpus |
 
@@ -38,60 +38,75 @@ scene references plane9-deltatime/plane9-band components exactly as a MilkDrop
 scene references milkdrop-time/milkdrop-loudness. Nothing here forces a new
 primitive: both contracts are expression-layer (P4) plus graph inputs (P2).
 
-## Node semantics resolved from the install (2026-07-18 end-to-end read)
+## Node port CONTRACT surfaces witnessed 2026-07-18 (semantic behavior remains UNRESOLVED)
 
-Every file in `C:\Program Files (x86)\Plane9` was read this pass — the eight
+Files read this pass in `C:\Program Files (x86)\Plane9`: the eight
 `nodedata/*.glsl` files, `history.txt` and `plane9.txt` end to end, the two
-`.rcc` containers (parsed by the Qt Resource Collection format, blobs zlib-
-decompressed), and the `Plane9Engine.dll` string table at the MinMax
-metadata region and neighboring node blocks.
+`.rcc` containers (parsed by the Qt Resource Collection format, blobs
+zlib-decompressed), and the `Plane9Engine.dll` string table at the MinMax
+metadata region and neighboring node blocks. **These reads establish what
+ports each node exposes and their dll help strings — they do NOT establish
+runtime SEMANTICS, and the section below classifies each behavior row
+accordingly.** Retraction 2026-07-18 (post-review): an earlier version of
+this section marked HSLAToColor, MinMax numeric modes, ITimeMode/DelayMode
+semantics, the interpolation curve, and Beat's composition as RESOLVED
+from these reads. That inference was not warranted by the sources — one
+saved input/output vector, string adjacency, popularity counts, and Qt
+import lists do not fix runtime behavior. Rows below are re-classified.
 
-**Screen node** — camera port descriptions verbatim from the dll node table:
-Viewport "A part of the screen that we should render everything to", CamPos,
+**Screen node** — camera port NAMES and dll help text verbatim: Viewport
+"A part of the screen that we should render everything to", CamPos,
 CamLookAt, CamLookAtInWorldSpace, CamFov, CamNear, CamFar, ScaleByAspect.
-Color Cycle values: Viewport "0 0 1 1", CamPos "0 0 -2", CamFov 45, and
-`ScaleByAspect false` — camera is unused for a geometry-free Clear scene.
+Whether the camera has any runtime effect for a geometry-free Clear scene
+is **UNRESOLVED** — cannot be inferred from the port list; needs
+observation (a probe scene with CamPos/CamFov varied and the rendered
+output recorded).
 
 **Clear node** — dll: "Fills the viewport with a single color." One port
-Color (RGBA); connections witness `Clear.Render` out to `Screen.Render`,
-`Clear.Color` in from HSLAToColor.
+Color (RGBA); connections in the Color Cycle scene.xml witness
+`Clear.Render` out to `Screen.Render` and `Clear.Color` in from
+HSLAToColor.
 
-**HSLAToColor** — RESOLVED from the scene file itself: standard HSL-to-RGB
-(CSS/Wikipedia formulation) reproduces Color Cycle's saved Clear color
-"0.03857 0.11049 0.216148" from the node's own ports (H 215.7, S 0.697156,
-L 0.127359) to one part in 10^6. The scene file carries its own test vector.
+**HSLAToColor** — dll: "Converts a Hue, Saturation, Lightness and alpha
+component to a color". Ports Hue (in degrees per the dll help), Saturation,
+Lightness, Alpha; out Color. The standard CSS/Wikipedia HSL-to-RGB formula
+applied to Color Cycle's saved HSL ports reproduces Color Cycle's saved
+Clear.Color to one part in 10^6. This is **a strong candidate consistent
+with one retained input/output vector**, not a fully resolved formula —
+resolution requires either a second independent vector or observation of
+the running node against known inputs.
 
 **MinMax node** — dll: "Interpolates a float value using delay times.
 Doesn't handle 'local' evaluators." Nine ports: Min, Max, Mode, DelayMin,
 DelayMax, DelayMode, ITimeMin, ITimeMax, ITimeMode. history.txt line 413
-(v1.6): "Forced MinMax node to only update itself once a frame" —
-MinMax is a value node ticking once per frame.
-- **Mode enum**: four names in dll dropdown order at file offsets
-  2075532/2075540/2075560/2075568 — Rand, RandShortestDist, LoopUp,
-  LoopDown. Corpus usage across 118 instances is {Mode: 1=101, 2=11, 3=1,
-  4=5}, which together with the four-name adjacent block resolves to
-  1=Rand (the default, matching majority usage), 2=RandShortestDist,
-  3=LoopUp, 4=LoopDown.
-- **DelayMode** and **ITimeMode**: both hold {0, 1} in the corpus (DelayMode
-  113 of 118 at 1 with 5 at 0; ITimeMode all 118 at 1) — 0-based off/on.
-- **Interpolation curve**: the dll imports exactly three `QEasingCurve`
-  functions (constructor-from-Type, destructor, `valueForProgress`), so
-  interpolation between drawn Min/Max targets over ITime seconds uses a
-  Qt easing curve — the specific curve type is a dll-internal parameter
-  not exposed as a port; a Color-Cycle-faithful port defaults to Qt's
-  Linear (QEasingCurve::Type = 0) until falsified.
+(v1.6): "Forced MinMax node to only update itself once a frame" — witness
+that MinMax ticks once per frame; nothing else about its state model.
+- **Mode enum names** witnessed adjacent in the dll string table at
+  offsets 2075532/2075540/2075560/2075568: Rand, RandShortestDist,
+  LoopUp, LoopDown. **Numeric mode mapping is UNRESOLVED** — string
+  adjacency plus corpus popularity is not evidence of the integer
+  assignment; the actual dropdown-to-integer mapping lives in the removed
+  editor's implementation. Corpus statistics (Mode {1: 101, 2: 11, 3: 1,
+  4: 5}) constrain the value range but do not identify which name maps
+  to which number.
+- **DelayMode and ITimeMode semantics UNRESOLVED**. Corpus values
+  {DelayMode: 1=113, 0=5} and {ITimeMode: 1=118} identify the value range
+  in use, not what 0 and 1 mean.
+- **Target-selection rule, RNG identity, delay lifecycle, interpolation
+  curve UNRESOLVED**. The three `QEasingCurve` symbol imports in the dll
+  (constructor-from-Type, destructor, `valueForProgress`) show only that
+  Qt easing curves are USED somewhere in the engine; they do not identify
+  MinMax as the caller, nor which curve type it uses.
 
 **Beat node** — dll: "Detects the beat in the currently playing music and
 output its as a value going from 0.0 to 1.0." Ports NoMusic, Amplification,
-Min, Max; out BeatStrength. Detection algorithm is internal; corpus witness
-in AUDIO-PATH.md scenes shows the port range (NoMusic values 0.2..100,
-Amplification 1..7, Min 0..1, Max 1..200) and BeatStrength as the driver
-of scalar ports downstream. The internal detector is the only remaining
-unresolved element for a Color-Cycle-faithful port; the visible scale
-(0.0..1.0 dll-documented) plus AUDIO-PATH's MilkDrop-side band-summing
-math is sufficient to render Color Cycle without invention — the scene
-overrides NoMusic live via MinMax2, so the detector's response only
-matters when actual audio is present.
+Min, Max; out BeatStrength. dll help says NoMusic is "Value to use if no
+music is playing" — the switching rule between the detector and NoMusic
+is **UNRESOLVED**. Composition of Amplification with Min/Max, the
+detector's algorithm, and the audio-driven output are all **UNRESOLVED**.
+AUDIO-PATH.md's MilkDrop-side band-summing math describes MilkDrop's
+detector, not Plane9's; treating it as sufficient for Color Cycle's Beat
+was the inference the deleted runtime rested on.
 
 **Shader-node uniform contract** — witnessed end-to-end in the eight
 `nodedata/*.glsl` files:

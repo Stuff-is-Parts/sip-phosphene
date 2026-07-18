@@ -8,12 +8,6 @@
 // runtimes"). The triage view is the surface for unconverted .p9c drops.
 import { unzipSync } from '../vendor/fflate/fflate.mjs';
 
-/** Node types whose native operation is implemented in the shared Engine.
- *  Empty until Plane9 nodes are added as native operations executed by the
- *  shared graph scheduler — a separate p9 executor is a parallel runtime,
- *  which the goal doc bans. */
-export const IMPLEMENTED = /** @type {Set<string>} */ (new Set());
-
 /** @param {Uint8Array} bytes @returns {string} the archive's scene.xml text */
 export function extractSceneXml(bytes) {
   const files = unzipSync(bytes);
