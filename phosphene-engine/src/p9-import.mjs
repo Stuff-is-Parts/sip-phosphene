@@ -1,17 +1,18 @@
 // Plane9 .p9c importer — container extraction plus a line-scanner in the
-// same record discipline as milk-import.mjs: one record per source line,
-// tolerant scanning for the triage view, and a strict import door that
-// throws at the first thing it cannot faithfully convert. The scene grammar
-// is the one witnessed across the corpus (sources/PLANE9-EVIDENCE.md): a
-// zip holding scene.xml, whose lines are tab-indented single-element XML.
-// Node SEMANTICS are unresolved (sources/PLANE9-NODES.md), so the strict
-// door currently refuses every scene at its first node — the scanner and
-// triage exist so a .p9c drop shows exactly what stands between the file
-// and a conversion, per line.
+// same record discipline as milk-import.mjs. The scene grammar is the one
+// witnessed across the corpus (Plane9Scene root, Node/Port/Connection):
+// a zip holding scene.xml, tab-indented single-element XML per line.
+// The five-node runtime for scene 2 is IMPLEMENTED in p9-engine.mjs, so the
+// strict door now accepts scenes whose nodes are all in IMPLEMENTED below
+// (Other/Color Cycle.p9c is one of two such scenes in the corpus, together
+// with Other/Black.p9c). Everything else still refuses at its first
+// non-implemented node — the triage stays the surface for unconverted
+// .p9c drops.
 import { unzipSync } from '../vendor/fflate/fflate.mjs';
 
-/** Node types whose port contracts are ledgered in sources/PLANE9-NODES.md */
-const LEDGERED = new Set(['Screen', 'Clear', 'HSLAToColor', 'MinMax', 'Beat']);
+/** Node types whose port contracts are traced to primary sources
+ *  (sources/PLANE9-CONTRACT.md) AND whose runtime is implemented. */
+export const IMPLEMENTED = new Set(['Screen', 'Clear', 'HSLAToColor', 'MinMax', 'Beat']);
 
 /** @param {Uint8Array} bytes @returns {string} the archive's scene.xml text */
 export function extractSceneXml(bytes) {
@@ -65,23 +66,49 @@ export function scanP9(xml) {
 }
 
 /**
- * Strict import door. Refuses at the first record it cannot faithfully
- * convert — which today is the first node, because no Plane9 node has an
- * implemented runtime yet (semantics unresolved per sources/PLANE9-NODES.md).
+ * Strict import door. Assembles a Plane9 runtime scene from the records:
+ * refuses at the first line outside the witnessed grammar, or at the first
+ * node type whose runtime is not implemented.
  * @param {string} xml
+ * @returns {{meta:Record<string,string>, nodes:{type:string,name:string,ports:Record<string,any>}[], edges:{out:string,in:string}[]}}
  */
 export function importP9(xml) {
   const records = scanP9(xml);
+  /** @type {{type:string,name:string,ports:Record<string,any>}[]} */
+  const nodes = [];
+  /** @type {{out:string,in:string}[]} */
+  const edges = [];
+  /** @type {Record<string,string>} */
+  const meta = {};
+  /** @type {{type:string,name:string,ports:Record<string,any>}|null} */
+  let cur = null;
   for (const rec of records) {
     if (rec.kind === 'refused') throw new Error('line ' + rec.line + ' refused: ' + rec.reason);
+    if (rec.kind === 'meta' && rec.id && rec.raw) {
+      const m = rec.raw.trim().match(/^<(\w+)[^>]*>(.*)<\/\1>$/);
+      if (m && m[2] !== undefined) meta[rec.id] = m[2];
+      continue;
+    }
     if (rec.kind === 'node' || rec.kind === 'node-open') {
-      const where = LEDGERED.has(/** @type {string} */ (rec.type))
-        ? 'port contract ledgered in sources/PLANE9-NODES.md, runtime unimplemented'
-        : 'no ledger yet';
-      throw new Error('line ' + rec.line + ' refused: node type "' + rec.type + '" — semantics unresolved (' + where + ')');
+      const type = /** @type {string} */ (rec.type);
+      if (!IMPLEMENTED.has(type)) throw new Error('line ' + rec.line + ' refused: node type "' + type + '" — runtime not implemented');
+      cur = { type, name: /** @type {string} */ (rec.name), ports: {} };
+      nodes.push(cur);
+      continue;
+    }
+    if (rec.kind === 'close' && rec.id === 'Node') { cur = null; continue; }
+    if (rec.kind === 'port') {
+      if (!cur) throw new Error('line ' + rec.line + ' refused: <Port> outside <Node>');
+      cur.ports[/** @type {string} */ (rec.id)] = rec.value;
+      continue;
+    }
+    if (rec.kind === 'connection') {
+      edges.push({ out: /** @type {string} */ (rec.out), in: /** @type {string} */ (rec.in) });
+      continue;
     }
   }
-  throw new Error('refused: scene has no nodes');
+  if (nodes.length === 0) throw new Error('refused: scene has no nodes');
+  return { meta, nodes, edges };
 }
 
 /**
@@ -99,10 +126,11 @@ export function assessP9Records(records) {
     if (rec.kind === 'refused') { out.push({ line: rec.line, ok: false, text: rec.reason || 'refused' }); continue; }
     if (rec.kind === 'node' || rec.kind === 'node-open') {
       node = rec.name || '';
-      const where = LEDGERED.has(/** @type {string} */ (rec.type))
-        ? 'contract ledgered (PLANE9-NODES.md), runtime unimplemented'
-        : 'no ledger yet';
-      out.push({ line: rec.line, ok: false, text: 'node ' + rec.type + ' — semantics unresolved; ' + where });
+      if (IMPLEMENTED.has(/** @type {string} */ (rec.type))) {
+        out.push({ line: rec.line, ok: true, text: 'node ' + rec.type + ' — runtime implemented' });
+      } else {
+        out.push({ line: rec.line, ok: false, text: 'node ' + rec.type + ' — runtime not implemented' });
+      }
       continue;
     }
     if (rec.kind === 'port' || rec.kind === 'port-open') { out.push({ line: rec.line, ok: true, text: 'port ' + rec.id + ' of ' + node + ' (scanned)' }); continue; }
