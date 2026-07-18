@@ -1,11 +1,14 @@
-// Plane9 .p9c importer — container extraction plus a line-scanner in the
-// same record discipline as milk-import.mjs. The scene grammar is the one
-// witnessed across the corpus (Plane9Scene root, Node/Port/Connection):
-// a zip holding scene.xml, tab-indented single-element XML per line.
-// The strict door refuses every scene at its first node until Plane9 node
-// operations are implemented as native operations in the shared executor
-// (per PHOSPHENE-GOAL.md's "one native execution model, no parallel
-// runtimes"). The triage view is the surface for unconverted .p9c drops.
+// Plane9 .p9c importer — container extraction, a line-scanner in the same
+// record discipline as milk-import.mjs, and a record-consuming converter
+// (p9ToPhos) that shares ONE per-node-type disposition registry with the
+// triage view, exactly as milkToPhos shares VALUE_HANDLERS with
+// assessRecords. Convertible today: the witnessed geometry-free clear shape
+// (Clear.Render -> Screen.Render with a saved constant Color), which lands
+// on the shared executor's native clear-color op (NATIVE_OPS,
+// src/engine.mjs). Every other node type refuses with the exact missing
+// fact and the observation that would resolve it, per
+// sources/PLANE9-CONTRACT.md. No Plane9 evaluator, no source-selected
+// runtime — PHOSPHENE-GOAL.md's "one native execution model".
 import { unzipSync } from '../vendor/fflate/fflate.mjs';
 
 /** @param {Uint8Array} bytes @returns {string} the archive's scene.xml text */
@@ -59,45 +62,150 @@ export function scanP9(xml) {
   return records;
 }
 
-/**
- * Strict import door. Refuses at the first record it cannot faithfully
- * convert — which today is the first node, because no Plane9 node has a
- * native operation implemented in the shared Engine yet.
- * @param {string} xml
- */
-export function importP9(xml) {
-  const records = scanP9(xml);
-  for (const rec of records) {
-    if (rec.kind === 'refused') throw new Error('line ' + rec.line + ' refused: ' + rec.reason);
-    if (rec.kind === 'node' || rec.kind === 'node-open') {
-      throw new Error('line ' + rec.line + ' refused: node type "' + rec.type + '" — no native operation implemented yet');
-    }
-  }
-  throw new Error('refused: scene has no nodes');
-}
+// --- the shared per-node-type disposition registry -------------------------
+// Refusal texts name the exact missing fact and the observation that would
+// resolve it; evidence offsets refer to Plane9Engine.dll sha256 4cebc1b3…
+// as recorded with reproduction procedure in sources/PLANE9-CONTRACT.md.
+const P9_REFUSALS = /** @type {Record<string,string>} */ ({
+  MinMax: 'MinMax — mode-integer mapping unresolved: the engine names exactly four modes (Rand, RandShortestDist, LoopUp, LoopDown; dll 0x1fab8c) but corpus Mode values span {1..4} while DelayMode spans {0,1}, so no single indexing is derivable; interpolation curve and RNG also unresolved. Observation: save a Studio probe scene at each Mode dropdown position and diff the saved integers.',
+  Beat: 'Beat — detection algorithm unresolved: the interface is witnessed (BeatStrength 0..1, NoMusic fallback, Amplification, Min/Max; dll 0x1fb038) but the detector is compiled code. Observation: controlled audio with known onsets against the live BeatStrength value.',
+  HSLAToColor: 'HSLAToColor — formula is a one-vector candidate: the standard HSL formula reproduces the single retained input/output vector to 1e-6 and Hue is in degrees (dll 0x1fa228), but one vector cannot establish a formula. Observation: save a second vector in a different Hue segment and compare.',
+});
+
+// The witnessed geometry-free Screen configuration — the exact port values
+// carried by 79 of 252 corpus scenes including the retained Color Cycle
+// fixture. Screen's function as the render sink is witnessed corpus-wide;
+// what its camera ports do to a geometry-free clear is NOT resolved, so any
+// deviation from these witnessed values refuses rather than assuming
+// camera inertness (sources/PLANE9-CONTRACT.md §Screen).
+const SCREEN_WITNESSED = /** @type {Record<string,string>} */ ({
+  Viewport: '0 0 1 1', CamPos: '0 0 -2', CamRot: '0 0 0', CamLookAt: '0 0 1',
+  CamLookAtInWorldSpace: 'false', CamFov: '45', CamNear: '0.1', CamFar: '1000',
+  ScaleByAspect: 'false',
+});
 
 /**
- * Per-line dispositions for the triage view — same shape the .milk triage
- * consumes: {line, ok, text}.
+ * Record-consuming disposition pass — the single code path behind both the
+ * triage view and conversion. Every record receives exactly one disposition;
+ * conversion succeeds only when every disposition is ok.
  * @param {ReturnType<typeof scanP9>} records
- * @returns {{line:number, ok:boolean, text:string}[]}
+ * @returns {{dispositions:{line:number, ok:boolean, text:string}[],
+ *            nodes:Record<string,{type:string, ports:Record<string,string>}>,
+ *            connections:{out:string, in:string}[]}}
  */
-export function assessP9Records(records) {
+function disposeP9(records) {
   /** @type {{line:number, ok:boolean, text:string}[]} */
   const out = [];
-  let node = '';
+  /** @type {Record<string,{type:string, ports:Record<string,string>}>} */
+  const nodes = {};
+  /** @type {{out:string, in:string}[]} */
+  const connections = [];
+  let cur = '';
   for (const rec of records) {
     if (rec.kind === 'blank') continue;
     if (rec.kind === 'refused') { out.push({ line: rec.line, ok: false, text: rec.reason || 'refused' }); continue; }
     if (rec.kind === 'node' || rec.kind === 'node-open') {
-      node = rec.name || '';
-      out.push({ line: rec.line, ok: false, text: 'node ' + rec.type + ' — no native operation implemented yet' });
+      cur = rec.name || '';
+      nodes[cur] = { type: rec.type || '', ports: {} };
+      if (rec.type === 'Screen') out.push({ line: rec.line, ok: true, text: 'Screen — render sink (witnessed geometry-free configuration)' });
+      else if (rec.type === 'Clear') out.push({ line: rec.line, ok: true, text: 'Clear — converts to native clear-color ("Fills the viewport with a single color.", dll 0x1f7ecc)' });
+      else if (rec.type !== undefined && P9_REFUSALS[rec.type]) out.push({ line: rec.line, ok: false, text: /** @type {string} */ (P9_REFUSALS[rec.type]) });
+      else out.push({ line: rec.line, ok: false, text: 'node type "' + rec.type + '" — no native operation implemented yet' });
       continue;
     }
-    if (rec.kind === 'port' || rec.kind === 'port-open') { out.push({ line: rec.line, ok: true, text: 'port ' + rec.id + ' of ' + node + ' (scanned)' }); continue; }
+    if (rec.kind === 'close' && rec.id === 'Node') { cur = ''; out.push({ line: rec.line, ok: true, text: 'scene structure / metadata' }); continue; }
+    if (rec.kind === 'port') {
+      const owner = nodes[cur];
+      if (owner && rec.id !== undefined && rec.value !== undefined) owner.ports[rec.id] = rec.value;
+      if (owner && owner.type === 'Screen' && rec.id !== undefined) {
+        const expect = SCREEN_WITNESSED[rec.id];
+        if (expect === undefined) out.push({ line: rec.line, ok: false, text: 'Screen port "' + rec.id + '" is outside the witnessed geometry-free configuration — refusing' });
+        else if (rec.value !== expect) out.push({ line: rec.line, ok: false, text: 'Screen.' + rec.id + '="' + rec.value + '" deviates from the witnessed geometry-free value "' + expect + '" — camera-port relevance for geometry-free scenes is unresolved. Observation: A/B render a clear-only scene with this port varied.' });
+        else out.push({ line: rec.line, ok: true, text: 'Screen.' + rec.id + ' — witnessed geometry-free value' });
+        continue;
+      }
+      if (owner && owner.type === 'Clear' && rec.id === 'Color') {
+        const parts = String(rec.value).trim().split(/\s+/).map(Number);
+        if (parts.length === 4 && parts.every((v) => Number.isFinite(v))) out.push({ line: rec.line, ok: true, text: 'Clear.Color — native clear-color RGBA' });
+        else out.push({ line: rec.line, ok: false, text: 'Clear.Color="' + rec.value + '" is not four finite floats — refusing' });
+        continue;
+      }
+      out.push({ line: rec.line, ok: true, text: 'port ' + rec.id + ' of ' + cur + ' (scanned)' });
+      continue;
+    }
+    if (rec.kind === 'port-open') { out.push({ line: rec.line, ok: true, text: 'port ' + rec.id + ' of ' + cur + ' (scanned)' }); continue; }
     if (rec.kind === 'value' || rec.kind === 'value-open' || rec.kind === 'value-content') { out.push({ line: rec.line, ok: true, text: 'embedded value text (scanned)' }); continue; }
-    if (rec.kind === 'connection') { out.push({ line: rec.line, ok: true, text: 'connection ' + rec.out + ' → ' + rec.in + ' (structural)' }); continue; }
+    if (rec.kind === 'connection') {
+      const conn = { out: rec.out || '', in: rec.in || '' };
+      connections.push(conn);
+      const outNode = nodes[conn.out.split('.')[0] || ''];
+      const inNode = nodes[conn.in.split('.')[0] || ''];
+      const convertible = (/** @type {{type:string}|undefined} */ n) => n !== undefined && (n.type === 'Screen' || n.type === 'Clear');
+      if (convertible(outNode) && convertible(inNode)) out.push({ line: rec.line, ok: true, text: 'connection ' + conn.out + ' → ' + conn.in + ' — render topology, realized as the canvas clear pass' });
+      else out.push({ line: rec.line, ok: false, text: 'connection ' + conn.out + ' → ' + conn.in + ' — an endpoint node is not convertible, so this wiring cannot be realized' });
+      continue;
+    }
     out.push({ line: rec.line, ok: true, text: 'scene structure / metadata' });
   }
-  return out;
+  return { dispositions: out, nodes, connections };
+}
+
+/**
+ * Per-line dispositions for the triage view — same shape the .milk triage
+ * consumes: {line, ok, text}. Consults the SAME registry conversion uses.
+ * @param {ReturnType<typeof scanP9>} records
+ * @returns {{line:number, ok:boolean, text:string}[]}
+ */
+export function assessP9Records(records) {
+  return disposeP9(records).dispositions;
+}
+
+/**
+ * Strict conversion door: scene.xml -> native .phos Scene. Refuses at the
+ * first record whose disposition is not ok (naming the source line), then
+ * validates that what remains is exactly the witnessed clear shape: one
+ * Screen, one Clear with a constant Color, one Clear.Render -> Screen.Render
+ * connection. The result is an ordinary .phos the shared executor runs —
+ * a single native clear-color node.
+ * @param {string} xml
+ * @param {{file:string, sha256:string}} source
+ */
+export function p9ToPhos(xml, source) {
+  const { dispositions, nodes, connections } = disposeP9(scanP9(xml));
+  const bad = dispositions.find((d) => !d.ok);
+  if (bad) throw new Error('p9ToPhos: line ' + bad.line + ' refused: ' + bad.text);
+  const entries = Object.entries(nodes);
+  const screens = entries.filter(([, n]) => n.type === 'Screen');
+  const clears = entries.filter(([, n]) => n.type === 'Clear');
+  if (screens.length !== 1 || clears.length !== 1 || entries.length !== 2) {
+    throw new Error(`p9ToPhos: convertible shape is exactly one Screen + one Clear, got ${entries.length} node(s) — refusing`);
+  }
+  const screenName = /** @type {[string, {type:string}]} */ (screens[0])[0];
+  const clearEntry = /** @type {[string, {type:string, ports:Record<string,string>}]} */ (clears[0]);
+  const clearName = clearEntry[0];
+  if (connections.length !== 1 || !connections[0] || connections[0].out !== clearName + '.Render' || connections[0].in !== screenName + '.Render') {
+    throw new Error('p9ToPhos: the witnessed clear shape carries exactly the connection ' + clearName + '.Render → ' + screenName + '.Render — refusing other wiring');
+  }
+  const colorStr = clearEntry[1].ports['Color'];
+  if (colorStr === undefined) throw new Error('p9ToPhos: Clear node "' + clearName + '" has no saved Color port — refusing');
+  const rgba = colorStr.trim().split(/\s+/).map(Number);
+  const [r, g, b, a] = rgba;
+  if (rgba.length !== 4 || r === undefined || g === undefined || b === undefined || a === undefined) {
+    throw new Error('p9ToPhos: Clear.Color="' + colorStr + '" is not four floats — refusing');
+  }
+  const name = 'p9-' + source.file.replace(/\.[^.]+$/, '');
+  return {
+    format: 'phos/1',
+    meta: { name, sourceEngine: 'plane9', source: { engine: 'plane9', file: source.file, sha256: source.sha256 } },
+    resources: /** @type {unknown[]} */ ([]),
+    nodes: [{
+      id: 'clear', primitive: 'graph', op: 'clear-color',
+      ports: {
+        clear_r: { type: 'float', value: r }, clear_g: { type: 'float', value: g },
+        clear_b: { type: 'float', value: b }, clear_a: { type: 'float', value: a },
+      },
+    }],
+    edges: /** @type {{out:string,in:string}[]} */ ([]),
+    expressions: /** @type {{id:string, stage:string, code:string[]}[]} */ ([]),
+  };
 }

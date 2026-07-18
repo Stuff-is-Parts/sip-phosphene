@@ -54,21 +54,62 @@ from these reads. That inference was not warranted by the sources — one
 saved input/output vector, string adjacency, popularity counts, and Qt
 import lists do not fix runtime behavior. Rows below are re-classified.
 
-**Screen node** — camera port NAMES and dll help text verbatim: Viewport
-"A part of the screen that we should render everything to", CamPos,
-CamLookAt, CamLookAtInWorldSpace, CamFov, CamNear, CamFar, ScaleByAspect.
-Whether the camera has any runtime effect for a geometry-free Clear scene
-is **UNRESOLVED** — cannot be inferred from the port list; needs
-observation (a probe scene with CamPos/CamFov varied and the rendered
-output recorded).
+### Static-analysis reproduction procedure (2026-07-18, owner-directed)
 
-**Clear node** — dll: "Fills the viewport with a single color." One port
-Color (RGBA); connections in the Color Cycle scene.xml witness
-`Clear.Render` out to `Screen.Render` and `Clear.Color` in from
-HSLAToColor.
+Every dll claim below reproduces from `Plane9Engine.dll` in the v2.5.1
+install, **sha256
+`4cebc1b36f003a550b4fc6ae1979d579f4f7f27b03599c7aef88fd5526ba1196`**
+(2,501,736 bytes), by scanning the raw file bytes for ASCII runs
+(`re.finditer(rb"[\x20-\x7e]{3,}", data)` in Python) and reading the
+matched string at the stated byte offset. Offsets are file offsets, not
+virtual addresses. Corpus claims reproduce by unzipping `scene.xml` from
+each of the 252 `.p9c` files under `source-scenes/plane9/` and tallying
+`<Node Type=..>` / `<Port Id=.. Value=..>` matches.
+
+**Control case validating the metadata layout:** the SignalGenerator node
+block at 0x1eba14 carries its description, then port name `WaveformType`
+(0x1ebb00), then the five enum item names contiguous and in order —
+`Sine` 0x1ebb10, `Square` 0x1ebb18, `Triangle` 0x1ebb20, `Sawtooth`
+0x1ebb2c, `Random` 0x1ebb38 — then the next port. Corpus
+`SignalGenerator.WaveformType` values are {0: 9 scenes, 4: 5 scenes},
+consistent with 0-based indexing over that five-name list (0=Sine,
+4=Random) and inconsistent with 1-based.
+
+**Screen node** — camera port NAMES and dll help text verbatim: Viewport
+"A part of the screen that we should render everything to" (0x1f7fe4),
+CamPos, CamLookAt, CamLookAtInWorldSpace, CamFov, CamNear, CamFar,
+ScaleByAspect. Whether the camera has any runtime effect for a
+geometry-free Clear scene is **UNRESOLVED** — cannot be inferred from the
+port list; needs observation (a probe scene with CamPos/CamFov varied and
+the rendered output recorded). **Witnessed geometry-free configuration**
+(corpus scan 2026-07-18): 79 of 252 scenes carry the exact port set
+`Viewport="0 0 1 1" CamPos="0 0 -2" CamRot="0 0 0" CamLookAt="0 0 1"
+CamLookAtInWorldSpace="false" CamFov="45" CamNear="0.1" CamFar="1000"
+ScaleByAspect="false"` — the retained Color Cycle fixture among them. The
+converter (src/p9-import.mjs) accepts exactly this configuration as the
+full-canvas render sink and refuses any deviation, so no camera-inertness
+assumption is baked in.
+
+**Clear node** — dll: "Fills the viewport with a single color."
+(0x1f7ecc). **RESOLVED for the conversion boundary 2026-07-18**: the
+node's function is to fill the render viewport with its Color, on this
+evidence — the dll description; the engine render call
+`CRenderOGL::Clear(glm::tvec4<float>&, float, int)` (mangled export at
+0x2295b3) beside the `glClearColor` Qt-GL import (0x23341e); corpus
+uniformity (all 387 Clear nodes across 252 scenes carry exactly one port,
+Color); and history.txt:291 (v2.0.1 "ClearNode: Default clear nodes to
+set alpha to 0.0" — Color carries alpha). Connections in the Color Cycle
+scene.xml witness `Clear.Render` out to `Screen.Render` and `Clear.Color`
+in from HSLAToColor. A Clear whose Color is a saved constant, wired
+`Clear.Render -> Screen.Render` into the witnessed Screen configuration,
+converts onto the shared executor's native `clear-color` op
+(NATIVE_OPS, phosphene-engine/src/engine.mjs) whose realization is a
+WebGPU clear pass. A Clear whose Color is DRIVEN (as in Color Cycle)
+converts only when its driver converts — so Color Cycle still refuses.
 
 **HSLAToColor** — dll: "Converts a Hue, Saturation, Lightness and alpha
-component to a color". Ports Hue (in degrees per the dll help), Saturation,
+component to a color" (name 0x1fa1d0, description 0x1fa1e0). Ports Hue
+(help verbatim: "The 'real' color. In degrees", 0x1fa228), Saturation,
 Lightness, Alpha; out Color. The standard CSS/Wikipedia HSL-to-RGB formula
 applied to Color Cycle's saved HSL ports reproduces Color Cycle's saved
 Clear.Color to one part in 10^6. This is **a strong candidate consistent
@@ -81,17 +122,29 @@ Doesn't handle 'local' evaluators." Nine ports: Min, Max, Mode, DelayMin,
 DelayMax, DelayMode, ITimeMin, ITimeMax, ITimeMode. history.txt line 413
 (v1.6): "Forced MinMax node to only update itself once a frame" — witness
 that MinMax ticks once per frame; nothing else about its state model.
-- **Mode enum names** witnessed adjacent in the dll string table at
-  offsets 2075532/2075540/2075560/2075568: Rand, RandShortestDist,
-  LoopUp, LoopDown. **Numeric mode mapping is UNRESOLVED** — string
-  adjacency plus corpus popularity is not evidence of the integer
-  assignment; the actual dropdown-to-integer mapping lives in the removed
-  editor's implementation. Corpus statistics (Mode {1: 101, 2: 11, 3: 1,
-  4: 5}) constrain the value range but do not identify which name maps
-  to which number.
-- **DelayMode and ITimeMode semantics UNRESOLVED**. Corpus values
-  {DelayMode: 1=113, 0=5} and {ITimeMode: 1=118} identify the value range
-  in use, not what 0 and 1 mean.
+- **Mode enum names** witnessed in the dll literal pool at 0x1fab8c
+  (`Rand`), 0x1fab94 (`RandShortestDist`), 0x1faba8 (`LoopUp`), 0x1fabb0
+  (`LoopDown`) — contiguous, in this order, immediately before the
+  `MinMax` node name at 0x1fabbc. A raw hexdump of 0x1fab40-0x1fabd0
+  (2026-07-18) shows the bytes before `Rand` are a pointer table (11
+  little-endian 0x10xxxxxx values), not further names — the list is
+  exactly four names at this site, though string pooling means a
+  short item name merged elsewhere in the binary cannot be excluded.
+- **Numeric mode mapping is UNRESOLVED, and the 2026-07-18 corpus scan
+  now REFUTES the simplest hypothesis**: corpus `MinMax.Mode` values are
+  {1: 101, 2: 11, 3: 1, 4: 5} — no 0, and a 4 — while `MinMax.DelayMode`
+  values are {0: 5, 1: 113} and `MinMax.ITimeMode` is {1: 118}. A single
+  0-based index over the four-name list cannot produce Mode=4, and a
+  single 1-based index cannot produce DelayMode=0, so the three mode
+  ports do not share one indexing over one four-name list — either the
+  lists differ per port or an unwitnessed extra item exists. The
+  SignalGenerator control case (0-based over its five names) shows the
+  engine has no fixed 1-based convention to lean on. **Observation that
+  settles it**: in Plane9.Studio (or the editor of a pre-2.0 install),
+  set a MinMax node's Mode dropdown to each entry in turn, save after
+  each, and diff the saved integers; repeat for DelayMode/ITimeMode.
+- **DelayMode and ITimeMode semantics UNRESOLVED** beyond the value
+  ranges above.
 - **Target-selection rule, RNG identity, delay lifecycle, interpolation
   curve UNRESOLVED**. The three `QEasingCurve` symbol imports in the dll
   (constructor-from-Type, destructor, `valueForProgress`) show only that
@@ -99,11 +152,23 @@ that MinMax ticks once per frame; nothing else about its state model.
   MinMax as the caller, nor which curve type it uses.
 
 **Beat node** — dll: "Detects the beat in the currently playing music and
-output its as a value going from 0.0 to 1.0." Ports NoMusic, Amplification,
-Min, Max; out BeatStrength. dll help says NoMusic is "Value to use if no
-music is playing" — the switching rule between the detector and NoMusic
-is **UNRESOLVED**. Composition of Amplification with Min/Max, the
-detector's algorithm, and the audio-driven output are all **UNRESOLVED**.
+output its as a value going from 0.0 to 1.0." (node name 0x1fb038,
+description 0x1fb040). Ports with dll help verbatim: NoMusic "Value to
+use if no music is playing" (0x1fb0a0), Amplification "How much to
+amplify the values" (0x1fb0cc), Min "Minimum value" (0x1fb0fc), Max
+"Maximum value" (0x1fb10c); out BeatStrength "The strength of the
+current beat" (0x1fb11c). The switching rule between the detector and
+NoMusic is **UNRESOLVED**. Composition of Amplification with Min/Max,
+the detector's algorithm, and the audio-driven output are all
+**UNRESOLVED** — the detector is compiled code (`CBeatNode` RTTI at
+0x240a60; no exported method reveals it). Bounding facts from
+history.txt: the sound analyzer is locked to 30 Hz (line 68, v2.4.0),
+input is matched toward 44.1 kHz by sample skipping (lines 86-87,
+v2.3.3), and the engine auto-normalizes sound with the max-level
+tracking tuned at v2.4.0 (lines 74, 79, 295). **Observation that
+settles the remainder**: play controlled audio with known onsets and
+record the live BeatStrength value (probe scene wiring BeatStrength to
+a visible output), across silence to witness the NoMusic switch.
 AUDIO-PATH.md's MilkDrop-side band-summing math describes MilkDrop's
 detector, not Plane9's; treating it as sufficient for Color Cycle's Beat
 was the inference the deleted runtime rested on.

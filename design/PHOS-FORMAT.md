@@ -105,9 +105,13 @@ no silent flattening]
 
 Canonical wiring for the MilkDrop import: `warp.out → borders.in`,
 `borders.out → comp.in` (render-type ports). The engine derives ordering and
-render-state assembly from these edges under the fixed-pipeline contract
-above; the loader flattens port values into the runtime pool and the fixed
-GPU pipeline realizes the ops. The .phos file is the durable scene; the
+render-state assembly from these edges through the native-operation registry
+(NATIVE_OPS, src/engine.mjs): each registered op declares its value ports,
+its sequence grammar (first/after/terminal), and its render-state
+contribution, and the pages dispatch GPU passes from that contributed state
+— so the accepted shapes are exactly the renderable ones (today the MilkDrop
+chain and the single-node clear-color graph). The loader flattens port
+values into the runtime pool. The .phos file is the durable scene; the
 runtime IR conforms to it, not the reverse.
 
 The converter (`milkToPhos`) throws on any .milk key not in this table —

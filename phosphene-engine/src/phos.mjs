@@ -193,8 +193,8 @@ export function serializePhos(/** @type {Scene} */ scene) {
   return JSON.stringify(out, null, 2) + '\n';
 }
 
-// Flatten the graph document into the runtime IR the current fixed-pipeline
-// engine consumes: port values -> variable pool, per-frame programs -> perFrame.
+// Flatten the graph document into the runtime IR the registry-driven engine
+// consumes: port values -> variable pool, per-frame programs -> perFrame.
 // The .phos file is the durable scene; this IR conforms to it.
 export function toRuntime(/** @type {Scene} */ scene) {
   /** @type {Record<string,number>} */

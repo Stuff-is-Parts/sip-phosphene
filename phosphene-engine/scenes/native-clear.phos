@@ -1,0 +1,43 @@
+{
+  "format": "phos/1",
+  "meta": {
+    "name": "native-clear",
+    "description": "Native clear-color demonstration scene: one clear-color node fills the canvas with an RGBA value, and the per-frame program pulses the blue channel so live execution through the shared engine is visible."
+  },
+  "resources": [],
+  "nodes": [
+    {
+      "id": "clear",
+      "primitive": "graph",
+      "op": "clear-color",
+      "ports": {
+        "clear_r": {
+          "type": "float",
+          "value": 0
+        },
+        "clear_g": {
+          "type": "float",
+          "value": 0.35
+        },
+        "clear_b": {
+          "type": "float",
+          "value": 0.4
+        },
+        "clear_a": {
+          "type": "float",
+          "value": 1
+        }
+      }
+    }
+  ],
+  "edges": [],
+  "expressions": [
+    {
+      "id": "pulse",
+      "stage": "per-frame",
+      "code": [
+        "clear_b=0.25+0.15*sin(time);"
+      ]
+    }
+  ]
+}

@@ -4,7 +4,7 @@
 // other module. The page keeps only markup and CSS.
 import { parsePhos, toRuntime, serializePhos, updateScene, milkToPhos, assessRecords } from './phos.mjs';
 import { importMilk, scanMilk } from './milk-import.mjs';
-import { extractSceneXml, scanP9, assessP9Records, importP9 } from './p9-import.mjs';
+import { extractSceneXml, scanP9, assessP9Records, p9ToPhos } from './p9-import.mjs';
 import { Engine } from './engine.mjs';
 import { AudioEngine } from './audio/sources.mjs';
 import { feedbackWGSL, compositeWGSL } from './render-wgsl.mjs';
@@ -233,13 +233,20 @@ else {
       const a=audio.analysis;
       const st=engine.step(dt,{bass:a.bass,mid:a.mid,treb:a.treb,bass_att:a.bassAtt,mid_att:a.midAtt,treb_att:a.trebAtt});
       drawScope();
+      const enc=device.createCommandEncoder();
+      if(st.clear){
+        // native clear-color graph: its whole realization is one WebGPU
+        // clear of the canvas to the op's RGBA (NATIVE_OPS, src/engine.mjs)
+        const rp=enc.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:st.clear.r,g:st.clear.g,b:st.clear.b,a:st.clear.a}}]});
+        rp.end();
+        device.queue.submit([enc.finish()]);
+      }else{
       const m=st.motion,ib=st.innerBox,ob=st.outerBox;
       const u=new Float32Array([m.decay,ib.size,ib.r,ib.g,ib.b,ib.a,ib.aGate,ob.size,ob.r,ob.g,ob.b,ob.a,ob.aGate,0,0,0]);
       device.queue.writeBuffer(ubuf,0,u);
       buildWarpUVs(m,texW,texH,uvArr);device.queue.writeBuffer(uvBuf,0,uvArr);
       const samp=(m.wrap>0.5)?sampWrap:sampClamp; // texaddr, milkdropfs.cpp:1991
       const bg=device.createBindGroup({layout:bgl,entries:[{binding:0,resource:tA.createView()},{binding:1,resource:samp},{binding:2,resource:{buffer:ubuf}}]});
-      const enc=device.createCommandEncoder();
       let rp=enc.beginRenderPass({colorAttachments:[{view:tB.createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
       rp.setPipeline(pipe);rp.setBindGroup(0,bg);rp.setVertexBuffer(0,posBuf);rp.setVertexBuffer(1,uvBuf);rp.setIndexBuffer(ibuf,'uint16');rp.drawIndexed(meshIdx.length);rp.end();
       const aspect=canvas.width/(canvas.height*(1/m.aspectY)); // milkdropfs.cpp:4101-4103
@@ -250,11 +257,12 @@ else {
       rp.setPipeline(blitPipe);rp.setBindGroup(0,bbg);rp.draw(3);rp.end();
       device.queue.submit([enc.finish()]);
       [tA,tB]=[tB,tA];
+      }
       // MUST: live variable readout + live port values
       $('fr').textContent=String(engine.frame);
       fpsAcc+=1/dt;fpsN++; if(fpsN>=15){$('fps').textContent=String(Math.round(fpsAcc/fpsN));fpsAcc=0;fpsN=0;}
       const vd=$('vars'); vd.innerHTML='';
-      for(const k of ['time','ib_r','ib_g','ib_b','decay']){ const val=engine.pool[k]; if(val!==undefined&&val!==null){const r=document.createElement('div');r.className='v';r.innerHTML=`<span>${k}</span><b>${(+val).toFixed(4)}</b>`;vd.append(r);} }
+      for(const k of ['time','ib_r','ib_g','ib_b','decay','clear_r','clear_g','clear_b']){ const val=engine.pool[k]; if(val!==undefined&&val!==null){const r=document.createElement('div');r.className='v';r.innerHTML=`<span>${k}</span><b>${(+val).toFixed(4)}</b>`;vd.append(r);} }
       document.querySelectorAll('[data-live]').forEach(n=>{const el=/** @type {HTMLElement} */(n);const key=el.dataset.live;if(key===undefined)return;const v=engine.getVar(key);if(v!==undefined&&v!==null)el.textContent=(+v).toFixed(3);});
     }
     requestAnimationFrame(frame);
@@ -405,6 +413,14 @@ function markTok(cm,line,ch,len,cls){ if(ch>=0&&len>0)cm.markText({line,ch},{lin
 /** @param {string} srcText @param {string} phosText */
 function buildPhosView(srcText,phosText){
   const phosLines=phosText.split('\n');
+  if(/** @type {any} */(sceneDoc.meta).sourceEngine==='plane9'){
+    // converted .p9c: the per-line origin map below is built from .milk
+    // records; the plane9 pair shows plain dual panes until a p9 origin
+    // map exists
+    phosMeta=new Array(phosLines.length).fill(null);
+    srcNote.textContent='plane9 source — dual panes unannotated (per-line origin map exists for .milk sources only)';
+    return;
+  }
   let ir;
   try{ ir=importMilk(srcText); }
   catch(e){ srcNote.textContent='importer refuses this source: '+errMsg(e); return; }
@@ -676,7 +692,11 @@ async function renderLibrary(){
   const add=(label,fn)=>{ const b=document.createElement('wa-button'); b.setAttribute('size','s'); b.style.display='block'; b.style.marginBottom='6px'; b.textContent=label; b.addEventListener('click',fn); list.append(b); };
   for(const sc of manifest.scenes||[]) add(sc.name,async()=>{ loadDoc(parsePhos(await (await fetch('./scenes/'+sc.file)).text())); importedSrcText=null; libDrawer.open=false; });
   for(const sc of importedScenes) add(sc.name+' (imported)',async()=>{
-    if(sc.ext==='p9c'){ openTriage(sc.text, sc.name+' :: scene.xml', assessP9Records(scanP9(sc.text))); libDrawer.open=false; return; }
+    if(sc.ext==='p9c'){
+      try{ await loadP9(sc.text,sc.name); }
+      catch{ openTriage(sc.text, sc.name+' :: scene.xml', assessP9Records(scanP9(sc.text))); }
+      libDrawer.open=false; return;
+    }
     const h=IMPORTERS[sc.ext];
     try{ if(h)await h(sc.text,sc.name); }
     catch{ if(sc.ext==='milk')openTriage(sc.text, sc.name, assessRecords(scanMilk(sc.text))); }
@@ -696,16 +716,25 @@ $('library').onclick=async()=>{
 // importFile routes it through container extraction + the Plane9 strict
 // door, whose refusal opens the per-line triage; anything else refuses
 // naming the extension.
+/** @param {string} text */
+async function shaOf(text){
+  if(!crypto.subtle)return 'sha256-unavailable';
+  const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
+  return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+// Plane9 conversion load path: scene.xml -> p9ToPhos (strict door) -> the
+// ordinary .phos load; the caller opens triage on any refusal
+/** @param {string} xml @param {string} name */
+async function loadP9(xml,name){
+  const doc=p9ToPhos(xml,{file:name,sha256:await shaOf(xml)});
+  loadDoc(parsePhos(serializePhos(doc)));
+  importedSrcText=xml;
+}
 /** @type {Record<string, (text:string, name:string) => Promise<void>>} */
 const IMPORTERS={
   phos:async(text)=>{ loadDoc(parsePhos(text)); importedSrcText=null; },
   milk:async(text,name)=>{
-    let sha='sha256-unavailable';
-    if(crypto.subtle){
-      const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
-      sha=[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('');
-    }
-    const doc=milkToPhos(importMilk(text),{file:name,sha256:sha});
+    const doc=milkToPhos(importMilk(text),{file:name,sha256:await shaOf(text)});
     loadDoc(parsePhos(serializePhos(doc)));
     importedSrcText=text;
   },
@@ -717,11 +746,10 @@ async function importFile(f){
     let xml;
     try{ xml=extractSceneXml(new Uint8Array(await f.arrayBuffer())); }
     catch(e){ alert(errMsg(e)); return; }
-    // the strict door refuses every scene today (no native Plane9
-    // operation exists in the shared executor yet — see PHOSPHENE-GOAL.md
-    // "one native execution model, no parallel runtimes"), so the catch
-    // is the live path
-    try{ importP9(xml); }
+    // strict conversion door: a scene inside the convertible shape (the
+    // witnessed geometry-free clear graph) loads through the shared
+    // executor as an ordinary .phos; any refusal opens per-line triage
+    try{ await loadP9(xml,f.name); }
     catch{ openTriage(xml, f.name+' :: scene.xml', assessP9Records(scanP9(xml))); }
     const prior=importedScenes.findIndex(s=>s.name===f.name);
     const entry={name:f.name,text:xml,ext};

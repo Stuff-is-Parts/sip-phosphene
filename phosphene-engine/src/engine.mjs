@@ -11,20 +11,96 @@ import { Timekeeper } from './timekeeper.mjs';
 export function d3dColor01(/** @type {number} */ v) { return (Math.trunc(v * 255) & 0xFF) / 255; }
 import { GRID_X, GRID_Y } from './warp-mesh.mjs';
 
-// THE AUTHORITATIVE PORT DECLARATION, shared by conversion and execution:
-// exactly the value-ports each op's runtime path consumes (renderState +
-// src/warp-mesh.mjs read every name below through the pool). The converter
-// (src/phos.mjs emitPort) refuses to emit a port outside this declaration,
-// and Engine construction below refuses a scene carrying one — so an emitted
-// port without a runtime consumer cannot exist on either side. A scene
-// missing a declared port is equally refused — no silent defaults (defaults
-// are the CONVERTER's job, materialized into the .phos from cited values).
-export const OP_PORTS = /** @type {Record<string,string[]>} */ ({
-  'warp-feedback': ['fDecay', 'zoom', 'rot', 'warp', 'cx', 'cy', 'dx', 'dy', 'sx', 'sy',
-    'fWarpAnimSpeed', 'fWarpScale', 'fZoomExponent'],
-  'borders': ['ib_size', 'ib_r', 'ib_g', 'ib_b', 'ib_a', 'ob_size', 'ob_r', 'ob_g', 'ob_b', 'ob_a'],
-  'composite': ['fGammaAdj', 'fVideoEchoZoom', 'fVideoEchoAlpha', 'nVideoEchoOrientation'],
+// THE NATIVE-OPERATION REGISTRY (owner-ratified 2026-07-18, replacing the
+// fixed MilkDrop sequence contract of 2026-07-17): the single authority for
+// what operations exist, what value-ports each consumes, what render state
+// each contributes, and what op sequences are realizable. An op enters this
+// registry only together with its renderer realization in BOTH pages
+// (src/studio.mjs + src/player.mjs dispatch on the contributed state), so an
+// accepted graph can never exceed the renderer (Complete Representation).
+// Dispatch is by .phos op name only — nothing here reads source-engine
+// metadata, per PHOSPHENE-GOAL.md "one native execution model, no parallel
+// runtimes".
+//
+// Sequence grammar per op: `first` (may start a chain), `after` (ops it may
+// directly follow), `terminal` (may end the chain). The chain is accepted
+// exactly when every link satisfies the grammar — today that admits the
+// MilkDrop pipeline [warp-feedback -> borders -> composite] (fixed per
+// milkdropfs.cpp:1048-1214) and the single-node [clear-color] graph.
+/** @typedef {{ports:string[], first:boolean, after:string[], terminal:boolean, contribute:(state:any, p:Record<string,number>, eng:Engine)=>void}} NativeOp */
+export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
+  'warp-feedback': {
+    ports: ['fDecay', 'zoom', 'rot', 'warp', 'cx', 'cy', 'dx', 'dy', 'sx', 'sy',
+      'fWarpAnimSpeed', 'fWarpScale', 'fZoomExponent'],
+    first: true, after: [], terminal: false,
+    contribute(state, p, eng) {
+      // per-frame warp oscillators — milkdropfs.cpp:1782-1787
+      const warpTime = eng.time * (p.fWarpAnimSpeed ?? 0);
+      state.motion = {
+        aspectX: eng.aspectX(), aspectY: eng.aspectY(), // plugin.cpp:2027-2028
+        // warp-pass sampler address choice: wrap > 0.5 selects WRAP else
+        // CLAMP (WarpedBlit_NoShaders texaddr, milkdropfs.cpp:1991; snap
+        // point 0.5, :588 — blend-time snap variants gated with preset-blend)
+        wrap: p.wrap ?? 0,
+        decay: d3dColor01(p.decay ?? 0), // quantized via the D3DCOLOR modulate path (:2007)
+        zoom: p.zoom ?? 0, zoomExp: p.zoomexp ?? 0, rot: p.rot ?? 0, warp: p.warp ?? 0,
+        cx: p.cx ?? 0, cy: p.cy ?? 0, dx: p.dx ?? 0, dy: p.dy ?? 0, sx: p.sx ?? 0, sy: p.sy ?? 0,
+        warpTime,
+        warpScaleInv: 1 / (p.fWarpScale ?? 1),
+        f0: 11.68 + 4.0 * Math.cos(warpTime * 1.413 + 10),
+        f1: 8.77 + 3.0 * Math.cos(warpTime * 1.113 + 7),
+        f2: 10.54 + 3.0 * Math.cos(warpTime * 1.233 + 3),
+        f3: 11.49 + 4.0 * Math.cos(warpTime * 0.933 + 5),
+      };
+    },
+  },
+  'borders': {
+    ports: ['ib_size', 'ib_r', 'ib_g', 'ib_b', 'ib_a', 'ob_size', 'ob_r', 'ob_g', 'ob_b', 'ob_a'],
+    first: false, after: ['warp-feedback'], terminal: false,
+    contribute(state, p) {
+      // colors and alphas pass the 8-bit conversion (:3453-3457); the draw
+      // gate reads the RAW alpha (:3451) — aGate carries it separately
+      state.innerBox = { size: p.ib_size ?? 0, r: d3dColor01(p.ib_r ?? 0), g: d3dColor01(p.ib_g ?? 0), b: d3dColor01(p.ib_b ?? 0), a: d3dColor01(p.ib_a ?? 0), aGate: p.ib_a ?? 0 };
+      state.outerBox = { size: p.ob_size ?? 0, r: d3dColor01(p.ob_r ?? 0), g: d3dColor01(p.ob_g ?? 0), b: d3dColor01(p.ob_b ?? 0), a: d3dColor01(p.ob_a ?? 0), aGate: p.ob_a ?? 0 };
+    },
+  },
+  'composite': {
+    ports: ['fGammaAdj', 'fVideoEchoZoom', 'fVideoEchoAlpha', 'nVideoEchoOrientation'],
+    first: false, after: ['borders'], terminal: true,
+    contribute(state, p) {
+      // gammaAdj + video echo — ShowToUser_NoShaders (milkdropfs.cpp:4147-4260)
+      state.comp = {
+        gamma: p.gamma ?? 0, echoAlpha: p.echo_alpha ?? 0,
+        echoZoom: p.echo_zoom ?? 0, echoOrient: (p.echo_orient ?? 0) % 4,
+      };
+    },
+  },
+  'clear-color': {
+    // Source-neutral native clear: fills the render surface with one RGBA
+    // color, values as raw 0..1 floats each frame (per-frame programs may
+    // animate the ports through the pool — native semantics, ours to define).
+    // The realization is a real WebGPU clear pass (loadOp:'clear' with this
+    // clearValue) in both pages. Plane9's Clear node converts onto this op:
+    // "Fills the viewport with a single color." (Plane9Engine.dll
+    // sha256 4cebc1b3... string at 0x1f7ecc; CRenderOGL::Clear(glm::vec4&..)
+    // export at 0x2295b3 — sources/PLANE9-CONTRACT.md).
+    ports: ['clear_r', 'clear_g', 'clear_b', 'clear_a'],
+    first: true, after: [], terminal: true,
+    contribute(state, p) {
+      state.clear = { r: p.clear_r ?? 0, g: p.clear_g ?? 0, b: p.clear_b ?? 0, a: p.clear_a ?? 0 };
+    },
+  },
 });
+
+// Value-port declaration view of the registry, shared by conversion and
+// execution: the converter (src/phos.mjs emitPort) refuses to emit a port
+// outside this declaration, and Engine construction below refuses a scene
+// carrying one — so an emitted port without a runtime consumer cannot exist
+// on either side. A scene missing a declared port is equally refused — no
+// silent defaults (defaults are the CONVERTER's job, materialized into the
+// .phos from cited values).
+export const OP_PORTS = /** @type {Record<string,string[]>} */ (
+  Object.fromEntries(Object.entries(NATIVE_OPS).map(([op, d]) => [op, d.ports])));
 
 // Ports whose values reach the GPU. With the warp math implemented, every
 // value port of the supported ops is consumed; the studio uses this to mark
@@ -61,7 +137,7 @@ function buildPool(/** @type {Record<string,number>} */ vars) {
   return pool;
 }
 
-export const CONSUMED_PORTS = [...OP_PORTS['warp-feedback'] ?? [], ...OP_PORTS['borders'] ?? [], ...OP_PORTS['composite'] ?? []];
+export const CONSUMED_PORTS = Object.values(NATIVE_OPS).flatMap((d) => d.ports);
 
 export class Engine {
   constructor(/** @type {any} */ scene) {
@@ -86,17 +162,33 @@ export class Engine {
       cur = nodes.find((n) => n.id === nid);
     }
     if (this.order.length !== nodes.length) throw new Error('Engine: edges do not form a single chain covering all nodes — refusing');
-    // FIXED-PIPELINE CONTRACT (owner-ratified 2026-07-17): the renderer realizes
-    // exactly this op sequence, so the engine accepts exactly it — an accepted
-    // graph can never exceed the renderer (Complete Representation; the source
-    // pipeline is fixed per milkdropfs.cpp:1048-1214, and inventing semantics
-    // for other shapes would fill missing knowledge with plausible behavior,
-    // which PHOSPHENE-GOAL.md prohibits). Generality arrives with the scene
-    // that forces it, by a further owner decision.
-    const CONTRACT = ['warp-feedback', 'borders', 'composite'];
+    // REGISTRY-VALIDATED SEQUENCE (owner decision 2026-07-18, generalizing the
+    // 2026-07-17 fixed contract — the Plane9 clear graph is the scene that
+    // forced it): every op must exist in NATIVE_OPS, and each chain link must
+    // satisfy the per-op sequence grammar (first/after/terminal). Because an
+    // op enters the registry only with its renderer realization, an accepted
+    // sequence is always renderable — inventing semantics for other shapes
+    // would fill missing knowledge with plausible behavior, which
+    // PHOSPHENE-GOAL.md prohibits.
     const stages = this.order.map((n) => n.stage);
-    if (JSON.stringify(stages) !== JSON.stringify(CONTRACT)) {
-      throw new Error(`Engine: op sequence [${stages.join(' -> ')}] is outside the fixed-pipeline contract [${CONTRACT.join(' -> ')}] — refusing`);
+    for (const s of stages) {
+      if (!NATIVE_OPS[s]) throw new Error(`Engine: op "${s}" is not a registered native operation (NATIVE_OPS) — refusing`);
+    }
+    const seq = /** @type {string[]} */ (stages);
+    const firstStage = /** @type {string} */ (seq[0]);
+    if (!(/** @type {NativeOp} */ (NATIVE_OPS[firstStage]).first)) {
+      throw new Error(`Engine: op "${firstStage}" cannot start a pipeline — refusing sequence [${seq.join(' -> ')}]`);
+    }
+    for (let i = 1; i < seq.length; i++) {
+      const cur = /** @type {string} */ (seq[i]);
+      const prev = /** @type {string} */ (seq[i - 1]);
+      if (!(/** @type {NativeOp} */ (NATIVE_OPS[cur]).after.includes(prev))) {
+        throw new Error(`Engine: op "${cur}" cannot follow "${prev}" — refusing sequence [${seq.join(' -> ')}]`);
+      }
+    }
+    const lastStage = /** @type {string} */ (seq[seq.length - 1]);
+    if (!(/** @type {NativeOp} */ (NATIVE_OPS[lastStage]).terminal)) {
+      throw new Error(`Engine: op "${lastStage}" cannot end a pipeline — refusing sequence [${seq.join(' -> ')}]`);
     }
     for (const n of this.order) {
       const declared = /** @type {string[]} */ (OP_PORTS[n.stage]);
@@ -182,44 +274,13 @@ export class Engine {
   }
 
   // Render state assembled by walking the graph order: each node contributes
-  // the state its op defines, from its own port values in the pool. Removing
-  // or rewiring a node in the .phos changes (or refuses) this output.
+  // the state its op defines (NATIVE_OPS contribute), from its own port
+  // values in the pool. Removing or rewiring a node in the .phos changes
+  // (or refuses) this output.
   renderState() {
-    const p = this.pool;
-    const t = this.timekeeper.time;
     const state = /** @type {any} */ ({ passes: this.order.map((n) => n.stage) });
     for (const n of this.order) {
-      if (n.stage === 'warp-feedback') {
-        // per-frame warp oscillators — milkdropfs.cpp:1782-1787
-        const warpTime = t * (p.fWarpAnimSpeed ?? 0);
-        state.motion = {
-          aspectX: this.aspectX(), aspectY: this.aspectY(), // plugin.cpp:2027-2028
-          // warp-pass sampler address choice: wrap > 0.5 selects WRAP else
-          // CLAMP (WarpedBlit_NoShaders texaddr, milkdropfs.cpp:1991; snap
-          // point 0.5, :588 — blend-time snap variants gated with preset-blend)
-          wrap: p.wrap ?? 0,
-          decay: d3dColor01(p.decay ?? 0), // quantized via the D3DCOLOR modulate path (:2007)
-          zoom: p.zoom ?? 0, zoomExp: p.zoomexp ?? 0, rot: p.rot ?? 0, warp: p.warp ?? 0,
-          cx: p.cx ?? 0, cy: p.cy ?? 0, dx: p.dx ?? 0, dy: p.dy ?? 0, sx: p.sx ?? 0, sy: p.sy ?? 0,
-          warpTime,
-          warpScaleInv: 1 / (p.fWarpScale ?? 1),
-          f0: 11.68 + 4.0 * Math.cos(warpTime * 1.413 + 10),
-          f1: 8.77 + 3.0 * Math.cos(warpTime * 1.113 + 7),
-          f2: 10.54 + 3.0 * Math.cos(warpTime * 1.233 + 3),
-          f3: 11.49 + 4.0 * Math.cos(warpTime * 0.933 + 5),
-        };
-      } else if (n.stage === 'borders') {
-        // colors and alphas pass the 8-bit conversion (:3453-3457); the draw
-        // gate reads the RAW alpha (:3451) — aGate carries it separately
-        state.innerBox = { size: p.ib_size ?? 0, r: d3dColor01(p.ib_r ?? 0), g: d3dColor01(p.ib_g ?? 0), b: d3dColor01(p.ib_b ?? 0), a: d3dColor01(p.ib_a ?? 0), aGate: p.ib_a ?? 0 };
-        state.outerBox = { size: p.ob_size ?? 0, r: d3dColor01(p.ob_r ?? 0), g: d3dColor01(p.ob_g ?? 0), b: d3dColor01(p.ob_b ?? 0), a: d3dColor01(p.ob_a ?? 0), aGate: p.ob_a ?? 0 };
-      } else if (n.stage === 'composite') {
-        // gammaAdj + video echo — ShowToUser_NoShaders (milkdropfs.cpp:4147-4260)
-        state.comp = {
-          gamma: p.gamma ?? 0, echoAlpha: p.echo_alpha ?? 0,
-          echoZoom: p.echo_zoom ?? 0, echoOrient: (p.echo_orient ?? 0) % 4,
-        };
-      }
+      /** @type {NativeOp} */ (NATIVE_OPS[n.stage]).contribute(state, this.pool, this);
     }
     return state;
   }

@@ -11,7 +11,7 @@
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { importMilk, scanMilk } from './src/milk-import.mjs';
-import { scanP9, assessP9Records } from './src/p9-import.mjs';
+import { scanP9, assessP9Records, p9ToPhos } from './src/p9-import.mjs';
 import { Engine, d3dColor01 } from './src/engine.mjs';
 import { GRID_X, GRID_Y, VERT_COUNT, buildStripIndices, buildWarpUVs, meshPositions } from './src/warp-mesh.mjs';
 import { parsePhos, serializePhos, toRuntime, milkToPhos, updateScene, assessRecords } from './src/phos.mjs';
@@ -370,10 +370,11 @@ const timekeeperOk = (() => {
   return results.every(Boolean);
 })();
 
-// (q) Contract + per-vertex refusals and the reset baseline regression.
+// (q) Sequence-grammar + per-vertex refusals and the reset baseline regression.
 const contractOk = (() => {
   const base = toRuntime(parsePhos(phosText));
-  // two-node warp->composite: legal shape, outside the fixed-pipeline contract
+  // two-node warp->composite: legal chain shape, but composite may only
+  // follow borders per the registry sequence grammar (NATIVE_OPS)
   const twoNode = {
     ...base,
     pipelineDescriptor: base.pipelineDescriptor.filter((/** @type {{stage:string}} */ n) => n.stage !== 'borders'),
@@ -642,27 +643,49 @@ const p9Ok = (() => {
   if (nodes.length !== 7 || conns.length !== 6 || refused.length !== 0) return false;
   if (!root || !String(root.value).includes('FormatVersion="2"')) return false;
   if (!lic || !lic.raw.includes('CC0')) return false;
-  if (notOk.length !== 7 || !notOk.every(d => d.text.includes('no native operation implemented'))) return false;
-  // Extract the HSL inputs and Clear expected values from the scan itself.
-  // Records carry the current node context via the linear order they were
-  // pushed — walk them to associate each port with its owning node.
-  /** @type {Record<string,Record<string,string>>} */
-  const ports = {};
+  // dispositions under the shared conversion registry: Screen + Clear (and
+  // their ports, and the Clear->Screen render edge) convert; the three
+  // MinMax, Beat, and HSLAToColor nodes refuse naming their exact missing
+  // facts, and the five connections touching refused nodes refuse with them
+  if (notOk.length !== 10) return false;
+  if (notOk.filter(d => d.text.includes('mode-integer mapping unresolved')).length !== 3) return false;
+  if (notOk.filter(d => d.text.includes('detection algorithm unresolved')).length !== 1) return false;
+  if (notOk.filter(d => d.text.includes('one-vector candidate')).length !== 1) return false;
+  if (notOk.filter(d => d.text.includes('endpoint node is not convertible')).length !== 5) return false;
+  if (!dis.some(d => d.ok && d.text.includes('native clear-color'))) return false;
+  if (!dis.some(d => d.ok && d.text.includes('render topology'))) return false;
+  // Extract the HSL inputs and Clear expected values from the scan itself,
+  // identifying nodes by TYPE (HSLAToColor, Clear) and pairing them by the
+  // scene's actual connection HSLAToColor.Color -> Clear.Color rather than
+  // by port-shape heuristics that could pair unrelated nodes.
+  /** @type {Record<string,{type:string, ports:Record<string,string>}>} */
+  const byName = {};
   let cur = '';
   for (const rec of recs) {
-    if (rec.kind === 'node' || rec.kind === 'node-open') { cur = /** @type {string} */ (rec.name); ports[cur] = {}; }
-    else if (rec.kind === 'close' && rec.id === 'Node') { cur = ''; }
-    else if (rec.kind === 'port' && cur && rec.id !== undefined && rec.value !== undefined) {
-      /** @type {Record<string,string>} */ (ports[cur])[rec.id] = /** @type {string} */ (rec.value);
+    if (rec.kind === 'node' || rec.kind === 'node-open') {
+      cur = /** @type {string} */ (rec.name);
+      byName[cur] = { type: /** @type {string} */ (rec.type), ports: {} };
+    } else if (rec.kind === 'close' && rec.id === 'Node') {
+      cur = '';
+    } else if (rec.kind === 'port' && cur && rec.id !== undefined && rec.value !== undefined) {
+      /** @type {{type:string, ports:Record<string,string>}} */ (byName[cur]).ports[rec.id] = /** @type {string} */ (rec.value);
     }
   }
-  const hsl = Object.values(ports).find(p => 'Hue' in p && 'Saturation' in p && 'Lightness' in p);
-  const clear = Object.values(ports).find(p => 'Color' in p && !('Hue' in p));
+  const hslToClear = recs.find(r => r.kind === 'connection'
+    && /** @type {string} */ (r.out).endsWith('.Color')
+    && /** @type {string} */ (r.in).endsWith('.Color')
+    && byName[/** @type {string} */ (r.out).split('.')[0] ?? '']?.type === 'HSLAToColor'
+    && byName[/** @type {string} */ (r.in).split('.')[0] ?? '']?.type === 'Clear');
+  if (!hslToClear) return false;
+  const hslName = /** @type {string} */ (hslToClear.out).split('.')[0] ?? '';
+  const clearName = /** @type {string} */ (hslToClear.in).split('.')[0] ?? '';
+  const hsl = byName[hslName];
+  const clear = byName[clearName];
   if (!hsl || !clear) return false;
-  const h = Number(hsl['Hue']);
-  const s = Number(hsl['Saturation']);
-  const l = Number(hsl['Lightness']);
-  const clearRgb = String(clear['Color']).trim().split(/\s+/).map(Number);
+  const h = Number(hsl.ports['Hue']);
+  const s = Number(hsl.ports['Saturation']);
+  const l = Number(hsl.ports['Lightness']);
+  const clearRgb = String(clear.ports['Color']).trim().split(/\s+/).map(Number);
   if (clearRgb.length !== 4) return false;
   const [er, eg, eb] = clearRgb;
   if (![h, s, l, er, eg, eb].every((v) => Number.isFinite(v))) return false;
@@ -683,7 +706,138 @@ const p9Ok = (() => {
       && Math.abs(b - /** @type {number} */ (eb)) < 1e-5;
 })();
 
-const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && p9Ok;
+// (ab) Native-operation registry sequence grammar: unknown ops and
+//      unrealizable chains refuse at construction; the accepted MilkDrop
+//      chain contributes exactly its four state groups and no clear state.
+const registryOk = (() => {
+  const rt0 = () => toRuntime(parsePhos(phosText));
+  const unknownOp = (() => {
+    const r = rt0();
+    r.pipelineDescriptor = [{ id: 'x', stage: 'wibble', ports: [] }];
+    r.edges = [];
+    try { new Engine(r); return false; } catch (e) { return /not a registered native operation/.test(/** @type {Error} */ (e).message); }
+  })();
+  const clearThenBorders = (() => {
+    const r = rt0();
+    r.pipelineDescriptor = [
+      { id: 'c', stage: 'clear-color', ports: [] },
+      { id: 'b', stage: 'borders', ports: [] },
+    ];
+    r.edges = [{ out: 'c.out', in: 'b.in' }];
+    try { new Engine(r); return false; } catch (e) { return /cannot follow/.test(/** @type {Error} */ (e).message); }
+  })();
+  const nonTerminalEnd = (() => {
+    const r = rt0();
+    r.pipelineDescriptor = r.pipelineDescriptor.filter((/** @type {{stage:string}} */ n) => n.stage !== 'composite');
+    r.edges = r.edges.slice(0, 1);
+    try { new Engine(r); return false; } catch (e) { return /cannot end a pipeline/.test(/** @type {Error} */ (e).message); }
+  })();
+  const mdState = new Engine(rt0()).step(1 / 60);
+  const mdShape = mdState.motion !== undefined && mdState.innerBox !== undefined
+    && mdState.outerBox !== undefined && mdState.comp !== undefined && mdState.clear === undefined;
+  return unknownOp && clearThenBorders && nonTerminalEnd && mdShape;
+})();
+
+// (ac) Committed native clear-color scene: parses, canonical fixed point,
+//      executes through the shared engine with the clear pass carrying the
+//      port values, and the per-frame program animates the blue channel.
+const nativeClearOk = (() => {
+  const t2 = readFileSync(new URL('./scenes/native-clear.phos', import.meta.url), 'utf8');
+  const doc = parsePhos(t2);
+  if (serializePhos(doc) !== t2) return false;
+  const e = new Engine(toRuntime(doc));
+  const st = e.step(1 / 60);
+  if (JSON.stringify(st.passes) !== JSON.stringify(['clear-color'])) return false;
+  if (st.clear.r !== 0 || st.clear.g !== 0.35 || st.clear.a !== 1) return false;
+  if (st.clear.b !== 0.25 + 0.15 * Math.sin(e.pool.time ?? 0)) return false;
+  // missing declared port refuses (no silent defaults)
+  const r2 = toRuntime(parsePhos(t2));
+  delete r2.vars.clear_g;
+  const missingRefused = (() => { try { new Engine(r2); return false; } catch { return true; } })();
+  // an undeclared extra value port refuses (no inert ports)
+  const r3 = toRuntime(parsePhos(t2));
+  r3.vars.mystery = 1;
+  const d0 = /** @type {{ports:string[]}} */ (r3.pipelineDescriptor[0]);
+  d0.ports = [...d0.ports, 'mystery'];
+  const inertRefused = (() => { try { new Engine(r3); return false; } catch { return true; } })();
+  return missingRefused && inertRefused;
+})();
+
+// (ad) Plane9 conversion door: the retained Color Cycle fixture REFUSES at
+//      its first unresolved node (HSLAToColor, line 22) — Color Cycle is NOT
+//      claimed complete; a synthetic scene in the witnessed clear shape
+//      (grammar + Screen configuration exactly as the fixture carries them)
+//      converts to a native .phos that executes with the XML's color; and
+//      tampering (camera deviation / broken wiring / extra node) refuses.
+const p9ConvOk = (() => {
+  const fixtureXml = readFileSync(new URL('../sources/plane9/color-cycle.scene.xml', import.meta.url), 'utf8');
+  const fixtureRefused = (() => {
+    try { p9ToPhos(fixtureXml, { file: 'color-cycle.scene.xml', sha256: 'x' }); return false; }
+    catch (e) { const m = /** @type {Error} */ (e).message; return /line 22/.test(m) && /HSLAToColor/.test(m); }
+  })();
+  const clearXml = (/** @type {string} */ fov, /** @type {string} */ color) => [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<Plane9Scene FormatVersion="2" Id="checkclr1" ParentId="" WarmupTime="0" SceneType="1" Version="1" DevelopmentTime="0" Created="20260718 00:00" LastModified="20260718 00:00">',
+    '\t<Author>check.mjs</Author>',
+    '\t<Desc></Desc>',
+    '\t<Tags></Tags>',
+    '\t<License Type="CC0" RelicensingPossible="1">check input</License>',
+    '\t<Nodes>',
+    '\t\t<Node Type="Screen" Name="Screen">',
+    '\t\t\t<Port Id="Viewport" Value="0 0 1 1"/>',
+    '\t\t\t<Port Id="CamPos" Value="0 0 -2"/>',
+    '\t\t\t<Port Id="CamRot" Value="0 0 0"/>',
+    '\t\t\t<Port Id="CamLookAt" Value="0 0 1"/>',
+    '\t\t\t<Port Id="CamLookAtInWorldSpace" Value="false"/>',
+    `\t\t\t<Port Id="CamFov" Value="${fov}"/>`,
+    '\t\t\t<Port Id="CamNear" Value="0.1"/>',
+    '\t\t\t<Port Id="CamFar" Value="1000"/>',
+    '\t\t\t<Port Id="ScaleByAspect" Value="false"/>',
+    '\t\t</Node>',
+    '\t\t<Node Type="Clear" Name="Clear1">',
+    `\t\t\t<Port Id="Color" Value="${color}"/>`,
+    '\t\t</Node>',
+    '\t</Nodes>',
+    '\t<Connections>',
+    '\t\t<Connection Out="Clear1.Render" In="Screen.Render"/>',
+    '\t</Connections>',
+    '\t<SceneCompatibility>',
+    '\t\t<GoodScenes/>',
+    '\t\t<BadScenes/>',
+    '\t</SceneCompatibility>',
+    '</Plane9Scene>',
+    '',
+  ].join('\n');
+  const good = clearXml('45', '0.25 0.5 0.75 1');
+  const doc = p9ToPhos(good, { file: 'check-clear.p9c', sha256: 'x' });
+  const reparsed = parsePhos(serializePhos(doc));
+  const e = new Engine(toRuntime(reparsed));
+  const st = e.step(1 / 60);
+  const executes = JSON.stringify(st.passes) === JSON.stringify(['clear-color'])
+    && st.clear.r === 0.25 && st.clear.g === 0.5 && st.clear.b === 0.75 && st.clear.a === 1
+    && reparsed.meta.sourceEngine === 'plane9';
+  const cameraDeviationRefused = (() => {
+    try { p9ToPhos(clearXml('60', '0.25 0.5 0.75 1'), { file: 'x.p9c', sha256: 'x' }); return false; }
+    catch (e2) { return /CamFov/.test(/** @type {Error} */ (e2).message); }
+  })();
+  const brokenWiringRefused = (() => {
+    try { p9ToPhos(good.replace('Out="Clear1.Render" In="Screen.Render"', 'Out="Screen.Render" In="Clear1.Render"'), { file: 'x.p9c', sha256: 'x' }); return false; }
+    catch { return true; }
+  })();
+  const extraNodeRefused = (() => {
+    const withBeat = good.replace('\t</Nodes>',
+      '\t\t<Node Type="Beat" Name="Beat1">\n\t\t\t<Port Id="NoMusic" Value="0.5"/>\n\t\t</Node>\n\t</Nodes>');
+    try { p9ToPhos(withBeat, { file: 'x.p9c', sha256: 'x' }); return false; }
+    catch (e2) { return /Beat/.test(/** @type {Error} */ (e2).message); }
+  })();
+  const badColorRefused = (() => {
+    try { p9ToPhos(clearXml('45', '0.25 0.5'), { file: 'x.p9c', sha256: 'x' }); return false; }
+    catch { return true; }
+  })();
+  return fixtureRefused && executes && cameraDeviationRefused && brokenWiringRefused && extraNodeRefused && badColorRefused;
+})();
+
+const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && p9Ok && registryOk && nativeClearOk && p9ConvOk;
 
 const eelFnCount = Object.keys(eelSubject).length;
 const eelCoveredCount = new Set(eelCases.map((c) => c[0])).size;
@@ -745,14 +899,17 @@ console.log('band boundary at bin 85 discriminates bass/mid:', boundaryOk ? 'OK'
 console.log('PCM ring intake: order-independent newest-576 + non-trivial:', ringOk ? 'OK' : 'FAIL');
 console.log('timekeeper vs pluginshell.cpp recompute (exact at 4 frames):', timekeeperOk ? 'OK' : 'FAIL');
 console.log('index.html == player.html (byte guard):', pagesSynced ? 'OK' : 'FAIL');
-console.log('fixed-pipeline contract refuses 2-node graph + per-vertex code:', contractOk ? 'OK' : 'FAIL');
+console.log('registry sequence grammar refuses 2-node graph + per-vertex code:', contractOk ? 'OK' : 'FAIL');
 console.log('reset restores load-time baseline (vars/equations/state):', resetOk ? 'OK' : 'FAIL');
 console.log('post-equation clamps + EEL-name aliasing (gamma/decay/echo_zoom):', clampAliasOk ? 'OK' : 'FAIL');
 console.log('variable-contract ledger: 76 regvars classified + verified, vol absent:', varContractOk ? 'OK' : 'FAIL');
 console.log('aspect factors: forward to renderState, inverse to pool (exact):', aspectOk ? 'OK' : 'FAIL');
 console.log('finite-mesh warp: strip indices + identity UVs exact + zoom=0 NaN structure:', meshOk ? 'OK' : 'FAIL');
 console.log('ordered source records: per-line, in order, refusal names the line:', recordsOk ? 'OK' : 'FAIL');
-console.log('plane9 Color Cycle: scanner shape (7 nodes, 6 connections, CC0, FormatVersion 2, all nodes refused) + standard HSL fingerprint match:', p9Ok ? 'OK' : 'FAIL');
+console.log('plane9 Color Cycle: scanner shape (7 nodes, 6 connections, CC0, FormatVersion 2) + registry dispositions (5 nodes + 5 connections refused with named facts) + standard HSL fingerprint match:', p9Ok ? 'OK' : 'FAIL');
+console.log('native-op registry: unknown op + unrealizable chains refused, MilkDrop state shape intact:', registryOk ? 'OK' : 'FAIL');
+console.log('native clear-color scene: fixed point + executes + pulse + port refusals:', nativeClearOk ? 'OK' : 'FAIL');
+console.log('p9 conversion door: Color Cycle refuses at HSLAToColor (line 22); witnessed clear shape converts + executes; tampering refuses:', p9ConvOk ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
 console.log('inert value port refused at engine construction (shared OP_PORTS):', inertPortOk ? 'OK' : 'FAIL');
 console.log('triage scan: all refusals collected, strict import still throws first:', triageOk ? 'OK' : 'FAIL');

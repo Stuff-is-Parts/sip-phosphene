@@ -53,7 +53,7 @@ the fact.
 |---|---|---|---|---|
 | Render the running visual in editor | both | M | now | done |
 | Load scene into IR | both | M | now | done |
-| Show IR as node graph: nodes + ports + wiring | [P9-DOC] node editor; .p9c model | M | now | done (wiring controls validation, ordering, and state assembly under the fixed-pipeline contract; GPU dispatch is the fixed pipeline) |
+| Show IR as node graph: nodes + ports + wiring | [P9-DOC] node editor; .p9c model | M | now | done (wiring controls validation, ordering, and state assembly through the native-operation registry; the pages dispatch GPU passes from the contributed render state) |
 | Show per-port values | [P9-DOC] | M | now | done |
 | Edit port value / equation, live re-render | [MD-SRC] live edit; [P9-DOC] 0.5s debounce | M | now | done (warp ports render through the transcribed 48×36 finite mesh; the editor runs the grammar-derived EEL operator set, with unwitnessed constructs refused by name) |
 | **Save edited scene to .phos** | goal doc: saveable | M | now | done (updateScene + Save button; edit round-trip checked) |

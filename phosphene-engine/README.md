@@ -27,11 +27,14 @@ pages load the `.phos`; the `.milk` is the retained source recipe. Format spec:
 - The expression check is correlated with the implementation (shared Math.sin).
   A truly independent check requires butterchurn or retained projectM output.
 - The graph controls topology validation, ordering, and render-state assembly
-  under a fixed GPU pipeline (reversed, broken, or off-contract chains are
-  refused — checked); it does not drive GPU dispatch. The engine enforces the
-  fixed-pipeline contract exactly (warp-feedback → borders → composite,
-  owner-ratified); per-vertex programs are refused at import and at engine
-  construction until the engine executes them.
+  through the native-operation registry (NATIVE_OPS, src/engine.mjs —
+  owner-ratified 2026-07-18): every op must be registered, and the chain must
+  satisfy each op's sequence grammar (reversed, broken, or unrealizable chains
+  are refused — checked). Accepted today: the MilkDrop pipeline
+  (warp-feedback → borders → composite) and the single-node clear-color
+  graph; the pages dispatch GPU passes from the contributed render state, so
+  an accepted graph is always renderable. Per-vertex programs are refused at
+  import and at engine construction until the engine executes them.
 - The studio saves the edited scene to .phos (updateScene writes pool edits
   back into the scene document's ports and equations; check.mjs proves the
   edit round-trip) and separately exports .milk back to the source format.
