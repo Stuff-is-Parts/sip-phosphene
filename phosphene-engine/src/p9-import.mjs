@@ -63,29 +63,56 @@ export function scanP9(xml) {
   return records;
 }
 
-// --- the shared per-node-type disposition registry -------------------------
-// Refusal texts name the exact missing fact and the observation that would
-// resolve it; evidence offsets refer to Plane9Engine.dll sha256 4cebc1b3…
-// as recorded with reproduction procedure in sources/PLANE9-CONTRACT.md.
-// The 2026-07-18 owner spec resolved MinMax's mode mapping and semantics
-// and Beat's node-level composition from DLL static analysis, so those
-// node types now CONVERT rather than refuse. HSLAToColor remains a
-// one-vector candidate, but the executor implements the standard formula
-// binding for the accepted Color Cycle slice — the boundary is recorded.
-const P9_REFUSALS = /** @type {Record<string,string>} */ ({});
-
-// Which Plane9 node types map to which native ops. Presence in this table
-// is the sole convertibility signal — a node type absent from it refuses
-// with a "no native operation" message unless P9_REFUSALS carries a more
-// specific explanation.
-const P9_TYPE_TO_OP = /** @type {Record<string,string>} */ ({
-  Screen: 'screen',
-  Clear: 'clear-color',
-  HSLAToColor: 'HSLAToColor',
-  RGBAToColor: 'RGBAToColor',
-  MinMax: 'MinMax',
-  Beat: 'Beat',
+// --- Plane9 source-compatibility gate --------------------------------------
+// PHOSPHENE separates two concerns per the reviewer's foundation call
+// (2026-07-18):
+//   (a) the NATIVE_OPS registry answers "can PHOSPHENE execute this
+//       operation?" — MinMax, Beat, HSLAToColor are all registered native
+//       ops with producer-inferred implementations, freely usable by native
+//       scenes;
+//   (b) this compatibility gate answers "is this exact Plane9 source shape
+//       evidence-backed for automatic conversion?" — a native op EXISTING
+//       does not by itself authorize the Plane9 mapping, and unresolved
+//       Plane9 semantics REFUSE conversion rather than passing through the
+//       provisional PHOSPHENE implementation.
+// Compatibility statuses:
+//   'PASS'       — evidence backs the mapping for this source shape.
+//   'UNRESOLVED' — no evidence has established the mapping; REFUSE
+//                  conversion, cite the DLL RVA or observation that would
+//                  settle it. PHOSPHENE's native op may still exist for
+//                  native scenes to use.
+const P9_COMPATIBILITY = /** @type {Record<string,{status:'PASS'|'UNRESOLVED', nativeOp:string, reason:string}>} */ ({
+  Screen: {
+    status: 'PASS', nativeOp: 'screen',
+    reason: 'Plane9 Screen node function as the render sink is witnessed corpus-wide (79/252 scenes in the exact geometry-free port configuration); PHOSPHENE converts Screen only in that witnessed configuration and refuses camera-port deviations',
+  },
+  Clear: {
+    status: 'PASS', nativeOp: 'clear-color',
+    reason: 'Plane9 Clear function grounded by DLL 0x1f7ecc description + CRenderOGL::Clear export at 0x2295b3 + 387/387 corpus single-Color-port uniformity + history.txt:291',
+  },
+  RGBAToColor: {
+    status: 'PASS', nativeOp: 'RGBAToColor',
+    reason: 'Plane9 RGBAToColor function grounded by DLL 0x1fa3fc description; "Combines a red, green, blue and alpha component to a color" is the operation PHOSPHENE performs',
+  },
+  HSLAToColor: {
+    status: 'UNRESOLVED', nativeOp: 'HSLAToColor',
+    reason: 'the standard CSS/Wikipedia HSL-to-RGB formula reproduces Color Cycle\'s one retained input/output vector to 1e-6, but ONE vector does not establish a formula for the general Plane9 HSLAToColor node; observation: save a second input vector in a different Hue segment and compare against Plane9\'s output',
+  },
+  MinMax: {
+    status: 'UNRESOLVED', nativeOp: 'MinMax',
+    reason: 'PHOSPHENE\'s MinMax carries six producer-inferred lifecycle choices without DLL evidence (initial value, initial phase, mode-change resets, LoopUp/LoopDown endpoint resets, zero-delay overflow accounting, one-transition-per-call) plus a Marsaglia-example-seed RNG whose match against Plane9Engine.dll 0x1001FE30 is not established; observation: byte-level disassembly diff of 0x100DD600 and 0x1001FE30 against PHOSPHENE\'s implementation',
+  },
+  Beat: {
+    status: 'UNRESOLVED', nativeOp: 'Beat',
+    reason: 'Plane9\'s Beat detector at Plane9Engine.dll (compiled code, no exported entry) that produces the rawBeat signal remains unresolved; PHOSPHENE\'s Beat has grounded node-level composition per 0x100DF5A0 but supplies musicActive=false in product so any converted Beat node returns NoMusic — that is not evidence-backed Plane9 Beat behavior; observation: probe scene wiring BeatStrength to a visible port under controlled audio with known onsets',
+  },
 });
+
+// Backward-compat alias — same information as P9_COMPATIBILITY but flat
+// name -> native-op-name, so the port-map/defaults lookups below keep
+// working without conditional guards.
+const P9_TYPE_TO_OP = /** @type {Record<string,string>} */ (
+  Object.fromEntries(Object.entries(P9_COMPATIBILITY).map(([type, c]) => [type, c.nativeOp])));
 
 // Port-name translation Plane9 -> native, per node type. Plane9 uses the
 // verbatim port ids from the .scene.xml; the native ops declare their own
@@ -175,14 +202,14 @@ function disposeP9(records) {
       cur = rec.name || '';
       nodes[cur] = { type: rec.type || '', ports: {} };
       const t = rec.type || '';
-      if (t === 'Screen') out.push({ line: rec.line, ok: true, text: 'Screen — render sink (witnessed geometry-free configuration)' });
-      else if (t === 'Clear') out.push({ line: rec.line, ok: true, text: 'Clear — converts to native clear-color ("Fills the viewport with a single color.", dll 0x1f7ecc)' });
-      else if (t === 'HSLAToColor') out.push({ line: rec.line, ok: true, text: 'HSLAToColor — converts to native HSLAToColor value op (standard HSL formula bound to Color Cycle input/output vector at 1e-6, general Plane9 semantics beyond that one vector remain UNRESOLVED)' });
-      else if (t === 'RGBAToColor') out.push({ line: rec.line, ok: true, text: 'RGBAToColor — converts to native RGBAToColor value op (packs 4 float channels into vec4 Color, dll 0x1fa3fc)' });
-      else if (t === 'MinMax') out.push({ line: rec.line, ok: true, text: 'MinMax — converts to native MinMax value op (mode integer table + curves from owner-supplied DLL walk at 0x100DD600/0x100DD9A0/0x100DDAE0/0x101FBB50, byte-level DLL diff pending; DelayMode/ITimeMode ≠ 1 REFUSE at Engine construction; six lifecycle choices producer-inferred per PLANE9-CONTRACT.md §MinMax)' });
-      else if (t === 'Beat') out.push({ line: rec.line, ok: true, text: 'Beat — converts to native Beat value op (node-level composition from owner-supplied DLL walk at 0x100DF5A0, byte-level DLL diff pending; PHOSPHENE currently supplies musicActive=false in studio.mjs and player.mjs so BeatStrength=NoMusic in product until the upstream detector at Plane9Engine.dll is recovered)' });
-      else if (t !== '' && P9_REFUSALS[t]) out.push({ line: rec.line, ok: false, text: /** @type {string} */ (P9_REFUSALS[t]) });
-      else out.push({ line: rec.line, ok: false, text: 'node type "' + t + '" — no native operation implemented yet' });
+      const compat = P9_COMPATIBILITY[t];
+      if (!compat) {
+        out.push({ line: rec.line, ok: false, text: 'node type "' + t + '" — no Plane9 compatibility entry (no evidence-backed native mapping is registered for this Plane9 node type)' });
+      } else if (compat.status === 'UNRESOLVED') {
+        out.push({ line: rec.line, ok: false, text: t + ' — Plane9 conversion REFUSED (UNRESOLVED): ' + compat.reason });
+      } else {
+        out.push({ line: rec.line, ok: true, text: t + ' — Plane9 conversion PASS: ' + compat.reason });
+      }
       continue;
     }
     if (rec.kind === 'close' && rec.id === 'Node') { cur = ''; out.push({ line: rec.line, ok: true, text: 'scene structure / metadata' }); continue; }

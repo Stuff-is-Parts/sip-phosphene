@@ -1,5 +1,40 @@
 # Plane9 Scene-Visible Contract — corpus + install evidence
 
+## Plane9 source-compatibility gate (reviewer foundation 2026-07-18)
+
+PHOSPHENE separates two concerns per the reviewer's foundation call:
+
+- **NATIVE_OPS registry** (`phosphene-engine/src/engine.mjs`) answers
+  "can PHOSPHENE execute this operation?" — MinMax, Beat, HSLAToColor
+  are all registered native ops with producer-inferred implementations
+  and are freely usable by authored native scenes.
+- **`P9_COMPATIBILITY` gate** (`phosphene-engine/src/p9-import.mjs`)
+  answers "is this exact Plane9 source shape evidence-backed for
+  automatic conversion?" A native op existing does not by itself
+  authorize a Plane9 mapping — unresolved semantics REFUSE conversion.
+
+| Plane9 node | Status | Grounding / refusal reason |
+|---|---|---|
+| Screen (witnessed geometry-free) | **PASS** | Corpus witness: 79/252 scenes carry the exact port set; PHOSPHENE converts only this configuration and refuses any camera-port deviation. |
+| Clear | **PASS** | DLL 0x1f7ecc description + CRenderOGL::Clear export at 0x2295b3 + 387/387 corpus single-Color-port uniformity + history.txt:291. |
+| RGBAToColor | **PASS** | DLL 0x1fa3fc description "Combines a red, green, blue and alpha component to a color" IS what PHOSPHENE's op does. |
+| HSLAToColor | **UNRESOLVED** | The standard HSL formula reproduces Color Cycle's one retained input/output vector to 1e-6, but ONE vector does not establish a formula for the general Plane9 op. Observation: save a second input vector in a different Hue segment and compare. |
+| MinMax | **UNRESOLVED** | PHOSPHENE carries six producer-inferred lifecycle choices + a Marsaglia-seed RNG whose match against Plane9Engine.dll 0x1001FE30 is not established. Observation: byte-level disassembly diff of 0x100DD600 and 0x1001FE30. |
+| Beat | **UNRESOLVED** | The Plane9 detector producing rawBeat (compiled code, no exported entry) is unresolved. PHOSPHENE supplies musicActive=false in product so a converted Beat node would return NoMusic — that is not evidence-backed Plane9 Beat behavior. Observation: probe scene wiring BeatStrength under controlled audio. |
+
+**Consequence for Color Cycle**: Color Cycle refuses at conversion (first
+UNRESOLVED node: HSLAToColor at line 22). It does not run through
+PHOSPHENE's provisional MinMax/Beat/HSL implementations as an accepted
+Plane9 conversion — those provisional implementations remain valid
+native-scene ops but do not certify Plane9 fidelity.
+
+**Consequence for tests**: `phosphene-engine/check.mjs` reports two
+surfaces separately. `engine regression: PASS` says PHOSPHENE behaves
+as this codebase specifies; `plane9 compat: PASS` says the compatibility
+gate refuses UNRESOLVED and passes only Screen+Clear. The two surfaces
+do not certify each other.
+
+
 The vocabulary Plane9 scenes actually read from their engine, audited by the
 method of AUDIO-PATH.md so shared machinery derives from BOTH engines per the
 conversion rule in CLAUDE.md. Sources opened this audit:

@@ -152,13 +152,15 @@ function circularInterp(/** @type {number} */ prev, /** @type {number} */ target
 
 // ==== NATIVE_OPS registry ==============================================
 // Each op declares kind ('value' or 'render'), its typed input ports, its
-// typed output ports (empty for render ops except structural render ports),
-// and its behavior. Render ops carry sequence grammar (first/after/terminal)
-// governing their position in the render chain; value ops are ordered by
-// dataflow only. Dispatch is by .phos op name only — nothing here reads
-// source-engine metadata (PHOSPHENE-GOAL.md, "one native execution model,
-// no parallel runtimes").
-/** @typedef {{kind:'value'|'render', inputs:Record<string,string>, outputs:Record<string,string>, first?:boolean, after?:string[], terminal?:boolean, initState?:(inputs:Record<string,any>)=>any, compute?:(ctx:{inputs:Record<string,any>, state:any, dt:number, frame:number, time:number, audio:{musicActive:boolean, rawBeat:number}, rng:Xorshift128})=>Record<string,any>, contribute?:(state:any, ports:Record<string,any>, pool:Record<string,number>, eng:Engine)=>void}} NativeOp */
+// typed output ports, and its behavior. The graph — its typed edges plus
+// the port declarations here — is the sole render authority (reviewer
+// foundation call 2026-07-18). There is no parallel sequence grammar
+// authorizing particular neighbors; render completeness is checked as
+// "every declared render output has an outgoing edge" and "every declared
+// render input has an incoming edge". Dispatch is by .phos op name only —
+// nothing here reads source-engine metadata (PHOSPHENE-GOAL.md, "one
+// native execution model, no parallel runtimes").
+/** @typedef {{kind:'value'|'render', inputs:Record<string,string>, outputs:Record<string,string>, initState?:(inputs:Record<string,any>)=>any, compute?:(ctx:{inputs:Record<string,any>, state:any, dt:number, frame:number, time:number, audio:{musicActive:boolean, rawBeat:number}, rng:Xorshift128})=>Record<string,any>, contribute?:(state:any, ports:Record<string,any>, pool:Record<string,number>, eng:Engine)=>void}} NativeOp */
 
 export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
   // ---- MilkDrop render ops (semantics unchanged from f7afd9f) --------
@@ -170,7 +172,6 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       fWarpAnimSpeed: 'float', fWarpScale: 'float', fZoomExponent: 'float',
     },
     outputs: { out: 'render' },
-    first: true, after: [], terminal: false,
     contribute(state, ports, pool, eng) {
       // per-frame warp oscillators — milkdropfs.cpp:1782-1787
       const warpTime = eng.time * ports.fWarpAnimSpeed;
@@ -200,7 +201,6 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       in: 'render',
     },
     outputs: { out: 'render' },
-    first: false, after: ['warp-feedback'], terminal: false,
     contribute(state, ports) {
       // colors and alphas pass the 8-bit conversion (:3453-3457); the draw
       // gate reads the RAW alpha (:3451) — aGate carries it separately
@@ -215,7 +215,6 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       in: 'render',
     },
     outputs: {},
-    first: false, after: ['borders'], terminal: true,
     contribute(state, ports, pool) {
       // gammaAdj + video echo — ShowToUser_NoShaders (milkdropfs.cpp:4147-4260).
       // MilkDrop's clamps on gamma (0..8) and echo_zoom (0.001..1000) run on
@@ -238,7 +237,6 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
     kind: 'render',
     inputs: { Color: 'vec4' },
     outputs: { Render: 'render' },
-    first: true, after: [], terminal: true,
     contribute(state, ports) {
       const c = ports.Color;
       state.clear = { r: c[0], g: c[1], b: c[2], a: c[3] };
@@ -256,7 +254,6 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       ScaleByAspect: 'float', Render: 'render',
     },
     outputs: {},
-    first: false, after: ['clear-color'], terminal: true,
     contribute() { /* structural terminal — no state contribution beyond passes[] */ },
   },
   // ---- Native value ops (source-neutral) ----------------------------
@@ -551,18 +548,29 @@ export class Engine {
     }
     // --- topological execution order ---
     this.order = topologicalOrder(nodes, edges);
-    // Render-op sub-projection must satisfy the sequence grammar.
+    // At least one render op must exist; without one the graph produces no
+    // rendered output. The rest of render completeness (which op starts,
+    // which ends, what may follow what) is decided by the edges alone —
+    // there is no separate sequence grammar.
     const renderOrder = this.order.filter((n) => opOf(n.op).kind === 'render');
     if (renderOrder.length === 0) throw new Error('Engine: graph has no render operation — refusing');
-    const firstNode = /** @type {{op:string}} */ (renderOrder[0]);
-    if (!opOf(firstNode.op).first) throw new Error(`Engine: render op "${firstNode.op}" cannot start a pipeline — refusing`);
-    for (let i = 1; i < renderOrder.length; i++) {
-      const curNode = /** @type {{op:string}} */ (renderOrder[i]);
-      const prevNode = /** @type {{op:string}} */ (renderOrder[i - 1]);
-      if (!(opOf(curNode.op).after ?? []).includes(prevNode.op)) throw new Error(`Engine: render op "${curNode.op}" cannot follow "${prevNode.op}" — refusing`);
+    // Every declared render output must have an outgoing edge. This is the
+    // dataflow-level replacement for the retired first/after/terminal
+    // grammar: a render op with an unfed Render output is a broken chain,
+    // and the graph rejects it without any operation-name-authorizes-
+    // -particular-neighbor claim.
+    /** @type {Set<string>} */
+    const outgoingRefs = new Set();
+    for (const e of edges) outgoingRefs.add(e.out);
+    for (const n of nodes) {
+      const op = opOf(n.op);
+      for (const [pname, ptype] of Object.entries(op.outputs)) {
+        if (ptype !== 'render') continue;
+        if (!outgoingRefs.has(n.id + '.' + pname)) {
+          throw new Error(`Engine: node "${n.id}" (${n.op}) render output "${pname}" has no outgoing edge — the render chain is incomplete, refusing`);
+        }
+      }
     }
-    const lastNode = /** @type {{op:string}} */ (renderOrder[renderOrder.length - 1]);
-    if (!opOf(lastNode.op).terminal) throw new Error(`Engine: render op "${lastNode.op}" cannot end a pipeline — refusing`);
 
     // --- per-node state ---
     /** @type {Record<string, {ports:Record<string, any>, outputs:Record<string, any>, state:any}>} */

@@ -386,21 +386,23 @@ const timekeeperOk = (() => {
   return results.every(Boolean);
 })();
 
-// (q) Sequence-grammar + per-vertex refusals and the reset baseline regression.
+// (q) Render-completeness + per-vertex refusals — the reviewer-required
+//     replacement for the retired first/after/terminal grammar. The graph
+//     is the sole authority: a lone clear-color with an unfed Render
+//     output is a broken chain and must refuse; per-vertex code is still
+//     unimplemented and must still refuse.
 const contractOk = (() => {
-  const base = toRuntime(parsePhos(phosText));
-  // two-node warp->composite: legal chain shape, but composite may only
-  // follow borders per the registry sequence grammar (NATIVE_OPS)
-  const twoNode = {
-    ...base,
-    nodes: base.nodes.filter((/** @type {any} */ n) => n.op !== 'borders'),
-    edges: [{ out: 'warp.out', in: 'comp.in' }],
-  };
-  const refusesTwoNode = (() => { try { new Engine(twoNode); return false; } catch { return true; } })();
+  const loneClear = /** @type {any} */ ({
+    format: 'phos/1', meta: { name: 'lone' }, resources: [],
+    nodes: [{ id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } }],
+    edges: [],
+    expressions: [],
+  });
+  const refusesLoneClear = (() => { try { new Engine(toRuntime(loneClear)); return false; } catch (e) { return /render chain is incomplete/.test(/** @type {Error} */ (e).message); } })();
   const withPv = { ...toRuntime(parsePhos(phosText)) };
   withPv.expressions = { ...withPv.expressions, perVertex: ['zoom=zoom+0.1;'] };
   const refusesPerVertex = (() => { try { new Engine(withPv); return false; } catch { return true; } })();
-  return refusesTwoNode && refusesPerVertex;
+  return refusesLoneClear && refusesPerVertex;
 })();
 const resetOk = (() => {
   const e2 = new Engine(toRuntime(parsePhos(phosText)));
@@ -656,20 +658,20 @@ const p9Ok = (() => {
   const root = recs.find(r => r.kind === 'root');
   const lic = recs.find(r => r.kind === 'meta' && r.id === 'License');
   const dis = assessP9Records(recs);
-  const notOk = dis.filter(d => !d.ok);
   if (nodes.length !== 7 || conns.length !== 6 || refused.length !== 0) return false;
   if (!root || !String(root.value).includes('FormatVersion="2"')) return false;
   if (!lic || !lic.raw.includes('CC0')) return false;
-  // dispositions under the shared conversion registry: EVERY node and every
-  // connection now converts (owner spec 2026-07-18 resolved MinMax mode
-  // mapping + curves + shared RNG, Beat node-level composition, and bound
-  // HSLAToColor to the retained input/output vector).
-  if (notOk.length !== 0) return false;
-  if (!dis.some(d => d.ok && d.text.includes('native clear-color'))) return false;
-  if (!dis.some(d => d.ok && d.text.includes('render topology'))) return false;
-  if (dis.filter(d => d.ok && d.text.startsWith('MinMax — converts')).length !== 3) return false;
-  if (!dis.some(d => d.ok && d.text.startsWith('Beat — converts'))) return false;
-  if (!dis.some(d => d.ok && d.text.startsWith('HSLAToColor — converts'))) return false;
+  // Dispositions under the source-compatibility gate (reviewer foundation
+  // 2026-07-18): Screen, Clear pass on their evidence; HSLAToColor,
+  // MinMax, Beat REFUSE as UNRESOLVED. Three MinMax nodes + one Beat +
+  // one HSLAToColor = five UNRESOLVED node refusals, plus five value-edge
+  // connections whose endpoints touch refused nodes = five refused edges.
+  if (dis.filter(d => !d.ok && /Plane9 conversion REFUSED \(UNRESOLVED\)/.test(d.text)).length < 5) return false;
+  if (!dis.some(d => d.ok && d.text.startsWith('Screen — Plane9 conversion PASS'))) return false;
+  if (!dis.some(d => d.ok && d.text.startsWith('Clear — Plane9 conversion PASS'))) return false;
+  if (dis.filter(d => !d.ok && /^MinMax — Plane9 conversion REFUSED/.test(d.text)).length !== 3) return false;
+  if (!dis.some(d => !d.ok && /^Beat — Plane9 conversion REFUSED/.test(d.text))) return false;
+  if (!dis.some(d => !d.ok && /^HSLAToColor — Plane9 conversion REFUSED/.test(d.text))) return false;
   // Extract the HSL inputs and Clear expected values from the scan itself,
   // identifying nodes by TYPE (HSLAToColor, Clear) and pairing them by the
   // scene's actual connection HSLAToColor.Color -> Clear.Color rather than
@@ -733,19 +735,23 @@ const registryOk = (() => {
     r.edges = [];
     try { new Engine(r); return false; } catch (e) { return /not a registered native operation/.test(/** @type {Error} */ (e).message); }
   })();
-  const clearThenBorders = (() => {
+  const disconnectedRenderOutput = (() => {
+    // Retire the sequence grammar in favor of the pure dataflow rule: an
+    // edge from clear-color.Render into borders.in is a type-correct edge
+    // (render->render), but borders' out has no outgoing edge, so the
+    // render chain is incomplete. This is the "graph-as-sole-authority"
+    // replacement for first/after/terminal.
     const r = rt0();
-    // borders may only follow warp-feedback; clear-color -> borders violates the grammar
     r.nodes = [
       { id: 'c', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } },
       { id: 'b', op: 'borders', ports: /** @type {any} */ ({
         ib_size: { type: 'float', value: 0.1 }, ib_r: { type: 'float', value: 1 }, ib_g: { type: 'float', value: 1 }, ib_b: { type: 'float', value: 1 }, ib_a: { type: 'float', value: 1 },
         ob_size: { type: 'float', value: 0.1 }, ob_r: { type: 'float', value: 1 }, ob_g: { type: 'float', value: 1 }, ob_b: { type: 'float', value: 1 }, ob_a: { type: 'float', value: 1 },
-        in: { type: 'render' },
+        in: { type: 'render' }, out: { type: 'render' },
       }) },
     ];
     r.edges = [{ out: 'c.Render', in: 'b.in' }];
-    try { new Engine(r); return false; } catch (e) { return /cannot follow|cannot end a pipeline|cannot start a pipeline/.test(/** @type {Error} */ (e).message); }
+    try { new Engine(r); return false; } catch (e) { return /render chain is incomplete|has no outgoing edge/.test(/** @type {Error} */ (e).message); }
   })();
   const mistypedEdge = (() => {
     // borders.out is 'render'; borders.ib_r is 'float' — swapping edge target
@@ -757,7 +763,7 @@ const registryOk = (() => {
   const mdState = new Engine(rt0()).step(1 / 60);
   const mdShape = mdState.motion !== undefined && mdState.innerBox !== undefined
     && mdState.outerBox !== undefined && mdState.comp !== undefined && mdState.clear === undefined;
-  return unknownOp && clearThenBorders && mistypedEdge && mdShape;
+  return unknownOp && disconnectedRenderOutput && mistypedEdge && mdShape;
 })();
 
 // (ac) Committed native clear-color scene: parses, canonical fixed point,
@@ -771,7 +777,7 @@ const nativeClearOk = (() => {
   if (serializePhos(doc) !== t2) return false;
   const e = new Engine(toRuntime(doc));
   const st = e.step(1 / 60);
-  if (JSON.stringify(st.passes) !== JSON.stringify(['clear-color'])) return false;
+  if (JSON.stringify(st.passes) !== JSON.stringify(['clear-color', 'screen'])) return false;
   if (st.clear.r !== 0 || st.clear.g !== 0.35 || st.clear.a !== 1) return false;
   if (st.clear.b !== 0.25 + 0.15 * Math.sin(e.getVar('time') ?? 0)) return false;
   // missing declared port refuses (no silent defaults)
@@ -787,27 +793,21 @@ const nativeClearOk = (() => {
   return missingRefused && inertRefused;
 })();
 
-// (ad) Plane9 conversion door: the retained Color Cycle fixture now CONVERTS
-//      through the full graph (7 nodes, 6 edges, meta.sourceEngine 'plane9'),
-//      canonically round-trips through parse->serialize, and executes
-//      end-to-end through the shared engine with audio inactive; and
-//      tampering (camera deviation, broken wiring, malformed color) refuses.
+// (ad) Plane9 conversion door: the source-compatibility gate refuses Color
+//      Cycle because HSLAToColor/MinMax/Beat are UNRESOLVED, and the
+//      Screen+Clear-only shape (Black.p9c and the synthetic clearXml below)
+//      converts, canonically round-trips, and executes end-to-end.
 const p9ConvOk = (() => {
   const fixtureXml = readFileSync(new URL('../sources/plane9/color-cycle.scene.xml', import.meta.url), 'utf8');
   const fixtureConverts = (() => {
-    const doc = p9ToPhos(fixtureXml, { file: 'color-cycle.scene.xml', sha256: 'testsha' });
-    if (doc.nodes.length !== 7 || doc.edges.length !== 6) return false;
-    if (doc.meta.sourceEngine !== 'plane9') return false;
-    // canonical round-trip
-    const canon = serializePhos(doc);
-    if (serializePhos(parsePhos(canon)) !== canon) return false;
-    // executes end to end — one step must produce a clear-color contribution
-    const e = new Engine(toRuntime(parsePhos(canon)));
-    const st = e.step(1 / 60);
-    if (JSON.stringify(st.passes) !== JSON.stringify(['clear-color', 'screen'])) return false;
-    if (typeof st.clear.r !== 'number' || typeof st.clear.g !== 'number'
-        || typeof st.clear.b !== 'number' || st.clear.a !== 1) return false;
-    return true;
+    try { p9ToPhos(fixtureXml, { file: 'color-cycle.scene.xml', sha256: 'testsha' }); return false; }
+    catch (e) {
+      const msg = /** @type {Error} */ (e).message;
+      // Color Cycle must refuse at its first UNRESOLVED node — HSLAToColor
+      // at scene.xml line 22. The refusal message must name the UNRESOLVED
+      // status so the reason is visible in triage.
+      return /line 22/.test(msg) && /HSLAToColor/.test(msg) && /UNRESOLVED/.test(msg);
+    }
   })();
   const clearXml = (/** @type {string} */ fov, /** @type {string} */ color) => [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -859,10 +859,12 @@ const p9ConvOk = (() => {
     catch { return true; }
   })();
   const extraNodeRefused = (() => {
+    // Adding a Beat node — Beat is UNRESOLVED, so the compatibility gate
+    // refuses at the Beat node before it can be reached by any other check.
     const withBeat = good.replace('\t</Nodes>',
       '\t\t<Node Type="Beat" Name="Beat1">\n\t\t\t<Port Id="NoMusic" Value="0.5"/>\n\t\t</Node>\n\t</Nodes>');
     try { p9ToPhos(withBeat, { file: 'x.p9c', sha256: 'x' }); return false; }
-    catch (e2) { return /Beat/.test(/** @type {Error} */ (e2).message); }
+    catch (e2) { const msg = /** @type {Error} */ (e2).message; return /Beat/.test(msg) && /UNRESOLVED/.test(msg); }
   })();
   const badColorRefused = (() => {
     try { p9ToPhos(clearXml('45', '0.25 0.5'), { file: 'x.p9c', sha256: 'x' }); return false; }
@@ -1055,40 +1057,22 @@ const hslOk = (() => {
   return true;
 })();
 
-// (ai) Color Cycle full execution — the fixture converts, canonically
-//      round-trips, and runs through the shared engine's dataflow scheduler.
-//      Reproducibility: two independent engine constructions produce
-//      identical Clear.Color traces at frame 60.
+// (ai) Color Cycle Plane9 compatibility RETRACTED 2026-07-18 (reviewer
+//      foundation): the fixture refuses at conversion because HSLAToColor,
+//      MinMax, and Beat are UNRESOLVED. This check asserts the refusal
+//      structurally — Color Cycle does NOT run through PHOSPHENE's
+//      provisional MinMax/Beat/HSL implementations to produce a Plane9-
+//      compatibility green.
 const colorCycleOk = (() => {
   const xml = readFileSync(new URL('../sources/plane9/color-cycle.scene.xml', import.meta.url), 'utf8');
-  const doc = p9ToPhos(xml, { file: 'color-cycle.scene.xml', sha256: 'testsha' });
-  const canon = serializePhos(doc);
-  // Two engines from the same .phos must produce identical traces (shared
-  // RNG state is engine-owned and reset-owned, so both are reproducible)
-  const runN = (/** @type {number} */ n) => {
-    const e = new Engine(toRuntime(parsePhos(canon)));
-    /** @type {number[][]} */
-    const trace = [];
-    for (let i = 0; i < n; i++) {
-      const st = e.step(1 / 60);
-      trace.push([st.clear.r, st.clear.g, st.clear.b, st.clear.a]);
-    }
-    return trace;
-  };
-  const t1 = runN(60);
-  const t2 = runN(60);
-  if (JSON.stringify(t1) !== JSON.stringify(t2)) return false;
-  // frame 60 clear values must be inside [0,1] on r,g,b and exactly 1 on a
-  const last = /** @type {number[]} */ (t1[59]);
-  if (last === undefined) return false;
-  if (last[0] === undefined || last[1] === undefined || last[2] === undefined) return false;
-  if (last[0] < 0 || last[0] > 1) return false;
-  if (last[1] < 0 || last[1] > 1) return false;
-  if (last[2] < 0 || last[2] > 1) return false;
-  if (last[3] !== 1) return false;
-  // audio-inactive default drives Beat.BeatStrength = NoMusic (= MinMax2.Value),
-  // which drives HSL.Saturation — value is deterministic and finite
-  return true;
+  try {
+    p9ToPhos(xml, { file: 'color-cycle.scene.xml', sha256: 'testsha' });
+    return false; // conversion succeeding is the failure
+  } catch (e) {
+    const msg = /** @type {Error} */ (e).message;
+    // The first UNRESOLVED node encountered is HSLAToColor at line 22.
+    return /line 22/.test(msg) && /HSLAToColor/.test(msg) && /UNRESOLVED/.test(msg);
+  }
 })();
 
 // (aj) DelayMode/ITimeMode scope guard — the executor implements only the
@@ -1097,30 +1081,82 @@ const colorCycleOk = (() => {
 //      required to stop the "ports declared as functional while having
 //      no effect" failure mode (sip-phosphene review 2026-07-18 finding 1).
 const delayItimeModeGuardOk = (() => {
-  const xml = readFileSync(new URL('../sources/plane9/color-cycle.scene.xml', import.meta.url), 'utf8');
-  const doc = p9ToPhos(xml, { file: 'color-cycle.scene.xml', sha256: 'testsha' });
-  const canon = serializePhos(doc);
-  // Baseline: fixture with witnessed values converts and constructs cleanly
-  const baselineOk = (() => { try { new Engine(toRuntime(parsePhos(canon))); return true; } catch { return false; } })();
-  if (!baselineOk) return false;
-  // Tamper: DelayMode=0 (5 corpus scenes carry this) must refuse
-  const dm0 = canon.replace(/"DelayMode":\s*\{\s*"type":\s*"float",\s*"value":\s*1\s*\}/, '"DelayMode": { "type": "float", "value": 0 }');
-  const dm0Refuses = (() => { try { new Engine(toRuntime(parsePhos(dm0))); return false; } catch (e) { return /DelayMode=0/.test(/** @type {Error} */ (e).message) && /unresolved/i.test(/** @type {Error} */ (e).message); } })();
-  // Tamper: ITimeMode=2 (unobserved in corpus, must refuse)
-  const im2 = canon.replace(/"ITimeMode":\s*\{\s*"type":\s*"float",\s*"value":\s*1\s*\}/, '"ITimeMode": { "type": "float", "value": 2 }');
-  const im2Refuses = (() => { try { new Engine(toRuntime(parsePhos(im2))); return false; } catch (e) { return /ITimeMode=2/.test(/** @type {Error} */ (e).message) && /unresolved/i.test(/** @type {Error} */ (e).message); } })();
-  return dm0Refuses && im2Refuses;
+  // The Engine's DelayMode/ITimeMode guard exists for native scenes that
+  // use PHOSPHENE's MinMax op (Plane9 conversion refuses MinMax at the
+  // compatibility gate). Build a synthetic native scene with one MinMax
+  // whose Value feeds an RGBAToColor.Red, then vary DelayMode/ITimeMode.
+  const mkScene = (/** @type {number} */ delayMode, /** @type {number} */ iTimeMode) => /** @type {any} */ ({
+    format: 'phos/1', meta: { name: 'guard' }, resources: [],
+    nodes: [
+      { id: 'mm', primitive: 'graph', op: 'MinMax', ports: {
+        Min: { type: 'float', value: 0 }, Max: { type: 'float', value: 1 }, Mode: { type: 'float', value: 1 },
+        DelayMin: { type: 'float', value: 0 }, DelayMax: { type: 'float', value: 0 }, DelayMode: { type: 'float', value: delayMode },
+        ITimeMin: { type: 'float', value: 1 }, ITimeMax: { type: 'float', value: 1 }, ITimeMode: { type: 'float', value: iTimeMode },
+        Value: { type: 'float' },
+      } },
+      { id: 'rgba', primitive: 'graph', op: 'RGBAToColor', ports: {
+        Red: { type: 'float' }, Green: { type: 'float', value: 0 }, Blue: { type: 'float', value: 0 }, Alpha: { type: 'float', value: 1 },
+        Color: { type: 'vec4' },
+      } },
+      { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4' }, Render: { type: 'render' } } },
+      { id: 's', primitive: 'graph', op: 'screen', ports: {
+        Viewport: { type: 'vec4', value: [0, 0, 1, 1] },
+        CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] },
+        CamLookAtInWorldSpace: { type: 'float', value: 0 }, CamFov: { type: 'float', value: 45 }, CamNear: { type: 'float', value: 0.1 }, CamFar: { type: 'float', value: 1000 },
+        ScaleByAspect: { type: 'float', value: 0 }, Render: { type: 'render' },
+      } },
+    ],
+    edges: [
+      { out: 'mm.Value', in: 'rgba.Red' }, { out: 'rgba.Color', in: 'c.Color' }, { out: 'c.Render', in: 's.Render' },
+    ],
+    expressions: [],
+  });
+  const baselineOk = (() => { try { new Engine(toRuntime(mkScene(1, 1))); return true; } catch { return false; } })();
+  const dm0Refuses = (() => { try { new Engine(toRuntime(mkScene(0, 1))); return false; } catch (e) { return /DelayMode=0/.test(/** @type {Error} */ (e).message) && /UNRESOLVED/.test(/** @type {Error} */ (e).message); } })();
+  const im2Refuses = (() => { try { new Engine(toRuntime(mkScene(1, 2))); return false; } catch (e) { return /ITimeMode=2/.test(/** @type {Error} */ (e).message) && /UNRESOLVED/.test(/** @type {Error} */ (e).message); } })();
+  return baselineOk && dm0Refuses && im2Refuses;
 })();
 
 // (ak) Ambiguous-graph refusal — multi-driver last-writer-wins and
 //      disconnected render pipelines both refuse at Engine construction
 //      (reviewer 2026-07-18 finding 7).
 const ambiguousGraphRefusedOk = (() => {
-  // multi-driver: add a second edge into HSLAToColor1.Hue in Color Cycle
-  const xml = readFileSync(new URL('../sources/plane9/color-cycle.scene.xml', import.meta.url), 'utf8');
-  const doc = p9ToPhos(xml, { file: 'color-cycle.scene.xml', sha256: 'testsha' });
-  doc.edges.push({ out: 'MinMax3.Value', in: 'HSLAToColor1.Hue' }); // MinMax3 already drives Lightness, now also drives Hue — ambiguous
-  const multiDriverRefuses = (() => { try { new Engine(toRuntime(parsePhos(serializePhos(doc)))); return false; } catch (e) { return /already has an incoming edge/.test(/** @type {Error} */ (e).message); } })();
+  // multi-driver: build a synthetic native scene with two MinMax->RGBAToColor.Red
+  // edges — the second refuses because Red already has an incoming edge.
+  const twoDriverScene = /** @type {any} */ ({
+    format: 'phos/1', meta: { name: 'multi' }, resources: [],
+    nodes: [
+      { id: 'a', primitive: 'graph', op: 'MinMax', ports: {
+        Min: { type: 'float', value: 0 }, Max: { type: 'float', value: 1 }, Mode: { type: 'float', value: 1 },
+        DelayMin: { type: 'float', value: 0 }, DelayMax: { type: 'float', value: 0 }, DelayMode: { type: 'float', value: 1 },
+        ITimeMin: { type: 'float', value: 1 }, ITimeMax: { type: 'float', value: 1 }, ITimeMode: { type: 'float', value: 1 },
+        Value: { type: 'float' },
+      } },
+      { id: 'b', primitive: 'graph', op: 'MinMax', ports: {
+        Min: { type: 'float', value: 0 }, Max: { type: 'float', value: 1 }, Mode: { type: 'float', value: 1 },
+        DelayMin: { type: 'float', value: 0 }, DelayMax: { type: 'float', value: 0 }, DelayMode: { type: 'float', value: 1 },
+        ITimeMin: { type: 'float', value: 1 }, ITimeMax: { type: 'float', value: 1 }, ITimeMode: { type: 'float', value: 1 },
+        Value: { type: 'float' },
+      } },
+      { id: 'rgba', primitive: 'graph', op: 'RGBAToColor', ports: {
+        Red: { type: 'float' }, Green: { type: 'float', value: 0 }, Blue: { type: 'float', value: 0 }, Alpha: { type: 'float', value: 1 },
+        Color: { type: 'vec4' },
+      } },
+      { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4' }, Render: { type: 'render' } } },
+      { id: 's', primitive: 'graph', op: 'screen', ports: {
+        Viewport: { type: 'vec4', value: [0, 0, 1, 1] },
+        CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] },
+        CamLookAtInWorldSpace: { type: 'float', value: 0 }, CamFov: { type: 'float', value: 45 }, CamNear: { type: 'float', value: 0.1 }, CamFar: { type: 'float', value: 1000 },
+        ScaleByAspect: { type: 'float', value: 0 }, Render: { type: 'render' },
+      } },
+    ],
+    edges: [
+      { out: 'a.Value', in: 'rgba.Red' }, { out: 'b.Value', in: 'rgba.Red' },
+      { out: 'rgba.Color', in: 'c.Color' }, { out: 'c.Render', in: 's.Render' },
+    ],
+    expressions: [],
+  });
+  const multiDriverRefuses = (() => { try { new Engine(toRuntime(twoDriverScene)); return false; } catch (e) { return /already has an incoming edge/.test(/** @type {Error} */ (e).message); } })();
   // disconnected render pipeline: a two-node clear-color + screen graph
   // with NO Clear.Render->Screen.Render edge must refuse
   const disconnected = /** @type {any} */ ({
@@ -1144,7 +1180,22 @@ const ambiguousGraphRefusedOk = (() => {
   return multiDriverRefuses && disconnectedRefuses;
 })();
 
-const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && p9Ok && registryOk && nativeClearOk && p9ConvOk && rngOk && minmaxOk && beatOk && hslOk && colorCycleOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk;
+// ==== TWO SEPARATE SURFACES (reviewer foundation 2026-07-18) ====
+// engineRegressionOk: PHOSPHENE's own executor behaves as this codebase
+//   specifies it — MilkDrop scene 1 renders unchanged, the graph executor
+//   admits every valid graph and refuses every malformed one, PHOSPHENE's
+//   PHOSPHENE-native ops (MinMax/Beat/HSL as internal implementations,
+//   RGBAToColor, clear-color) behave as their PHOSPHENE spec requires.
+//   This does NOT establish Plane9 fidelity.
+// plane9CompatibilityOk: PHOSPHENE's Plane9 conversion door refuses every
+//   UNRESOLVED source shape and passes every evidence-backed one. Screen
+//   (witnessed geometry-free) and Clear PASS; HSLAToColor, MinMax, and
+//   Beat REFUSE at the compatibility gate; Color Cycle refuses at
+//   conversion. This surface does NOT accept PHOSPHENE's internal
+//   regression tests as evidence of Plane9 fidelity.
+const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk;
+const plane9CompatibilityOk = p9Ok && p9ConvOk && colorCycleOk;
+const audioOk = engineRegressionOk && plane9CompatibilityOk;
 
 const eelFnCount = Object.keys(eelSubject).length;
 const eelCoveredCount = new Set(eelCases.map((c) => c[0])).size;
@@ -1206,29 +1257,33 @@ console.log('band boundary at bin 85 discriminates bass/mid:', boundaryOk ? 'OK'
 console.log('PCM ring intake: order-independent newest-576 + non-trivial:', ringOk ? 'OK' : 'FAIL');
 console.log('timekeeper vs pluginshell.cpp recompute (exact at 4 frames):', timekeeperOk ? 'OK' : 'FAIL');
 console.log('index.html == player.html (byte guard):', pagesSynced ? 'OK' : 'FAIL');
-console.log('registry sequence grammar refuses 2-node graph + per-vertex code:', contractOk ? 'OK' : 'FAIL');
+console.log('[engine regression] graph-as-sole-authority: lone clear-color with unfed Render output refuses + per-vertex code still refuses:', contractOk ? 'OK' : 'FAIL');
 console.log('reset restores load-time baseline (vars/equations/state):', resetOk ? 'OK' : 'FAIL');
 console.log('post-equation clamps + EEL-name aliasing (gamma/decay/echo_zoom):', clampAliasOk ? 'OK' : 'FAIL');
 console.log('variable-contract ledger: 76 regvars classified + verified, vol absent:', varContractOk ? 'OK' : 'FAIL');
 console.log('aspect factors: forward to renderState, inverse to pool (exact):', aspectOk ? 'OK' : 'FAIL');
 console.log('finite-mesh warp: strip indices + identity UVs exact + zoom=0 NaN structure:', meshOk ? 'OK' : 'FAIL');
 console.log('ordered source records: per-line, in order, refusal names the line:', recordsOk ? 'OK' : 'FAIL');
-console.log('plane9 Color Cycle: scanner shape (7 nodes, 6 connections, CC0, FormatVersion 2) + registry dispositions (every node + every edge converts) + standard HSL fingerprint match:', p9Ok ? 'OK' : 'FAIL');
+console.log('[plane9 compat] Color Cycle: scanner shape (7 nodes, 6 connections, CC0, FormatVersion 2) + compat-gate dispositions (Screen+Clear PASS, MinMax/Beat/HSLAToColor REFUSED UNRESOLVED) + standard HSL fingerprint match against retained fixture:', p9Ok ? 'OK' : 'FAIL');
 console.log('native-op registry: unknown op + unrealizable chains + mistyped edges refused, MilkDrop state shape intact:', registryOk ? 'OK' : 'FAIL');
 console.log('native clear-color scene: RGBAToColor->clear-color value-edge dataflow + Blue-pulse + port refusals:', nativeClearOk ? 'OK' : 'FAIL');
-console.log('p9 conversion door: Color Cycle full graph converts + round-trips + executes; tampering refuses:', p9ConvOk ? 'OK' : 'FAIL');
-console.log('=== SEMANTIC-SCOPE NOTE ===');
-console.log('the seven checks below verify PHOSPHENE internal regression only.');
-console.log('they do NOT establish fidelity to Plane9\'s runtime behavior — no');
-console.log('byte-level DLL comparison and no Plane9 trace comparison exists;');
-console.log('MinMax and Beat state-machine details are producer-inferred per');
-console.log('sources/PLANE9-CONTRACT.md and require observation to establish.');
+console.log('[plane9 compat] p9 conversion door: Color Cycle refuses (HSLAToColor UNRESOLVED) + Screen+Clear PASS shape converts and executes + tampering refuses:', p9ConvOk ? 'OK' : 'FAIL');
+console.log('=== SEMANTIC-SCOPE NOTE (reviewer foundation 2026-07-18) ===');
+console.log('two separate surfaces are reported below:');
+console.log('  [engine regression]  — PHOSPHENE internal implementation behaves');
+console.log('                         as this codebase specifies (does NOT');
+console.log('                         verify Plane9 runtime fidelity).');
+console.log('  [plane9 compat]      — Plane9 conversion gate refuses UNRESOLVED');
+console.log('                         source shapes and passes evidence-backed');
+console.log('                         ones (Screen witnessed-config + Clear).');
+console.log('an unresolved Plane9 behavior may be exercised by native scenes');
+console.log('but cannot contribute to the compatibility surface passing.');
 console.log('===');
 console.log('[internal regression] shared xorshift128 RNG: two fresh instances match 8 draws + setState round-trips (does NOT verify Plane9 DLL RNG identity):', rngOk ? 'OK' : 'FAIL');
 console.log('[internal regression] MinMax against PHOSPHENE\'s own implementation of Todd\'s spec — None + LoopUp/LoopDown linear + PingPong + Rand determinism + smoothstep vs linear discriminator (does NOT verify vs Plane9 traces):', minmaxOk ? 'OK' : 'FAIL');
 console.log('[internal regression] Beat node-level composition against Todd\'s spec — inactive=NoMusic direct + active linear formula + upper cap + Min>Max case (does NOT verify upstream detector):', beatOk ? 'OK' : 'FAIL');
 console.log('[internal regression] HSLAToColor standard formula — Color Cycle retained vector + pure red + pure green (one-vector against Plane9 output, two invented probes):', hslOk ? 'OK' : 'FAIL');
-console.log('[internal regression] Color Cycle full execution: fixture converts + round-trips + two PHOSPHENE engines produce identical traces + values in range (does NOT verify traces match Plane9):', colorCycleOk ? 'OK' : 'FAIL');
+console.log('[plane9 compat] Color Cycle: fixture REFUSES at conversion (HSLAToColor UNRESOLVED at line 22) — provisional PHOSPHENE MinMax/Beat/HSL implementations do NOT run through as accepted Plane9 conversion:', colorCycleOk ? 'OK' : 'FAIL');
 console.log('[MinMax scope bound] DelayMode/ITimeMode ≠ 1 refuses at Engine construction:', delayItimeModeGuardOk ? 'OK' : 'FAIL');
 console.log('[graph correctness] multi-driver refusal + render-input requires incoming edge:', ambiguousGraphRefusedOk ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
@@ -1236,5 +1291,8 @@ console.log('inert value port refused at engine construction (shared OP_PORTS):'
 console.log('triage scan: all refusals collected, strict import still throws first:', triageOk ? 'OK' : 'FAIL');
 console.log('CSS @import chains: every page reference and import resolves:', cssImportsOk ? 'OK' : 'FAIL');
 for (const [name, args] of eelFailures) { const fn = eelSubject[name]; console.log(`  FAIL: ${name}(${args.join(',')}) = ${fn ? fn(...args) : 'missing'}`); }
+console.log(`\n=== TWO-SURFACE SUMMARY ===`);
+console.log(`engine regression: ${engineRegressionOk ? 'PASS' : 'FAIL'}`);
+console.log(`plane9 compat:     ${plane9CompatibilityOk ? 'PASS' : 'FAIL'} (Screen + Clear PASS; HSLAToColor + MinMax + Beat REFUSED UNRESOLVED)`);
 console.log(`\nRESULT: ${pass ? 'PASS' : 'FAIL'}`);
 process.exit(pass ? 0 : 1);

@@ -2,7 +2,7 @@
   "format": "phos/1",
   "meta": {
     "name": "native-clear",
-    "description": "Native clear-color demonstration exercising the value-edge dataflow: RGBAToColor packs four float channels into a vec4 Color, an edge propagates that vec4 into clear-color's Color port, and clear-color's WebGPU realization fills the canvas. The per-frame program pulses the blue channel so live edge propagation is visible."
+    "description": "Native clear-color demonstration exercising the value-edge dataflow: RGBAToColor packs four float channels into a vec4 Color, an edge propagates that vec4 into clear-color's Color port, and clear-color's WebGPU realization fills the canvas. The per-frame program pulses the blue channel so live edge propagation is visible. A screen node closes the render chain."
   },
   "resources": [],
   "nodes": [
@@ -44,12 +44,79 @@
           "type": "render"
         }
       }
+    },
+    {
+      "id": "screen",
+      "primitive": "graph",
+      "op": "screen",
+      "ports": {
+        "Viewport": {
+          "type": "vec4",
+          "value": [
+            0,
+            0,
+            1,
+            1
+          ]
+        },
+        "CamPos": {
+          "type": "vec3",
+          "value": [
+            0,
+            0,
+            -2
+          ]
+        },
+        "CamRot": {
+          "type": "vec3",
+          "value": [
+            0,
+            0,
+            0
+          ]
+        },
+        "CamLookAt": {
+          "type": "vec3",
+          "value": [
+            0,
+            0,
+            1
+          ]
+        },
+        "CamLookAtInWorldSpace": {
+          "type": "float",
+          "value": 0
+        },
+        "CamFov": {
+          "type": "float",
+          "value": 45
+        },
+        "CamNear": {
+          "type": "float",
+          "value": 0.1
+        },
+        "CamFar": {
+          "type": "float",
+          "value": 1000
+        },
+        "ScaleByAspect": {
+          "type": "float",
+          "value": 0
+        },
+        "Render": {
+          "type": "render"
+        }
+      }
     }
   ],
   "edges": [
     {
       "out": "rgba.Color",
       "in": "clear.Color"
+    },
+    {
+      "out": "clear.Render",
+      "in": "screen.Render"
     }
   ],
   "expressions": [
