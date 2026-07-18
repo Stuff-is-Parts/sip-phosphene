@@ -4,6 +4,7 @@
 // other module. The page keeps only markup and CSS.
 import { parsePhos, toRuntime, serializePhos, updateScene, milkToPhos, assessRecords } from './phos.mjs';
 import { importMilk, scanMilk } from './milk-import.mjs';
+import { extractSceneXml, scanP9, assessP9Records, importP9 } from './p9-import.mjs';
 import { Engine } from './engine.mjs';
 import { AudioEngine } from './audio/sources.mjs';
 import { feedbackWGSL, compositeWGSL } from './render-wgsl.mjs';
@@ -361,15 +362,14 @@ function openDual(srcText,fileName){
   cmSrc.setValue(srcText); cmPhos.setValue(phosNow);
   buildPhosView(srcText,phosNow);
 }
-/** @param {string} srcText @param {string} fileName */
-function openTriage(srcText,fileName){
+/** @param {string} srcText @param {string} fileName @param {{line:number,ok:boolean,text:string}[]} dis */
+function openTriage(srcText,fileName,dis){
   ensureCMs();
   srcOverlay.classList.add('open'); srcOverlay.classList.remove('single');
   $('srcTitleL').textContent=fileName+' — REFUSED';
   q('#srcOverlay .pane:not(.left) h3').textContent='per-line disposition (nothing was imported)';
   phosMeta=[]; lineMap=new Map(); hitLines=[]; alignScroll=true;
   cmSrc.setValue(srcText);
-  const dis=assessRecords(scanMilk(srcText));
   /** @type {string[]} */ const rows=new Array(srcText.split('\n').length).fill('');
   let bad=0;
   for(const d of dis){ rows[d.line-1]=(d.ok?'· ':'✗ ')+d.text; if(!d.ok)bad++; }
@@ -660,9 +660,15 @@ async function renderLibrary(){
   try{ const r=await fetch('./scenes/manifest.json'); if(r.ok)manifest=await r.json(); }
   catch{ /* session imports still listed below */ }
   /** @param {string} label @param {() => void} fn */
-  const add=(label,fn)=>{ const b=document.createElement('wa-button'); b.setAttribute('size','small'); b.style.display='block'; b.style.marginBottom='6px'; b.textContent=label; b.addEventListener('click',fn); list.append(b); };
+  const add=(label,fn)=>{ const b=document.createElement('wa-button'); b.setAttribute('size','s'); b.style.display='block'; b.style.marginBottom='6px'; b.textContent=label; b.addEventListener('click',fn); list.append(b); };
   for(const sc of manifest.scenes||[]) add(sc.name,async()=>{ loadDoc(parsePhos(await (await fetch('./scenes/'+sc.file)).text())); importedSrcText=null; libDrawer.open=false; });
-  for(const sc of importedScenes) add(sc.name+' (imported)',async()=>{ const h=IMPORTERS[sc.ext]; try{ if(h)await h(sc.text,sc.name); }catch{ if(sc.ext==='milk')openTriage(sc.text,sc.name); } libDrawer.open=false; });
+  for(const sc of importedScenes) add(sc.name+' (imported)',async()=>{
+    if(sc.ext==='p9c'){ openTriage(sc.text, sc.name+' :: scene.xml', assessP9Records(scanP9(sc.text))); libDrawer.open=false; return; }
+    const h=IMPORTERS[sc.ext];
+    try{ if(h)await h(sc.text,sc.name); }
+    catch{ if(sc.ext==='milk')openTriage(sc.text, sc.name, assessRecords(scanMilk(sc.text))); }
+    libDrawer.open=false;
+  });
   if(!(manifest.scenes||[]).length&&!importedScenes.length)list.textContent='no scenes listed';
 }
 $('library').onclick=async()=>{
@@ -673,8 +679,10 @@ $('library').onclick=async()=>{
 
 // ---- one Import button: dispatch by format, refuse unknowns by name --------
 // .phos loads natively; .milk converts through the strict door (a refusal
-// opens triage instead of importing partially); .p9c refuses until the
-// Plane9 converter exists; anything else refuses naming the extension.
+// opens triage instead of importing partially); .p9c is BINARY (a zip), so
+// importFile routes it through container extraction + the Plane9 strict
+// door, whose refusal opens the per-line triage; anything else refuses
+// naming the extension.
 /** @type {Record<string, (text:string, name:string) => Promise<void>>} */
 const IMPORTERS={
   phos:async(text)=>{ loadDoc(parsePhos(text)); importedSrcText=null; },
@@ -688,11 +696,23 @@ const IMPORTERS={
     loadDoc(parsePhos(serializePhos(doc)));
     importedSrcText=text;
   },
-  p9c:async()=>{ throw new Error('Plane9 (.p9c) conversion is not yet implemented — refusing'); },
 };
 /** @param {File} f */
 async function importFile(f){
   const ext=(f.name.split('.').pop()||'').toLowerCase();
+  if(ext==='p9c'){
+    let xml;
+    try{ xml=extractSceneXml(new Uint8Array(await f.arrayBuffer())); }
+    catch(e){ alert(errMsg(e)); return; }
+    // the strict door refuses every scene today (node semantics unresolved
+    // per sources/PLANE9-NODES.md), so the catch is the live path
+    try{ importP9(xml); }
+    catch{ openTriage(xml, f.name+' :: scene.xml', assessP9Records(scanP9(xml))); }
+    const prior=importedScenes.findIndex(s=>s.name===f.name);
+    const entry={name:f.name,text:xml,ext};
+    if(prior>=0)importedScenes[prior]=entry; else importedScenes.push(entry);
+    return;
+  }
   const handler=IMPORTERS[ext];
   if(!handler){ alert('import: unsupported file type ".'+ext+'" — refusing'); return; }
   const text=await f.text();
@@ -703,7 +723,7 @@ async function importFile(f){
     if(prior>=0)importedScenes[prior]=entry; else importedScenes.push(entry);
   }
   catch(e){
-    if(ext==='milk')openTriage(text,f.name);
+    if(ext==='milk')openTriage(text, f.name, assessRecords(scanMilk(text)));
     else alert(errMsg(e));
   }
 }

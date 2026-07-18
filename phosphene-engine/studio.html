@@ -133,7 +133,7 @@
     <div id="masthead">
       <div id="mark">PHO<b>S</b>PHENE<span>STUDIO</span></div>
       <nav>
-        <wa-button size="small" appearance="filled-outlined" href="./index.html">← Player</wa-button>
+        <wa-button size="s" appearance="filled-outlined" href="./index.html">← Player</wa-button>
       </nav>
     </div>
     <div id="panelScroll">
@@ -144,18 +144,18 @@
       <div id="sceneRow">
         <span id="sceneTitle"></span>
         <span id="dirty" class="meta"></span>
-        <wa-button size="small" appearance="filled-outlined" id="reset" style="display:none">↺ Reset</wa-button>
-        <wa-button size="small" appearance="filled-outlined" id="library" style="margin-left:auto">☰ Library</wa-button>
+        <wa-button size="s" appearance="filled-outlined" id="reset" style="display:none">↺ Reset</wa-button>
+        <wa-button size="s" appearance="filled-outlined" id="library" style="margin-left:auto">☰ Library</wa-button>
       </div>
       <div class="meta" id="meta"></div>
       <!-- primary action wears brand outline + glow, not the solid fill:
            the identity tier stays loudest (UI-REFERENCE rule 8; the filled
            Save outshining the wordmark was the witnessed violation) -->
       <div id="sceneActions">
-        <wa-button size="small" variant="brand" appearance="filled-outlined" id="savePhos" style="box-shadow:0 0 14px rgba(0,229,255,.35)">⭳ Save .phos</wa-button>
-        <wa-button size="small" appearance="filled-outlined" id="importBtn">⭱ Import…</wa-button>
-        <wa-button size="small" appearance="filled-outlined" id="newScene">✦ New</wa-button>
-        <wa-button size="small" appearance="filled-outlined" id="srcView">⇄ Source</wa-button>
+        <wa-button size="s" variant="brand" appearance="filled-outlined" id="savePhos" style="box-shadow:0 0 14px rgba(0,229,255,.35)">⭳ Save .phos</wa-button>
+        <wa-button size="s" appearance="filled-outlined" id="importBtn">⭱ Import…</wa-button>
+        <wa-button size="s" appearance="filled-outlined" id="newScene">✦ New</wa-button>
+        <wa-button size="s" appearance="filled-outlined" id="srcView">⇄ Source</wa-button>
       </div>
       <input type="file" id="importFile" accept=".milk,.phos,.p9c" hidden>
       <!-- zone 3: workspace tabs — visible track + accent indicator through
@@ -178,11 +178,11 @@
          sources, transport, and the scope stay visible in every tab -->
     <div id="audioBridge">
       <div class="row wa-flex-wrap" style="margin:0 0 6px">
-        <wa-button size="small" appearance="filled-outlined" id="play" style="width:88px">⏸ Pause</wa-button>
+        <wa-button size="s" appearance="filled-outlined" id="play" style="width:88px">⏸ Pause</wa-button>
         <span class="seam"></span>
-        <wa-button size="small" variant="brand" appearance="filled-outlined" id="aDemo">▶ DEMO</wa-button>
-        <wa-button size="small" appearance="filled-outlined" id="aFile">FILE…</wa-button>
-        <wa-button size="small" appearance="filled-outlined" id="aMic">MIC</wa-button>
+        <wa-button size="s" variant="brand" appearance="filled-outlined" id="aDemo">▶ DEMO</wa-button>
+        <wa-button size="s" appearance="filled-outlined" id="aFile">FILE…</wa-button>
+        <wa-button size="s" appearance="filled-outlined" id="aMic">MIC</wa-button>
         <span class="meta" id="audioStatus">silent — bands hold 1.0 · <b style="color:#39ff14">bass</b> <b style="color:#ff2ec4">mid</b> <b style="color:#00e5ff">treb</b> · digits = live values</span>
       </div>
       <input type="file" id="audioFile" accept="audio/*" hidden>

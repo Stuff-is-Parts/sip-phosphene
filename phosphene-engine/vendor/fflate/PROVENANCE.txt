@@ -1,0 +1,9 @@
+fflate 0.8.3 (https://github.com/101arrowz/fflate), MIT license (LICENSE
+alongside). Vendored file: the package's esm/browser.js copied unmodified as
+fflate.mjs (self-contained, no imports). Consumed by src/p9-import.mjs for
+reading .p9c scene containers, which are ZIP archives (witnessed corpus-wide
+in sources/PLANE9-EVIDENCE.md; Plane9 itself ships quazip.dll for the same
+job). fflate.d.mts is OUR minimal type declaration covering only the
+unzipSync entry point we call — it shadows the js from tsc's checkJs pass.
+To re-vendor: npm install fflate@0.8.3, copy esm/browser.js and LICENSE,
+npm uninstall.

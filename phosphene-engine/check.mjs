@@ -11,6 +11,7 @@
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { importMilk, scanMilk } from './src/milk-import.mjs';
+import { scanP9, assessP9Records } from './src/p9-import.mjs';
 import { Engine, d3dColor01 } from './src/engine.mjs';
 import { GRID_X, GRID_Y, VERT_COUNT, buildStripIndices, buildWarpUVs, meshPositions } from './src/warp-mesh.mjs';
 import { parsePhos, serializePhos, toRuntime, milkToPhos, updateScene, assessRecords } from './src/phos.mjs';
@@ -609,7 +610,31 @@ const cssImportsOk = (() => {
   return seen.size > 0;
 })();
 
-const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk;
+// (aa) Plane9 scanner against the retained scene-2 candidate. Expected
+//      values come from the retained source file itself (the external
+//      authority per PHOSPHENE-GOAL): sources/plane9/color-cycle.scene.xml
+//      carries exactly 7 nodes, 6 connections, a CC0 license line, and
+//      FormatVersion="2" — witnessed at retention (sources/PLANE9-EVIDENCE.md).
+//      The scan must produce those counts with zero refused lines, and the
+//      triage dispositions must mark every node line not-ok (semantics
+//      unresolved) while refusing nothing structurally.
+const p9Ok = (() => {
+  const xml = readFileSync(new URL('../sources/plane9/color-cycle.scene.xml', import.meta.url), 'utf8');
+  const recs = scanP9(xml);
+  const nodes = recs.filter(r => r.kind === 'node' || r.kind === 'node-open');
+  const conns = recs.filter(r => r.kind === 'connection');
+  const refused = recs.filter(r => r.kind === 'refused');
+  const root = recs.find(r => r.kind === 'root');
+  const lic = recs.find(r => r.kind === 'meta' && r.id === 'License');
+  const dis = assessP9Records(recs);
+  const notOk = dis.filter(d => !d.ok);
+  return nodes.length === 7 && conns.length === 6 && refused.length === 0
+    && !!root && String(root.value).includes('FormatVersion="2"')
+    && !!lic && lic.raw.includes('CC0')
+    && notOk.length === 7 && notOk.every(d => d.text.includes('semantics unresolved'));
+})();
+
+const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && p9Ok;
 
 const eelFnCount = Object.keys(eelSubject).length;
 const eelCoveredCount = new Set(eelCases.map((c) => c[0])).size;
@@ -678,6 +703,7 @@ console.log('variable-contract ledger: 76 regvars classified + verified, vol abs
 console.log('aspect factors: forward to renderState, inverse to pool (exact):', aspectOk ? 'OK' : 'FAIL');
 console.log('finite-mesh warp: strip indices + identity UVs exact + zoom=0 NaN structure:', meshOk ? 'OK' : 'FAIL');
 console.log('ordered source records: per-line, in order, refusal names the line:', recordsOk ? 'OK' : 'FAIL');
+console.log('plane9 scan: retained candidate counts match the source, nodes refused pending semantics:', p9Ok ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
 console.log('inert value port refused at engine construction (shared OP_PORTS):', inertPortOk ? 'OK' : 'FAIL');
 console.log('triage scan: all refusals collected, strict import still throws first:', triageOk ? 'OK' : 'FAIL');

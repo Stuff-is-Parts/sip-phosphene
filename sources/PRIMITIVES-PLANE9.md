@@ -55,6 +55,6 @@ in both engines fits by transcription, not adaptation — which was the goal.
 
 ## Retained corpus (the specification's evidence)
 252 .p9c scenes + 8 loose .glsl shader files + the Plane9 distribution
-(retained at /home/claude/p9corpus). These are the authority for every Plane9
+(owner-designated copies at source-scenes/plane9; see PLANE9-EVIDENCE.md). These are the authority for every Plane9
 behavior, since no source exists. Any primitive-mapping question is resolved
 against these files, not against assumption.
