@@ -479,8 +479,6 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
 export const OP_PORTS = /** @type {Record<string,string[]>} */ (
   Object.fromEntries(Object.entries(NATIVE_OPS).map(([op, d]) => [op, Object.keys(d.inputs)])));
 
-export const CONSUMED_PORTS = Object.values(NATIVE_OPS).flatMap((d) => Object.keys(d.inputs));
-
 // MilkDrop's .milk-file keys -> the EEL variable names per-frame equations
 // actually see, witnessed from the regvar list at state.cpp:260-331
 // ("decay", "gamma", "echo_zoom", "echo_alpha", "echo_orient", "zoomexp";

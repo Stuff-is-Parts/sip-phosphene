@@ -139,16 +139,22 @@ in from HSLAToColor. The Color port converts as vec4, driven either by a
 saved constant or by an incoming value edge from HSLAToColor / RGBAToColor;
 the render edge from Clear.Render to Screen.Render is preserved verbatim.
 
-**HSLAToColor** — dll: "Converts a Hue, Saturation, Lightness and alpha
-component to a color" (name 0x1fa1d0, description 0x1fa1e0). Ports Hue
-(help verbatim: "The 'real' color. In degrees", 0x1fa228), Saturation,
-Lightness, Alpha; out Color. **RESOLVED for the Color Cycle slice
-2026-07-18** with an evidence boundary: the standard CSS/Wikipedia HSL-to-RGB
-formula reproduces Color Cycle's saved input/output vector to one part in
-10^6 and is what the native op implements. This is one retained vector,
-not a general proof of the formula — the native op's binding to this slice
-holds until either a second vector or observation of the running node
-against known inputs establishes the general case.
+**HSLAToColor** — evidence summary:
+
+- DLL metadata establishes the node's ports and stated purpose: "Converts a
+  Hue, Saturation, Lightness and alpha component to a color" (name 0x1fa1d0,
+  description 0x1fa1e0), with ports Hue (help verbatim: "The 'real' color.
+  In degrees", 0x1fa228), Saturation, Lightness, Alpha, and output Color.
+- One retained Plane9 input/output vector (Color Cycle's) matches the
+  standard CSS/Wikipedia HSL-to-RGB formula to one part in 10^6, and is what
+  the native op implements.
+- ONE vector does not establish the general Plane9 op.
+- Pending falsifier/resolution: at least one discriminating input/output
+  vector from another Hue segment, or direct controlled observation of the
+  running Plane9 node against known inputs.
+- This is not principally a byte-level DLL-diff task unless a Plane9
+  HSL evaluator function is actually located; the falsifier is a vector,
+  not a disassembly.
 
 **MinMax node** — dll: "Interpolates a float value using delay times.
 Doesn't handle 'local' evaluators." Nine ports: Min, Max, Mode, DelayMin,

@@ -1,13 +1,8 @@
 {
   "entry": [
-    "phosphene-engine/check.mjs",
-    "phosphene-engine/src/phos.mjs",
-    "phosphene-engine/src/engine.mjs",
-    "phosphene-engine/src/render-wgsl.mjs",
-    "phosphene-engine/src/audio/sources.mjs",
-    "phosphene-engine/src/audio/pcm-tap.js",
     "phosphene-engine/src/studio.mjs",
-    "phosphene-engine/src/player.mjs"
+    "phosphene-engine/src/player.mjs",
+    "phosphene-engine/src/audio/pcm-tap.js"
   ],
   "project": [
     "phosphene-engine/**/*.mjs",
@@ -15,8 +10,5 @@
   ],
   "ignore": [
     "phosphene-engine/vendor/**"
-  ],
-  "ignoreDependencies": [
-    "@webgpu/types"
   ]
 }

@@ -10,7 +10,7 @@
 // runtime IR carries `nodes: [{id, op, ports: {portName: {type, value?}}}]`
 // with edges qualified as "nodeId.portName". The engine dispatches per node.
 
-import { OP_PORTS, NATIVE_OPS } from './engine.mjs';
+import { OP_PORTS } from './engine.mjs';
 
 /** @typedef {{type:string, value?:number|number[]}} Port */
 /** @typedef {{id:string, primitive:string, op:string, ports:Record<string,Port>}} PhosNode */
@@ -405,5 +405,3 @@ export function milkToPhos(/** @type {{records:import('./milk-import.mjs').Sourc
     expressions,
   });
 }
-// Re-export so downstream code has a single import surface.
-export { NATIVE_OPS };

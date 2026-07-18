@@ -56,14 +56,15 @@ until the engine runs per-vertex programs: the MilkDrop importer refuses
 runtime scene whose perVertex list is non-empty. Accepted-but-unexecuted code
 is the structure-claimed-as-function failure mode.
 
-**Fixed-pipeline contract (owner-ratified 2026-07-17):** the engine accepts
-exactly the op sequence `warp-feedback -> borders -> composite` — the graph
-controls topology validation, ordering, and state assembly, and the fixed GPU
-pipeline realizes those ops. Any other shape is refused: the source pipeline
-is fixed (milkdropfs.cpp:1048-1214) and inventing semantics for other shapes
-would fill missing knowledge with plausible behavior, which PHOSPHENE-GOAL.md
-prohibits. Generality arrives with the scene that forces it, by a further
-owner decision.
+**Graph-derived render topology (reviewer foundation 2026-07-18):** the engine
+executes the .phos graph. The graph — its typed edges plus each op's declared
+input and output ports — is the sole render authority; there is no separate
+sequence grammar authorizing particular op neighbors. Render completeness is a
+pure dataflow rule: every declared render output has an outgoing edge, every
+declared render input has an incoming edge, and exactly one presentation sink
+(a render op declaring a `presented: render` output) exists. Any graph
+satisfying those rules runs; any graph violating them refuses at Engine
+construction with a message naming the specific unfed port or missing sink.
 
 `meta.source` is the transpiler map made durable: every ported .phos names the
 recipe file it was transcribed from, hash-pinned. [DERIVED — goal-doc Validation
@@ -86,13 +87,30 @@ Port { "type": "float"|"vec2"|"vec3"|"vec4"|"color"|"texture"|"mesh"|"effect"|"r
 Port names are the exact source-format keys — `fDecay`, `ib_r` — zero renaming.
 [DERIVED — exactness standard: parsed fields preserved]
 
-Edges must resolve to an existing node.port on both ends, with matching port
-types. [DERIVED — .p9c Out/In model]
+Ports are **node-local**: each port is addressed as `nodeId.portName`, and the
+same port name (`Color`, `Render`, `Value`) may appear on multiple nodes without
+collision. Edges are typed and node-qualified, resolving to an existing
+`nodeId.portName` on both ends with matching port types. [DERIVED — .p9c Out/In
+model]
 
-A value-carrying port name may appear on only one node per scene: the runtime
-flattens port values into one variable pool by name, and a duplicate would
-silently last-write-win. The parser refuses duplicates. [DERIVED — exactness:
-no silent flattening]
+Value edges propagate scalar and vector values along the source→destination
+direction; render edges propagate port-qualified `RenderPlan` values the same
+way, with each render port carrying its own plan. At fan-out the executor
+deep-clones the propagated plan per consumer, so two downstream branches of
+the same producer port cannot share mutable state. [DERIVED — reviewer
+foundation 2026-07-18]
+
+Each input port accepts one driver at a time. An input carrying both a
+constant `value` and an incoming edge refuses at construction (the edge would
+silently overwrite the constant), and a second edge into the same input port
+also refuses. Every required input must be sourced by either a constant or an
+edge. [DERIVED — dataflow unambiguity]
+
+An op may declare `portConstraints` naming the exact witnessed value each such
+port must carry. Construction, `setVar()` live edits, value-edge propagation
+each frame, and the per-frame EEL pool sync all funnel through one hook that
+enforces the constraint, so no write path can leave a witnessed-value port
+holding a value the op has no implementation for.
 
 ## Scene-one mapping (101-per_frame.milk → nodes)
 
@@ -104,19 +122,29 @@ no silent flattening]
 | per_frame_N | expressions[] | per-frame equations (milkdropfs.cpp:471+, row 1) |
 
 Canonical wiring for the MilkDrop import: `warp.out → borders.in`,
-`borders.out → comp.in` (render-type ports). The engine derives ordering and
-render-state assembly from these edges through the native-operation registry
-(NATIVE_OPS, src/engine.mjs): each registered op declares its value ports,
-its sequence grammar (first/after/terminal), and its render-state
-contribution, and the pages dispatch GPU passes from that contributed state
-— so the accepted shapes are exactly the renderable ones (today the MilkDrop
-chain and the single-node clear-color graph). The loader flattens port
-values into the runtime pool. The .phos file is the durable scene; the
-runtime IR conforms to it, not the reverse.
+`borders.out → comp.in` (render-type ports). The engine derives ordering by
+topological sort of the typed edges and evaluates each op in that order:
+value ops read inputs, compute outputs, and propagate them along outgoing
+value edges; render ops receive incoming plans keyed by input port, return
+outgoing plans keyed by output port, and the executor clones each returned
+plan per outgoing edge. The presentation sink's `presented` output is the
+frame's render plan for that step. Any graph satisfying the dataflow rules
+above runs — nothing about the MilkDrop shape is privileged. The .phos file
+is the durable scene; the runtime IR conforms to it, not the reverse.
 
 The converter (`milkToPhos`) throws on any .milk key not in this table —
 completeness by refusal, no silent drops. [DERIVED — "nothing may be flattened
 or silently omitted"]
+
+**Native operations vs source compatibility.** The NATIVE_OPS registry
+(`phosphene-engine/src/engine.mjs`) declares which operations the engine can
+execute. Source-engine compatibility is a separate gate: the importer
+(`phosphene-engine/src/p9-import.mjs` for Plane9) carries its own
+`P9_COMPATIBILITY` table classifying each source node type as PASS or
+UNRESOLVED, and refuses to convert any source scene whose nodes carry an
+UNRESOLVED status regardless of whether the corresponding native op exists.
+Native-op availability does not authorize source conversion; the compatibility
+gate requires evidence-backed source semantics.
 
 ## Semantics: how source behavior enters a scene
 
@@ -130,19 +158,45 @@ converted scene carries or references the components its behavior depends on;
 a hand-authored scene uses native primitives directly or pulls the same
 components by choice. There is no ambient per-engine mode.
 
-**Interim state (stated, not hidden):** the engine does not yet execute the
-graph, so the MilkDrop time and loudness components are hardwired at the
-engine level (src/timekeeper.mjs, src/audio/analysis.mjs) as stand-ins for
-their future explicit-component form. This hardwiring applies MilkDrop
-semantics to ALL scenes — including native ones — until graph execution lands
-and the components move into the scenes that reference them. The hardwired
-code is written as self-contained, source-cited modules precisely so the move
-is a relocation, not a rewrite.
+**Interim time and audio ownership (stated, not hidden).** The graph
+executes, but two engine-owned resources are still supplied globally by the
+Engine rather than through explicit graph components:
+
+- MilkDrop's damped `Timekeeper.time`/`fps` (`src/timekeeper.mjs`,
+  from `pluginshell.cpp:1895+`) is written into the flat EEL pool each
+  frame, so every scene sees MilkDrop's damped clock in its per-frame
+  expressions regardless of source engine.
+- The MilkDrop loudness/audio chain (`src/audio/analysis.mjs`) drives the
+  `bass`/`mid`/`treb`/`_att` variables in the same pool.
+
+This is an interim ownership problem: source-specific timing and audio
+behavior must eventually be represented as explicit graph components a scene
+references, so the semantics travel with the scene rather than with the
+engine. No currently accepted Plane9 conversion consumes Plane9 time or
+audio: the accepted `Clear → Screen` slice is time-invariant, Color Cycle
+refuses at the compatibility gate (HSLAToColor UNRESOLVED), and Beat's
+detector remains unresolved so `musicActive=false` is supplied in product.
+
+**Timing delta note.** The native MinMax op advances using the raw `dt`
+argument passed to `Engine.step()`, not MilkDrop's damped `Timekeeper.time`.
+Before Plane9 MinMax conversion can be accepted, the project must establish
+the exact meaning and lifecycle of Plane9's evaluator/frame delta from
+`Plane9Engine.dll` and represent the appropriate timing dependency
+explicitly as a graph component — the current use of `dt` is a native-scene
+implementation choice, not evidence about Plane9 MinMax timing.
 
 ## What loading guarantees, and what it does not
 
-Parsing validates structure and refuses unknowns; it does not prove the scene
-renders correctly. Behavior is judged by the human viewing the output (repo
-CLAUDE.md). The mechanical checks in check.mjs cover: committed .phos ==
-converter output byte-for-byte, serialize∘parse fixed point, load-path
-equivalence with the .milk import, and refusal of five mutant classes.
+Parsing validates structure and refuses unknowns. Engine construction adds
+the graph-completeness rules above (typed edges resolve, every required input
+sourced, every render output consumed, exactly one presentation sink) and the
+port-constraint check on every write path. None of that proves the scene
+renders correctly. The `phosphene-engine/check.mjs` script executes the
+native graph and verifies the produced render plans' structure and values;
+`src/render-executor.mjs` — the shared browser render-plan executor consumed
+by both `src/player.mjs` and `src/studio.mjs` — turns those plans into
+WebGPU commands at run time. The automated checks do not execute those
+WebGPU commands against a real GPU. Visual quality, Studio layout, and
+source compatibility remain human-viewed product judgments (repo
+`CLAUDE.md`); visible rendering is not itself proof of source compatibility,
+and screenshot similarity is not a fidelity gate.
