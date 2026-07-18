@@ -1,0 +1,21 @@
+color-cycle.scene.xml — extracted verbatim (unmodified) from
+source-scenes/plane9/Other/Color Cycle.p9c, a Plane9 scene by Joakim Dahl
+licensed CC0 (embedded in the file's <License Type="CC0" ...> element).
+
+The parent .p9c file (a ZIP holding scene.xml + scene.jpg + preview.jpg) is
+gitignored per the project's no-retained-copies-of-corpus policy; the CC0
+license on THIS specific scene allows the scene.xml to be retained here as
+committed fixture evidence so that check.mjs runs from a clean checkout per
+PHOSPHENE-GOAL.md's Completion Condition ("the complete build and test
+suite passes from a clean checkout").
+
+Provenance chain:
+- container: source-scenes/plane9/Other/Color Cycle.p9c
+- member:    scene.xml
+- retained:  2026-07-18
+- sha256:    cac87795ddef4fe7f4ae5f8a43b1fe39ae0eb5517f719acf72c26bbe480ccacc
+- bytes:     2963
+
+Re-extract with:
+  python -c "import zipfile; open('scene.xml','wb').write(zipfile.ZipFile(r'source-scenes/plane9/Other/Color Cycle.p9c').read('scene.xml'))"
+The sha256 of the resulting file must match the value above.

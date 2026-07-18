@@ -11,8 +11,7 @@
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { importMilk, scanMilk } from './src/milk-import.mjs';
-import { scanP9, assessP9Records, extractSceneXml, importP9 } from './src/p9-import.mjs';
-import { P9Engine, hslToRgb } from './src/p9-engine.mjs';
+import { scanP9, assessP9Records } from './src/p9-import.mjs';
 import { Engine, d3dColor01 } from './src/engine.mjs';
 import { GRID_X, GRID_Y, VERT_COUNT, buildStripIndices, buildWarpUVs, meshPositions } from './src/warp-mesh.mjs';
 import { parsePhos, serializePhos, toRuntime, milkToPhos, updateScene, assessRecords } from './src/phos.mjs';
@@ -611,20 +610,20 @@ const cssImportsOk = (() => {
   return seen.size > 0;
 })();
 
-// (aa) Plane9 scanner + runtime against a corpus scene. Expected values
-//      come from the source file itself (the external authority per
-//      PHOSPHENE-GOAL): source-scenes/plane9/Other/Color Cycle.p9c carries
-//      7 nodes, 6 connections, a CC0 license line, and FormatVersion="2".
-//      The scanner must produce those counts with zero refused lines and
-//      the triage must mark every node line ok now that the five node
-//      runtimes are implemented. The RUNTIME sub-check verifies that the
-//      Plane9 engine reproduces the scene's own saved Clear.Color from its
-//      own saved HSLAToColor ports (H 215.7, S 0.697156, L 0.127359 →
-//      0.03857 0.11049 0.216148 1) to 1e-5, using hslToRgb which is
-//      independently transcribed from the CSS/Wikipedia HSL formula.
+// (aa) Plane9 scanner + HSL formula fingerprint against a retained CC0
+//      fixture. The scene.xml lives at sources/plane9/color-cycle.scene.xml
+//      (extracted verbatim from source-scenes/plane9/Other/Color Cycle.p9c
+//      whose License Type="CC0" allows retention; the parent .p9c stays
+//      gitignored). Provenance and sha256 sit alongside in PROVENANCE.txt.
+//      Expected values come from the source file itself (external authority
+//      per PHOSPHENE-GOAL): 7 nodes, 6 connections, CC0 license line,
+//      FormatVersion="2", and its saved HSLAToColor ports (H 215.7,
+//      S 0.697156, L 0.127359) reproduce its saved Clear.Color (0.03857
+//      0.11049 0.216148) through the standard HSL-to-RGB formula to 1e-5.
+//      This does NOT test a Plane9 runtime — no such native operations
+//      exist yet — it tests only the scanner shape plus HSL math.
 const p9Ok = (() => {
-  const zip = readFileSync(new URL('../source-scenes/plane9/Other/Color Cycle.p9c', import.meta.url));
-  const xml = extractSceneXml(new Uint8Array(zip));
+  const xml = readFileSync(new URL('../sources/plane9/color-cycle.scene.xml', import.meta.url), 'utf8');
   const recs = scanP9(xml);
   const nodes = recs.filter(r => r.kind === 'node' || r.kind === 'node-open');
   const conns = recs.filter(r => r.kind === 'connection');
@@ -636,27 +635,24 @@ const p9Ok = (() => {
   if (nodes.length !== 7 || conns.length !== 6 || refused.length !== 0) return false;
   if (!root || !String(root.value).includes('FormatVersion="2"')) return false;
   if (!lic || !lic.raw.includes('CC0')) return false;
-  if (notOk.length !== 0) return false; // all five node types are implemented
-  // HSL formula against the scene's saved-value fingerprint
-  const [r, g, b] = hslToRgb(215.7, 0.697156, 0.127359);
+  if (notOk.length !== 7 || !notOk.every(d => d.text.includes('no native operation implemented'))) return false;
+  // Standard HSL-to-RGB (CSS/Wikipedia chroma formulation), inlined here
+  // so the check is independent of any runtime module.
+  const h = 215.7, s = 0.697156, l = 0.127359;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const hp = h / 60;
+  const x = c * (1 - Math.abs((hp % 2) - 1));
+  const m = l - c / 2;
+  const seg = Math.floor(hp);
+  const table = [[c, x, 0], [x, c, 0], [0, c, x], [0, x, c], [x, 0, c], [c, 0, x]];
+  const row = table[seg] ?? [0, 0, 0];
+  const r = /** @type {number} */ (row[0]) + m;
+  const g = /** @type {number} */ (row[1]) + m;
+  const b = /** @type {number} */ (row[2]) + m;
   const expected = [0.03857, 0.11049, 0.216148];
-  if (Math.abs(r - /** @type {number} */ (expected[0])) > 1e-5) return false;
-  if (Math.abs(g - /** @type {number} */ (expected[1])) > 1e-5) return false;
-  if (Math.abs(b - /** @type {number} */ (expected[2])) > 1e-5) return false;
-  // Runtime path: importer builds the graph, P9Engine steps one frame,
-  // clearColor reads through the HSL node WITH its incoming wires from
-  // MinMax1 (Hue), Beat1 (Saturation, driven live by MinMax2), and MinMax3
-  // (Lightness). At frame 0 with dt=0, each MinMax is still at its initial
-  // "from" target — for Rand/RandShortest a seeded rand value, for
-  // LoopUp/LoopDown a determinate endpoint. We only check that the runtime
-  // executes and returns finite RGBA in [0,1] — the exact live value
-  // depends on the MinMax RNG stream, which is deterministic per node name.
-  const p9 = importP9(xml);
-  const eng = new P9Engine(p9);
-  eng.step(0);
-  const [cr, cg, cb, ca] = eng.clearColor();
-  const finite = [cr, cg, cb, ca].every((v) => Number.isFinite(v) && v >= 0 && v <= 1);
-  return finite;
+  return Math.abs(r - /** @type {number} */ (expected[0])) < 1e-5
+      && Math.abs(g - /** @type {number} */ (expected[1])) < 1e-5
+      && Math.abs(b - /** @type {number} */ (expected[2])) < 1e-5;
 })();
 
 const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && p9Ok;
@@ -728,7 +724,7 @@ console.log('variable-contract ledger: 76 regvars classified + verified, vol abs
 console.log('aspect factors: forward to renderState, inverse to pool (exact):', aspectOk ? 'OK' : 'FAIL');
 console.log('finite-mesh warp: strip indices + identity UVs exact + zoom=0 NaN structure:', meshOk ? 'OK' : 'FAIL');
 console.log('ordered source records: per-line, in order, refusal names the line:', recordsOk ? 'OK' : 'FAIL');
-console.log('plane9 Color Cycle: scan + HSL formula fingerprint + P9Engine one-frame runtime returns finite RGBA:', p9Ok ? 'OK' : 'FAIL');
+console.log('plane9 Color Cycle: scanner shape (7 nodes, 6 connections, CC0, FormatVersion 2, all nodes refused) + standard HSL fingerprint match:', p9Ok ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
 console.log('inert value port refused at engine construction (shared OP_PORTS):', inertPortOk ? 'OK' : 'FAIL');
 console.log('triage scan: all refusals collected, strict import still throws first:', triageOk ? 'OK' : 'FAIL');

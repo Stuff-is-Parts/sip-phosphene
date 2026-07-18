@@ -2,17 +2,17 @@
 // same record discipline as milk-import.mjs. The scene grammar is the one
 // witnessed across the corpus (Plane9Scene root, Node/Port/Connection):
 // a zip holding scene.xml, tab-indented single-element XML per line.
-// The five-node runtime for scene 2 is IMPLEMENTED in p9-engine.mjs, so the
-// strict door now accepts scenes whose nodes are all in IMPLEMENTED below
-// (Other/Color Cycle.p9c is one of two such scenes in the corpus, together
-// with Other/Black.p9c). Everything else still refuses at its first
-// non-implemented node — the triage stays the surface for unconverted
-// .p9c drops.
+// The strict door refuses every scene at its first node until Plane9 node
+// operations are implemented as native operations in the shared executor
+// (per PHOSPHENE-GOAL.md's "one native execution model, no parallel
+// runtimes"). The triage view is the surface for unconverted .p9c drops.
 import { unzipSync } from '../vendor/fflate/fflate.mjs';
 
-/** Node types whose port contracts are traced to primary sources
- *  (sources/PLANE9-CONTRACT.md) AND whose runtime is implemented. */
-export const IMPLEMENTED = new Set(['Screen', 'Clear', 'HSLAToColor', 'MinMax', 'Beat']);
+/** Node types whose native operation is implemented in the shared Engine.
+ *  Empty until Plane9 nodes are added as native operations executed by the
+ *  shared graph scheduler — a separate p9 executor is a parallel runtime,
+ *  which the goal doc bans. */
+export const IMPLEMENTED = /** @type {Set<string>} */ (new Set());
 
 /** @param {Uint8Array} bytes @returns {string} the archive's scene.xml text */
 export function extractSceneXml(bytes) {
@@ -66,49 +66,20 @@ export function scanP9(xml) {
 }
 
 /**
- * Strict import door. Assembles a Plane9 runtime scene from the records:
- * refuses at the first line outside the witnessed grammar, or at the first
- * node type whose runtime is not implemented.
+ * Strict import door. Refuses at the first record it cannot faithfully
+ * convert — which today is the first node, because no Plane9 node has a
+ * native operation implemented in the shared Engine yet.
  * @param {string} xml
- * @returns {{meta:Record<string,string>, nodes:{type:string,name:string,ports:Record<string,any>}[], edges:{out:string,in:string}[]}}
  */
 export function importP9(xml) {
   const records = scanP9(xml);
-  /** @type {{type:string,name:string,ports:Record<string,any>}[]} */
-  const nodes = [];
-  /** @type {{out:string,in:string}[]} */
-  const edges = [];
-  /** @type {Record<string,string>} */
-  const meta = {};
-  /** @type {{type:string,name:string,ports:Record<string,any>}|null} */
-  let cur = null;
   for (const rec of records) {
     if (rec.kind === 'refused') throw new Error('line ' + rec.line + ' refused: ' + rec.reason);
-    if (rec.kind === 'meta' && rec.id && rec.raw) {
-      const m = rec.raw.trim().match(/^<(\w+)[^>]*>(.*)<\/\1>$/);
-      if (m && m[2] !== undefined) meta[rec.id] = m[2];
-      continue;
-    }
     if (rec.kind === 'node' || rec.kind === 'node-open') {
-      const type = /** @type {string} */ (rec.type);
-      if (!IMPLEMENTED.has(type)) throw new Error('line ' + rec.line + ' refused: node type "' + type + '" — runtime not implemented');
-      cur = { type, name: /** @type {string} */ (rec.name), ports: {} };
-      nodes.push(cur);
-      continue;
-    }
-    if (rec.kind === 'close' && rec.id === 'Node') { cur = null; continue; }
-    if (rec.kind === 'port') {
-      if (!cur) throw new Error('line ' + rec.line + ' refused: <Port> outside <Node>');
-      cur.ports[/** @type {string} */ (rec.id)] = rec.value;
-      continue;
-    }
-    if (rec.kind === 'connection') {
-      edges.push({ out: /** @type {string} */ (rec.out), in: /** @type {string} */ (rec.in) });
-      continue;
+      throw new Error('line ' + rec.line + ' refused: node type "' + rec.type + '" — no native operation implemented yet');
     }
   }
-  if (nodes.length === 0) throw new Error('refused: scene has no nodes');
-  return { meta, nodes, edges };
+  throw new Error('refused: scene has no nodes');
 }
 
 /**
@@ -126,11 +97,7 @@ export function assessP9Records(records) {
     if (rec.kind === 'refused') { out.push({ line: rec.line, ok: false, text: rec.reason || 'refused' }); continue; }
     if (rec.kind === 'node' || rec.kind === 'node-open') {
       node = rec.name || '';
-      if (IMPLEMENTED.has(/** @type {string} */ (rec.type))) {
-        out.push({ line: rec.line, ok: true, text: 'node ' + rec.type + ' — runtime implemented' });
-      } else {
-        out.push({ line: rec.line, ok: false, text: 'node ' + rec.type + ' — runtime not implemented' });
-      }
+      out.push({ line: rec.line, ok: false, text: 'node ' + rec.type + ' — no native operation implemented yet' });
       continue;
     }
     if (rec.kind === 'port' || rec.kind === 'port-open') { out.push({ line: rec.line, ok: true, text: 'port ' + rec.id + ' of ' + node + ' (scanned)' }); continue; }
