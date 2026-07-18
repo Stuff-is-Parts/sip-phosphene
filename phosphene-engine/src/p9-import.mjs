@@ -177,10 +177,10 @@ function disposeP9(records) {
       const t = rec.type || '';
       if (t === 'Screen') out.push({ line: rec.line, ok: true, text: 'Screen — render sink (witnessed geometry-free configuration)' });
       else if (t === 'Clear') out.push({ line: rec.line, ok: true, text: 'Clear — converts to native clear-color ("Fills the viewport with a single color.", dll 0x1f7ecc)' });
-      else if (t === 'HSLAToColor') out.push({ line: rec.line, ok: true, text: 'HSLAToColor — converts to native HSLAToColor value op (formula bound to Color Cycle input/output vector at 1e-6, general Plane9 semantics unresolved beyond that)' });
+      else if (t === 'HSLAToColor') out.push({ line: rec.line, ok: true, text: 'HSLAToColor — converts to native HSLAToColor value op (standard HSL formula bound to Color Cycle input/output vector at 1e-6, general Plane9 semantics beyond that one vector remain UNRESOLVED)' });
       else if (t === 'RGBAToColor') out.push({ line: rec.line, ok: true, text: 'RGBAToColor — converts to native RGBAToColor value op (packs 4 float channels into vec4 Color, dll 0x1fa3fc)' });
-      else if (t === 'MinMax') out.push({ line: rec.line, ok: true, text: 'MinMax — converts to native MinMax value op (mode integer mapping + curves + shared RNG per DLL static analysis at 0x100DD600/0x100DD9A0/0x100DDAE0/0x101FBB50; upstream mode-specific edge cases per contract)' });
-      else if (t === 'Beat') out.push({ line: rec.line, ok: true, text: 'Beat — converts to native Beat value op (node-level composition per dll 0x100DF5A0; inactive path direct, active path linear + upper cap; upstream detector for rawBeat unresolved)' });
+      else if (t === 'MinMax') out.push({ line: rec.line, ok: true, text: 'MinMax — converts to native MinMax value op (mode integer table + curves from owner-supplied DLL walk at 0x100DD600/0x100DD9A0/0x100DDAE0/0x101FBB50, byte-level DLL diff pending; DelayMode/ITimeMode ≠ 1 REFUSE at Engine construction; six lifecycle choices producer-inferred per PLANE9-CONTRACT.md §MinMax)' });
+      else if (t === 'Beat') out.push({ line: rec.line, ok: true, text: 'Beat — converts to native Beat value op (node-level composition from owner-supplied DLL walk at 0x100DF5A0, byte-level DLL diff pending; PHOSPHENE currently supplies musicActive=false in studio.mjs and player.mjs so BeatStrength=NoMusic in product until the upstream detector at Plane9Engine.dll is recovered)' });
       else if (t !== '' && P9_REFUSALS[t]) out.push({ line: rec.line, ok: false, text: /** @type {string} */ (P9_REFUSALS[t]) });
       else out.push({ line: rec.line, ok: false, text: 'node type "' + t + '" — no native operation implemented yet' });
       continue;

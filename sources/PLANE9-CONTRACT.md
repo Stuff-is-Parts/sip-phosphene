@@ -121,46 +121,77 @@ DelayMax, DelayMode, ITimeMin, ITimeMax, ITimeMode. history.txt line 413
 (v1.6): "Forced MinMax node to only update itself once a frame" — witness
 that MinMax ticks once per frame.
 
-**RESOLVED 2026-07-18** from owner-supplied DLL static analysis at RVAs
-0x100DD600 (frame evaluator), 0x100DD9A0 (mode/range selector), 0x100DDAE0
-(selector jump table), 0x101FBB50 (mode pointer table), and 0x1001FE30
-(shared four-word xorshift128 RNG):
+**PARTIALLY GROUNDED, PARTIALLY PRODUCER-INFERRED 2026-07-18**. The
+mode name-to-integer table below comes from a Todd-supplied DLL
+static-analysis walk at RVAs 0x100DD600 (frame evaluator), 0x100DD9A0
+(mode/range selector), 0x100DDAE0 (selector jump table), 0x101FBB50 (mode
+pointer table), and 0x1001FE30 (shared xorshift128 RNG). The state
+machine implementation that consumes those integers is PHOSPHENE's own
+producer inference against the mode names plus the once-per-frame
+constraint from history.txt line 413 — no byte-level disassembly-vs-
+implementation diff has been performed. Reviewer note 2026-07-18:
+"the code selects several behaviors not demonstrated by retained primary
+evidence" — the affected choices are named explicitly under
+**PRODUCER-INFERRED LIFECYCLE CHOICES** below.
+
+**GROUNDED (owner-supplied spec 2026-07-18, pending byte-level DLL
+verification)**:
 
 - **Mode integer mapping** — the six-item table:
   `0 = None, 1 = Rand, 2 = RandShortestDist, 3 = LoopUp, 4 = LoopDown,
-  5 = PingPong`. The earlier "four-name list at 0x1fab8c" adjacency reading
-  was insufficient — the runtime table at 0x101FBB50 carries the additional
-  entries (None and PingPong) that the local literal pool did not surface.
-  Corpus coverage of {0..5}: Mode {1: 101, 2: 11, 3: 1, 4: 5} (no observed
-  0 or 5 in the 252-scene sample, but the runtime supports all six).
-- **State machine** — delay and interpolation are separate phases per
-  animated mode. Each transition through delay picks a duration in
-  `[DelayMin, DelayMax]`; each transition through interp picks a duration
-  in `[ITimeMin, ITimeMax]`. Rand/RandShortestDist pick a fresh target
-  from `[Min, Max]`; LoopUp/LoopDown reset current to the opposite endpoint
-  at cycle boundary; PingPong alternates target endpoint per cycle.
-- **Interpolation curve** — LoopUp and LoopDown use linear; every other
-  animated mode (Rand, RandShortestDist, PingPong) uses smoothstep
-  `3t² − 2t³`.
-- **RNG** — shared engine-owned Xorshift128 (Marsaglia 2003, constants
-  11/8/19), drawn from in graph-topological execution order for
-  deterministic sequences. PHOSPHENE's implementation uses Marsaglia's
-  paper example seed at construction and exposes state injection for
-  tests; whether the DLL at 0x1001FE30 uses those exact shift constants
-  is a follow-up disassembly detail, but the sequence PHOSPHENE draws is
-  from a named external reference rather than an inferred internal one.
-- **RandShortestDist** — interpolates through the shortest arc over
-  `[Min, Max]` (circular), wrapping the result into the range.
+  5 = PingPong`. This supersedes the earlier "four-name list at 0x1fab8c"
+  reading; the additional entries (None and PingPong) sit in the runtime
+  table at 0x101FBB50 rather than the local literal pool. Corpus coverage
+  of {0..5}: Mode {1: 101, 2: 11, 3: 1, 4: 5} in the 252-scene sample.
+- **Once-per-frame update** — history.txt line 413 (v1.6): "Forced MinMax
+  node to only update itself once a frame" — this is the ONE part of the
+  state-machine specification with pre-owner-spec source evidence.
+- **Curve association** — Todd's spec: LoopUp and LoopDown use linear;
+  Rand/RandShortestDist/PingPong use smoothstep 3t²−2t³. This is the
+  owner-supplied claim, held to the same "pending DLL verification"
+  standard as the mode mapping.
+- **RandShortestDist range** — interpolates through the shortest arc over
+  `[Min, Max]` (circular).
 
-**UNRESOLVED at the executor boundary**:
-- The exact byte-level implementation at 0x100DD600 remains
-  producer-inferred against Todd's spec — the implementation matches the
-  spec, but a byte-level disassembly-vs-implementation diff has not been
-  performed. That check is the follow-up witness against the DLL.
-- DelayMode and ITimeMode's per-integer semantics beyond the corpus value
-  ranges {DelayMode: 0=5, 1=113} and {ITimeMode: 1=118} — treated as
-  scalar-tick inputs today. Observation: probe scenes varying each
-  independently.
+**PRODUCER-INFERRED LIFECYCLE CHOICES (UNRESOLVED against Plane9)**. The
+PHOSPHENE state machine ships six behavioral choices whose grounding is
+producer inference from the mode names plus the corpus, not the DLL:
+
+- The initial value of a MinMax node is Min. (Not established from
+  primary evidence — plausibility only.)
+- The initial phase is a zero-duration delay so the state machine starts
+  interpolating on the first tick. (Producer choice to avoid an initial
+  frame of undefined output; Plane9's initial state is unresolved.)
+- A change to the Mode input mid-cycle resets direction and phase.
+  (Producer choice for clean re-entry; not observed.)
+- LoopUp resets current to Min at cycle boundary and LoopDown resets to
+  Max. (Derived from the mode names, not from observation.)
+- A zero-duration delay transition consumes remaining frame time on the
+  transition tick rather than costing a frame. (Producer choice to avoid
+  the wasted-frame artifact from the previous cycle; Plane9's frame
+  accounting at the transition is unresolved.)
+- One phase transition per compute call. (Consistent with history.txt
+  line 413's once-per-frame constraint; the exact transition semantics
+  within that frame are unresolved.)
+
+**UNRESOLVED**:
+- **RNG identity** — PHOSPHENE ships Marsaglia's canonical xorshift128
+  (constants 11/8/19, paper example seed 123456789/362436069/521288629/
+  88675123) as an EXTERNAL reference implementation. Whether the DLL at
+  0x1001FE30 uses those exact constants and initialization state is not
+  established — the sequence PHOSPHENE draws is Marsaglia's, and matches
+  Plane9's only to the extent that Plane9 also uses Marsaglia's
+  canonical constants and seed. Observation: disassemble 0x1001FE30 and
+  compare byte-level to Marsaglia's paper implementation, and locate the
+  init call to determine the seed lifecycle.
+- **DelayMode and ITimeMode per-integer semantics**. Corpus ranges
+  {DelayMode: 0=5, 1=113} and {ITimeMode: 1=118} in the 252-scene
+  sample. PHOSPHENE's compute function implements the DelayMode=1 /
+  ITimeMode=1 behavior (uniform-random selection across the range) and
+  REFUSES scenes carrying other values at Engine construction —
+  DelayMode/ITimeMode ports are consumed inputs whose "1" case IS what
+  the executor does. Observation: probe scenes varying each independently
+  and diff the runtime behavior against saved traces.
 
 **Beat node** — dll: "Detects the beat in the currently playing music and
 output its as a value going from 0.0 to 1.0." (node name 0x1fb038,
@@ -170,8 +201,9 @@ amplify the values" (0x1fb0cc), Min "Minimum value" (0x1fb0fc), Max
 "Maximum value" (0x1fb10c); out BeatStrength "The strength of the
 current beat" (0x1fb11c).
 
-**RESOLVED node-level composition 2026-07-18** from owner-supplied DLL
-static analysis at RVA 0x100DF5A0 (Beat node evaluator):
+**GROUNDED node-level composition 2026-07-18** from owner-supplied DLL
+static analysis at RVA 0x100DF5A0 (Beat node evaluator), pending
+byte-level verification:
 
 - **Inactive audio** (music analysis not producing a signal):
   `BeatStrength = NoMusic`. NoMusic returns directly, without
@@ -181,9 +213,12 @@ static analysis at RVA 0x100DF5A0 (Beat node evaluator):
   max(Min, Max))`. The formula is a linear composition capped at the upper
   endpoint of the Min/Max pair.
 
-The executor treats `rawBeat` and the `musicActive` flag as native audio
-inputs — surfaced by the shared audio subsystem, not concealed in
-source-selected executor state.
+The executor treats `rawBeat` and `musicActive` as native audio inputs
+supplied by the caller. **PHOSPHENE currently supplies `musicActive=false`
+from both `src/studio.mjs` and `src/player.mjs`** (verified 2026-07-18)
+because the upstream detector producing `rawBeat` is UNRESOLVED — see
+below. Any Beat node in a running scene therefore returns
+`BeatStrength = NoMusic` until the detector is recovered.
 
 **UNRESOLVED at the upstream boundary**: the detector that produces
 `rawBeat` from the audio stream is compiled code (`CBeatNode` RTTI at

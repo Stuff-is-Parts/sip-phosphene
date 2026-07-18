@@ -502,21 +502,51 @@ export class Engine {
       if (!srcType) throw new Error(`Engine: edge source port "${e.out}" is not an output of op "${srcNode.op}" — refusing`);
       if (!dstType) throw new Error(`Engine: edge destination port "${e.in}" is not an input of op "${dstNode.op}" — refusing`);
       if (srcType !== dstType) throw new Error(`Engine: edge ${e.out} (${srcType}) -> ${e.in} (${dstType}) has mismatched port types — refusing`);
+      // Refuse multiple edges into the same input — silent last-writer-wins is
+      // exactly the ambiguity the graph model exists to prevent.
+      if (edgeDriven.has(e.in)) {
+        throw new Error(`Engine: input port "${e.in}" already has an incoming edge; a second edge would silently overwrite it — refusing ambiguous graph`);
+      }
       edgeDriven.add(e.in);
     }
-    // Every declared input port must be sourced: either the scene supplies
-    // a constant value on the port, or an incoming edge feeds it, or the
-    // input type is 'render' (structural, no value carried).
+    // Every declared input port must be sourced. Value-typed inputs (float,
+    // vec2/3/4, ...) are sourced by either a constant on the port or an
+    // incoming edge. Render-typed inputs must have an incoming render edge
+    // (they carry no value); a render op with a declared render input but
+    // no incoming render edge would be silently unwired.
     for (const n of nodes) {
       const op = opOf(n.op);
       for (const [pname, ptype] of Object.entries(op.inputs)) {
-        if (ptype === 'render') continue;
         const port = n.ports[pname];
-        const hasConstant = port !== undefined && 'value' in port;
         const hasEdge = edgeDriven.has(n.id + '.' + pname);
+        if (ptype === 'render') {
+          if (!hasEdge) throw new Error(`Engine: node "${n.id}" (${n.op}) render input port "${pname}" has no incoming render edge — refusing a disconnected render pipeline`);
+          continue;
+        }
+        const hasConstant = port !== undefined && 'value' in port;
         if (!hasConstant && !hasEdge) {
           throw new Error(`Engine: node "${n.id}" (${n.op}) input port "${pname}" (${ptype}) has neither a constant value nor an incoming edge — refusing`);
         }
+      }
+    }
+    // MinMax's DelayMode and ITimeMode ports have semantics that are only
+    // established for a specific value each (DelayMode=1, ITimeMode=1 —
+    // both are the corpus supermajority; other values are UNRESOLVED per
+    // sources/PLANE9-CONTRACT.md §MinMax). The compute function's
+    // delay/interp-duration selection IS the DelayMode=1 / ITimeMode=1
+    // behavior — that is what "1" means in this executor. Any other value
+    // refuses at construction rather than being accepted-but-ignored, per
+    // sip-phosphene/CLAUDE.md's "fix over document" and PHOSPHENE-GOAL.md's
+    // ban on ports represented as functional while having no effect.
+    for (const n of nodes) {
+      if (n.op !== 'MinMax') continue;
+      const dm = /** @type {{value?:number}|undefined} */ (n.ports.DelayMode);
+      const im = /** @type {{value?:number}|undefined} */ (n.ports.ITimeMode);
+      if (dm === undefined || !('value' in dm) || dm.value !== 1) {
+        throw new Error(`Engine: node "${n.id}" (MinMax) DelayMode=${dm?.value ?? '(unset)'}; only DelayMode=1 (uniform-random-selection) is implemented — other DelayMode values remain UNRESOLVED against Plane9Engine.dll disassembly (sources/PLANE9-CONTRACT.md §MinMax), refusing`);
+      }
+      if (im === undefined || !('value' in im) || im.value !== 1) {
+        throw new Error(`Engine: node "${n.id}" (MinMax) ITimeMode=${im?.value ?? '(unset)'}; only ITimeMode=1 (uniform-random-selection) is implemented — other ITimeMode values remain UNRESOLVED against Plane9Engine.dll disassembly (sources/PLANE9-CONTRACT.md §MinMax), refusing`);
       }
     }
     // --- topological execution order ---

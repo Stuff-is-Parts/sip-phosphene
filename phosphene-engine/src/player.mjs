@@ -184,7 +184,13 @@ function initGPU(){
         // derived relative-loudness values pass straight to the pool — no scaling
         // belongs between analyzer and engine (sources/AUDIO-PATH.md implication 1)
         engine.setViewport(canvas.width,canvas.height,texW,texH); // live dims each frame (scene swaps replace the engine)
-        const st=engine.step(dt,{bass:a.bass,mid:a.mid,treb:a.treb,bass_att:a.bassAtt,mid_att:a.midAtt,treb_att:a.trebAtt});
+        // Plane9 Beat runs INACTIVE in PHOSPHENE — the upstream detector
+        // that produces rawBeat is unresolved (Plane9Engine.dll RVA
+        // 0x100DF5A0 evaluator known, but the raw-signal source is
+        // compiled code without exported entry per PLANE9-CONTRACT.md).
+        // Passing musicActive=false makes any Beat node in the scene
+        // return NoMusic; MilkDrop bass/mid/treb are independent.
+        const st=engine.step(dt,{bass:a.bass,mid:a.mid,treb:a.treb,bass_att:a.bassAtt,mid_att:a.midAtt,treb_att:a.trebAtt,musicActive:false,rawBeat:0});
         const enc=device.createCommandEncoder();
         if(st.clear){
           // native clear-color graph: its whole realization is one WebGPU

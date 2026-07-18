@@ -5,7 +5,7 @@
 import { parsePhos, toRuntime, serializePhos, updateScene, milkToPhos, assessRecords } from './phos.mjs';
 import { importMilk, scanMilk } from './milk-import.mjs';
 import { extractSceneXml, scanP9, assessP9Records, p9ToPhos } from './p9-import.mjs';
-import { Engine } from './engine.mjs';
+import { Engine, NATIVE_OPS } from './engine.mjs';
 import { AudioEngine } from './audio/sources.mjs';
 import { feedbackWGSL, compositeWGSL } from './render-wgsl.mjs';
 import { buildStripIndices, buildWarpUVs, meshPositions, VERT_COUNT } from './warp-mesh.mjs';
@@ -98,25 +98,45 @@ $('newScene').onclick = async () => {
 const graphEl = $('graph');
 function renderGraph() {
   graphEl.innerHTML = '';
+  // Every port that the .phos declares appears in the graph, labeled by
+  // direction (in/out/render) so the graph surface is fully visible per
+  // the reviewer's finding 8 (2026-07-18). Constant floats and vec2/3/4s
+  // are editable; render-typed ports are shown as edges-only.
   for (const node of scene.nodes) {
     const n = document.createElement('div'); n.className = 'node';
     n.innerHTML = `<div class="node-h">${node.id}<span class="prim">${node.op}</span></div>`;
+    const opDecl = /** @type {any} */ (window).__opsRegistry?.[node.op];
+    const isOutput = /** @param {string} k */ (k) => opDecl ? (opDecl.outputs && k in opDecl.outputs) : false;
     for (const [key, port] of Object.entries(/** @type {Record<string,{type:string,value?:number|number[]}>} */ (node.ports))) {
-      if (!('value' in port)) continue; // structural port with no user-editable value
       const p = document.createElement('div'); p.className = 'port';
-      p.innerHTML = `<label>${key}</label>`;
+      const dirTag = port.type === 'render' ? 'render' : (isOutput(key) ? 'out' : 'in');
+      p.innerHTML = `<label>${key} <span class="port-type">(${dirTag} · ${port.type})</span></label>`;
       const qualified = node.id + '.' + key;
+      if (port.type === 'render') {
+        // structural — value comes from an edge; no editable field
+        const s = document.createElement('span'); s.className = 'edge-only'; s.textContent = '(edge-only)';
+        p.append(s); n.append(p); continue;
+      }
+      if (!('value' in port)) {
+        // no constant on this value port — it's either an output or an edge-driven input
+        const s = document.createElement('span'); s.className = 'edge-only'; s.textContent = dirTag === 'out' ? '(output)' : '(edge-driven)';
+        const live = document.createElement('span'); live.className = 'live'; live.dataset.live = qualified;
+        p.append(s, live); n.append(p); continue;
+      }
       const inp = document.createElement('input'); inp.type = 'text';
-      inp.value = String(port.value);
+      inp.value = Array.isArray(port.value) ? port.value.join(', ') : String(port.value);
       inp.dataset.key = qualified;
+      const dim = { vec2: 2, vec3: 3, vec4: 4 }[port.type];
       inp.addEventListener('change', () => {
-        // vec4 ports (e.g. Color) accept comma-separated components; floats accept one number
         const vt = inp.value.trim();
         if (port.type === 'float') {
           if (/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(vt)) { engine.setVar(qualified, parseFloat(vt)); setDirty(true); }
           else { inp.value = String(port.value); }
+        } else if (dim !== undefined) {
+          const parts = vt.split(/[,\s]+/).filter(Boolean).map(Number);
+          if (parts.length === dim && parts.every((x) => Number.isFinite(x))) { engine.setVar(qualified, /** @type {any} */ (parts)); setDirty(true); }
+          else { inp.value = Array.isArray(port.value) ? port.value.join(', ') : String(port.value); }
         } else {
-          // no live edit for vec types yet; restore visible value
           inp.value = String(port.value);
         }
       });
@@ -129,6 +149,9 @@ function renderGraph() {
   w.textContent = scene.edges.map(e => `${e.out} → ${e.in}`).join('   ·   ');
   graphEl.append(w);
 }
+// Publish NATIVE_OPS to the window so renderGraph can distinguish output
+// ports from input ports without threading the registry through every call.
+/** @type {any} */ (window).__opsRegistry = NATIVE_OPS;
 renderGraph();
 
 // ---- equation editor (MUST: edit equation live) ----
@@ -242,7 +265,11 @@ else {
       engine.setViewport(canvas.width,canvas.height,texW,texH); // live dims each frame (scene swaps replace the engine)
       audio.analysis.update(dt);
       const a=audio.analysis;
-      const st=engine.step(dt,{bass:a.bass,mid:a.mid,treb:a.treb,bass_att:a.bassAtt,mid_att:a.midAtt,treb_att:a.trebAtt});
+      // Plane9 Beat runs INACTIVE in PHOSPHENE — the upstream detector
+      // producing rawBeat is unresolved (PLANE9-CONTRACT.md §Beat). A
+      // scene with a Beat node returns NoMusic on its BeatStrength port
+      // and any Beat-driven downstream reads that.
+      const st=engine.step(dt,{bass:a.bass,mid:a.mid,treb:a.treb,bass_att:a.bassAtt,mid_att:a.midAtt,treb_att:a.trebAtt,musicActive:false,rawBeat:0});
       drawScope();
       const enc=device.createCommandEncoder();
       if(st.clear){
@@ -335,14 +362,21 @@ function ensureCMs(){
 // scenes with duplicate port names (Plane9 Color Cycle carries three MinMax
 // nodes each with a "Min" port, so the qualified form is required).
 function currentPortValues(){
-  /** @type {Record<string,number>} */
+  // Collect every currently-constant port — floats AND vectors. Vector
+  // values are read back from the scene doc since the engine's per-node
+  // ports store scalar EEL-view values for floats but keep vec-typed
+  // values in place.
+  /** @type {Record<string,number|number[]>} */
   const out={};
   for(const node of scene.nodes){
     for(const [key,port] of Object.entries(/** @type {Record<string,{value?:unknown}>} */(node.ports))){
       if(!('value' in port))continue;
-      const live=engine.getVar(node.id+'.'+key);
-      const v=typeof live==='number'?live:port.value;
-      if(typeof v==='number')out[node.id+'.'+key]=v;
+      const qualified=node.id+'.'+key;
+      const live=engine.getVar(qualified);
+      if(typeof live==='number')out[qualified]=live;
+      else if(Array.isArray(live)&&live.every(n=>typeof n==='number'))out[qualified]=/** @type {number[]} */(live);
+      else if(typeof port.value==='number')out[qualified]=port.value;
+      else if(Array.isArray(port.value))out[qualified]=/** @type {number[]} */(port.value);
     }
   }
   return out;

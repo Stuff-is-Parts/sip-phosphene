@@ -229,7 +229,7 @@ export function toRuntime(/** @type {Scene} */ scene) {
 // node-qualified form ("nodeId.portName") for scenes with duplicate port
 // names, or the bare port-name form for scenes whose port names are unique
 // (MilkDrop presets). Refuses when the bare form is ambiguous or unmapped.
-export function updateScene(/** @type {Scene} */ scene, /** @type {Record<string,number>} */ vars, /** @type {string[]} */ perFrameCode) {
+export function updateScene(/** @type {Scene} */ scene, /** @type {Record<string,number|number[]>} */ vars, /** @type {string[]} */ perFrameCode) {
   for (const [name, value] of Object.entries(vars)) {
     let owner;
     let portName;
@@ -244,7 +244,7 @@ export function updateScene(/** @type {Scene} */ scene, /** @type {Record<string
       portName = name;
     }
     if (!owner || !portName || !owner.ports[portName]) throw new Error(`updateScene: no value port matches "${name}" — refusing to save an unmapped variable`);
-    /** @type {Port} */ (owner.ports[portName]).value = value;
+    /** @type {Port} */ (owner.ports[portName]).value = Array.isArray(value) ? [...value] : value;
   }
   const perFramePrograms = scene.expressions.filter((x) => x.stage === 'per-frame');
   if (perFramePrograms.length > 1) throw new Error('updateScene: scene has multiple per-frame programs — write-back target is ambiguous, refusing');

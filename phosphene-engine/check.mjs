@@ -1091,7 +1091,60 @@ const colorCycleOk = (() => {
   return true;
 })();
 
-const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && p9Ok && registryOk && nativeClearOk && p9ConvOk && rngOk && minmaxOk && beatOk && hslOk && colorCycleOk;
+// (aj) DelayMode/ITimeMode scope guard — the executor implements only the
+//      "=1" behavior (uniform-random selection); other values REFUSE at
+//      Engine construction. This is the scope-narrowing the reviewer
+//      required to stop the "ports declared as functional while having
+//      no effect" failure mode (sip-phosphene review 2026-07-18 finding 1).
+const delayItimeModeGuardOk = (() => {
+  const xml = readFileSync(new URL('../sources/plane9/color-cycle.scene.xml', import.meta.url), 'utf8');
+  const doc = p9ToPhos(xml, { file: 'color-cycle.scene.xml', sha256: 'testsha' });
+  const canon = serializePhos(doc);
+  // Baseline: fixture with witnessed values converts and constructs cleanly
+  const baselineOk = (() => { try { new Engine(toRuntime(parsePhos(canon))); return true; } catch { return false; } })();
+  if (!baselineOk) return false;
+  // Tamper: DelayMode=0 (5 corpus scenes carry this) must refuse
+  const dm0 = canon.replace(/"DelayMode":\s*\{\s*"type":\s*"float",\s*"value":\s*1\s*\}/, '"DelayMode": { "type": "float", "value": 0 }');
+  const dm0Refuses = (() => { try { new Engine(toRuntime(parsePhos(dm0))); return false; } catch (e) { return /DelayMode=0/.test(/** @type {Error} */ (e).message) && /unresolved/i.test(/** @type {Error} */ (e).message); } })();
+  // Tamper: ITimeMode=2 (unobserved in corpus, must refuse)
+  const im2 = canon.replace(/"ITimeMode":\s*\{\s*"type":\s*"float",\s*"value":\s*1\s*\}/, '"ITimeMode": { "type": "float", "value": 2 }');
+  const im2Refuses = (() => { try { new Engine(toRuntime(parsePhos(im2))); return false; } catch (e) { return /ITimeMode=2/.test(/** @type {Error} */ (e).message) && /unresolved/i.test(/** @type {Error} */ (e).message); } })();
+  return dm0Refuses && im2Refuses;
+})();
+
+// (ak) Ambiguous-graph refusal — multi-driver last-writer-wins and
+//      disconnected render pipelines both refuse at Engine construction
+//      (reviewer 2026-07-18 finding 7).
+const ambiguousGraphRefusedOk = (() => {
+  // multi-driver: add a second edge into HSLAToColor1.Hue in Color Cycle
+  const xml = readFileSync(new URL('../sources/plane9/color-cycle.scene.xml', import.meta.url), 'utf8');
+  const doc = p9ToPhos(xml, { file: 'color-cycle.scene.xml', sha256: 'testsha' });
+  doc.edges.push({ out: 'MinMax3.Value', in: 'HSLAToColor1.Hue' }); // MinMax3 already drives Lightness, now also drives Hue — ambiguous
+  const multiDriverRefuses = (() => { try { new Engine(toRuntime(parsePhos(serializePhos(doc)))); return false; } catch (e) { return /already has an incoming edge/.test(/** @type {Error} */ (e).message); } })();
+  // disconnected render pipeline: a two-node clear-color + screen graph
+  // with NO Clear.Render->Screen.Render edge must refuse
+  const disconnected = /** @type {any} */ ({
+    format: 'phos/1',
+    meta: { name: 'x' },
+    resources: [],
+    nodes: [
+      { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } },
+      { id: 's', primitive: 'graph', op: 'screen', ports: {
+        Viewport: { type: 'vec4', value: [0, 0, 1, 1] },
+        CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] },
+        CamLookAtInWorldSpace: { type: 'float', value: 0 }, CamFov: { type: 'float', value: 45 }, CamNear: { type: 'float', value: 0.1 }, CamFar: { type: 'float', value: 1000 },
+        ScaleByAspect: { type: 'float', value: 0 },
+        Render: { type: 'render' },
+      } },
+    ],
+    edges: [],
+    expressions: [],
+  });
+  const disconnectedRefuses = (() => { try { new Engine(toRuntime(disconnected)); return false; } catch (e) { return /disconnected render pipeline/.test(/** @type {Error} */ (e).message); } })();
+  return multiDriverRefuses && disconnectedRefuses;
+})();
+
+const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && p9Ok && registryOk && nativeClearOk && p9ConvOk && rngOk && minmaxOk && beatOk && hslOk && colorCycleOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk;
 
 const eelFnCount = Object.keys(eelSubject).length;
 const eelCoveredCount = new Set(eelCases.map((c) => c[0])).size;
@@ -1164,11 +1217,20 @@ console.log('plane9 Color Cycle: scanner shape (7 nodes, 6 connections, CC0, For
 console.log('native-op registry: unknown op + unrealizable chains + mistyped edges refused, MilkDrop state shape intact:', registryOk ? 'OK' : 'FAIL');
 console.log('native clear-color scene: RGBAToColor->clear-color value-edge dataflow + Blue-pulse + port refusals:', nativeClearOk ? 'OK' : 'FAIL');
 console.log('p9 conversion door: Color Cycle full graph converts + round-trips + executes; tampering refuses:', p9ConvOk ? 'OK' : 'FAIL');
-console.log('shared xorshift128 RNG: two fresh instances match 8 draws, setState round-trips:', rngOk ? 'OK' : 'FAIL');
-console.log('MinMax: None hold + LoopUp/LoopDown linear + PingPong + Rand determinism + smoothstep vs linear discriminator:', minmaxOk ? 'OK' : 'FAIL');
-console.log('Beat: inactive = NoMusic direct + active linear formula + upper cap + Min>Max case:', beatOk ? 'OK' : 'FAIL');
-console.log('HSLAToColor: Color Cycle retained vector + pure red + pure green:', hslOk ? 'OK' : 'FAIL');
-console.log('Color Cycle full execution: fixture converts + round-trips + two engines produce identical traces + values in range:', colorCycleOk ? 'OK' : 'FAIL');
+console.log('=== SEMANTIC-SCOPE NOTE ===');
+console.log('the seven checks below verify PHOSPHENE internal regression only.');
+console.log('they do NOT establish fidelity to Plane9\'s runtime behavior — no');
+console.log('byte-level DLL comparison and no Plane9 trace comparison exists;');
+console.log('MinMax and Beat state-machine details are producer-inferred per');
+console.log('sources/PLANE9-CONTRACT.md and require observation to establish.');
+console.log('===');
+console.log('[internal regression] shared xorshift128 RNG: two fresh instances match 8 draws + setState round-trips (does NOT verify Plane9 DLL RNG identity):', rngOk ? 'OK' : 'FAIL');
+console.log('[internal regression] MinMax against PHOSPHENE\'s own implementation of Todd\'s spec — None + LoopUp/LoopDown linear + PingPong + Rand determinism + smoothstep vs linear discriminator (does NOT verify vs Plane9 traces):', minmaxOk ? 'OK' : 'FAIL');
+console.log('[internal regression] Beat node-level composition against Todd\'s spec — inactive=NoMusic direct + active linear formula + upper cap + Min>Max case (does NOT verify upstream detector):', beatOk ? 'OK' : 'FAIL');
+console.log('[internal regression] HSLAToColor standard formula — Color Cycle retained vector + pure red + pure green (one-vector against Plane9 output, two invented probes):', hslOk ? 'OK' : 'FAIL');
+console.log('[internal regression] Color Cycle full execution: fixture converts + round-trips + two PHOSPHENE engines produce identical traces + values in range (does NOT verify traces match Plane9):', colorCycleOk ? 'OK' : 'FAIL');
+console.log('[MinMax scope bound] DelayMode/ITimeMode ≠ 1 refuses at Engine construction:', delayItimeModeGuardOk ? 'OK' : 'FAIL');
+console.log('[graph correctness] multi-driver refusal + render-input requires incoming edge:', ambiguousGraphRefusedOk ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
 console.log('inert value port refused at engine construction (shared OP_PORTS):', inertPortOk ? 'OK' : 'FAIL');
 console.log('triage scan: all refusals collected, strict import still throws first:', triageOk ? 'OK' : 'FAIL');
