@@ -1,6 +1,10 @@
 <!doctype html><html><head><meta charset="utf-8"><title>PHOSPHENE Studio</title>
 <link rel="stylesheet" href="./vendor/codemirror/codemirror.css">
+<link rel="stylesheet" href="./vendor/codemirror/foldgutter.css">
 <script src="./vendor/codemirror/codemirror.js"></script>
+<script src="./vendor/codemirror/foldcode.js"></script>
+<script src="./vendor/codemirror/foldgutter.js"></script>
+<script src="./vendor/codemirror/brace-fold.js"></script>
 <style>
   :root{--bg:#0b0d10;--panel:#14181d;--edge:#232a31;--fg:#c9d3dd;--dim:#6b7885;--accent:#4ea1ff;--good:#3ddc84}
   *{box-sizing:border-box}
@@ -49,11 +53,14 @@
   .badge{font-size:9px;font-weight:700;padding:0 3px;cursor:default}
   .bS{color:#4ea1ff}.bD{color:#3ddc84}.bW{color:#f2d97d}
   .foldWidget{color:var(--good);cursor:pointer;font-style:italic;font-size:11px}
+  .CodeMirror-foldgutter{width:12px}
+  .CodeMirror-foldgutter-open:after{content:"▾";color:var(--dim)}
+  .CodeMirror-foldgutter-folded:after{content:"▸";color:var(--good)}
   #srcLegend{font-size:10px;color:var(--dim);margin-left:10px;flex:none}
   .tokKeyA{color:#7db8ff;font-weight:600}
-  .tokValA{color:#ffcf6e}
+  .tokValA{color:#7db8ff}
   .tokKeyB{color:#5ee0c8;font-weight:600}
-  .tokValB{color:#ffa96e}
+  .tokValB{color:#5ee0c8}
   .tokComment{color:var(--dim);font-style:italic}
   #srcNote{color:var(--dim);font-size:11px}
 </style></head>
@@ -335,6 +342,15 @@ let phosMeta=[];           // per-.phos-line origin {kind, srcLine?, label}
 let hitLines=[]; let selLine=-1;
 let alignScroll=false;     // triage mode: lockstep scrolling, no click nav
 let importedSrcText=null;  // in-memory source for imported files (not served)
+const foldRuns=new Map();  // .phos line -> {from,to,label} for each node's default block
+// CodeMirror's own fold machinery does the folding (foldcode/foldgutter,
+// vendored from the same 5.65.18 package): this finder hands it the
+// default-block ranges, and falls back to ordinary brace folding elsewhere
+function blockFinder(cm,pos){
+  const run=foldRuns.get(pos.line);
+  if(run)return {from:CodeMirror.Pos(run.fromLine,run.fromCh),to:CodeMirror.Pos(run.toLine,run.toCh)};
+  return CodeMirror.fold.brace(cm,pos);
+}
 function ensureCMs(){
   if(!cmSrc){
     cmSrc=CodeMirror(document.getElementById('cmSrcHost'),{value:'',readOnly:true,lineNumbers:true,mode:null});
@@ -342,7 +358,9 @@ function ensureCMs(){
     cmSrc.on('scroll',()=>{ if(alignScroll&&cmPhos)cmPhos.scrollTo(null,cmSrc.getScrollInfo().top); });
   }
   if(!cmPhos){
-    cmPhos=CodeMirror(document.getElementById('cmPhosHost'),{value:'',readOnly:true,lineNumbers:true,mode:null,gutters:['CodeMirror-linenumbers','origin']});
+    cmPhos=CodeMirror(document.getElementById('cmPhosHost'),{value:'',readOnly:true,lineNumbers:true,mode:null,
+      foldGutter:{rangeFinder:blockFinder},
+      gutters:['CodeMirror-linenumbers','origin','CodeMirror-foldgutter']});
     cmPhos.on('cursorActivity',()=>{ if(!alignScroll)jumpFromPhos(cmPhos.getCursor().line); });
   }
 }
@@ -499,16 +517,18 @@ function buildPhosView(srcText,phosText){
     for(let i=eStart;i<=eEnd;i++)phosMeta[i]=wm;
     cmPhos.setGutterMarker(eStart,'origin',badgeEl('W'));
   }
-  // collapse each node's contiguous default block to one labeled line
+  // fold each node's contiguous default block through CodeMirror's fold
+  // machinery — the gutter caret toggles it both ways
+  foldRuns.clear();
   let run=[];
   const flush=()=>{
     if(run.length===0)return;
     const first=run[0], last=run[run.length-1];
     const w=document.createElement('span');
     w.className='foldWidget';
-    w.textContent='▸ '+run.length+' materialized defaults ('+first.node+') — '+first.meta.cite+' — click to expand';
-    const mark=cmPhos.markText({line:first.line,ch:0},{line:last.end,ch:(phosLines[last.end]||'').length},{collapsed:true,replacedWith:w});
-    w.onclick=()=>mark.clear();
+    w.textContent=' ▸ '+run.length+' materialized defaults ('+first.node+') — '+first.meta.cite+' ';
+    foldRuns.set(first.line,{fromLine:first.line,fromCh:0,toLine:last.end,toCh:(phosLines[last.end]||'').length});
+    cmPhos.foldCode(CodeMirror.Pos(first.line,0),{rangeFinder:blockFinder,widget:w},'fold');
     run=[];
   };
   for(const pt of ports){
