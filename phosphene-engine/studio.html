@@ -40,12 +40,21 @@
   #srcOverlay .CodeMirror-gutters{background:#0f1317;border-right:1px solid var(--edge)}
   #srcOverlay .CodeMirror-linenumber{color:var(--dim)}
   #srcOverlay .CodeMirror-cursor{border-left:1px solid var(--fg)}
-  .srcHit{background:rgba(78,161,255,.20)}
-  .srcRefused{background:rgba(242,125,125,.16)}
+  .srcHit{background:rgba(78,161,255,.30)}
+  .srcRefused{background:rgba(242,125,125,.30)}
   #srcOverlay.single .panes{grid-template-columns:1fr}
   #srcOverlay.single .pane.left{display:none}
-  .srcSel{background:rgba(78,161,255,.10)}
-  .srcDefault{background:rgba(61,220,132,.10)}
+  .srcSel{background:rgba(78,161,255,.16)}
+  .srcDefault{background:rgba(61,220,132,.26)}
+  .badge{font-size:9px;font-weight:700;padding:0 3px;cursor:default}
+  .bS{color:#4ea1ff}.bD{color:#3ddc84}.bW{color:#f2d97d}
+  .foldWidget{color:var(--good);cursor:pointer;font-style:italic;font-size:11px}
+  #srcLegend{font-size:10px;color:var(--dim);margin-left:10px;flex:none}
+  .tokKeyA{color:#7db8ff;font-weight:600}
+  .tokValA{color:#ffcf6e}
+  .tokKeyB{color:#5ee0c8;font-weight:600}
+  .tokValB{color:#ffa96e}
+  .tokComment{color:var(--dim);font-style:italic}
   #srcNote{color:var(--dim);font-size:11px}
 </style></head>
 <body>
@@ -77,6 +86,7 @@
 <div id="srcOverlay">
   <div class="row" style="margin:0">
     <b style="letter-spacing:.06em">SOURCE ⇄ .PHOS</b>
+    <span id="srcLegend"><b class="bS">S</b> from source line · <b class="bD">D</b> materialized default · <b class="bW">W</b> pipeline wiring</span>
     <span id="srcNote"></span>
     <button id="srcClose" style="margin-left:auto">✕ Close</button>
   </div>
@@ -311,25 +321,30 @@ else {
 
 // ---- source ⇄ .phos review + one format-dispatched Import ------------------
 // Context-sensitive viewer: dual panes when the scene carries a source from
-// another engine (meta.source), a single .phos pane for native scenes. On a
-// refused .milk import the popup opens in triage mode: left pane is the
-// source with refused lines tinted red, right pane is a LINE-ALIGNED
-// disposition report from the same handler registry conversion uses
-// (scanMilk + assessRecords — nothing loadable is produced for a refusal).
+// another engine (meta.source), a single .phos pane for native scenes, and a
+// line-aligned triage report for refused imports. In dual mode every .phos
+// line knows its origin — S emitted from a source line, D materialized
+// default (converter-added, state.cpp citation attached), W pipeline wiring,
+// unmarked JSON framing — with badges in a gutter, each node's default block
+// collapsed to one labeled line, and clicks resolving across BOTH panes.
 const srcOverlay=document.getElementById('srcOverlay');
 const srcNote=document.getElementById('srcNote');
 let cmSrc=null, cmPhos=null;
-let lineMap=new Map();     // dual mode: source line -> {phosLine, label}
+let lineMap=new Map();     // source line number -> .phos line index
+let phosMeta=[];           // per-.phos-line origin {kind, srcLine?, label}
 let hitLines=[]; let selLine=-1;
-let alignScroll=false;     // triage mode: panes scroll in lockstep
+let alignScroll=false;     // triage mode: lockstep scrolling, no click nav
 let importedSrcText=null;  // in-memory source for imported files (not served)
 function ensureCMs(){
   if(!cmSrc){
     cmSrc=CodeMirror(document.getElementById('cmSrcHost'),{value:'',readOnly:true,lineNumbers:true,mode:null});
-    cmSrc.on('cursorActivity',()=>{ if(!alignScroll)jumpTo(cmSrc.getCursor().line+1); });
+    cmSrc.on('cursorActivity',()=>{ if(!alignScroll)jumpFromSource(cmSrc.getCursor().line+1); });
     cmSrc.on('scroll',()=>{ if(alignScroll&&cmPhos)cmPhos.scrollTo(null,cmSrc.getScrollInfo().top); });
   }
-  if(!cmPhos)cmPhos=CodeMirror(document.getElementById('cmPhosHost'),{value:'',readOnly:true,lineNumbers:true,mode:null});
+  if(!cmPhos){
+    cmPhos=CodeMirror(document.getElementById('cmPhosHost'),{value:'',readOnly:true,lineNumbers:true,mode:null,gutters:['CodeMirror-linenumbers','origin']});
+    cmPhos.on('cursorActivity',()=>{ if(!alignScroll)jumpFromPhos(cmPhos.getCursor().line); });
+  }
 }
 function updateSrcBtn(){
   const hasSrc=!!(sceneDoc.meta&&sceneDoc.meta.source);
@@ -351,8 +366,8 @@ function openSingle(msg){
   ensureCMs();
   srcOverlay.classList.add('open','single');
   document.querySelector('#srcOverlay .pane:not(.left) h3').textContent='scene code (.phos)';
+  phosMeta=[]; lineMap=new Map(); hitLines=[]; alignScroll=false;
   cmPhos.setValue(serializePhos(sceneDoc));
-  alignScroll=false; lineMap=new Map(); hitLines=[];
   srcNote.textContent=msg||'native scene — .phos code (read-only; edit through the panel)';
 }
 function openDual(srcText,fileName){
@@ -361,15 +376,16 @@ function openDual(srcText,fileName){
   document.getElementById('srcTitleL').textContent=fileName;
   document.querySelector('#srcOverlay .pane:not(.left) h3').textContent='current .phos (live, incl. unsaved edits)';
   const phosNow=serializePhos(sceneDoc);
+  phosMeta=[]; lineMap=new Map(); hitLines=[]; selLine=-1; alignScroll=false;
   cmSrc.setValue(srcText); cmPhos.setValue(phosNow);
-  alignScroll=false; hitLines=[]; selLine=-1;
-  buildLineMap(srcText,phosNow);
+  buildPhosView(srcText,phosNow);
 }
 function openTriage(srcText,fileName){
   ensureCMs();
   srcOverlay.classList.add('open'); srcOverlay.classList.remove('single');
   document.getElementById('srcTitleL').textContent=fileName+' — REFUSED';
   document.querySelector('#srcOverlay .pane:not(.left) h3').textContent='per-line disposition (nothing was imported)';
+  phosMeta=[]; lineMap=new Map(); hitLines=[]; alignScroll=true;
   cmSrc.setValue(srcText);
   const dis=assessRecords(scanMilk(srcText));
   const rows=new Array(srcText.split('\n').length).fill('');
@@ -377,52 +393,157 @@ function openTriage(srcText,fileName){
   for(const d of dis){ rows[d.line-1]=(d.ok?'· ':'✗ ')+d.text; if(!d.ok)bad++; }
   cmPhos.setValue(rows.join('\n'));
   for(const d of dis)if(!d.ok)cmSrc.addLineClass(d.line-1,'background','srcRefused');
-  alignScroll=true; lineMap=new Map(); hitLines=[];
   srcNote.textContent=bad+' of '+dis.length+' source lines cannot convert yet — panes scroll together, ✗ rows name each reason';
 }
-function buildLineMap(srcText,phosText){
-  lineMap=new Map();
+function badgeEl(letter){
+  const b=document.createElement('span');
+  b.className='badge b'+letter; b.textContent=letter;
+  return b;
+}
+function markTok(cm,line,ch,len,cls){ if(ch>=0&&len>0)cm.markText({line,ch},{line,ch:ch+len},{className:cls}); }
+// Build the per-line origin model for the .phos pane: which node each port
+// belongs to comes from the scene text itself (no duplicated registry), and
+// the default citations follow the converter's own sources — warp defaults
+// state.cpp:654-665, composite defaults state.cpp:541-544.
+function buildPhosView(srcText,phosText){
   const phosLines=phosText.split('\n');
   let ir;
   try{ ir=importMilk(srcText); }
   catch(e){ srcNote.textContent='importer refuses this source: '+e.message; return; }
+  phosMeta=new Array(phosLines.length).fill(null);
+  const recLineByKey=new Map();
   const sourceKeys=new Set();
-  const find=(/** pred */ f)=>phosLines.findIndex(f);
+  const parityByKey=new Map(); // alternating pair hues, same parity in both panes
+  let pIdx=0;
   for(const rec of ir.records){
-    if(rec.kind==='value'){
-      sourceKeys.add(rec.key);
-      const i=find(l=>l.trim().startsWith('"'+rec.key+'": {'));
-      if(i>=0)lineMap.set(rec.line,{phosLine:i,label:'port '+rec.key});
-    } else if(rec.kind==='equation'){
-      const i=find(l=>l.includes(JSON.stringify(rec.code)));
-      if(i>=0)lineMap.set(rec.line,{phosLine:i,label:'per-frame program code'});
-    } else if(rec.kind==='comment'){
-      const i=find(l=>l.includes(JSON.stringify(rec.text)));
-      if(i>=0)lineMap.set(rec.line,{phosLine:i,label:'preserved source comment'});
-    } else if(rec.kind==='section'){
-      const i=find(l=>l.includes('"sourceEngine"'));
-      if(i>=0)lineMap.set(rec.line,{phosLine:i,label:'structural marker → provenance'});
+    if(rec.kind==='value'){ sourceKeys.add(rec.key); recLineByKey.set(rec.key,rec.line); parityByKey.set(rec.key,pIdx++%2); }
+    else if(rec.kind==='equation')parityByKey.set('eq:'+rec.line,pIdx++%2);
+  }
+  // walk the .phos text: track node ids, find port-name lines
+  let node='';
+  const ports=[];
+  phosLines.forEach((l,i)=>{
+    const idm=l.match(/^\s{6}"id": "(\w+)",$/);
+    if(idm)node=idm[1];
+    const pm=l.match(/^\s{8}"([A-Za-z_][A-Za-z0-9_]*)": \{$/);
+    if(pm)ports.push({line:i,key:pm[1],node});
+  });
+  for(const pt of ports){
+    const isValue=(phosLines[pt.line+2]||'').trim().startsWith('"value"');
+    const end=pt.line+(isValue?3:2);
+    let m;
+    if(!isValue){
+      m={kind:'wiring',label:'render wiring '+pt.node+'.'+pt.key+' — fixed pipeline (milkdropfs.cpp:1048-1214)'};
+      cmPhos.setGutterMarker(pt.line,'origin',badgeEl('W'));
+    } else if(sourceKeys.has(pt.key)){
+      const sl=recLineByKey.get(pt.key);
+      m={kind:'source',srcLine:sl,label:'port '+pt.key+' ← source line '+sl};
+      lineMap.set(sl,pt.line);
+      cmPhos.setGutterMarker(pt.line,'origin',badgeEl('S'));
+      const ab=parityByKey.get(pt.key)?'B':'A';
+      markTok(cmPhos,pt.line,(phosLines[pt.line]||'').indexOf('"'),pt.key.length+2,'tokKey'+ab);
+      const vl=phosLines[pt.line+2]||'';
+      const vm=vl.match(/^(\s*"value": )(\S+?),?$/);
+      if(vm)markTok(cmPhos,pt.line+2,vm[1].length,vm[2].length,'tokVal'+ab);
+    } else {
+      const cite=pt.node==='comp'?'state.cpp:541-544':'state.cpp:654-665';
+      m={kind:'default',label:'materialized default '+pt.key+' — MilkDrop applies this invisibly ('+cite+')',cite};
+      cmPhos.setGutterMarker(pt.line,'origin',badgeEl('D'));
+      for(let i=pt.line;i<=end;i++)cmPhos.addLineClass(i,'background','srcDefault');
+    }
+    for(let i=pt.line;i<=end;i++)phosMeta[i]=m;
+    pt.meta=m; pt.end=end;
+  }
+  // equations, comments, section -> their .phos landings
+  for(const rec of ir.records){
+    let i=-1, label='';
+    if(rec.kind==='equation'){ i=phosLines.findIndex(l=>l.includes(JSON.stringify(rec.code))); label='per-frame program code ← source line '+rec.line; }
+    else if(rec.kind==='comment'){ i=phosLines.findIndex(l=>l.includes(JSON.stringify(rec.text))); label='preserved source comment ← source line '+rec.line; }
+    else if(rec.kind==='section'){ i=phosLines.findIndex(l=>l.includes('"sourceEngine"')); label='structural marker → provenance block'; }
+    if(i>=0){
+      phosMeta[i]={kind:'source',srcLine:rec.line,label};
+      lineMap.set(rec.line,i);
+      cmPhos.setGutterMarker(i,'origin',badgeEl('S'));
+      const li=phosLines[i]||'';
+      if(rec.kind==='equation'){
+        const ab=parityByKey.get('eq:'+rec.line)?'B':'A';
+        markTok(cmPhos,i,li.indexOf('"'),li.trim().length,'tokVal'+ab);
+      }
+      if(rec.kind==='comment')markTok(cmPhos,i,li.indexOf('"'),li.trim().length,'tokComment');
     }
   }
-  phosLines.forEach((l,i)=>{
-    const m=l.match(/^\s{8}"([A-Za-z_][A-Za-z0-9_]*)": \{$/);
-    if(m&&m[1]!=='out'&&m[1]!=='in'&&!sourceKeys.has(m[1]))cmPhos.addLineClass(i,'background','srcDefault');
-  });
-  srcNote.textContent='click a source line to see its landing · green on the right = converter-materialized default';
+  // token-color the source pane with the SAME pair hues, so ib_a=1.0 on the
+  // left and the ib_a port on the right read as one colored pair
+  const srcLines=srcText.split('\n');
+  for(const rec of ir.records){
+    const lt=srcLines[rec.line-1]||'';
+    const eq=lt.indexOf('=');
+    if(rec.kind==='value'){
+      const ab=parityByKey.get(rec.key)?'B':'A';
+      markTok(cmSrc,rec.line-1,lt.indexOf(rec.key),rec.key.length,'tokKey'+ab);
+      markTok(cmSrc,rec.line-1,eq+1,lt.length-eq-1,'tokVal'+ab);
+    } else if(rec.kind==='equation'){
+      const ab=parityByKey.get('eq:'+rec.line)?'B':'A';
+      markTok(cmSrc,rec.line-1,0,eq,'tokKey'+ab);
+      markTok(cmSrc,rec.line-1,eq+1,lt.length-eq-1,'tokVal'+ab);
+    } else if(rec.kind==='comment'){
+      markTok(cmSrc,rec.line-1,0,lt.length,'tokComment');
+    }
+  }
+  // edges block is wiring
+  const eStart=phosLines.findIndex(l=>l.trim()==='"edges": [');
+  if(eStart>=0){
+    let eEnd=eStart;
+    while(eEnd<phosLines.length-1&&(phosLines[eEnd]||'').trim()!=='],')eEnd++;
+    const wm={kind:'wiring',label:'pipeline wiring warp → borders → comp — fixed pipeline (milkdropfs.cpp:1048-1214)'};
+    for(let i=eStart;i<=eEnd;i++)phosMeta[i]=wm;
+    cmPhos.setGutterMarker(eStart,'origin',badgeEl('W'));
+  }
+  // collapse each node's contiguous default block to one labeled line
+  let run=[];
+  const flush=()=>{
+    if(run.length===0)return;
+    const first=run[0], last=run[run.length-1];
+    const w=document.createElement('span');
+    w.className='foldWidget';
+    w.textContent='▸ '+run.length+' materialized defaults ('+first.node+') — '+first.meta.cite+' — click to expand';
+    const mark=cmPhos.markText({line:first.line,ch:0},{line:last.end,ch:(phosLines[last.end]||'').length},{collapsed:true,replacedWith:w});
+    w.onclick=()=>mark.clear();
+    run=[];
+  };
+  for(const pt of ports){
+    if(pt.meta.kind==='default'&&(run.length===0||run[run.length-1].node===pt.node))run.push(pt);
+    else flush();
+    if(pt.meta.kind==='default'&&run.length===0)run.push(pt);
+  }
+  flush();
+  srcNote.textContent='click either pane to trace a line · defaults are folded per node';
 }
-function jumpTo(srcLine){
-  if(!cmPhos||!cmSrc||lineMap.size===0)return;
+function jumpFromSource(srcLine){
+  if(!cmPhos||!cmSrc||phosMeta.length===0)return;
   for(const i of hitLines)cmPhos.removeLineClass(i,'background','srcHit');
   hitLines=[];
   if(selLine>=0)cmSrc.removeLineClass(selLine,'background','srcSel');
   selLine=srcLine-1;
   cmSrc.addLineClass(selLine,'background','srcSel');
-  const hit=lineMap.get(srcLine);
-  if(!hit){ srcNote.textContent='line '+srcLine+': no direct .phos landing (blank line)'; return; }
-  cmPhos.addLineClass(hit.phosLine,'background','srcHit');
-  hitLines.push(hit.phosLine);
-  cmPhos.scrollIntoView({line:hit.phosLine,ch:0},80);
-  srcNote.textContent='source line '+srcLine+' → '+hit.label+' (.phos line '+(hit.phosLine+1)+')';
+  const pl=lineMap.get(srcLine);
+  if(pl===undefined){ srcNote.textContent='source line '+srcLine+': no direct .phos landing (blank line)'; return; }
+  cmPhos.addLineClass(pl,'background','srcHit');
+  hitLines.push(pl);
+  cmPhos.scrollIntoView({line:pl,ch:0},80);
+  srcNote.textContent='source line '+srcLine+' → '+(phosMeta[pl]?phosMeta[pl].label:'.phos line '+(pl+1));
+}
+function jumpFromPhos(pLine){
+  if(!cmPhos||!cmSrc||phosMeta.length===0)return;
+  const m=phosMeta[pLine];
+  if(selLine>=0){ cmSrc.removeLineClass(selLine,'background','srcSel'); selLine=-1; }
+  if(!m){ srcNote.textContent='.phos line '+(pLine+1)+': scene structure (JSON framing, no single source line)'; return; }
+  if(m.kind==='source'){
+    selLine=m.srcLine-1;
+    cmSrc.addLineClass(selLine,'background','srcSel');
+    cmSrc.scrollIntoView({line:selLine,ch:0},80);
+  }
+  srcNote.textContent='.phos line '+(pLine+1)+': '+m.label;
 }
 // ---- one Import button: dispatch by format, refuse unknowns by name --------
 // .phos loads natively; .milk converts through the strict door (a refusal
