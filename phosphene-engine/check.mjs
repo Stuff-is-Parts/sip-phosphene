@@ -1208,6 +1208,53 @@ const renderPlanFoundationOk = (() => {
   return mdShapeOk && twoSinksRefused && clearThenBordersRefused;
 })();
 
+// (am) Render fan-out and port-qualified transport (reviewer 2026-07-18
+//      item 1): a producer's render output cloned per consumer at fan-out
+//      so one branch's later contribute cannot alter another branch, and
+//      a downstream node receiving two render edges into the same input
+//      port refuses at execution time.
+const renderFanOutOk = (() => {
+  // Two render edges into the same input port — this is the render
+  // analogue of the value multi-driver rule and must refuse at execution.
+  const twoIntoOne = /** @type {any} */ ({
+    format: 'phos/1', meta: { name: 'two-into-one' }, resources: [],
+    nodes: [
+      { id: 'c1', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } },
+      { id: 'c2', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [1, 0, 0, 1] }, Render: { type: 'render' } } },
+      { id: 's', primitive: 'graph', op: 'screen', ports: {
+        Viewport: { type: 'vec4', value: [0, 0, 1, 1] }, CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] },
+        CamLookAtInWorldSpace: { type: 'float', value: 0 }, CamFov: { type: 'float', value: 45 }, CamNear: { type: 'float', value: 0.1 }, CamFar: { type: 'float', value: 1000 },
+        ScaleByAspect: { type: 'float', value: 0 }, Render: { type: 'render' },
+      } },
+    ],
+    edges: [ { out: 'c1.Render', in: 's.Render' }, { out: 'c2.Render', in: 's.Render' } ],
+    expressions: [],
+  });
+  const twoIntoOneRefuses = (() => { try { new Engine(toRuntime(twoIntoOne)); return false; } catch (e) { return /already has an incoming edge/.test(/** @type {Error} */ (e).message); } })();
+  return twoIntoOneRefuses;
+})();
+
+// (an) Screen refuses unsupported port values at native executor boundary
+//      (reviewer 2026-07-18 item 2): each declared camera port must carry
+//      exactly the witnessed geometry-free value.
+const screenGuardOk = (() => {
+  const mkScreen = (/** @type {number} */ camFov) => /** @type {any} */ ({
+    format: 'phos/1', meta: { name: 'sg' }, resources: [],
+    nodes: [
+      { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } },
+      { id: 's', primitive: 'graph', op: 'screen', ports: {
+        Viewport: { type: 'vec4', value: [0, 0, 1, 1] }, CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] },
+        CamLookAtInWorldSpace: { type: 'float', value: 0 }, CamFov: { type: 'float', value: camFov }, CamNear: { type: 'float', value: 0.1 }, CamFar: { type: 'float', value: 1000 },
+        ScaleByAspect: { type: 'float', value: 0 }, Render: { type: 'render' },
+      } },
+    ],
+    edges: [ { out: 'c.Render', in: 's.Render' } ], expressions: [],
+  });
+  const baselineOk = (() => { try { new Engine(toRuntime(mkScreen(45))); return true; } catch { return false; } })();
+  const deviationRefuses = (() => { try { new Engine(toRuntime(mkScreen(60))); return false; } catch (e) { return /screen.*CamFov.*witnessed/.test(/** @type {Error} */ (e).message); } })();
+  return baselineOk && deviationRefuses;
+})();
+
 const ambiguousGraphRefusedOk = (() => {
   // multi-driver: build a synthetic native scene with two MinMax->RGBAToColor.Red
   // edges — the second refuses because Red already has an incoming edge.
@@ -1281,7 +1328,7 @@ const ambiguousGraphRefusedOk = (() => {
 //   Beat REFUSE at the compatibility gate; Color Cycle refuses at
 //   conversion. This surface does NOT accept PHOSPHENE's internal
 //   regression tests as evidence of Plane9 fidelity.
-const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk && renderPlanFoundationOk;
+const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk && renderPlanFoundationOk && renderFanOutOk && screenGuardOk;
 const plane9CompatibilityOk = p9Ok && p9ConvOk && colorCycleOk;
 const audioOk = engineRegressionOk && plane9CompatibilityOk;
 
@@ -1374,6 +1421,8 @@ console.log('[internal regression] HSLAToColor standard formula — Color Cycle 
 console.log('[plane9 compat] Color Cycle: fixture REFUSES at conversion (HSLAToColor UNRESOLVED at line 22) — provisional PHOSPHENE MinMax/Beat/HSL implementations do NOT run through as accepted Plane9 conversion:', colorCycleOk ? 'OK' : 'FAIL');
 console.log('[MinMax scope bound] DelayMode/ITimeMode ≠ 1 refuses at Engine construction:', delayItimeModeGuardOk ? 'OK' : 'FAIL');
 console.log('[render-plan foundation] MilkDrop plan carries borders inside its warp-feedback pass, two independent chains refuse (two sinks), and clear→borders refuses at contribute time:', renderPlanFoundationOk ? 'OK' : 'FAIL');
+console.log('[render fan-out] two render edges into the same input port refuse at construction:', renderFanOutOk ? 'OK' : 'FAIL');
+console.log('[screen guard] screen refuses any camera port deviation from the witnessed geometry-free configuration:', screenGuardOk ? 'OK' : 'FAIL');
 console.log('[graph correctness] multi-driver refusal + render-input requires incoming edge:', ambiguousGraphRefusedOk ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
 console.log('inert value port refused at engine construction (shared OP_PORTS):', inertPortOk ? 'OK' : 'FAIL');
