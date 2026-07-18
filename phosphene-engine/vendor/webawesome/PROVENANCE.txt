@@ -1,8 +1,8 @@
 Web Awesome 3.10.0 (@awesome.me/webawesome), MIT license (LICENSE.md
 alongside). Vendored from the package's dist-cdn browser build: components
-button, split-panel, tab, tab-group, tab-panel, drawer plus their complete
-chunk import closure (55 chunks, resolved mechanically by walking every
-import statement), and dist/styles/webawesome.css +
+button, button-group, split-panel, tab, tab-group, tab-panel, drawer plus
+their complete chunk import closure (57 chunks, resolved mechanically by
+walking every import statement), and dist/styles/webawesome.css +
 dist/styles/themes/default.css, plus dist/styles/utilities.css, layers.css,
 and the COMPLETE CSS @import closure of webawesome.css and
 themes/default.css (27 files including native.css and color/palettes —

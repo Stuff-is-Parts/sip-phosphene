@@ -6,9 +6,20 @@
       "customSyntax": "postcss-html",
       "rules": {
         "selector-disallowed-list": [
-          ["/wa-/"],
+          ["/(^|[\\s>+~,(])wa-/"],
           {
-            "message": "custom CSS targeting a shadow-DOM component — use the component's API instead (host inline styles, token overrides, shipped utility classes), or admit the missing capability properly (CLAUDE.md: APIs over custom code)"
+            "message": "custom CSS targeting a shadow-DOM component element — use the component's API instead (host inline styles, token overrides, shipped utility classes), or admit the missing capability properly (CLAUDE.md: APIs over custom code). Token-override classes like .wa-dark are the documented theming surface and pass."
+          }
+        ]
+      }
+    },
+    {
+      "files": ["phosphene-engine/*.css"],
+      "rules": {
+        "selector-disallowed-list": [
+          ["/(^|[\\s>+~,(])wa-/"],
+          {
+            "message": "custom CSS targeting a shadow-DOM component element — use the component's API instead (host inline styles, token overrides, shipped utility classes), or admit the missing capability properly (CLAUDE.md: APIs over custom code). Token-override classes like .wa-dark are the documented theming surface and pass."
           }
         ]
       }

@@ -1,8 +1,10 @@
-<!doctype html><html class="wa-dark" style="--wa-color-surface-default:#14181d;--wa-color-surface-lowered:#0b0d10;--wa-color-surface-border:#232a31;--wa-color-brand-fill-loud:#4ea1ff;--wa-font-family-body:ui-monospace,monospace;--wa-font-family-code:ui-monospace,monospace"><head><meta charset="utf-8"><title>PHOSPHENE Studio</title>
+<!doctype html><html class="wa-dark"><head><meta charset="utf-8"><title>PHOSPHENE Studio</title>
 <link rel="stylesheet" href="./vendor/webawesome/styles/webawesome.css">
 <link rel="stylesheet" href="./vendor/webawesome/styles/themes/default.css">
 <link rel="stylesheet" href="./vendor/webawesome/styles/utilities.css">
+<link rel="stylesheet" href="./phosphene.theme.css">
 <script type="module" src="./vendor/webawesome/components/button/button.js"></script>
+<script type="module" src="./vendor/webawesome/components/button-group/button-group.js"></script>
 <script type="module" src="./vendor/webawesome/components/split-panel/split-panel.js"></script>
 <script type="module" src="./vendor/webawesome/components/tab/tab.js"></script>
 <script type="module" src="./vendor/webawesome/components/tab-group/tab-group.js"></script>
@@ -16,7 +18,12 @@
 <script src="./vendor/codemirror/brace-fold.js"></script>
 <script src="./vendor/codemirror/javascript.js"></script>
 <style>
-  :root{--bg:#0b0d10;--panel:#14181d;--edge:#232a31;--fg:#c9d3dd;--dim:#6b7885;--accent:#4ea1ff;--good:#3ddc84}
+  /* page palette consumes the theme tokens — phosphene.theme.css is the one
+     color authority; --good stays a data/status color, like the meter hues */
+  :root{--bg:var(--wa-color-surface-lowered);--panel:var(--wa-color-surface-default);--edge:var(--wa-color-surface-border);--fg:var(--wa-color-text-normal);--dim:var(--wa-color-text-quiet);--accent:var(--wa-color-brand-fill-loud);--good:#3ddc84}
+  /* custom (vendored native.css:912 sets input[type=file]{display:block},
+     which beats the UA [hidden] rule — the API has no hidden-file-input answer) */
+  input[type=file][hidden]{display:none}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.4 ui-monospace,monospace;height:100vh;overflow:hidden}
   #stage{height:100%}
@@ -39,7 +46,9 @@
   #hud{position:absolute;top:8px;left:8px;color:var(--dim);font-size:11px}
   #hud b{color:var(--good)}
   #panel{background:var(--panel);border-left:1px solid var(--edge);overflow-y:auto;padding:12px}
-  h2{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin:16px 0 8px;font-weight:700;border-bottom:1px solid var(--edge);padding-bottom:4px}
+  /* titles read as lit signage: accent color with a soft tube glow (our own
+     elements — heading treatment is page CSS, not component internals) */
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.14em;color:var(--accent);margin:18px 0 8px;font-weight:700;border-bottom:1px solid var(--edge);padding-bottom:5px;text-shadow:0 0 8px rgba(0,229,255,.45)}
   h2:first-child{margin-top:0}
   .node{border:1px solid var(--edge);border-radius:6px;margin-bottom:8px;background:#0f1317}
   .node-h{padding:6px 8px;border-bottom:1px solid var(--edge);color:var(--accent);font-weight:600;display:flex;justify-content:space-between}
@@ -95,17 +104,23 @@
   <div slot="end" id="panel">
     <h2>Scene <span id="dirty" class="meta"></span></h2>
     <div class="meta" id="meta"></div>
+    <!-- toolbar: three functional clusters through the API's button-group
+         component — transport / file / views — instead of ragged rows -->
     <div class="row wa-flex-wrap">
-      <wa-button size="small" id="play" style="width:96px">⏸ Pause</wa-button>
-      <wa-button size="small" id="reset">↺ Reset</wa-button>
-      <wa-button size="small" id="library">☰ Library</wa-button>
-      <a href="./index.html" style="margin-left:auto;font-size:11px;letter-spacing:.06em;padding:5px 10px;background:var(--edge);border:1px solid #4a4020;color:#f2d97d;text-decoration:none;border-radius:4px">← PLAYER</a>
-    </div>
-    <div class="row wa-flex-wrap">
-      <wa-button size="small" variant="brand" id="savePhos">⭳ Save .phos</wa-button>
-      <wa-button size="small" id="importBtn">⭱ Import…</wa-button>
-      <wa-button size="small" id="srcView" style="min-width:124px">⇄ Source</wa-button>
-      <wa-button size="small" id="newScene">✦ New</wa-button>
+      <wa-button-group label="Transport">
+        <wa-button size="small" id="play" style="width:92px">⏸ Pause</wa-button>
+        <wa-button size="small" id="reset">↺ Reset</wa-button>
+      </wa-button-group>
+      <wa-button-group label="File">
+        <wa-button size="small" variant="brand" id="savePhos">⭳ Save .phos</wa-button>
+        <wa-button size="small" id="importBtn">⭱ Import…</wa-button>
+        <wa-button size="small" id="newScene">✦ New</wa-button>
+      </wa-button-group>
+      <wa-button-group label="Views" style="margin-left:auto">
+        <wa-button size="small" id="library">☰ Library</wa-button>
+        <wa-button size="small" id="srcView" style="min-width:118px">⇄ Source</wa-button>
+        <wa-button size="small" href="./index.html">← Player</wa-button>
+      </wa-button-group>
       <input type="file" id="importFile" accept=".milk,.phos,.p9c" hidden>
     </div>
     <wa-tab-group>
@@ -121,11 +136,16 @@
         <div id="vars"></div>
       </wa-tab-panel>
       <wa-tab-panel name="tAudio">
-        <div class="row"><wa-button size="small" variant="brand" id="aDemo">▶ START — DEMO TRACK</wa-button></div>
-        <div class="row"><wa-button size="small" id="aFile">OPEN AUDIO FILE…</wa-button><wa-button size="small" id="aMic">USE MICROPHONE</wa-button></div>
+        <div class="row wa-flex-wrap">
+          <wa-button size="small" variant="brand" id="aDemo">▶ START — DEMO TRACK</wa-button>
+          <wa-button-group label="Audio source">
+            <wa-button size="small" id="aFile">OPEN AUDIO FILE…</wa-button>
+            <wa-button size="small" id="aMic">USE MICROPHONE</wa-button>
+          </wa-button-group>
+        </div>
         <input type="file" id="audioFile" accept="audio/*" hidden>
-        <canvas id="scope" width="352" height="90"></canvas>
-        <div class="meta" id="audioStatus">silent — bands hold 1.0 (source silence semantics) · meters: <b style="color:#39ff14">bass</b> <b style="color:#ff2ec4">mid</b> <b style="color:#00e5ff">treb</b> with peak-hold, line = 1.0 · bars: log-frequency spectrum · green wave: raw samples</div>
+        <canvas id="scope" width="352" height="104"></canvas>
+        <div class="meta" id="audioStatus">silent — bands hold 1.0 (source silence semantics) · meters: <b style="color:#39ff14">bass</b> <b style="color:#ff2ec4">mid</b> <b style="color:#00e5ff">treb</b> with peak-hold, digits = live values, line = 1.0 · bars: log-frequency spectrum · white wave: raw samples</div>
       </wa-tab-panel>
       <wa-tab-panel name="tMeta"><div id="metaEdit"></div></wa-tab-panel>
     </wa-tab-group>
@@ -645,23 +665,37 @@ function drawScope(){
   const a=audio.analysis, w=scopeEl.width, h=scopeEl.height;
   scopeCtx.clearRect(0,0,w,h);
   // meters: left block, display scale 0..2.5 (relative loudness revolves
-  // around 1.0), peak-hold tick decaying at 4%/frame
-  const mw=16, gap=4, x0=2, SCALE=2.5;
+  // around 1.0), peak-hold tick decaying at 4%/frame. Neon tube anatomy:
+  // dark slot behind each bar, layered glow (wide halo + tight ring), and a
+  // near-white core line inside the color.
+  const labelH=12, gh=h-labelH; // bottom strip carries the live-value digits
+  const mw=16, gap=10, x0=4, SCALE=2.5;
   const bands=['bass','mid','treb'];
+  scopeCtx.font='9px ui-monospace,monospace'; scopeCtx.textAlign='center';
   bands.forEach((k,i)=>{
     const v=a[k]||0, x=x0+i*(mw+gap);
-    scopeCtx.fillStyle=BAND_COLORS[k];
-    scopeCtx.shadowColor=BAND_COLORS[k]; scopeCtx.shadowBlur=10; // neon glow
-    scopeCtx.fillRect(x,h-Math.min(1,v/SCALE)*h,mw,Math.min(1,v/SCALE)*h);
-    bandPeaks[k]=Math.max(v,bandPeaks[k]*0.96);
-    scopeCtx.fillRect(x,h-Math.min(1,bandPeaks[k]/SCALE)*h-1,mw,2);
+    scopeCtx.fillStyle='rgba(255,255,255,.05)';
+    scopeCtx.fillRect(x,0,mw,gh); // the unlit slot
+    const bh=Math.min(1,v/SCALE)*gh, by=gh-bh;
+    scopeCtx.shadowColor=BAND_COLORS[k];
+    scopeCtx.shadowBlur=18; scopeCtx.fillStyle=BAND_COLORS[k];
+    scopeCtx.fillRect(x,by,mw,bh);       // wide faint halo
+    scopeCtx.shadowBlur=6;
+    scopeCtx.fillRect(x,by,mw,bh);       // tight hot ring
     scopeCtx.shadowBlur=0;
+    scopeCtx.fillStyle='rgba(255,255,255,.85)';
+    scopeCtx.fillRect(x+mw/2-2,by,4,bh); // white-hot core
+    bandPeaks[k]=Math.max(v,bandPeaks[k]*0.96);
+    scopeCtx.fillStyle=BAND_COLORS[k];
+    scopeCtx.fillRect(x,gh-Math.min(1,bandPeaks[k]/SCALE)*gh-1,mw,2);
+    // truth readout: the exact value engine.step receives this frame
+    scopeCtx.fillText(v.toFixed(2),x+mw/2,h-2);
   });
-  const meterW=x0+bands.length*(mw+gap);
+  const mRight=x0+bands.length*mw+(bands.length-1)*gap;
   scopeCtx.fillStyle='rgba(201,211,221,.5)';
-  scopeCtx.fillRect(0,h-(1/SCALE)*h,meterW,1); // the 1.0 baseline
+  scopeCtx.fillRect(0,gh-(1/SCALE)*gh,mRight+2,1); // the 1.0 baseline
   // spectrum: log-frequency, sqrt amplitude, slow auto-gain (right block)
-  const sx=meterW+6, sw=w-sx;
+  const sx=mRight+10, sw=w-sx;
   let frameMax=0;
   for(let i=1;i<a.spectrum.length;i++)frameMax=Math.max(frameMax,a.spectrum[i]||0);
   specPeak=Math.max(frameMax,specPeak*0.995,1e-6);
@@ -671,16 +705,16 @@ function drawScope(){
     const i0=Math.max(1,Math.floor(Math.pow(N-1,x/sw)));
     const i1=Math.max(i0+1,Math.floor(Math.pow(N-1,(x+1)/sw)));
     let v=0; for(let i=i0;i<i1;i++)v=Math.max(v,a.spectrum[i]||0);
-    const y=Math.sqrt(v/specPeak)*h*0.9;
-    scopeCtx.fillRect(sx+x,h-y,1,y);
+    const y=Math.sqrt(v/specPeak)*gh*0.9;
+    scopeCtx.fillRect(sx+x,gh-y,1,y);
   }
   // raw waveform overlay
   const wf=a.waveform;
   if(wf&&wf.length){
-    scopeCtx.strokeStyle='rgba(255,255,255,.45)'; // neutral so the wave never reads as the bass meter's color
+    scopeCtx.strokeStyle='rgba(255,255,255,.45)'; // neutral so the wave never reads as a band color
     scopeCtx.beginPath();
     for(let i=0;i<wf.length;i++){
-      const x=sx+i/(wf.length-1)*sw, y=h*0.5-((wf[i]||0)/256)*h;
+      const x=sx+i/(wf.length-1)*sw, y=gh*0.5-((wf[i]||0)/256)*gh;
       if(i)scopeCtx.lineTo(x,y); else scopeCtx.moveTo(x,y);
     }
     scopeCtx.stroke();

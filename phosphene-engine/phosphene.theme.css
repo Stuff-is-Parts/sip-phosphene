@@ -1,0 +1,50 @@
+/* PHOSPHENE neon theme — authored entirely through Web Awesome's design-token
+ * API, the same surface its shipped themes define (vendor/webawesome/styles/
+ * themes/default.css). Loaded after the default theme: that file's values sit
+ * in @layer wa-theme, so these unlayered overrides win by cascade-layer rules.
+ * One palette authority for player + studio chrome; the meter hues stay
+ * reserved for data in the scope canvas. */
+.wa-dark {
+  color-scheme: dark;
+
+  /* surfaces: near-black with a cold cast, three depth tiers */
+  --wa-color-surface-raised: #151c25;
+  --wa-color-surface-default: #0f141b;
+  --wa-color-surface-lowered: #070a0e;
+  --wa-color-surface-border: #1e2a37;
+
+  /* text: two clear tiers, link in the accent family */
+  --wa-color-text-normal: #d7e2ec;
+  --wa-color-text-quiet: #75858f;
+  --wa-color-text-link: #7ce7ff;
+
+  --wa-color-focus: #00e5ff;
+
+  /* brand: one electric-cyan family carries every primary action */
+  --wa-color-brand-fill-quiet: #062730;
+  --wa-color-brand-fill-normal: #083743;
+  --wa-color-brand-fill-loud: #00e5ff;
+  --wa-color-brand-border-quiet: #0a3a45;
+  --wa-color-brand-border-normal: #0b5b6b;
+  --wa-color-brand-border-loud: #00e5ff;
+  --wa-color-brand-on-quiet: #4fd8f0;
+  --wa-color-brand-on-normal: #7ce7ff;
+  --wa-color-brand-on-loud: #031519;
+
+  /* neutral: dark graphite slabs — default buttons stop flaring white
+   * (stock dark theme maps neutral-fill-loud to neutral-90, a light value) */
+  --wa-color-neutral-fill-quiet: #101720;
+  --wa-color-neutral-fill-normal: #141c26;
+  --wa-color-neutral-fill-loud: #1b2531;
+  --wa-color-neutral-border-quiet: #1e2a37;
+  --wa-color-neutral-border-normal: #24313f;
+  --wa-color-neutral-border-loud: #31445a;
+  --wa-color-neutral-on-quiet: #8fa0ad;
+  --wa-color-neutral-on-normal: #b9c7d2;
+  --wa-color-neutral-on-loud: #d7e2ec;
+
+  /* type: monospace identity everywhere */
+  --wa-font-family-body: ui-monospace, Consolas, monospace;
+  --wa-font-family-heading: ui-monospace, Consolas, monospace;
+  --wa-font-family-code: ui-monospace, Consolas, monospace;
+}

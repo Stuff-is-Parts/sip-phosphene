@@ -6,7 +6,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "eslint phosphene-engine/src phosphene-engine/check.mjs",
-    "style": "stylelint \"phosphene-engine/*.html\"",
+    "style": "stylelint \"phosphene-engine/*.html\" \"phosphene-engine/*.css\"",
     "check": "node phosphene-engine/check.mjs && check-html-links phosphene-engine",
     "deadcode": "knip",
     "syntax": "node scripts/syntax-check.mjs",
