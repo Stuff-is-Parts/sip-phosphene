@@ -340,6 +340,27 @@ const MILK_NODE_DEFAULTS = /** @type {{warp:Record<string,number>, comp:Record<s
   },
 });
 
+/**
+ * Per-record conversion disposition for the studio's triage view. Consults
+ * the SAME handler registry conversion uses and emits nothing loadable — a
+ * refused preset cannot reach the engine through this path.
+ * @param {(import('./milk-import.mjs').SourceRecord|import('./milk-import.mjs').RefusedRecord)[]} records
+ * @returns {{line:number, ok:boolean, text:string}[]}
+ */
+export function assessRecords(records) {
+  return records.map((rec) => {
+    if (rec.kind === 'refused') return { line: rec.line, ok: false, text: rec.reason.replace(/^line \d+: /, '') };
+    if (rec.kind === 'section') return rec.name === 'preset00'
+      ? { line: rec.line, ok: true, text: 'structural marker → provenance' }
+      : { line: rec.line, ok: false, text: `unknown section "${rec.raw}"` };
+    if (rec.kind === 'comment') return { line: rec.line, ok: true, text: 'preserved source comment' };
+    if (rec.kind === 'equation') return { line: rec.line, ok: true, text: 'per-frame program code' };
+    return VALUE_HANDLERS[rec.key]
+      ? { line: rec.line, ok: true, text: `port ${rec.key}` }
+      : { line: rec.line, ok: false, text: `no conversion handler for "${rec.key}" — missing target capability` };
+  });
+}
+
 export function milkToPhos(/** @type {{records:import('./milk-import.mjs').SourceRecord[], vars:Record<string,number>, expressions:{perFrame:string[], perVertex:string[], perFrameComments:string[]}}} */ ir,
                            /** @type {{file:string, sha256:string}} */ source) {
   /** @type {NodePorts} */

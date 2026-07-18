@@ -10,10 +10,10 @@
 // is pending. Do not read a PASS here as "MilkDrop-semantics-correct".
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { importMilk } from './src/milk-import.mjs';
+import { importMilk, scanMilk } from './src/milk-import.mjs';
 import { Engine, d3dColor01 } from './src/engine.mjs';
 import { GRID_X, GRID_Y, VERT_COUNT, buildStripIndices, buildWarpUVs, meshPositions } from './src/warp-mesh.mjs';
-import { parsePhos, serializePhos, toRuntime, milkToPhos, updateScene } from './src/phos.mjs';
+import { parsePhos, serializePhos, toRuntime, milkToPhos, updateScene, assessRecords } from './src/phos.mjs';
 import { eelSubject } from './src/eel.mjs';
 import { compileEEL } from './src/expr-vm.mjs';
 import { MilkdropFFT, Loudness, Analysis } from './src/audio/analysis.mjs';
@@ -558,7 +558,23 @@ const inertPortOk = (() => {
   try { new Engine(toRuntime(parsePhos(mutated))); return false; } catch { return true; }
 })();
 
-const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk;
+// (y) Triage scan for the studio's side-by-side view: the tolerant scan
+//     collects EVERY refusal with its line while strict import still throws at
+//     the first, and the assessment consults the same handler registry —
+//     a per-vertex line refuses at scan, an unknown key refuses at assessment.
+const triageOk = (() => {
+  const t2 = text + 'per_pixel_1=zoom=zoom+0.1;\nnWaveMode=7\n';
+  const recs = scanMilk(t2);
+  const dis = assessRecords(recs);
+  const bad = dis.filter((d) => !d.ok);
+  const strictStillThrows = (() => { try { importMilk(t2); return false; } catch { return true; } })();
+  return recs.length === dis.length && bad.length === 2
+    && bad[0] !== undefined && bad[0].text.includes('per-vertex')
+    && bad[1] !== undefined && bad[1].text.includes('no conversion handler')
+    && strictStillThrows;
+})();
+
+const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk;
 
 const eelFnCount = Object.keys(eelSubject).length;
 const eelCoveredCount = new Set(eelCases.map((c) => c[0])).size;
@@ -629,6 +645,7 @@ console.log('finite-mesh warp: strip indices + identity UVs exact + zoom=0 NaN s
 console.log('ordered source records: per-line, in order, refusal names the line:', recordsOk ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
 console.log('inert value port refused at engine construction (shared OP_PORTS):', inertPortOk ? 'OK' : 'FAIL');
+console.log('triage scan: all refusals collected, strict import still throws first:', triageOk ? 'OK' : 'FAIL');
 for (const [name, args] of eelFailures) { const fn = eelSubject[name]; console.log(`  FAIL: ${name}(${args.join(',')}) = ${fn ? fn(...args) : 'missing'}`); }
 console.log(`\nRESULT: ${pass ? 'PASS' : 'FAIL'}`);
 process.exit(pass ? 0 : 1);

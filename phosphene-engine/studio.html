@@ -41,6 +41,9 @@
   #srcOverlay .CodeMirror-linenumber{color:var(--dim)}
   #srcOverlay .CodeMirror-cursor{border-left:1px solid var(--fg)}
   .srcHit{background:rgba(78,161,255,.20)}
+  .srcRefused{background:rgba(242,125,125,.16)}
+  #srcOverlay.single .panes{grid-template-columns:1fr}
+  #srcOverlay.single .pane.left{display:none}
   .srcSel{background:rgba(78,161,255,.10)}
   .srcDefault{background:rgba(61,220,132,.10)}
   #srcNote{color:var(--dim);font-size:11px}
@@ -55,7 +58,9 @@
     <button id="reset">↺ Reset</button>
     <button id="savePhos">⭳ Save .phos</button>
     <button id="save">⭳ Export .milk</button>
+    <button id="importBtn">⭱ Import…</button>
     <button id="srcView">⇄ Source</button>
+    <input type="file" id="importFile" accept=".milk,.phos,.p9c" hidden>
     <button id="newScene">✦ New</button>
     <a href="./index.html" style="margin-left:auto;font-size:11px;letter-spacing:.06em;padding:5px 10px;background:var(--edge);border:1px solid #4a4020;color:#f2d97d;text-decoration:none;border-radius:4px">← PLAYER</a>
   </div>
@@ -76,13 +81,13 @@
     <button id="srcClose" style="margin-left:auto">✕ Close</button>
   </div>
   <div class="panes">
-    <div class="pane"><h3 id="srcTitleL">source</h3><div class="cmhost" id="cmSrcHost"></div></div>
+    <div class="pane left"><h3 id="srcTitleL">source</h3><div class="cmhost" id="cmSrcHost"></div></div>
     <div class="pane"><h3>current .phos (live, incl. unsaved edits)</h3><div class="cmhost" id="cmPhosHost"></div></div>
   </div>
 </div>
 <script type="module">
-import { parsePhos, toRuntime, serializePhos, updateScene } from './src/phos.mjs';
-import { importMilk } from './src/milk-import.mjs';
+import { parsePhos, toRuntime, serializePhos, updateScene, milkToPhos, assessRecords } from './src/phos.mjs';
+import { importMilk, scanMilk } from './src/milk-import.mjs';
 import { Engine, CONSUMED_PORTS } from './src/engine.mjs';
 import { feedbackWGSL, compositeWGSL } from './src/render-wgsl.mjs';
 import { buildStripIndices, buildWarpUVs, meshPositions, VERT_COUNT } from './src/warp-mesh.mjs';
@@ -97,7 +102,7 @@ let engine = new Engine(scene);
 let baselineText = serializePhos(sceneDoc);
 
 // load a new scene document as the baseline (initial load, template button)
-function loadDoc(doc){ baselineText = serializePhos(doc); applyScene(doc); }
+function loadDoc(doc){ baselineText = serializePhos(doc); applyScene(doc); updateSrcBtn(); }
 // swap in a scene document and refresh the whole UI
 function applyScene(doc){
   sceneDoc = doc; scene = toRuntime(doc); engine = new Engine(scene);
@@ -304,37 +309,77 @@ else {
   requestAnimationFrame(frame);
 }
 
-// ---- side-by-side source ⇄ .phos review (the recipe-adherence surface) ----
-// Left pane: the scene's .milk with real line numbers. Right pane: the live
-// serialized .phos. The line map comes from the importer's ordered records,
-// so each source line jumps to its landing; green-tinted right-pane ports are
-// converter-materialized defaults (present in .phos, absent from the source).
+// ---- source ⇄ .phos review + one format-dispatched Import ------------------
+// Context-sensitive viewer: dual panes when the scene carries a source from
+// another engine (meta.source), a single .phos pane for native scenes. On a
+// refused .milk import the popup opens in triage mode: left pane is the
+// source with refused lines tinted red, right pane is a LINE-ALIGNED
+// disposition report from the same handler registry conversion uses
+// (scanMilk + assessRecords — nothing loadable is produced for a refusal).
 const srcOverlay=document.getElementById('srcOverlay');
 const srcNote=document.getElementById('srcNote');
 let cmSrc=null, cmPhos=null;
-let lineMap=new Map();   // source line number -> {phosLine, label}
-let hitLines=[];         // currently highlighted right-pane lines
-let selLine=-1;          // currently highlighted left-pane line
+let lineMap=new Map();     // dual mode: source line -> {phosLine, label}
+let hitLines=[]; let selLine=-1;
+let alignScroll=false;     // triage mode: panes scroll in lockstep
+let importedSrcText=null;  // in-memory source for imported files (not served)
+function ensureCMs(){
+  if(!cmSrc){
+    cmSrc=CodeMirror(document.getElementById('cmSrcHost'),{value:'',readOnly:true,lineNumbers:true,mode:null});
+    cmSrc.on('cursorActivity',()=>{ if(!alignScroll)jumpTo(cmSrc.getCursor().line+1); });
+    cmSrc.on('scroll',()=>{ if(alignScroll&&cmPhos)cmPhos.scrollTo(null,cmSrc.getScrollInfo().top); });
+  }
+  if(!cmPhos)cmPhos=CodeMirror(document.getElementById('cmPhosHost'),{value:'',readOnly:true,lineNumbers:true,mode:null});
+}
+function updateSrcBtn(){
+  const hasSrc=!!(sceneDoc.meta&&sceneDoc.meta.source);
+  document.getElementById('srcView').textContent=hasSrc?'⇄ Source':'{ } Scene code';
+}
 document.getElementById('srcClose').onclick=()=>srcOverlay.classList.remove('open');
 addEventListener('keydown',e=>{ if(e.key==='Escape')srcOverlay.classList.remove('open'); });
 document.getElementById('srcView').onclick=async()=>{
-  srcOverlay.classList.add('open');
-  const phosNow=serializePhos(sceneDoc);
-  if(!cmPhos)cmPhos=CodeMirror(document.getElementById('cmPhosHost'),{value:phosNow,readOnly:true,lineNumbers:true,mode:null});
-  else cmPhos.setValue(phosNow);
-  hitLines=[];
   const src=sceneDoc.meta&&sceneDoc.meta.source;
-  if(!src){ srcNote.textContent='native scene — no source file to compare'; if(cmSrc)cmSrc.setValue(''); return; }
-  document.getElementById('srcTitleL').textContent=src.file;
-  let srcText;
-  try{ srcText=await (await fetch('./'+src.file)).text(); }
-  catch(e){ srcNote.textContent='source fetch failed: '+e; return; }
-  if(!cmSrc){
-    cmSrc=CodeMirror(document.getElementById('cmSrcHost'),{value:srcText,readOnly:true,lineNumbers:true,mode:null});
-    cmSrc.on('cursorActivity',()=>jumpTo(cmSrc.getCursor().line+1));
-  } else cmSrc.setValue(srcText);
-  buildLineMap(srcText,phosNow);
+  if(!src){ openSingle(); return; }
+  let text=importedSrcText;
+  if(text==null){
+    try{ text=await (await fetch('./'+src.file)).text(); }
+    catch(e){ openSingle('source "'+src.file+'" is not served and not in memory — showing .phos only'); return; }
+  }
+  openDual(text,src.file);
 };
+function openSingle(msg){
+  ensureCMs();
+  srcOverlay.classList.add('open','single');
+  document.querySelector('#srcOverlay .pane:not(.left) h3').textContent='scene code (.phos)';
+  cmPhos.setValue(serializePhos(sceneDoc));
+  alignScroll=false; lineMap=new Map(); hitLines=[];
+  srcNote.textContent=msg||'native scene — .phos code (read-only; edit through the panel)';
+}
+function openDual(srcText,fileName){
+  ensureCMs();
+  srcOverlay.classList.add('open'); srcOverlay.classList.remove('single');
+  document.getElementById('srcTitleL').textContent=fileName;
+  document.querySelector('#srcOverlay .pane:not(.left) h3').textContent='current .phos (live, incl. unsaved edits)';
+  const phosNow=serializePhos(sceneDoc);
+  cmSrc.setValue(srcText); cmPhos.setValue(phosNow);
+  alignScroll=false; hitLines=[]; selLine=-1;
+  buildLineMap(srcText,phosNow);
+}
+function openTriage(srcText,fileName){
+  ensureCMs();
+  srcOverlay.classList.add('open'); srcOverlay.classList.remove('single');
+  document.getElementById('srcTitleL').textContent=fileName+' — REFUSED';
+  document.querySelector('#srcOverlay .pane:not(.left) h3').textContent='per-line disposition (nothing was imported)';
+  cmSrc.setValue(srcText);
+  const dis=assessRecords(scanMilk(srcText));
+  const rows=new Array(srcText.split('\n').length).fill('');
+  let bad=0;
+  for(const d of dis){ rows[d.line-1]=(d.ok?'· ':'✗ ')+d.text; if(!d.ok)bad++; }
+  cmPhos.setValue(rows.join('\n'));
+  for(const d of dis)if(!d.ok)cmSrc.addLineClass(d.line-1,'background','srcRefused');
+  alignScroll=true; lineMap=new Map(); hitLines=[];
+  srcNote.textContent=bad+' of '+dis.length+' source lines cannot convert yet — panes scroll together, ✗ rows name each reason';
+}
 function buildLineMap(srcText,phosText){
   lineMap=new Map();
   const phosLines=phosText.split('\n');
@@ -342,7 +387,7 @@ function buildLineMap(srcText,phosText){
   try{ ir=importMilk(srcText); }
   catch(e){ srcNote.textContent='importer refuses this source: '+e.message; return; }
   const sourceKeys=new Set();
-  const find=(pred)=>phosLines.findIndex(pred);
+  const find=(/** pred */ f)=>phosLines.findIndex(f);
   for(const rec of ir.records){
     if(rec.kind==='value'){
       sourceKeys.add(rec.key);
@@ -366,7 +411,7 @@ function buildLineMap(srcText,phosText){
   srcNote.textContent='click a source line to see its landing · green on the right = converter-materialized default';
 }
 function jumpTo(srcLine){
-  if(!cmPhos||!cmSrc)return;
+  if(!cmPhos||!cmSrc||lineMap.size===0)return;
   for(const i of hitLines)cmPhos.removeLineClass(i,'background','srcHit');
   hitLines=[];
   if(selLine>=0)cmSrc.removeLineClass(selLine,'background','srcSel');
@@ -379,4 +424,38 @@ function jumpTo(srcLine){
   cmPhos.scrollIntoView({line:hit.phosLine,ch:0},80);
   srcNote.textContent='source line '+srcLine+' → '+hit.label+' (.phos line '+(hit.phosLine+1)+')';
 }
+// ---- one Import button: dispatch by format, refuse unknowns by name --------
+// .phos loads natively; .milk converts through the strict door (a refusal
+// opens triage instead of importing partially); .p9c refuses until the
+// Plane9 converter exists; anything else refuses naming the extension.
+const IMPORTERS={
+  phos:async(text)=>{ loadDoc(parsePhos(text)); importedSrcText=null; },
+  milk:async(text,name)=>{
+    let sha='sha256-unavailable';
+    if(crypto.subtle){
+      const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
+      sha=[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+    const doc=milkToPhos(importMilk(text),{file:name,sha256:sha});
+    loadDoc(parsePhos(serializePhos(doc)));
+    importedSrcText=text;
+  },
+  p9c:async()=>{ throw new Error('Plane9 (.p9c) conversion is not yet implemented — refusing'); },
+};
+async function importFile(f){
+  const ext=(f.name.split('.').pop()||'').toLowerCase();
+  const handler=IMPORTERS[ext];
+  if(!handler){ alert('import: unsupported file type ".'+ext+'" — refusing'); return; }
+  const text=await f.text();
+  try{ await handler(text,f.name); }
+  catch(e){
+    if(ext==='milk')openTriage(text,f.name);
+    else alert(String(e&&e.message||e));
+  }
+}
+document.getElementById('importBtn').onclick=()=>document.getElementById('importFile').click();
+document.getElementById('importFile').onchange=e=>{ const f=e.target.files[0]; if(f)importFile(f); e.target.value=''; };
+addEventListener('dragover',e=>e.preventDefault());
+addEventListener('drop',e=>{ e.preventDefault(); const f=e.dataTransfer.files[0]; if(f)importFile(f); });
+updateSrcBtn();
 </script></body></html>
