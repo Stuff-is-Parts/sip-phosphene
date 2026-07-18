@@ -31,8 +31,14 @@ native-scene ops but do not certify Plane9 fidelity.
 **Consequence for tests**: `phosphene-engine/check.mjs` reports two
 surfaces separately. `engine regression: PASS` says PHOSPHENE behaves
 as this codebase specifies; `plane9 compat: PASS` says the compatibility
-gate refuses UNRESOLVED and passes only Screen+Clear. The two surfaces
-do not certify each other.
+gate refuses UNRESOLVED and authorizes the three PASS mappings above.
+Two distinct scopes matter here: the compatibility table currently
+authorizes the **Screen, Clear, and RGBAToColor** mappings; the retained
+end-to-end Plane9 conversion fixture that check.mjs exercises is the
+**Screen + Clear** shape. RGBAToColor is authorized as a mapping (its
+DLL description matches PHOSPHENE's op behavior) but no retained
+Plane9 fixture drives it end-to-end yet. The two surfaces do not
+certify each other.
 
 
 The vocabulary Plane9 scenes actually read from their engine, audited by the

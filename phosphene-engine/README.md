@@ -30,19 +30,23 @@ pages load the `.phos`; the `.milk` is the retained source recipe. Format spec:
   Math.sin, shared Engine time). A truly independent check requires butterchurn
   or retained projectM output. This is the remaining oracle gap for the
   expression-path test specifically, not for the whole project.
-- The graph is the sole render authority (reviewer foundation 2026-07-18):
+- Graph edges are the sole topology authority (reviewer foundation 2026-07-18):
   every op declares its typed input and output ports, edges are typed and
   node-qualified, and render completeness is checked as pure dataflow — every
   declared render output has an outgoing edge, every declared render input has
   an incoming edge, and exactly one presentation sink (a render op declaring
-  `presented: render`) exists. There is no separate sequence grammar; any
-  graph satisfying those rules runs. Value ops read inputs and propagate
-  outputs along value edges; render ops receive port-keyed input plans, return
-  port-keyed output plans, and the executor deep-clones each returned plan per
-  outgoing edge so branch consumers cannot share mutable state. Multi-driver
-  into any input port and constant-plus-edge on any input port both refuse at
-  construction. Per-vertex programs are refused at import and at engine
-  construction until the engine executes them.
+  `presented: render`) exists. There is no separate sequence grammar. A
+  structurally valid graph executes subject to each registered operation's
+  declared value constraints and render-plan input requirements: a port
+  constraint refuses an out-of-witness value on any write path, and a render
+  op that requires a specific incoming pass shape (borders requires an
+  in-flight warp-feedback pass) refuses at contribute time. Value ops read
+  inputs and propagate outputs along value edges; render ops receive port-keyed
+  input plans, return port-keyed output plans, and the executor deep-clones
+  each returned plan per outgoing edge so branch consumers cannot share
+  mutable state. Multi-driver into any input port and constant-plus-edge on
+  any input port both refuse at construction. Per-vertex programs are refused
+  at import and at engine construction until the engine executes them.
 - The headless check verifies the produced render **plans**' structure and
   values. The browser shared render-plan executor (`src/render-executor.mjs`,
   consumed by `src/player.mjs` and `src/studio.mjs`) turns those plans into
@@ -115,7 +119,9 @@ files and unused exports in non-entry modules are detected (both proven with
 planted cases). BLIND SPOT, stated: unused exports OF the entry modules
 themselves are exempt — those are covered by review, not by knip.
 It proves the code is well-formed, NOT that it is behaviorally correct.
-Behavior is judged by a human viewing the output.
+Visual and product quality are judged by a human viewing the output; source
+compatibility is judged against external semantic evidence per the goal doc,
+not against what looks right on screen.
 
 ## To run
 Serve over http (WebGPU needs https/http, not file://):

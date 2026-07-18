@@ -57,14 +57,18 @@ runtime scene whose perVertex list is non-empty. Accepted-but-unexecuted code
 is the structure-claimed-as-function failure mode.
 
 **Graph-derived render topology (reviewer foundation 2026-07-18):** the engine
-executes the .phos graph. The graph — its typed edges plus each op's declared
-input and output ports — is the sole render authority; there is no separate
-sequence grammar authorizing particular op neighbors. Render completeness is a
-pure dataflow rule: every declared render output has an outgoing edge, every
-declared render input has an incoming edge, and exactly one presentation sink
-(a render op declaring a `presented: render` output) exists. Any graph
-satisfying those rules runs; any graph violating them refuses at Engine
-construction with a message naming the specific unfed port or missing sink.
+executes the .phos graph. Graph edges are the sole topology authority; there
+is no separate sequence grammar authorizing particular op neighbors. Render
+completeness is a pure dataflow rule: every declared render output has an
+outgoing edge, every declared render input has an incoming edge, and exactly
+one presentation sink (a render op declaring a `presented: render` output)
+exists. A structurally valid graph executes subject to each registered
+operation's declared value constraints and render-plan input requirements: a
+port constraint refuses an out-of-witness value on any write path, and a
+render op that requires a specific incoming pass shape (borders requires an
+in-flight warp-feedback pass) refuses at contribute time. Any graph violating
+either the structural rules or an op's declared contract refuses with a
+message naming the specific failure.
 
 `meta.source` is the transpiler map made durable: every ported .phos names the
 recipe file it was transcribed from, hash-pinned. [DERIVED — goal-doc Validation
@@ -81,7 +85,10 @@ over unimplemented acceptance]
 Node { "id": string (unique), "primitive": "graph"|"shader"|"expr"|"geom"|"compute",
        "op": string, "ports": { portId: Port } }
 Port { "type": "float"|"vec2"|"vec3"|"vec4"|"color"|"texture"|"mesh"|"effect"|"render",
-       "value"?: number }              // v1: value only on float ports
+       "value"?: number | number[2] | number[3] | number[4] }
+       // constant value permitted for float (number),
+       // vec2/vec3/vec4 (array of matching length);
+       // essential to Plane9 Screen/Clear camera and color ports
 ```
 
 Port names are the exact source-format keys — `fDecay`, `ib_r` — zero renaming.
@@ -89,9 +96,17 @@ Port names are the exact source-format keys — `fDecay`, `ib_r` — zero renami
 
 Ports are **node-local**: each port is addressed as `nodeId.portName`, and the
 same port name (`Color`, `Render`, `Value`) may appear on multiple nodes without
-collision. Edges are typed and node-qualified, resolving to an existing
-`nodeId.portName` on both ends with matching port types. [DERIVED — .p9c Out/In
-model]
+collision at the graph level. Edges are typed and node-qualified, resolving to
+an existing `nodeId.portName` on both ends with matching port types. [DERIVED —
+.p9c Out/In model]
+
+**EEL exception.** The per-frame EEL surface uses a flat variable-name view of
+float ports so MilkDrop-style equations resolve names without node
+qualification. When per-frame code exists, two float ports across different
+nodes that would resolve to the same EEL name cause Engine construction to
+refuse — the flat view cannot determine which port owns the write. Scenes
+with no per-frame code are unaffected. [DERIVED — MilkDrop equation
+compatibility]
 
 Value edges propagate scalar and vector values along the source→destination
 direction; render edges propagate port-qualified `RenderPlan` values the same
@@ -128,9 +143,10 @@ value ops read inputs, compute outputs, and propagate them along outgoing
 value edges; render ops receive incoming plans keyed by input port, return
 outgoing plans keyed by output port, and the executor clones each returned
 plan per outgoing edge. The presentation sink's `presented` output is the
-frame's render plan for that step. Any graph satisfying the dataflow rules
-above runs — nothing about the MilkDrop shape is privileged. The .phos file
-is the durable scene; the runtime IR conforms to it, not the reverse.
+frame's render plan for that step. Nothing about the MilkDrop shape is
+privileged: any structurally valid graph executes subject to each op's
+declared contract (port constraints, incoming pass shape). The .phos file is
+the durable scene; the runtime IR conforms to it, not the reverse.
 
 The converter (`milkToPhos`) throws on any .milk key not in this table —
 completeness by refusal, no silent drops. [DERIVED — "nothing may be flattened
@@ -159,20 +175,24 @@ a hand-authored scene uses native primitives directly or pulls the same
 components by choice. There is no ambient per-engine mode.
 
 **Interim time and audio ownership (stated, not hidden).** The graph
-executes, but two engine-owned resources are still supplied globally by the
-Engine rather than through explicit graph components:
+executes, but two source-specific behaviors are still delivered globally
+rather than through explicit graph components:
 
-- MilkDrop's damped `Timekeeper.time`/`fps` (`src/timekeeper.mjs`,
-  from `pluginshell.cpp:1895+`) is written into the flat EEL pool each
-  frame, so every scene sees MilkDrop's damped clock in its per-frame
-  expressions regardless of source engine.
-- The MilkDrop loudness/audio chain (`src/audio/analysis.mjs`) drives the
-  `bass`/`mid`/`treb`/`_att` variables in the same pool.
+- The Engine owns and injects MilkDrop time. `src/timekeeper.mjs`
+  (from `pluginshell.cpp:1895+`) computes the damped `time`/`fps` values
+  inside the Engine each step and writes them into the flat EEL pool, so
+  every scene sees MilkDrop's damped clock in its per-frame expressions
+  regardless of source engine.
+- The product front ends (`src/player.mjs`, `src/studio.mjs`) currently
+  compute MilkDrop loudness values via `AudioEngine.analysis` (backed by
+  `src/audio/analysis.mjs`) and pass them into `Engine.step()`. The Engine
+  then injects those supplied `bass`/`mid`/`treb`/`_att` values globally
+  into the same EEL pool, so per-frame equations read them by name.
 
 This is an interim ownership problem: source-specific timing and audio
 behavior must eventually be represented as explicit graph components a scene
 references, so the semantics travel with the scene rather than with the
-engine. No currently accepted Plane9 conversion consumes Plane9 time or
+engine or the front end. No currently accepted Plane9 conversion consumes Plane9 time or
 audio: the accepted `Clear → Screen` slice is time-invariant, Color Cycle
 refuses at the compatibility gate (HSLAToColor UNRESOLVED), and Beat's
 detector remains unresolved so `musicActive=false` is supplied in product.
@@ -196,7 +216,10 @@ native graph and verifies the produced render plans' structure and values;
 `src/render-executor.mjs` — the shared browser render-plan executor consumed
 by both `src/player.mjs` and `src/studio.mjs` — turns those plans into
 WebGPU commands at run time. The automated checks do not execute those
-WebGPU commands against a real GPU. Visual quality, Studio layout, and
-source compatibility remain human-viewed product judgments (repo
-`CLAUDE.md`); visible rendering is not itself proof of source compatibility,
-and screenshot similarity is not a fidelity gate.
+WebGPU commands against a real GPU. Visual quality and Studio layout remain
+human-viewed product judgments (repo `CLAUDE.md`). Source compatibility is a
+different standard: it requires external, inspectable semantic evidence
+against the source engine's own behavior — visible rendering, screenshot
+similarity, and successful execution are not evidence of source
+compatibility. Human viewing applies where no external reference exists, and
+even then it does not certify source compatibility.
