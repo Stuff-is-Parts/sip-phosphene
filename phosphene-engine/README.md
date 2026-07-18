@@ -42,16 +42,14 @@ pages load the `.phos`; the `.milk` is the retained source recipe. Format spec:
   constructs (&& || | &, $-constants, compound assignment, megabuf) are refused
   with a parse error naming them — falsifier for those arrives with content
   that uses them.
-- The full warp path renders: zoom/zoomexp/rot/warp/cx/cy/dx/dy/sx/sy drive the
-  transcribed MilkDrop mesh formula (milkdropfs.cpp:1877-1918, per-pixel; the
-  oscillators per :1782-1787 are checked against recompute), so every studio
-  port edit now has a visible effect. zoom flows to the mesh unclamped exactly as the
-  source runs it (the range-check block at milkdropfs.cpp:677-679 clamps only
-  gamma and echo_zoom), so whatever the preset writes is what renders.
-- The warp field is evaluated per fragment as a PROVISIONAL APPROXIMATION of
-  the source's finite-mesh-plus-interpolation path (see src/render-wgsl.mjs
-  header); the finite-mesh implementation is mandated by the exactness
-  standard and triggers at the first warp-exercising content.
+- The full warp path renders through the source's own finite mesh: UVs are
+  computed at 48×36 grid vertices (src/warp-mesh.mjs — milkdropfs.cpp:1877-1926,
+  strip topology plugin.cpp:2300-2324) and the GPU interpolates between them,
+  so zoom=0 reproduces the source's exact all-NaN interpolation structure
+  rather than a per-fragment substitute. zoom flows to the mesh unclamped
+  exactly as the source runs it (the range-check block at milkdropfs.cpp:677-679
+  clamps only gamma and echo_zoom), so whatever the preset writes is what
+  renders.
 - Border rings and video echo apply only above the source's 0.001 alpha
   thresholds (milkdropfs.cpp:3451, :4168), matching the source's skip paths.
 - The composite is transcribed from ShowToUser_NoShaders (milkdropfs.cpp:4050-4260):

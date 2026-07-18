@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { importMilk } from './src/milk-import.mjs';
 import { Engine } from './src/engine.mjs';
+import { GRID_X, GRID_Y, VERT_COUNT, buildStripIndices, buildWarpUVs, meshPositions } from './src/warp-mesh.mjs';
 import { parsePhos, serializePhos, toRuntime, milkToPhos, updateScene } from './src/phos.mjs';
 import { eelSubject } from './src/eel.mjs';
 import { compileEEL } from './src/expr-vm.mjs';
@@ -470,7 +471,48 @@ const aspectOk = (() => {
     && e6.pool.aspectx === 1 / aX && e6.pool.aspecty === 1 / aY;
 })();
 
-const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk;
+// (u) Finite-mesh warp path (src/warp-mesh.mjs). Witnesses: strip indices vs
+//     the hand-derived first triangle of plugin.cpp:2300-2324 (quadrant 0,
+//     slice 0: verts (0,0),(0,1),(1,0)); identity-motion UVs vs a recompute
+//     using the identical expression sequence of milkdropfs.cpp:1877-1926;
+//     and the zoom=0 structure — every vertex UV NaN, because 1/pow(0,1) is
+//     Infinity (:1880) and the rotation step multiplies Infinity by sin(0)=0
+//     (:1907) — the same IEEE path the source's floats take.
+const meshOk = (() => {
+  const idx = buildStripIndices();
+  const pos = meshPositions();
+  const structuralOk = idx.length === GRID_Y * 2 * GRID_X * 3
+    && idx[0] === 0 && idx[1] === GRID_X + 1 && idx[2] === 1
+    && Math.max(...idx) === VERT_COUNT - 1
+    && pos.length === VERT_COUNT * 2 && pos[0] === -1 && pos[1] === -1
+    && pos[pos.length - 2] === 1 && pos[pos.length - 1] === 1;
+  const ident = { zoom: 1, zoomExp: 1, rot: 0, warp: 0, cx: 0.5, cy: 0.5, dx: 0, dy: 0,
+    sx: 1, sy: 1, warpTime: 0, warpScaleInv: 1, f0: 0, f1: 0, f2: 0, f3: 0, aspectX: 1, aspectY: 1 };
+  const uv = buildWarpUVs(ident, 1024, 1024);
+  let identOk = true;
+  let n = 0;
+  for (let j = 0; j <= GRID_Y; j++) {
+    for (let i = 0; i <= GRID_X; i++) {
+      const x = i / GRID_X * 2 - 1, y = j / GRID_Y * 2 - 1;
+      // identical expression sequence, identity motion (fZoom2Inv = 1, cr = 1, sr = 0)
+      let eu = x * 1 * 0.5 * 1 + 0.5; eu = (eu - 0.5) / 1 + 0.5;
+      let ev = -y * 1 * 0.5 * 1 + 0.5; ev = (ev - 0.5) / 1 + 0.5;
+      const eu2 = eu - 0.5, ev2 = ev - 0.5;
+      eu = eu2 * 1 - ev2 * 0 + 0.5; ev = eu2 * 0 + ev2 * 1 + 0.5;
+      eu = (eu - 0.5) * 1 + 0.5; ev = (ev - 0.5) * 1 + 0.5;
+      // the mesh buffer is a Float32Array — compare at its f32 width
+      if (uv[n++] !== Math.fround(eu + 0.5 / 1024)) identOk = false;
+      if (uv[n++] !== Math.fround(ev + 0.5 / 1024)) identOk = false;
+    }
+  }
+  const uv0 = buildWarpUVs({ ...ident, zoom: 0 }, 1024, 1024);
+  let nanOk = true;
+  for (const v of uv0) if (!Number.isNaN(v)) nanOk = false;
+  const wrapOk = new Engine(toRuntime(parsePhos(phosText))).step(1 / 60).motion.wrap === 1;
+  return structuralOk && identOk && nanOk && wrapOk;
+})();
+
+const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk;
 
 const eelFnCount = Object.keys(eelSubject).length;
 const eelCoveredCount = new Set(eelCases.map((c) => c[0])).size;
@@ -537,6 +579,7 @@ console.log('reset restores load-time baseline (vars/equations/state):', resetOk
 console.log('post-equation clamps + EEL-name aliasing (gamma/decay/echo_zoom):', clampAliasOk ? 'OK' : 'FAIL');
 console.log('variable-contract ledger: 76 regvars classified + verified, vol absent:', varContractOk ? 'OK' : 'FAIL');
 console.log('aspect factors: forward to renderState, inverse to pool (exact):', aspectOk ? 'OK' : 'FAIL');
+console.log('finite-mesh warp: strip indices + identity UVs exact + zoom=0 NaN structure:', meshOk ? 'OK' : 'FAIL');
 for (const [name, args] of eelFailures) { const fn = eelSubject[name]; console.log(`  FAIL: ${name}(${args.join(',')}) = ${fn ? fn(...args) : 'missing'}`); }
 console.log(`\nRESULT: ${pass ? 'PASS' : 'FAIL'}`);
 process.exit(pass ? 0 : 1);

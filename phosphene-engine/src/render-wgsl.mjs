@@ -1,20 +1,14 @@
 // The WGSL shaders for the warp-feedback + composite pipeline.
 // Kept as strings so they can be validated headless AND used in-browser.
-// The warp math is transcribed from MilkDrop2 @ Doormatty/MilkDrop2 d0670a3,
-// milkdropfs.cpp:1877-1918 (per-vertex UV computation) with the per-frame
-// oscillators f0..f3 and warpTime computed CPU-side per :1782-1787 and passed
-// as uniforms. APPROXIMATION, stated: MilkDrop evaluates this formula at
-// finite mesh vertices and linearly interpolates between them; we evaluate it
-// per fragment. For a nonlinear field these are NOT equivalent at any mesh
-// size — per-fragment smooths interpolation character that is part of the
-// source's look. The finite-mesh path is mandated by the exactness standard
-// ("the graph and executor must be extended when the source behavior requires
-// it"); its trigger is the first warp-exercising content, per the falsifier
-// rule in CLAUDE.md. The render targets follow the window per the source's
-// DEFAULT texture mode (nTexSize -1 auto-exact: plugin.cpp:949, 1193-1196,
-// 1851-1852; 16-block snap :1879-1880), so the aspect factors
-// (plugin.cpp:2027-2028) and their apply/undo steps (:1881-1882, :1914-1916)
-// are transcribed live rather than assumed identity.
+// The warp pass renders the source's own finite mesh: warped UVs are computed
+// per vertex on the CPU (src/warp-mesh.mjs — milkdropfs.cpp:1877-1926, with
+// the oscillators :1782-1787) and the rasterizer interpolates between
+// vertices, exactly as WarpedBlit_NoShaders draws them (milkdropfs.cpp:
+// 2085-2104). The vertex shader passes the mesh UV through; the fragment
+// shader samples, applies decay, and draws the border rings in screen space
+// (:3431-3487). The render targets follow the window per the source's DEFAULT
+// texture mode (nTexSize -1 auto-exact: plugin.cpp:949, 1193-1196, 1851-1852;
+// 16-block snap :1879-1880).
 
 // Composite pass — transcribed from CPlugin::ShowToUser_NoShaders
 // (milkdropfs.cpp:4050-4260). The source draws the internal texture as a
@@ -71,63 +65,32 @@ struct Uniforms {
   decay: f32,
   ib_size: f32, ib_r: f32, ib_g: f32, ib_b: f32, ib_a: f32,
   ob_size: f32, ob_r: f32, ob_g: f32, ob_b: f32, ob_a: f32,
-  zoom: f32, zoomexp: f32, rot: f32, warp: f32,
-  cx: f32, cy: f32, dx: f32, dy: f32, sx: f32, sy: f32,
-  warpTime: f32, warpScaleInv: f32,
-  f0: f32, f1: f32, f2: f32, f3: f32,
-  aspectX: f32, aspectY: f32, _pad0: f32, _pad1: f32, _pad2: f32,
+  _pad0: f32,
 };
 @group(0) @binding(0) var prevTex: texture_2d<f32>;
 @group(0) @binding(1) var prevSamp: sampler;
 @group(0) @binding(2) var<uniform> u: Uniforms;
 
-struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> };
-@vertex fn vs(@builtin(vertex_index) i: u32) -> VSOut {
-  var p = array<vec2<f32>,3>(vec2(-1.0,-3.0), vec2(-1.0,1.0), vec2(3.0,1.0));
+struct VSOut {
+  @builtin(position) pos: vec4<f32>,
+  @location(0) uv: vec2<f32>,   // warped mesh UV (src/warp-mesh.mjs, :1877-1926)
+  @location(1) suv: vec2<f32>,  // screen-space uv for the border rings
+};
+@vertex fn vs(@location(0) pos: vec2<f32>, @location(1) uv: vec2<f32>) -> VSOut {
   var o: VSOut;
-  o.pos = vec4(p[i], 0.0, 1.0);
-  o.uv = vec2(0.5*p[i].x+0.5, 0.5 - 0.5*p[i].y); // y-flip (milkdropfs.cpp:1882)
+  o.pos = vec4(pos, 0.0, 1.0);
+  o.uv = uv;
+  o.suv = vec2(pos.x*0.5 + 0.5, 0.5 - pos.y*0.5);
   return o;
 }
 @fragment fn fs(in: VSOut) -> @location(0) vec4<f32> {
-  // grid coordinates: x,y in [-1,1], y up (verts init; v = -y*0.5+0.5 per :1884)
-  let xg = in.uv.x * 2.0 - 1.0;
-  let yg = 1.0 - 2.0 * in.uv.y;
-  let rad = sqrt(xg*xg*u.aspectX*u.aspectX + yg*yg*u.aspectY*u.aspectY); // plugin.cpp:2281
-  // zoom with per-radius exponent — :1877
-  let zoom2 = pow(u.zoom, pow(u.zoomexp, rad*2.0 - 1.0));
-  let zoom2inv = 1.0 / zoom2;                          // :1880
-  var uu =  xg * u.aspectX * 0.5 * zoom2inv + 0.5;     // :1881
-  var vv = -yg * u.aspectY * 0.5 * zoom2inv + 0.5;     // :1882
-  // stretch — :1890-1891
-  uu = (uu - u.cx) / u.sx + u.cx;
-  vv = (vv - u.cy) / u.sy + u.cy;
-  // warping — :1896-1899 (constants transcribed, not simplified)
-  uu += u.warp*0.0035*sin(u.warpTime*0.333 + u.warpScaleInv*(xg*u.f0 - yg*u.f3));
-  vv += u.warp*0.0035*cos(u.warpTime*0.375 - u.warpScaleInv*(xg*u.f2 + yg*u.f1));
-  uu += u.warp*0.0035*cos(u.warpTime*0.753 - u.warpScaleInv*(xg*u.f1 - yg*u.f2));
-  vv += u.warp*0.0035*sin(u.warpTime*0.825 + u.warpScaleInv*(xg*u.f0 + yg*u.f3));
-  // rotation about (cx,cy) — :1902-1908
-  let u2 = uu - u.cx;
-  let v2 = vv - u.cy;
-  let cr = cos(u.rot);
-  let sr = sin(u.rot);
-  uu = u2*cr - v2*sr + u.cx;
-  vv = u2*sr + v2*cr + u.cy;
-  // translation — :1911-1912
-  uu -= u.dx;
-  vv -= u.dy;
-  // undo aspect ratio fix — :1914-1916
-  uu = (uu - 0.5) * (1.0 / u.aspectX) + 0.5;
-  vv = (vv - 0.5) * (1.0 / u.aspectY) + 0.5;
-  // final half-texel offset — :1918-1920
-  let dims = vec2<f32>(textureDimensions(prevTex));
-  uu += 0.5 / dims.x;
-  vv += 0.5 / dims.y;
-  // sample previous frame at the warped coordinate, apply decay (fDecay)
-  var prev = textureSample(prevTex, prevSamp, vec2(uu, vv)).rgb * u.decay;
-  // border frames — milkdropfs.cpp:3460. Screen edge is radius 1 in max-norm.
-  let c = max(abs(in.uv.x - 0.5), abs(in.uv.y - 0.5)) * 2.0;  // 0 center .. 1 edge
+  // sample previous frame at the rasterizer-interpolated mesh coordinate,
+  // apply decay (fDecay) — the interpolation between vertices IS the source's
+  // path (WarpedBlit_NoShaders, milkdropfs.cpp:2085-2104)
+  var prev = textureSample(prevTex, prevSamp, in.uv).rgb * u.decay;
+  // border frames drawn after the warped blit — milkdropfs.cpp:3431-3487.
+  // Screen edge is radius 1 in max-norm; rings live in screen space.
+  let c = max(abs(in.suv.x - 0.5), abs(in.suv.y - 0.5)) * 2.0;
   // each ring draws only when its alpha exceeds the source threshold
   // (if (a > 0.001f), milkdropfs.cpp:3451)
   if (u.ob_a > 0.001 && c >= 1.0 - u.ob_size && c <= 1.0) {

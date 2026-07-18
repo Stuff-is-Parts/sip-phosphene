@@ -4,6 +4,7 @@
 // GPU dispatch. Headless-capable (no GPU dependency) so it's testable.
 import { compileEEL } from './expr-vm.mjs';
 import { Timekeeper } from './timekeeper.mjs';
+import { GRID_X, GRID_Y } from './warp-mesh.mjs';
 
 // The value-ports each supported op consumes; a scene missing any of them is
 // refused at construction — no silent defaults (defaults are the CONVERTER's
@@ -130,7 +131,7 @@ export class Engine {
       // progress: (time - presetStart)/(nextPreset - presetStart), milkdropfs.cpp:495;
       // single-scene slice: start 0, duration = fTimeBetweenPresets default 16 (plugin.cpp:939)
       progress: this.timekeeper.time / 16,
-      meshx: 48, meshy: 36,               // grid defaults, plugin.cpp:952-953
+      meshx: GRID_X, meshy: GRID_Y,       // grid defaults, plugin.cpp:952-953 (src/warp-mesh.mjs)
       pixelsx: this.viewportW, pixelsy: this.viewportH, // GetWidth/GetHeight, milkdropfs.cpp:543-544
       // the pool carries the INVERSE aspect factors (m_fInvAspectX/Y), milkdropfs.cpp:545-546
       aspectx: 1 / this.aspectX(), aspecty: 1 / this.aspectY(),
@@ -177,6 +178,10 @@ export class Engine {
         const warpTime = t * (p.fWarpAnimSpeed ?? 0);
         state.motion = {
           aspectX: this.aspectX(), aspectY: this.aspectY(), // plugin.cpp:2027-2028
+          // warp-pass sampler address choice: wrap > 0.5 selects WRAP else
+          // CLAMP (WarpedBlit_NoShaders texaddr, milkdropfs.cpp:1991; snap
+          // point 0.5, :588 — blend-time snap variants gated with preset-blend)
+          wrap: p.wrap ?? 0,
           decay: p.decay ?? 0,
           zoom: p.zoom ?? 0, zoomExp: p.zoomexp ?? 0, rot: p.rot ?? 0, warp: p.warp ?? 0,
           cx: p.cx ?? 0, cy: p.cy ?? 0, dx: p.dx ?? 0, dy: p.dy ?? 0, sx: p.sx ?? 0, sy: p.sy ?? 0,

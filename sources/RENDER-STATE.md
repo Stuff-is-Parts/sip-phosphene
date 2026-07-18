@@ -17,9 +17,10 @@ ships.** Source: MilkDrop2 @ Doormatty/MilkDrop2 d0670a3.
 | State | Source | Ours | Verdict |
 |---|---|---|---|
 | Internal texture size | window size (nTexSize -1 auto-exact default: plugin.cpp:949, 1851-1852), snapped to 16-pixel blocks (:1879-1880) | canvas size, 16-snapped, recreated on resize | **FIXED** — was a fixed square 1024², an untraced demo-era parameter that pushed the borders past non-square windows |
-| Sampler address U/V | WRAP, hardcoded (:976-981; per-preset choice commented out) | was clamp-to-edge (WebGPU default) | **FIXED** — repeat in all pages |
+| Sampler address U/V | warp pass follows the wrap variable: wrap > 0.5 selects WRAP else CLAMP (WarpedBlit_NoShaders texaddr :1991; snap point 0.5 :588); the shader path :976-981 hardcodes WRAP | per-frame sampler choice from the wrap regvar (default 1 → WRAP); composite keeps WRAP for the overscan edge (:4086-4088 comment) | **FIXED** twice — was clamp-to-edge, then hardcoded repeat; now follows the variable |
 | Filtering | bilinear, stages 0/1 (:995 comment) | linear/linear | match |
 | Cull / depth / blend | CULL_NONE, ZENABLE off, ALPHABLEND off (:985-991) | no cull, no depth attachment, no blend | match |
+| Warp field evaluation | UVs computed at 48×36 mesh vertices, rasterizer interpolates (milkdropfs.cpp:1877-1926; strip topology plugin.cpp:2300-2324; draw :2085-2104) | transcribed CPU-side in src/warp-mesh.mjs (doubles), GPU interpolates; checked (indices, identity exact, zoom=0 NaN structure) | **FIXED** — was per-fragment evaluation, categorically divergent at zoom=0 (scene one exercises it) |
 | Aspect factors | aX=(texY>texX)?texX/texY:1, aY=(texX>texY)?texY/texX:1 from texture size (plugin.cpp:2027-2030) | computed live in Engine, applied in the feedback shader (apply :1881-1882, undo :1914-1916) and checked | **FIXED** — was constant 1, valid only inside the untraced square-texture frame |
 | rad | sqrt(x²·aX² + y²·aY²) (plugin.cpp:2281) | transcribed with the live aspect factors | match |
 | Half-texel offset | 0.5/texSize (:1786-1787 region) | 0.5/textureDimensions | match |
