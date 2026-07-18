@@ -19,8 +19,6 @@ const $in = (id) => /** @type {HTMLInputElement} */ (/** @type {unknown} */ ($(i
 const $cv = (id) => /** @type {HTMLCanvasElement} */ (/** @type {unknown} */ ($(id)));
 /** @param {string} id @returns {any} */
 const $any = (id) => /** @type {any} */ ($(id));
-/** @param {string} sel @returns {HTMLElement} */
-const q = (sel) => { const el = document.querySelector(sel); if (!el) throw new Error('missing ' + sel); return /** @type {HTMLElement} */ (el); };
 /** @param {unknown} e @returns {string} */
 const errMsg = (e) => e instanceof Error ? e.message : String(e);
 // CodeMirror is a vendored classic script on the page, not a module import
@@ -319,6 +317,21 @@ function updateSrcBtn(){
   $('srcView').textContent=hasSrc?'⇄ Source':'{ } Scene code';
 }
 $('srcClose').onclick=()=>srcOverlay.classList.remove('open');
+// copy the full text of either viewer pane (owner request 2026-07-18);
+// clipboard is the platform API and the button reports its own outcome
+/** @param {string} btnId @param {() => any} cm */
+function wireCopy(btnId, cm){
+  const b=$(btnId);
+  b.onclick=async()=>{
+    const ed=cm();
+    if(!ed)return;
+    try{ await navigator.clipboard.writeText(ed.getValue()); b.textContent='✓ copied'; }
+    catch{ b.textContent='copy failed'; }
+    setTimeout(()=>{ b.textContent='⧉ Copy'; },1200);
+  };
+}
+wireCopy('copySrc',()=>cmSrc);
+wireCopy('copyPhos',()=>cmPhos);
 addEventListener('keydown',e=>{ if(e.key==='Escape')srcOverlay.classList.remove('open'); });
 $('srcView').onclick=async()=>{
   const src=/** @type {any} */ (sceneDoc.meta&&sceneDoc.meta.source);
@@ -346,7 +359,7 @@ $('srcView').onclick=async()=>{
 function openSingle(msg){
   ensureCMs();
   srcOverlay.classList.add('open','single');
-  q('#srcOverlay .pane:not(.left) h3').textContent='scene code (.phos)';
+  $('srcTitleR').textContent='scene code (.phos)';
   phosMeta=[]; lineMap=new Map(); hitLines=[]; alignScroll=false;
   cmPhos.setValue(livePhosText());
   srcNote.textContent=msg||'native scene — .phos code (read-only; edit through the panel)';
@@ -356,7 +369,7 @@ function openDual(srcText,fileName){
   ensureCMs();
   srcOverlay.classList.add('open'); srcOverlay.classList.remove('single');
   $('srcTitleL').textContent=fileName;
-  q('#srcOverlay .pane:not(.left) h3').textContent='current .phos (live, incl. unsaved edits)';
+  $('srcTitleR').textContent='current .phos (live, incl. unsaved edits)';
   const phosNow=livePhosText();
   phosMeta=[]; lineMap=new Map(); hitLines=[]; selLine=-1; alignScroll=false;
   cmSrc.setValue(srcText); cmPhos.setValue(phosNow);
@@ -367,7 +380,7 @@ function openTriage(srcText,fileName,dis){
   ensureCMs();
   srcOverlay.classList.add('open'); srcOverlay.classList.remove('single');
   $('srcTitleL').textContent=fileName+' — REFUSED';
-  q('#srcOverlay .pane:not(.left) h3').textContent='per-line disposition (nothing was imported)';
+  $('srcTitleR').textContent='per-line disposition (nothing was imported)';
   phosMeta=[]; lineMap=new Map(); hitLines=[]; alignScroll=true;
   cmSrc.setValue(srcText);
   /** @type {string[]} */ const rows=new Array(srcText.split('\n').length).fill('');

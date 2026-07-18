@@ -95,7 +95,8 @@
   #srcOverlay.open{display:flex;flex-direction:column;gap:8px}
   #srcOverlay .panes{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:8px;min-height:0}
   #srcOverlay .pane{display:flex;flex-direction:column;min-height:0;border:1px solid var(--edge);border-radius:6px;overflow:hidden;background:var(--bg)}
-  #srcOverlay .pane h3{margin:0;padding:6px 10px;font-size:var(--fs-micro);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:var(--raised);border-bottom:1px solid var(--edge)}
+  #srcOverlay .pane h3{margin:0;padding:4px 10px;font-size:var(--fs-micro);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:var(--raised);border-bottom:1px solid var(--edge);display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .copyBtn{font-size:var(--fs-micro);padding:1px 8px;letter-spacing:normal;text-transform:none}
   #srcOverlay .cmhost{flex:1;min-height:0}
   #srcOverlay .CodeMirror{height:100%;font:var(--fs-body)/1.5 ui-monospace,monospace;background:var(--bg);color:var(--fg)}
   #srcOverlay .CodeMirror-gutters{background:var(--raised);border-right:1px solid var(--edge)}
@@ -199,8 +200,8 @@
     <button id="srcClose" style="margin-left:auto">✕ Close</button>
   </div>
   <div class="panes">
-    <div class="pane left"><h3 id="srcTitleL">source</h3><div class="cmhost" id="cmSrcHost"></div></div>
-    <div class="pane"><h3>current .phos (live, incl. unsaved edits)</h3><div class="cmhost" id="cmPhosHost"></div></div>
+    <div class="pane left"><h3><span id="srcTitleL">source</span><button class="copyBtn" id="copySrc">⧉ Copy</button></h3><div class="cmhost" id="cmSrcHost"></div></div>
+    <div class="pane"><h3><span id="srcTitleR">current .phos (live, incl. unsaved edits)</span><button class="copyBtn" id="copyPhos">⧉ Copy</button></h3><div class="cmhost" id="cmPhosHost"></div></div>
   </div>
 </div>
 <script type="module" src="./src/studio.mjs"></script></body></html>
