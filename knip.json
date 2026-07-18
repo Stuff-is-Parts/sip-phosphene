@@ -7,5 +7,6 @@
     "phosphene-engine/src/audio/sources.mjs",
     "phosphene-engine/src/audio/pcm-tap.js"
   ],
-  "project": ["phosphene-engine/**/*.mjs", "phosphene-engine/**/*.js"]
+  "project": ["phosphene-engine/**/*.mjs", "phosphene-engine/**/*.js"],
+  "ignore": ["phosphene-engine/vendor/**"]
 }

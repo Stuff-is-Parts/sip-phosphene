@@ -1,0 +1,5 @@
+codemirror.js + codemirror.css vendored verbatim from the codemirror npm
+package, version 5.65.18 (lib/codemirror.js, lib/codemirror.css), MIT license
+(see LICENSE alongside). Consumed only by studio.html's source ⇄ .phos review
+popup. To re-vendor: npm install codemirror@5.65.18, copy the two lib/ files
+plus LICENSE here, npm uninstall codemirror.

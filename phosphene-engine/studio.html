@@ -1,4 +1,6 @@
 <!doctype html><html><head><meta charset="utf-8"><title>PHOSPHENE Studio</title>
+<link rel="stylesheet" href="./vendor/codemirror/codemirror.css">
+<script src="./vendor/codemirror/codemirror.js"></script>
 <style>
   :root{--bg:#0b0d10;--panel:#14181d;--edge:#232a31;--fg:#c9d3dd;--dim:#6b7885;--accent:#4ea1ff;--good:#3ddc84}
   *{box-sizing:border-box}
@@ -28,6 +30,20 @@
   #vars{font-size:11px}
   #vars .v{display:flex;justify-content:space-between;padding:1px 0;color:var(--dim)}
   #vars .v b{color:var(--fg);font-weight:400;font-variant-numeric:tabular-nums}
+  #srcOverlay{position:fixed;inset:0;background:rgba(4,6,8,.88);display:none;z-index:40;padding:20px}
+  #srcOverlay.open{display:flex;flex-direction:column;gap:8px}
+  #srcOverlay .panes{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:8px;min-height:0}
+  #srcOverlay .pane{display:flex;flex-direction:column;min-height:0;border:1px solid var(--edge);border-radius:6px;overflow:hidden;background:#0b0d10}
+  #srcOverlay .pane h3{margin:0;padding:6px 10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);background:#0f1317;border-bottom:1px solid var(--edge)}
+  #srcOverlay .cmhost{flex:1;min-height:0}
+  #srcOverlay .CodeMirror{height:100%;font:12px/1.5 ui-monospace,monospace;background:#0b0d10;color:var(--fg)}
+  #srcOverlay .CodeMirror-gutters{background:#0f1317;border-right:1px solid var(--edge)}
+  #srcOverlay .CodeMirror-linenumber{color:var(--dim)}
+  #srcOverlay .CodeMirror-cursor{border-left:1px solid var(--fg)}
+  .srcHit{background:rgba(78,161,255,.20)}
+  .srcSel{background:rgba(78,161,255,.10)}
+  .srcDefault{background:rgba(61,220,132,.10)}
+  #srcNote{color:var(--dim);font-size:11px}
 </style></head>
 <body>
 <div id="stage"><canvas id="c"></canvas><div id="hud">PHOSPHENE Studio · <b id="fps">0</b> fps · frame <b id="fr">0</b></div></div>
@@ -39,6 +55,7 @@
     <button id="reset">↺ Reset</button>
     <button id="savePhos">⭳ Save .phos</button>
     <button id="save">⭳ Export .milk</button>
+    <button id="srcView">⇄ Source</button>
     <button id="newScene">✦ New</button>
     <a href="./index.html" style="margin-left:auto;font-size:11px;letter-spacing:.06em;padding:5px 10px;background:var(--edge);border:1px solid #4a4020;color:#f2d97d;text-decoration:none;border-radius:4px">← PLAYER</a>
   </div>
@@ -52,8 +69,20 @@
   <h2>Live variables</h2>
   <div id="vars"></div>
 </div>
+<div id="srcOverlay">
+  <div class="row" style="margin:0">
+    <b style="letter-spacing:.06em">SOURCE ⇄ .PHOS</b>
+    <span id="srcNote"></span>
+    <button id="srcClose" style="margin-left:auto">✕ Close</button>
+  </div>
+  <div class="panes">
+    <div class="pane"><h3 id="srcTitleL">source</h3><div class="cmhost" id="cmSrcHost"></div></div>
+    <div class="pane"><h3>current .phos (live, incl. unsaved edits)</h3><div class="cmhost" id="cmPhosHost"></div></div>
+  </div>
+</div>
 <script type="module">
 import { parsePhos, toRuntime, serializePhos, updateScene } from './src/phos.mjs';
+import { importMilk } from './src/milk-import.mjs';
 import { Engine, CONSUMED_PORTS } from './src/engine.mjs';
 import { feedbackWGSL, compositeWGSL } from './src/render-wgsl.mjs';
 import { buildStripIndices, buildWarpUVs, meshPositions, VERT_COUNT } from './src/warp-mesh.mjs';
@@ -273,5 +302,81 @@ else {
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+}
+
+// ---- side-by-side source ⇄ .phos review (the recipe-adherence surface) ----
+// Left pane: the scene's .milk with real line numbers. Right pane: the live
+// serialized .phos. The line map comes from the importer's ordered records,
+// so each source line jumps to its landing; green-tinted right-pane ports are
+// converter-materialized defaults (present in .phos, absent from the source).
+const srcOverlay=document.getElementById('srcOverlay');
+const srcNote=document.getElementById('srcNote');
+let cmSrc=null, cmPhos=null;
+let lineMap=new Map();   // source line number -> {phosLine, label}
+let hitLines=[];         // currently highlighted right-pane lines
+let selLine=-1;          // currently highlighted left-pane line
+document.getElementById('srcClose').onclick=()=>srcOverlay.classList.remove('open');
+addEventListener('keydown',e=>{ if(e.key==='Escape')srcOverlay.classList.remove('open'); });
+document.getElementById('srcView').onclick=async()=>{
+  srcOverlay.classList.add('open');
+  const phosNow=serializePhos(sceneDoc);
+  if(!cmPhos)cmPhos=CodeMirror(document.getElementById('cmPhosHost'),{value:phosNow,readOnly:true,lineNumbers:true,mode:null});
+  else cmPhos.setValue(phosNow);
+  hitLines=[];
+  const src=sceneDoc.meta&&sceneDoc.meta.source;
+  if(!src){ srcNote.textContent='native scene — no source file to compare'; if(cmSrc)cmSrc.setValue(''); return; }
+  document.getElementById('srcTitleL').textContent=src.file;
+  let srcText;
+  try{ srcText=await (await fetch('./'+src.file)).text(); }
+  catch(e){ srcNote.textContent='source fetch failed: '+e; return; }
+  if(!cmSrc){
+    cmSrc=CodeMirror(document.getElementById('cmSrcHost'),{value:srcText,readOnly:true,lineNumbers:true,mode:null});
+    cmSrc.on('cursorActivity',()=>jumpTo(cmSrc.getCursor().line+1));
+  } else cmSrc.setValue(srcText);
+  buildLineMap(srcText,phosNow);
+};
+function buildLineMap(srcText,phosText){
+  lineMap=new Map();
+  const phosLines=phosText.split('\n');
+  let ir;
+  try{ ir=importMilk(srcText); }
+  catch(e){ srcNote.textContent='importer refuses this source: '+e.message; return; }
+  const sourceKeys=new Set();
+  const find=(pred)=>phosLines.findIndex(pred);
+  for(const rec of ir.records){
+    if(rec.kind==='value'){
+      sourceKeys.add(rec.key);
+      const i=find(l=>l.trim().startsWith('"'+rec.key+'": {'));
+      if(i>=0)lineMap.set(rec.line,{phosLine:i,label:'port '+rec.key});
+    } else if(rec.kind==='equation'){
+      const i=find(l=>l.includes(JSON.stringify(rec.code)));
+      if(i>=0)lineMap.set(rec.line,{phosLine:i,label:'per-frame program code'});
+    } else if(rec.kind==='comment'){
+      const i=find(l=>l.includes(JSON.stringify(rec.text)));
+      if(i>=0)lineMap.set(rec.line,{phosLine:i,label:'preserved source comment'});
+    } else if(rec.kind==='section'){
+      const i=find(l=>l.includes('"sourceEngine"'));
+      if(i>=0)lineMap.set(rec.line,{phosLine:i,label:'structural marker → provenance'});
+    }
+  }
+  phosLines.forEach((l,i)=>{
+    const m=l.match(/^\s{8}"([A-Za-z_][A-Za-z0-9_]*)": \{$/);
+    if(m&&m[1]!=='out'&&m[1]!=='in'&&!sourceKeys.has(m[1]))cmPhos.addLineClass(i,'background','srcDefault');
+  });
+  srcNote.textContent='click a source line to see its landing · green on the right = converter-materialized default';
+}
+function jumpTo(srcLine){
+  if(!cmPhos||!cmSrc)return;
+  for(const i of hitLines)cmPhos.removeLineClass(i,'background','srcHit');
+  hitLines=[];
+  if(selLine>=0)cmSrc.removeLineClass(selLine,'background','srcSel');
+  selLine=srcLine-1;
+  cmSrc.addLineClass(selLine,'background','srcSel');
+  const hit=lineMap.get(srcLine);
+  if(!hit){ srcNote.textContent='line '+srcLine+': no direct .phos landing (blank line)'; return; }
+  cmPhos.addLineClass(hit.phosLine,'background','srcHit');
+  hitLines.push(hit.phosLine);
+  cmPhos.scrollIntoView({line:hit.phosLine,ch:0},80);
+  srcNote.textContent='source line '+srcLine+' → '+hit.label+' (.phos line '+(hit.phosLine+1)+')';
 }
 </script></body></html>
