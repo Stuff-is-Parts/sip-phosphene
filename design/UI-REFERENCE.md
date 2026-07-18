@@ -76,6 +76,8 @@ these web sources.
    marker and exists only while the scene is dirty. Grouping controls by
    furniture category ("transport", "views") instead of by what they act on
    is the witnessed failure this rule replaces (owner review 2026-07-18).
+   A toggle control shows the state it will change: the demo button reads
+   STOP while the demo is playing (owner request 2026-07-18).
 10. **Labels never outrank the content they label.** The scene NAME is the
     scene strip's title in bright text; a "Scene" heading louder than the
     name it introduces is an inverted hierarchy (owner-witnessed).
@@ -106,10 +108,16 @@ clean rows, never an orphaned button.
 - Surfaces: page #06080f · panel #0c1018 · raised #131926 · border #1d2536
 - Text: normal #dde4f5 · quiet #7a86a0 · link #7ce7ff
 - Type scale: micro 11 · body 13 · title 15 · mark 24 · splash clamp
-- Loud elements: wordmark (Orbitron 24px cyan with LAYERED shadows — tight
-  core 2px, mid ring 10px, wide halo 28px; a single blur reads flat) and
-  the primary action (brand fill + inline box-shadow glow) — Save .phos in
-  the studio, START on the player splash. Everything else: no glow.
+- Wordmark (both mastheads): Orbitron 24px in text-normal WHITE with the S
+  as the lit tube — cyan with LAYERED shadows (tight core 2px, mid ring
+  10px, wide halo 28px; a single blur reads flat). One letter is the neon;
+  the word is the sign.
+- Loud elements: the wordmark's S and the primary action (brand outline +
+  glow in working views; the solid-fill START on the player splash card).
+  Everything else: no glow.
+- Player lifecycle: the renderer starts at page load (silence holds bands
+  at 1.0); the splash is a source-picker card over the live render, ESC
+  dismisses it, and arriving from the studio lands in a live player.
 - Buttons: quiet tier is WA appearance "filled-outlined" on neutral tokens
   raised well above the surfaces (fill #182233+, border #37496a+, text
   #c6d2de+) after the witnessed too-dark-to-read failure; brand-quiet tier

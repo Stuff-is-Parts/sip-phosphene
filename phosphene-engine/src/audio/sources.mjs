@@ -41,6 +41,12 @@ export class AudioEngine {
     try { this.#fileSrc?.stop(); } catch { /* not started */ }
     this.#fileSrc = null;
   }
+  /** stop whatever source is active and return to silence — analysis then
+   * holds the source-silence semantics (bands at 1.0) with no new samples */
+  stop() {
+    this.#stopAll();
+    this.source = 'none'; this.label = 'no source';
+  }
   async startDemo() {
     const ctx = await this.#ensure(); this.#stopAll();
     const tap = this.#tap;

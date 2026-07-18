@@ -30,7 +30,8 @@
   /* identity tier: the ONE glowing chrome element in the panel besides the
      primary action (UI-REFERENCE rule 1). Layered shadows are the neon tube:
      tight core, mid ring, wide halo — a single blur reads flat. */
-  #mark{font-family:'Orbitron',ui-monospace,monospace;font-size:var(--fs-mark);font-weight:700;letter-spacing:.18em;color:var(--accent);text-shadow:0 0 2px rgba(0,229,255,.9),0 0 10px rgba(0,229,255,.55),0 0 28px rgba(0,229,255,.3);margin:0}
+  #mark{font-family:'Orbitron',ui-monospace,monospace;font-size:var(--fs-mark);font-weight:700;letter-spacing:.18em;color:var(--fg);margin:0}
+  #mark b{font-weight:inherit;color:var(--accent);text-shadow:0 0 2px rgba(0,229,255,.9),0 0 10px rgba(0,229,255,.55),0 0 28px rgba(0,229,255,.3)}
   #mark span{font-size:var(--fs-micro);font-weight:500;letter-spacing:.3em;color:var(--dim);text-shadow:none;vertical-align:2px;margin-left:8px}
   /* zone chrome: locked masthead + locked audio bridge, scrolling workspace */
   /* wrap, never clip: the panel frame's overflow:hidden ate the nav at
@@ -124,7 +125,7 @@
   <div slot="end" id="panel">
     <!-- zone 1: locked masthead — identity left, navigation right -->
     <div id="masthead">
-      <div id="mark">PHOSPHENE<span>STUDIO</span></div>
+      <div id="mark">PHO<b>S</b>PHENE<span>STUDIO</span></div>
       <nav>
         <wa-button size="small" appearance="filled-outlined" href="./index.html">← Player</wa-button>
       </nav>
@@ -686,11 +687,20 @@ function jumpFromPhos(pLine){
 // ---- studio audio: player-identical sources feeding the same analysis ----
 const audio=new AudioEngine();
 const audioStatus=document.getElementById('audioStatus');
+const silentStatus=audioStatus.innerHTML; // restored when a source stops
+// the demo button is a toggle, so it shows the state it will change
+function refreshDemoBtn(){
+  document.getElementById('aDemo').textContent = audio.source==='demo' ? '■ STOP' : '▶ DEMO';
+}
 async function startAudio(fn,label){
   try{ await fn(); audioStatus.textContent='source: '+label; }
   catch(e){ audioStatus.textContent='audio failed: '+(e&&e.message||e); }
+  refreshDemoBtn();
 }
-document.getElementById('aDemo').onclick=()=>startAudio(()=>audio.startDemo(),'demo track');
+document.getElementById('aDemo').onclick=()=>{
+  if(audio.source==='demo'){ audio.stop(); audioStatus.innerHTML=silentStatus; refreshDemoBtn(); }
+  else startAudio(()=>audio.startDemo(),'demo track');
+};
 document.getElementById('aMic').onclick=()=>startAudio(()=>audio.startMic(),'microphone');
 document.getElementById('aFile').onclick=()=>document.getElementById('audioFile').click();
 document.getElementById('audioFile').onchange=e=>{ const f=e.target.files[0]; if(f)startAudio(()=>audio.playFile(f),f.name); e.target.value=''; };
