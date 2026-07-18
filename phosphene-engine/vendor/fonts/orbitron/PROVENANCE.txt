@@ -1,0 +1,10 @@
+Orbitron variable font (wght axis), SIL Open Font License 1.1 (OFL.txt
+alongside). Fetched 2026-07-18 from Google Fonts static hosting:
+https://fonts.gstatic.com/s/orbitron/v35/yMJRMIlzdpvBhQQL_Qq7dy0.woff2
+(latin subset, v35), as served by the css2 API for
+family=Orbitron:wght@500;700. Upstream project:
+https://github.com/theleagueof/orbitron
+Consumed by phosphene.theme.css @font-face as the identity/display face
+per design/UI-REFERENCE.md (wide geometric sans for the wordmark tier).
+To re-vendor: curl the css2 URL above with a browser UA, download the
+woff2 it names, refresh OFL.txt from google/fonts ofl/orbitron.

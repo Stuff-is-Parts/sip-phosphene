@@ -2,49 +2,60 @@
  * API, the same surface its shipped themes define (vendor/webawesome/styles/
  * themes/default.css). Loaded after the default theme: that file's values sit
  * in @layer wa-theme, so these unlayered overrides win by cascade-layer rules.
- * One palette authority for player + studio chrome; the meter hues stay
- * reserved for data in the scope canvas. */
+ * Palette roles, glow budget, and type scale are specified in
+ * design/UI-REFERENCE.md; this file is that spec's token expression. */
+
+/* identity/display face — vendored, OFL license + provenance alongside
+   (vendor/fonts/orbitron/). Display-only per UI-REFERENCE rule 4. */
+@font-face {
+  font-family: 'Orbitron';
+  src: url('./vendor/fonts/orbitron/orbitron-variable.woff2') format('woff2');
+  font-weight: 400 900;
+  font-display: swap;
+}
+
 .wa-dark {
   color-scheme: dark;
 
-  /* surfaces: near-black with a cold cast, three depth tiers */
-  --wa-color-surface-raised: #151c25;
-  --wa-color-surface-default: #0f141b;
-  --wa-color-surface-lowered: #070a0e;
-  --wa-color-surface-border: #1e2a37;
+  /* surfaces: near-black with a cold navy cast, three depth tiers */
+  --wa-color-surface-raised: #131926;
+  --wa-color-surface-default: #0c1018;
+  --wa-color-surface-lowered: #06080f;
+  --wa-color-surface-border: #1d2536;
 
-  /* text: two clear tiers, link in the accent family */
-  --wa-color-text-normal: #d7e2ec;
-  --wa-color-text-quiet: #75858f;
+  /* text: tinted near-white, two tiers, link in the accent family */
+  --wa-color-text-normal: #dde4f5;
+  --wa-color-text-quiet: #7a86a0;
   --wa-color-text-link: #7ce7ff;
 
   --wa-color-focus: #00e5ff;
 
-  /* brand: one electric-cyan family carries every primary action */
-  --wa-color-brand-fill-quiet: #062730;
-  --wa-color-brand-fill-normal: #083743;
+  /* brand: the one dominant neon (electric cyan) for identity + primary
+     action; quiet brand tiers are dark fills with cyan text/border */
+  --wa-color-brand-fill-quiet: #082230;
+  --wa-color-brand-fill-normal: #0a3343;
   --wa-color-brand-fill-loud: #00e5ff;
-  --wa-color-brand-border-quiet: #0a3a45;
-  --wa-color-brand-border-normal: #0b5b6b;
+  --wa-color-brand-border-quiet: #0b3d4d;
+  --wa-color-brand-border-normal: #0e5163;
   --wa-color-brand-border-loud: #00e5ff;
   --wa-color-brand-on-quiet: #4fd8f0;
   --wa-color-brand-on-normal: #7ce7ff;
   --wa-color-brand-on-loud: #031519;
 
-  /* neutral: dark graphite slabs — default buttons stop flaring white
-   * (stock dark theme maps neutral-fill-loud to neutral-90, a light value) */
-  --wa-color-neutral-fill-quiet: #101720;
-  --wa-color-neutral-fill-normal: #141c26;
-  --wa-color-neutral-fill-loud: #1b2531;
-  --wa-color-neutral-border-quiet: #1e2a37;
-  --wa-color-neutral-border-normal: #24313f;
-  --wa-color-neutral-border-loud: #31445a;
+  /* neutral: dark slabs with visible borders — quiet-tier controls
+     (stock dark theme maps neutral-fill-loud to a light value) */
+  --wa-color-neutral-fill-quiet: #0f1520;
+  --wa-color-neutral-fill-normal: #131a27;
+  --wa-color-neutral-fill-loud: #1a2333;
+  --wa-color-neutral-border-quiet: #1d2536;
+  --wa-color-neutral-border-normal: #263043;
+  --wa-color-neutral-border-loud: #35435c;
   --wa-color-neutral-on-quiet: #8fa0ad;
   --wa-color-neutral-on-normal: #b9c7d2;
-  --wa-color-neutral-on-loud: #d7e2ec;
+  --wa-color-neutral-on-loud: #dde4f5;
 
-  /* type: monospace identity everywhere */
+  /* type: monospace body/technical, Orbitron reserved for headings tier */
   --wa-font-family-body: ui-monospace, Consolas, monospace;
-  --wa-font-family-heading: ui-monospace, Consolas, monospace;
+  --wa-font-family-heading: 'Orbitron', ui-monospace, Consolas, monospace;
   --wa-font-family-code: ui-monospace, Consolas, monospace;
 }
