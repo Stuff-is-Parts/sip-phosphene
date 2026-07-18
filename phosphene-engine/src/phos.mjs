@@ -4,6 +4,8 @@
 // Spec: design/PHOS-FORMAT.md. Strict JSON; "//"-prefixed keys are authoring
 // annotations, stripped on parse; any other unknown key is a parse error.
 
+import { OP_PORTS } from './engine.mjs';
+
 /** @typedef {{type:string, value?:number}} Port */
 /** @typedef {{id:string, primitive:string, op:string, ports:Record<string,Port>}} PhosNode */
 /** @typedef {{id:string, stage:string, code:string[], comments?:string[]}} ExprProgram */
@@ -253,62 +255,82 @@ export function updateScene(/** @type {Scene} */ scene, /** @type {Record<string
 // the source line. The exhaustive-consumption invariant lives here in the
 // converter itself, not in a separate verification tool.
 //
-// Each value handler EXECUTES the conversion: it emits the target port the
-// runtime actually consumes. Where MilkDrop applies semantics beyond storing
-// the float, the handler comment names the executable site that carries them:
+// Every port emission flows through emitPort, which enforces the ONE
+// authoritative port declaration shared with execution (OP_PORTS,
+// src/engine.mjs): a handler cannot emit a port the runtime does not consume,
+// and Engine construction independently refuses such a port arriving in any
+// .phos. Where MilkDrop applies semantics beyond storing the float, the
+// executable site is in the runtime path the declaration points to:
 // - fDecay quantizes through the 8-bit D3DCOLOR path before modulation —
-//   executes at Engine.renderState motion.decay (d3dColor01; milkdropfs.cpp:41, :2007)
+//   Engine.renderState motion.decay (d3dColor01; milkdropfs.cpp:41, :2007)
 // - border colors/alphas pass the same 8-bit conversion at Engine.renderState
 //   innerBox/outerBox (:3453-3457); the draw gate reads the RAW alpha (:3451)
 // - fGammaAdj clamps 0..8 and fVideoEchoZoom clamps 0.001..1000 after
-//   per-frame equations — executes in Engine.step (:677-679)
-// - warp motion values are consumed by the finite-mesh UV path
-//   (src/warp-mesh.mjs, :1877-1926) through Engine.renderState.motion
+//   per-frame equations — Engine.step (:677-679)
+// - warp motion values feed the finite-mesh UV path (src/warp-mesh.mjs,
+//   :1877-1926) through Engine.renderState.motion
 
 /** @typedef {{warp:Record<string,Port>, borders:Record<string,Port>, comp:Record<string,Port>}} NodePorts */
+/** @typedef {import('./milk-import.mjs').ValueRecord} ValueRecord */
 
-/** @type {Record<string, (value:number, ports:NodePorts) => void>} */
+/** @type {{warp:string, borders:string, comp:string}} */
+const NODE_OP = { warp: 'warp-feedback', borders: 'borders', comp: 'composite' };
+
+/**
+ * The single emission door: refuses any port the target op does not declare.
+ * @param {NodePorts} ports @param {'warp'|'borders'|'comp'} nodeId
+ * @param {string} key @param {number} value @param {number} [line]
+ */
+function emitPort(ports, nodeId, key, value, line) {
+  const declared = /** @type {string[]} */ (OP_PORTS[NODE_OP[nodeId]]);
+  if (!declared.includes(key)) {
+    throw new Error(`milkToPhos: ${line !== undefined ? `line ${line}: ` : ''}port "${key}" is not declared by target op "${NODE_OP[nodeId]}" (OP_PORTS, src/engine.mjs) — no runtime consumer exists, refusing`);
+  }
+  ports[nodeId][key] = { type: 'float', value };
+}
+
+/** @type {Record<string, (rec:ValueRecord, ports:NodePorts) => void>} */
 const VALUE_HANDLERS = {
   // warp-feedback motion — finite-mesh UVs (src/warp-mesh.mjs) + renderState.motion
-  fDecay: (v, ports) => { ports.warp.fDecay = { type: 'float', value: v }; }, // 8-bit quantized at render (d3dColor01)
-  zoom: (v, ports) => { ports.warp.zoom = { type: 'float', value: v }; },
-  rot: (v, ports) => { ports.warp.rot = { type: 'float', value: v }; },
-  warp: (v, ports) => { ports.warp.warp = { type: 'float', value: v }; },
-  cx: (v, ports) => { ports.warp.cx = { type: 'float', value: v }; },
-  cy: (v, ports) => { ports.warp.cy = { type: 'float', value: v }; },
-  dx: (v, ports) => { ports.warp.dx = { type: 'float', value: v }; },
-  dy: (v, ports) => { ports.warp.dy = { type: 'float', value: v }; },
-  sx: (v, ports) => { ports.warp.sx = { type: 'float', value: v }; },
-  sy: (v, ports) => { ports.warp.sy = { type: 'float', value: v }; },
-  fWarpAnimSpeed: (v, ports) => { ports.warp.fWarpAnimSpeed = { type: 'float', value: v }; },
-  fWarpScale: (v, ports) => { ports.warp.fWarpScale = { type: 'float', value: v }; },
-  fZoomExponent: (v, ports) => { ports.warp.fZoomExponent = { type: 'float', value: v }; },
-  // borders — rings drawn after the warped blit (:3431-3487); colors/alphas
-  // 8-bit converted at renderState, gate on raw alpha
-  ob_size: (v, ports) => { ports.borders.ob_size = { type: 'float', value: v }; },
-  ob_r: (v, ports) => { ports.borders.ob_r = { type: 'float', value: v }; },
-  ob_g: (v, ports) => { ports.borders.ob_g = { type: 'float', value: v }; },
-  ob_b: (v, ports) => { ports.borders.ob_b = { type: 'float', value: v }; },
-  ob_a: (v, ports) => { ports.borders.ob_a = { type: 'float', value: v }; },
-  ib_size: (v, ports) => { ports.borders.ib_size = { type: 'float', value: v }; },
-  ib_r: (v, ports) => { ports.borders.ib_r = { type: 'float', value: v }; },
-  ib_g: (v, ports) => { ports.borders.ib_g = { type: 'float', value: v }; },
-  ib_b: (v, ports) => { ports.borders.ib_b = { type: 'float', value: v }; },
-  ib_a: (v, ports) => { ports.borders.ib_a = { type: 'float', value: v }; },
-  // composite — gammaAdj saturating multiply + video echo (:4147-4260);
-  // post-equation clamps execute in Engine.step (:677-679)
-  fGammaAdj: (v, ports) => { ports.comp.fGammaAdj = { type: 'float', value: v }; },
-  fVideoEchoZoom: (v, ports) => { ports.comp.fVideoEchoZoom = { type: 'float', value: v }; },
-  fVideoEchoAlpha: (v, ports) => { ports.comp.fVideoEchoAlpha = { type: 'float', value: v }; },
-  nVideoEchoOrientation: (v, ports) => { ports.comp.nVideoEchoOrientation = { type: 'float', value: v }; },
+  fDecay: (rec, ports) => emitPort(ports, 'warp', 'fDecay', rec.value, rec.line), // 8-bit quantized at render (d3dColor01)
+  zoom: (rec, ports) => emitPort(ports, 'warp', 'zoom', rec.value, rec.line),
+  rot: (rec, ports) => emitPort(ports, 'warp', 'rot', rec.value, rec.line),
+  warp: (rec, ports) => emitPort(ports, 'warp', 'warp', rec.value, rec.line),
+  cx: (rec, ports) => emitPort(ports, 'warp', 'cx', rec.value, rec.line),
+  cy: (rec, ports) => emitPort(ports, 'warp', 'cy', rec.value, rec.line),
+  dx: (rec, ports) => emitPort(ports, 'warp', 'dx', rec.value, rec.line),
+  dy: (rec, ports) => emitPort(ports, 'warp', 'dy', rec.value, rec.line),
+  sx: (rec, ports) => emitPort(ports, 'warp', 'sx', rec.value, rec.line),
+  sy: (rec, ports) => emitPort(ports, 'warp', 'sy', rec.value, rec.line),
+  fWarpAnimSpeed: (rec, ports) => emitPort(ports, 'warp', 'fWarpAnimSpeed', rec.value, rec.line),
+  fWarpScale: (rec, ports) => emitPort(ports, 'warp', 'fWarpScale', rec.value, rec.line),
+  fZoomExponent: (rec, ports) => emitPort(ports, 'warp', 'fZoomExponent', rec.value, rec.line),
+  // borders — rings after the warped blit (:3431-3487); 8-bit color conversion
+  // and raw-alpha gate execute at renderState
+  ob_size: (rec, ports) => emitPort(ports, 'borders', 'ob_size', rec.value, rec.line),
+  ob_r: (rec, ports) => emitPort(ports, 'borders', 'ob_r', rec.value, rec.line),
+  ob_g: (rec, ports) => emitPort(ports, 'borders', 'ob_g', rec.value, rec.line),
+  ob_b: (rec, ports) => emitPort(ports, 'borders', 'ob_b', rec.value, rec.line),
+  ob_a: (rec, ports) => emitPort(ports, 'borders', 'ob_a', rec.value, rec.line),
+  ib_size: (rec, ports) => emitPort(ports, 'borders', 'ib_size', rec.value, rec.line),
+  ib_r: (rec, ports) => emitPort(ports, 'borders', 'ib_r', rec.value, rec.line),
+  ib_g: (rec, ports) => emitPort(ports, 'borders', 'ib_g', rec.value, rec.line),
+  ib_b: (rec, ports) => emitPort(ports, 'borders', 'ib_b', rec.value, rec.line),
+  ib_a: (rec, ports) => emitPort(ports, 'borders', 'ib_a', rec.value, rec.line),
+  // composite — gammaAdj + video echo (:4147-4260); clamps execute in Engine.step
+  fGammaAdj: (rec, ports) => emitPort(ports, 'comp', 'fGammaAdj', rec.value, rec.line),
+  fVideoEchoZoom: (rec, ports) => emitPort(ports, 'comp', 'fVideoEchoZoom', rec.value, rec.line),
+  fVideoEchoAlpha: (rec, ports) => emitPort(ports, 'comp', 'fVideoEchoAlpha', rec.value, rec.line),
+  nVideoEchoOrientation: (rec, ports) => emitPort(ports, 'comp', 'nVideoEchoOrientation', rec.value, rec.line),
 };
 
 // Source-defined defaults a preset may omit — MilkDrop state.cpp
 // (CState::Default): warp-motion params :654-665, composite params :541-544
-// (note fGammaAdj DEFAULTS TO 2.0 — "1.0 = reg; +2.0 = double"). The converter
-// materializes them so the .phos carries "parsed fields, defaults" per the
-// exactness standard, instead of the engine defaulting silently.
-const MILK_NODE_DEFAULTS = /** @type {Record<string, Record<string,number>>} */ ({
+// (note fGammaAdj DEFAULTS TO 2.0 — "1.0 = reg; +2.0 = double"). Materialized
+// so the .phos carries "parsed fields, defaults" per the exactness standard.
+// The presence test reads the EMITTED ports (the records' own output), never
+// a derived view — the records stay authoritative end to end.
+const MILK_NODE_DEFAULTS = /** @type {{warp:Record<string,number>, comp:Record<string,number>}} */ ({
   warp: {
     zoom: 1, rot: 0, cx: 0.5, cy: 0.5, dx: 0, dy: 0, warp: 1, sx: 1, sy: 1,
     fWarpAnimSpeed: 1, fWarpScale: 1, fZoomExponent: 1,
@@ -338,7 +360,7 @@ export function milkToPhos(/** @type {{records:import('./milk-import.mjs').Sourc
     } else if (rec.kind === 'value') {
       const handler = VALUE_HANDLERS[rec.key];
       if (!handler) throw new Error(`milkToPhos: line ${rec.line}: no conversion handler for "${rec.key}" — the target cannot yet express this property's behavior, refusing`);
-      handler(rec.value, nodePorts); consumed++; // target port emitted by the handler
+      handler(rec, nodePorts); consumed++; // target port emitted through the declared-port door
     } else {
       throw new Error(`milkToPhos: unknown record kind ${JSON.stringify(rec)} — refusing`);
     }
@@ -346,9 +368,11 @@ export function milkToPhos(/** @type {{records:import('./milk-import.mjs').Sourc
   if (consumed !== ir.records.length) {
     throw new Error(`milkToPhos: ${ir.records.length - consumed} source record(s) left unconsumed — refusing`);
   }
-  for (const [nodeId, defaults] of Object.entries(MILK_NODE_DEFAULTS)) {
-    for (const [key, dflt] of Object.entries(defaults)) {
-      if (!(key in ir.vars)) /** @type {Record<string,Port>} */ (/** @type {Record<string,Record<string,Port>>} */ (/** @type {unknown} */ (nodePorts))[nodeId])[key] = { type: 'float', value: dflt };
+  // defaults for ports the records did not emit — presence read from the
+  // emitted ports themselves, and emission goes through the same guarded door
+  for (const nodeId of /** @type {('warp'|'comp')[]} */ (['warp', 'comp'])) {
+    for (const [key, dflt] of Object.entries(MILK_NODE_DEFAULTS[nodeId])) {
+      if (!(key in nodePorts[nodeId])) emitPort(nodePorts, nodeId, key, dflt);
     }
   }
   // canonical wiring: warp -> borders -> comp (pipeline grammar, milkdropfs.cpp:1048-1214)

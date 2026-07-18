@@ -548,7 +548,17 @@ const transformOk = (() => {
     && st7.motion.decay === 249 / 255 && e7.pool.ib_r === 1.1;
 })();
 
-const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk;
+// (x) Inert-port refusal — the shared OP_PORTS declaration (src/engine.mjs)
+//     closes the handler-exists-but-runtime-ignores hole: the parser stays
+//     format-generic, but Engine construction refuses a scene carrying a value
+//     port no runtime path consumes.
+const inertPortOk = (() => {
+  const mutated = phosText.replace('"fDecay": {', '"nWaveMode": {\n          "type": "float",\n          "value": 7\n        },\n        "fDecay": {');
+  try { parsePhos(mutated); } catch { return false; }
+  try { new Engine(toRuntime(parsePhos(mutated))); return false; } catch { return true; }
+})();
+
+const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk;
 
 const eelFnCount = Object.keys(eelSubject).length;
 const eelCoveredCount = new Set(eelCases.map((c) => c[0])).size;
@@ -618,6 +628,7 @@ console.log('aspect factors: forward to renderState, inverse to pool (exact):', 
 console.log('finite-mesh warp: strip indices + identity UVs exact + zoom=0 NaN structure:', meshOk ? 'OK' : 'FAIL');
 console.log('ordered source records: per-line, in order, refusal names the line:', recordsOk ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
+console.log('inert value port refused at engine construction (shared OP_PORTS):', inertPortOk ? 'OK' : 'FAIL');
 for (const [name, args] of eelFailures) { const fn = eelSubject[name]; console.log(`  FAIL: ${name}(${args.join(',')}) = ${fn ? fn(...args) : 'missing'}`); }
 console.log(`\nRESULT: ${pass ? 'PASS' : 'FAIL'}`);
 process.exit(pass ? 0 : 1);

@@ -11,10 +11,15 @@ import { Timekeeper } from './timekeeper.mjs';
 export function d3dColor01(/** @type {number} */ v) { return (Math.trunc(v * 255) & 0xFF) / 255; }
 import { GRID_X, GRID_Y } from './warp-mesh.mjs';
 
-// The value-ports each supported op consumes; a scene missing any of them is
-// refused at construction — no silent defaults (defaults are the CONVERTER's
-// job, materialized into the .phos from cited source values).
-const OP_PORTS = /** @type {Record<string,string[]>} */ ({
+// THE AUTHORITATIVE PORT DECLARATION, shared by conversion and execution:
+// exactly the value-ports each op's runtime path consumes (renderState +
+// src/warp-mesh.mjs read every name below through the pool). The converter
+// (src/phos.mjs emitPort) refuses to emit a port outside this declaration,
+// and Engine construction below refuses a scene carrying one — so an emitted
+// port without a runtime consumer cannot exist on either side. A scene
+// missing a declared port is equally refused — no silent defaults (defaults
+// are the CONVERTER's job, materialized into the .phos from cited values).
+export const OP_PORTS = /** @type {Record<string,string[]>} */ ({
   'warp-feedback': ['fDecay', 'zoom', 'rot', 'warp', 'cx', 'cy', 'dx', 'dy', 'sx', 'sy',
     'fWarpAnimSpeed', 'fWarpScale', 'fZoomExponent'],
   'borders': ['ib_size', 'ib_r', 'ib_g', 'ib_b', 'ib_a', 'ob_size', 'ob_r', 'ob_g', 'ob_b', 'ob_a'],
@@ -94,8 +99,14 @@ export class Engine {
       throw new Error(`Engine: op sequence [${stages.join(' -> ')}] is outside the fixed-pipeline contract [${CONTRACT.join(' -> ')}] — refusing`);
     }
     for (const n of this.order) {
-      for (const k of /** @type {string[]} */ (OP_PORTS[n.stage])) {
+      const declared = /** @type {string[]} */ (OP_PORTS[n.stage]);
+      for (const k of declared) {
         if (typeof scene.vars[k] !== 'number') throw new Error(`Engine: node "${n.id}" (${n.stage}) requires variable "${k}" — missing from the scene, refusing`);
+      }
+      // undeclared extra value ports are refused: an accepted port the render
+      // path never reads would be silently inert, the theater failure mode
+      for (const pname of n.ports) {
+        if (!declared.includes(pname)) throw new Error(`Engine: node "${n.id}" (${n.stage}) carries value port "${pname}" that no runtime path consumes — refusing an inert port`);
       }
     }
     // per-vertex programs parse but are REFUSED at execution until the engine
