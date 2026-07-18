@@ -100,56 +100,67 @@ uniformity (all 387 Clear nodes across 252 scenes carry exactly one port,
 Color); and history.txt:291 (v2.0.1 "ClearNode: Default clear nodes to
 set alpha to 0.0" — Color carries alpha). Connections in the Color Cycle
 scene.xml witness `Clear.Render` out to `Screen.Render` and `Clear.Color`
-in from HSLAToColor. A Clear whose Color is a saved constant, wired
-`Clear.Render -> Screen.Render` into the witnessed Screen configuration,
-converts onto the shared executor's native `clear-color` op
-(NATIVE_OPS, phosphene-engine/src/engine.mjs) whose realization is a
-WebGPU clear pass. A Clear whose Color is DRIVEN (as in Color Cycle)
-converts only when its driver converts — so Color Cycle still refuses.
+in from HSLAToColor. The Color port converts as vec4, driven either by a
+saved constant or by an incoming value edge from HSLAToColor / RGBAToColor;
+the render edge from Clear.Render to Screen.Render is preserved verbatim.
 
 **HSLAToColor** — dll: "Converts a Hue, Saturation, Lightness and alpha
 component to a color" (name 0x1fa1d0, description 0x1fa1e0). Ports Hue
 (help verbatim: "The 'real' color. In degrees", 0x1fa228), Saturation,
-Lightness, Alpha; out Color. The standard CSS/Wikipedia HSL-to-RGB formula
-applied to Color Cycle's saved HSL ports reproduces Color Cycle's saved
-Clear.Color to one part in 10^6. This is **a strong candidate consistent
-with one retained input/output vector**, not a fully resolved formula —
-resolution requires either a second independent vector or observation of
-the running node against known inputs.
+Lightness, Alpha; out Color. **RESOLVED for the Color Cycle slice
+2026-07-18** with an evidence boundary: the standard CSS/Wikipedia HSL-to-RGB
+formula reproduces Color Cycle's saved input/output vector to one part in
+10^6 and is what the native op implements. This is one retained vector,
+not a general proof of the formula — the native op's binding to this slice
+holds until either a second vector or observation of the running node
+against known inputs establishes the general case.
 
 **MinMax node** — dll: "Interpolates a float value using delay times.
 Doesn't handle 'local' evaluators." Nine ports: Min, Max, Mode, DelayMin,
 DelayMax, DelayMode, ITimeMin, ITimeMax, ITimeMode. history.txt line 413
 (v1.6): "Forced MinMax node to only update itself once a frame" — witness
-that MinMax ticks once per frame; nothing else about its state model.
-- **Mode enum names** witnessed in the dll literal pool at 0x1fab8c
-  (`Rand`), 0x1fab94 (`RandShortestDist`), 0x1faba8 (`LoopUp`), 0x1fabb0
-  (`LoopDown`) — contiguous, in this order, immediately before the
-  `MinMax` node name at 0x1fabbc. A raw hexdump of 0x1fab40-0x1fabd0
-  (2026-07-18) shows the bytes before `Rand` are a pointer table (11
-  little-endian 0x10xxxxxx values), not further names — the list is
-  exactly four names at this site, though string pooling means a
-  short item name merged elsewhere in the binary cannot be excluded.
-- **Numeric mode mapping is UNRESOLVED, and the 2026-07-18 corpus scan
-  now REFUTES the simplest hypothesis**: corpus `MinMax.Mode` values are
-  {1: 101, 2: 11, 3: 1, 4: 5} — no 0, and a 4 — while `MinMax.DelayMode`
-  values are {0: 5, 1: 113} and `MinMax.ITimeMode` is {1: 118}. A single
-  0-based index over the four-name list cannot produce Mode=4, and a
-  single 1-based index cannot produce DelayMode=0, so the three mode
-  ports do not share one indexing over one four-name list — either the
-  lists differ per port or an unwitnessed extra item exists. The
-  SignalGenerator control case (0-based over its five names) shows the
-  engine has no fixed 1-based convention to lean on. **Observation that
-  settles it**: in Plane9.Studio (or the editor of a pre-2.0 install),
-  set a MinMax node's Mode dropdown to each entry in turn, save after
-  each, and diff the saved integers; repeat for DelayMode/ITimeMode.
-- **DelayMode and ITimeMode semantics UNRESOLVED** beyond the value
-  ranges above.
-- **Target-selection rule, RNG identity, delay lifecycle, interpolation
-  curve UNRESOLVED**. The three `QEasingCurve` symbol imports in the dll
-  (constructor-from-Type, destructor, `valueForProgress`) show only that
-  Qt easing curves are USED somewhere in the engine; they do not identify
-  MinMax as the caller, nor which curve type it uses.
+that MinMax ticks once per frame.
+
+**RESOLVED 2026-07-18** from owner-supplied DLL static analysis at RVAs
+0x100DD600 (frame evaluator), 0x100DD9A0 (mode/range selector), 0x100DDAE0
+(selector jump table), 0x101FBB50 (mode pointer table), and 0x1001FE30
+(shared four-word xorshift128 RNG):
+
+- **Mode integer mapping** — the six-item table:
+  `0 = None, 1 = Rand, 2 = RandShortestDist, 3 = LoopUp, 4 = LoopDown,
+  5 = PingPong`. The earlier "four-name list at 0x1fab8c" adjacency reading
+  was insufficient — the runtime table at 0x101FBB50 carries the additional
+  entries (None and PingPong) that the local literal pool did not surface.
+  Corpus coverage of {0..5}: Mode {1: 101, 2: 11, 3: 1, 4: 5} (no observed
+  0 or 5 in the 252-scene sample, but the runtime supports all six).
+- **State machine** — delay and interpolation are separate phases per
+  animated mode. Each transition through delay picks a duration in
+  `[DelayMin, DelayMax]`; each transition through interp picks a duration
+  in `[ITimeMin, ITimeMax]`. Rand/RandShortestDist pick a fresh target
+  from `[Min, Max]`; LoopUp/LoopDown reset current to the opposite endpoint
+  at cycle boundary; PingPong alternates target endpoint per cycle.
+- **Interpolation curve** — LoopUp and LoopDown use linear; every other
+  animated mode (Rand, RandShortestDist, PingPong) uses smoothstep
+  `3t² − 2t³`.
+- **RNG** — shared engine-owned Xorshift128 (Marsaglia 2003, constants
+  11/8/19), drawn from in graph-topological execution order for
+  deterministic sequences. PHOSPHENE's implementation uses Marsaglia's
+  paper example seed at construction and exposes state injection for
+  tests; whether the DLL at 0x1001FE30 uses those exact shift constants
+  is a follow-up disassembly detail, but the sequence PHOSPHENE draws is
+  from a named external reference rather than an inferred internal one.
+- **RandShortestDist** — interpolates through the shortest arc over
+  `[Min, Max]` (circular), wrapping the result into the range.
+
+**UNRESOLVED at the executor boundary**:
+- The exact byte-level implementation at 0x100DD600 remains
+  producer-inferred against Todd's spec — the implementation matches the
+  spec, but a byte-level disassembly-vs-implementation diff has not been
+  performed. That check is the follow-up witness against the DLL.
+- DelayMode and ITimeMode's per-integer semantics beyond the corpus value
+  ranges {DelayMode: 0=5, 1=113} and {ITimeMode: 1=118} — treated as
+  scalar-tick inputs today. Observation: probe scenes varying each
+  independently.
 
 **Beat node** — dll: "Detects the beat in the currently playing music and
 output its as a value going from 0.0 to 1.0." (node name 0x1fb038,
@@ -157,21 +168,35 @@ description 0x1fb040). Ports with dll help verbatim: NoMusic "Value to
 use if no music is playing" (0x1fb0a0), Amplification "How much to
 amplify the values" (0x1fb0cc), Min "Minimum value" (0x1fb0fc), Max
 "Maximum value" (0x1fb10c); out BeatStrength "The strength of the
-current beat" (0x1fb11c). The switching rule between the detector and
-NoMusic is **UNRESOLVED**. Composition of Amplification with Min/Max,
-the detector's algorithm, and the audio-driven output are all
-**UNRESOLVED** — the detector is compiled code (`CBeatNode` RTTI at
-0x240a60; no exported method reveals it). Bounding facts from
+current beat" (0x1fb11c).
+
+**RESOLVED node-level composition 2026-07-18** from owner-supplied DLL
+static analysis at RVA 0x100DF5A0 (Beat node evaluator):
+
+- **Inactive audio** (music analysis not producing a signal):
+  `BeatStrength = NoMusic`. NoMusic returns directly, without
+  amplification, clamping, or Min/Max remapping.
+- **Active audio**:
+  `BeatStrength = min(Min + rawBeat * Amplification * (Max − Min),
+  max(Min, Max))`. The formula is a linear composition capped at the upper
+  endpoint of the Min/Max pair.
+
+The executor treats `rawBeat` and the `musicActive` flag as native audio
+inputs — surfaced by the shared audio subsystem, not concealed in
+source-selected executor state.
+
+**UNRESOLVED at the upstream boundary**: the detector that produces
+`rawBeat` from the audio stream is compiled code (`CBeatNode` RTTI at
+0x240a60; no exported method reveals its algorithm). Bounding facts from
 history.txt: the sound analyzer is locked to 30 Hz (line 68, v2.4.0),
-input is matched toward 44.1 kHz by sample skipping (lines 86-87,
-v2.3.3), and the engine auto-normalizes sound with the max-level
-tracking tuned at v2.4.0 (lines 74, 79, 295). **Observation that
-settles the remainder**: play controlled audio with known onsets and
-record the live BeatStrength value (probe scene wiring BeatStrength to
-a visible output), across silence to witness the NoMusic switch.
+input is matched toward 44.1 kHz by sample skipping (lines 86-87, v2.3.3),
+and the engine auto-normalizes with a decaying tracked maximum
+(lines 74, 79, 295). **Observation that settles it**: play controlled
+audio with known onsets and record the live `rawBeat` value through a
+probe scene wiring the detector output to a visible port.
 AUDIO-PATH.md's MilkDrop-side band-summing math describes MilkDrop's
-detector, not Plane9's; treating it as sufficient for Color Cycle's Beat
-was the inference the deleted runtime rested on.
+detector, not Plane9's; the upstream Plane9 detector must remain unfilled
+until observation provides the recipe.
 
 **Shader-node uniform contract** — witnessed end-to-end in the eight
 `nodedata/*.glsl` files:

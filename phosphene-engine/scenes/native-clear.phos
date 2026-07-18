@@ -2,41 +2,62 @@
   "format": "phos/1",
   "meta": {
     "name": "native-clear",
-    "description": "Native clear-color demonstration scene: one clear-color node fills the canvas with an RGBA value, and the per-frame program pulses the blue channel so live execution through the shared engine is visible."
+    "description": "Native clear-color demonstration exercising the value-edge dataflow: RGBAToColor packs four float channels into a vec4 Color, an edge propagates that vec4 into clear-color's Color port, and clear-color's WebGPU realization fills the canvas. The per-frame program pulses the blue channel so live edge propagation is visible."
   },
   "resources": [],
   "nodes": [
+    {
+      "id": "rgba",
+      "primitive": "graph",
+      "op": "RGBAToColor",
+      "ports": {
+        "Red": {
+          "type": "float",
+          "value": 0
+        },
+        "Green": {
+          "type": "float",
+          "value": 0.35
+        },
+        "Blue": {
+          "type": "float",
+          "value": 0.4
+        },
+        "Alpha": {
+          "type": "float",
+          "value": 1
+        },
+        "Color": {
+          "type": "vec4"
+        }
+      }
+    },
     {
       "id": "clear",
       "primitive": "graph",
       "op": "clear-color",
       "ports": {
-        "clear_r": {
-          "type": "float",
-          "value": 0
+        "Color": {
+          "type": "vec4"
         },
-        "clear_g": {
-          "type": "float",
-          "value": 0.35
-        },
-        "clear_b": {
-          "type": "float",
-          "value": 0.4
-        },
-        "clear_a": {
-          "type": "float",
-          "value": 1
+        "Render": {
+          "type": "render"
         }
       }
     }
   ],
-  "edges": [],
+  "edges": [
+    {
+      "out": "rgba.Color",
+      "in": "clear.Color"
+    }
+  ],
   "expressions": [
     {
       "id": "pulse",
       "stage": "per-frame",
       "code": [
-        "clear_b=0.25+0.15*sin(time);"
+        "Blue=0.25+0.15*sin(time);"
       ]
     }
   ]

@@ -46,10 +46,16 @@ function applyScene(doc){
   renderSceneStrip();
   setDirty(false);
 }
+// Count all value ports across all nodes (post-refactor node-local storage)
+function countPortValues(){
+  let n = 0;
+  for (const node of scene.nodes) for (const p of Object.values(/** @type {Record<string,{value?:unknown}>} */ (node.ports))) if ('value' in p) n++;
+  return n;
+}
 // the scene NAME is the strip's title; the meta line carries counts only
 function renderSceneStrip(){
   $('sceneTitle').textContent = String(scene.meta.name);
-  $('meta').textContent = scene.expressions.perFrame.length + ' per-frame eq · ' + Object.keys(scene.vars).length + ' vars';
+  $('meta').textContent = scene.expressions.perFrame.length + ' per-frame eq · ' + countPortValues() + ' vars';
 }
 // Reset acts on the dirty state, so it renders beside the marker and only
 // while something is there to reset (display toggled in JS — a page [hidden]
@@ -86,34 +92,39 @@ $('newScene').onclick = async () => {
 };
 
 // ---- render the IR as a node graph (MUST: show IR, ports, values) ----
+// Each node's ports come from the .phos verbatim; each editable float port
+// is bound by "nodeId.portName" so scenes with duplicate port names across
+// nodes (Plane9 Color Cycle carries three MinMax nodes) are unambiguous.
 const graphEl = $('graph');
 function renderGraph() {
   graphEl.innerHTML = '';
-  for (const node of scene.pipelineDescriptor) {
+  for (const node of scene.nodes) {
     const n = document.createElement('div'); n.className = 'node';
-    n.innerHTML = `<div class="node-h">${node.id}<span class="prim">${node.stage}</span></div>`;
-    // ports come from the scene graph itself (no hardcoded list): the
-    // descriptor carries each node's value-carrying port names from the .phos
-    const portsForNode = node.ports;
-    for (const key of portsForNode) {
-      if (!(key in scene.vars)) continue;
+    n.innerHTML = `<div class="node-h">${node.id}<span class="prim">${node.op}</span></div>`;
+    for (const [key, port] of Object.entries(/** @type {Record<string,{type:string,value?:number|number[]}>} */ (node.ports))) {
+      if (!('value' in port)) continue; // structural port with no user-editable value
       const p = document.createElement('div'); p.className = 'port';
       p.innerHTML = `<label>${key}</label>`;
-      const inp = document.createElement('input'); inp.type = 'text'; inp.value = String(scene.vars[key]); inp.dataset.key = key;
-      // every port in an accepted scene has a runtime consumer by construction
-      // (Engine refuses undeclared value ports at the OP_PORTS door)
+      const qualified = node.id + '.' + key;
+      const inp = document.createElement('input'); inp.type = 'text';
+      inp.value = String(port.value);
+      inp.dataset.key = qualified;
       inp.addEventListener('change', () => {
-        // the COMPLETE input must be a number — no prefix truncation
+        // vec4 ports (e.g. Color) accept comma-separated components; floats accept one number
         const vt = inp.value.trim();
-        if (/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(vt)) { engine.setVar(key, parseFloat(vt)); setDirty(true); }
-        else { inp.value = String(scene.vars[key]); } // reject invalid input, restore current value
+        if (port.type === 'float') {
+          if (/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(vt)) { engine.setVar(qualified, parseFloat(vt)); setDirty(true); }
+          else { inp.value = String(port.value); }
+        } else {
+          // no live edit for vec types yet; restore visible value
+          inp.value = String(port.value);
+        }
       });
-      const live = document.createElement('span'); live.className = 'live'; live.dataset.live = key;
+      const live = document.createElement('span'); live.className = 'live'; live.dataset.live = qualified;
       p.append(inp, live); n.append(p);
     }
     graphEl.append(n);
   }
-  // wiring (MUST: nodes + ports + wiring) — the scene's edges, verbatim
   const w = document.createElement('div'); w.className = 'meta';
   w.textContent = scene.edges.map(e => `${e.out} → ${e.in}`).join('   ·   ');
   graphEl.append(w);
@@ -159,7 +170,7 @@ $('reset').onclick = () => {
 // ---- save .phos (MUST: native save — VSLICE-MOSCOW) ----
 $('savePhos').onclick = async () => {
   const eqLines = eqEl.value.split('\n').map(s=>s.trim()).filter(Boolean);
-  const out = serializePhos(updateScene(sceneDoc, scene.vars, eqLines));
+  const out = serializePhos(updateScene(sceneDoc, currentPortValues(), eqLines));
   const blob = new Blob([out], {type:'application/json'});
   const name = (scene.meta.name || 'scene') + '.phos';
   const wsfp = /** @type {any} */ (window).showSaveFilePicker;
@@ -262,8 +273,12 @@ else {
       $('fr').textContent=String(engine.frame);
       fpsAcc+=1/dt;fpsN++; if(fpsN>=15){$('fps').textContent=String(Math.round(fpsAcc/fpsN));fpsAcc=0;fpsN=0;}
       const vd=$('vars'); vd.innerHTML='';
-      for(const k of ['time','ib_r','ib_g','ib_b','decay','clear_r','clear_g','clear_b']){ const val=engine.pool[k]; if(val!==undefined&&val!==null){const r=document.createElement('div');r.className='v';r.innerHTML=`<span>${k}</span><b>${(+val).toFixed(4)}</b>`;vd.append(r);} }
-      document.querySelectorAll('[data-live]').forEach(n=>{const el=/** @type {HTMLElement} */(n);const key=el.dataset.live;if(key===undefined)return;const v=engine.getVar(key);if(v!==undefined&&v!==null)el.textContent=(+v).toFixed(3);});
+      // time is always present; each other row picks the first numeric
+      // reading of a well-known EEL-aliased port so the readout is useful
+      // for MilkDrop and honest (empty) for Plane9 scenes without perFrame.
+      const readout=['time','ib_r','ib_g','ib_b','decay','Blue','Red','Green'];
+      for(const k of readout){ const val=engine.getVar(k); if(val!==undefined&&val!==null&&typeof val==='number'){const r=document.createElement('div');r.className='v';r.innerHTML=`<span>${k}</span><b>${(+val).toFixed(4)}</b>`;vd.append(r);} }
+      document.querySelectorAll('[data-live]').forEach(n=>{const el=/** @type {HTMLElement} */(n);const key=el.dataset.live;if(key===undefined)return;const v=engine.getVar(key);if(v!==undefined&&v!==null&&typeof v==='number')el.textContent=(+v).toFixed(3);});
     }
     requestAnimationFrame(frame);
   }
@@ -315,10 +330,27 @@ function ensureCMs(){
 // throwaway clone through the SAME inputs the Save path writes (scene.vars +
 // the equation editor's lines, studio Save handler) — sceneDoc is never
 // mutated by opening the viewer.
+// Build a flat {qualified: value} map of all current float port values —
+// consumed by updateScene, which accepts node-qualified keys and disambiguates
+// scenes with duplicate port names (Plane9 Color Cycle carries three MinMax
+// nodes each with a "Min" port, so the qualified form is required).
+function currentPortValues(){
+  /** @type {Record<string,number>} */
+  const out={};
+  for(const node of scene.nodes){
+    for(const [key,port] of Object.entries(/** @type {Record<string,{value?:unknown}>} */(node.ports))){
+      if(!('value' in port))continue;
+      const live=engine.getVar(node.id+'.'+key);
+      const v=typeof live==='number'?live:port.value;
+      if(typeof v==='number')out[node.id+'.'+key]=v;
+    }
+  }
+  return out;
+}
 function livePhosText(){
   const clone=parsePhos(serializePhos(sceneDoc));
   const eqLines=eqEl.value.split('\n').map(s=>s.trim()).filter(Boolean);
-  return serializePhos(updateScene(clone,scene.vars,eqLines));
+  return serializePhos(updateScene(clone,currentPortValues(),eqLines));
 }
 function updateSrcBtn(){
   const hasSrc=!!(sceneDoc.meta&&sceneDoc.meta.source);

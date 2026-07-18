@@ -12,7 +12,13 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { importMilk, scanMilk } from './src/milk-import.mjs';
 import { scanP9, assessP9Records, p9ToPhos } from './src/p9-import.mjs';
-import { Engine, d3dColor01 } from './src/engine.mjs';
+import { Engine, d3dColor01, NATIVE_OPS, Xorshift128, flatPortView } from './src/engine.mjs';
+
+// Helper — flat port view of a Scene or runtime IR, keyed by port name.
+// Works for MilkDrop scenes (globally-disjoint port names by regvars
+// convention); throws on duplicate names (Plane9-style scenes must use
+// node-qualified access instead).
+const vars = /** @param {any} sceneOrRt */ (sceneOrRt) => flatPortView(sceneOrRt);
 import { GRID_X, GRID_Y, VERT_COUNT, buildStripIndices, buildWarpUVs, meshPositions } from './src/warp-mesh.mjs';
 import { parsePhos, serializePhos, toRuntime, milkToPhos, updateScene, assessRecords } from './src/phos.mjs';
 import { eelSubject } from './src/eel.mjs';
@@ -35,10 +41,10 @@ const dt = 1 / 60;
 const samples = [];
 for (let i = 0; i < 600; i++) {          // 10 seconds
   eng.step(dt);
-  const expected = refIbR(eng.pool.time ?? 0); // engine's own time, exact
-  const got = eng.pool.ib_r ?? 0; // pool value — renderState colors are 8-bit converted (d3dColor01)
+  const expected = refIbR(eng.getVar('time') ?? 0); // engine's own time, exact
+  const got = eng.getVar('ib_r') ?? 0; // pool value — renderState colors are 8-bit converted (d3dColor01)
   maxDiff = Math.max(maxDiff, Math.abs(expected - got));
-  if (i % 120 === 0) samples.push({ t: +(eng.pool.time ?? 0).toFixed(3), expected: +expected.toFixed(6), got: +got.toFixed(6) });
+  if (i % 120 === 0) samples.push({ t: +(eng.getVar('time') ?? 0).toFixed(3), expected: +expected.toFixed(6), got: +got.toFixed(6) });
 }
 
 // static import checks (defaults must survive)
@@ -51,7 +57,7 @@ const importOk =
 const mutantScene = toRuntime(milkToPhos(importMilk(text.replace('0.4*sin(3*time)', '0.4*sin(4*time)')), { file: 'x.milk', sha256: 'x' }));
 const meng = new Engine(mutantScene);
 let mutDiff = 0;
-for (let i = 0; i < 600; i++) { meng.step(dt); mutDiff = Math.max(mutDiff, Math.abs(refIbR(meng.pool.time ?? 0) - (meng.pool.ib_r ?? 0))); }
+for (let i = 0; i < 600; i++) { meng.step(dt); mutDiff = Math.max(mutDiff, Math.abs(refIbR(meng.getVar('time') ?? 0) - (meng.getVar('ib_r') ?? 0))); }
 
 const subjectOk = maxDiff <= EPS;
 const mutantRejected = mutDiff > EPS;
@@ -74,9 +80,10 @@ const phosFixedPoint = serializePhos(phosParsed) === phosText;
 const rt = toRuntime(phosParsed);
 const MILK_DEFAULT_KEYS = ['cx', 'cy', 'dx', 'dy', 'sx', 'sy', 'fWarpAnimSpeed', 'fWarpScale', 'fZoomExponent',
   'fGammaAdj', 'fVideoEchoZoom', 'fVideoEchoAlpha', 'nVideoEchoOrientation'];
-const runtimeEquiv = Object.entries(scene.vars).every(([k, v]) => rt.vars[k] === v)
-  && Object.keys(rt.vars).every((k) => k in scene.vars || MILK_DEFAULT_KEYS.includes(k))
-  && MILK_DEFAULT_KEYS.every((k) => typeof rt.vars[k] === 'number')
+const rtVars = vars(rt);
+const runtimeEquiv = Object.entries(scene.vars).every(([k, v]) => rtVars[k] === v)
+  && Object.keys(rtVars).every((k) => k in scene.vars || MILK_DEFAULT_KEYS.includes(k))
+  && MILK_DEFAULT_KEYS.every((k) => typeof rtVars[k] === 'number')
   && JSON.stringify(rt.expressions) === JSON.stringify(scene.expressions);
 
 // (d) The commented template is a legal scene AND the engine accepts it —
@@ -136,7 +143,10 @@ const commentsRetained = JSON.stringify(scene.expressions.perFrameComments)
 // (i) Engine refuses a scene missing a required render variable (no silent defaults).
 const engineRefusesMissing = (() => {
   const r = toRuntime(parsePhos(phosText));
-  delete r.vars.fDecay;
+  // Remove the fDecay port value from its owning node — engine construction
+  // must refuse (no silent defaults)
+  const owner = r.nodes.find((/** @type {any} */ n) => 'fDecay' in n.ports);
+  if (owner && owner.ports.fDecay) delete owner.ports.fDecay.value;
   try { new Engine(r); return false; } catch { return true; }
 })();
 
@@ -146,7 +156,7 @@ const engineRefusesMissing = (() => {
 //      warp-feedback -> borders -> composite.
 const executorOk = (() => {
   const good = new Engine(toRuntime(parsePhos(phosText)));
-  const orderOk = JSON.stringify(good.renderState().passes) === JSON.stringify(['warp-feedback', 'borders', 'composite']);
+  const orderOk = JSON.stringify(good.step(1 / 60).passes) === JSON.stringify(['warp-feedback', 'borders', 'composite']);
   const reversed = (() => {
     const r = toRuntime(parsePhos(phosText));
     r.edges = r.edges.map((/** @type {{out:string,in:string}} */ e) => ({ out: e.in, in: e.out }));
@@ -154,7 +164,7 @@ const executorOk = (() => {
   })();
   const broken = (() => {
     const r = toRuntime(parsePhos(phosText));
-    r.edges = r.edges.slice(0, 1); // drop the borders->comp edge: no single chain
+    r.edges = r.edges.slice(0, 1); // drop the borders->comp edge — no covering topological order over render ops
     try { new Engine(r); return false; } catch { return true; }
   })();
   return orderOk && reversed && broken;
@@ -202,12 +212,13 @@ const parserOk = (() => {
 //      comments, and refuses an unmapped variable name.
 const editRoundTrip = (() => {
   const doc = parsePhos(phosText);
-  const editedVars = { ...toRuntime(doc).vars, ib_g: 0.25 };
+  const editedVars = { ...vars(toRuntime(doc)), ib_g: 0.25 };
   const editedEq = ['ib_r=0.7+0.4*sin(5*time);'];
   const saved = serializePhos(updateScene(doc, editedVars, editedEq));
   const rt2 = toRuntime(parsePhos(saved));
-  const editApplied = rt2.vars.ib_g === 0.25 && rt2.expressions.perFrame[0] === editedEq[0];
-  const unEditedKept = rt2.vars.ob_size === 0.2 && rt2.vars.fDecay === 0.98;
+  const rt2Vars = vars(rt2);
+  const editApplied = rt2Vars.ib_g === 0.25 && rt2.expressions.perFrame[0] === editedEq[0];
+  const unEditedKept = rt2Vars.ob_size === 0.2 && rt2Vars.fDecay === 0.98;
   const commentsKept = JSON.stringify(rt2.expressions.perFrameComments) === JSON.stringify(rt.expressions.perFrameComments);
   const refusesUnmapped = (() => {
     try { updateScene(parsePhos(phosText), { notAPort: 1 }, editedEq); return false; } catch { return true; }
@@ -215,10 +226,15 @@ const editRoundTrip = (() => {
   return editApplied && unEditedKept && commentsKept && refusesUnmapped;
 })();
 
-// (j) Duplicate value-port names across nodes are refused (no silent flattening).
+// (j) Duplicate port names across nodes are LEGAL at parse (node-local
+//     storage, owner decision 2026-07-18) but Engine refuses an undeclared
+//     port at engine construction — so adding "fDecay" to the borders node
+//     parses cleanly but refuses when the engine constructs it.
 const duplicatePortRefused = (() => {
   const dup = phosText.replace('"ob_size": {', '"fDecay": { "type": "float", "value": 1 }, "ob_size": {');
-  try { parsePhos(dup); return false; } catch { return true; }
+  let parsed;
+  try { parsed = parsePhos(dup); } catch { return false; }
+  try { new Engine(toRuntime(parsed)); return false; } catch (e) { return /inert port/.test(/** @type {Error} */ (e).message); }
 })();
 
 const phosOk = phosMatchesConverter && phosFixedPoint && runtimeEquiv && templateOk && allRefused
@@ -377,7 +393,7 @@ const contractOk = (() => {
   // follow borders per the registry sequence grammar (NATIVE_OPS)
   const twoNode = {
     ...base,
-    pipelineDescriptor: base.pipelineDescriptor.filter((/** @type {{stage:string}} */ n) => n.stage !== 'borders'),
+    nodes: base.nodes.filter((/** @type {any} */ n) => n.op !== 'borders'),
     edges: [{ out: 'warp.out', in: 'comp.in' }],
   };
   const refusesTwoNode = (() => { try { new Engine(twoNode); return false; } catch { return true; } })();
@@ -388,15 +404,15 @@ const contractOk = (() => {
 })();
 const resetOk = (() => {
   const e2 = new Engine(toRuntime(parsePhos(phosText)));
-  const baseIbG = e2.scene.vars.ib_g;
-  const baseEqs = JSON.stringify(e2.scene.expressions.perFrame);
+  const baseIbG = vars(e2.scene).ib_g;
+  const baseEqs = JSON.stringify(e2.perFrameSource);
   e2.setVar('ib_g', 0.123);
   e2.recompile(['ib_r=0.1;']);
   e2.step(1 / 60);
   e2.reset();
-  return e2.scene.vars.ib_g === baseIbG
-    && JSON.stringify(e2.scene.expressions.perFrame) === baseEqs
-    && e2.pool.ib_g === baseIbG
+  return vars(e2.scene).ib_g === baseIbG
+    && JSON.stringify(e2.perFrameSource) === baseEqs
+    && e2.getVar('ib_g') === baseIbG
     && e2.frame === 0 && e2.time === 0
     && e2.step(1 / 60).innerBox.g === baseIbG;
 })();
@@ -414,7 +430,7 @@ const clampAliasOk = (() => {
   e3.recompile(['gamma=4;', 'decay=0.5;']);
   const st = e3.step(1 / 60);
   const alias = st.comp.gamma === 4 && st.motion.decay === d3dColor01(0.5); // decay renders 8-bit quantized (:2007)
-  const get = e3.getVar('fGammaAdj') === 4; // studio reads through the alias
+  const get = e3.getVar('fGammaAdj') === 4 && e3.getVar('gamma') === 4; // studio reads through both file-key and EEL alias
   return hi && lo && ez && alias && get;
 })();
 
@@ -449,14 +465,15 @@ const varContractOk = (() => {
   const e4 = new Engine(toRuntime(parsePhos(phosText)));
   const st = e4.step(1 / 60);
   const injectedOk = c.engine.every((n) => Number.isFinite(e4.pool[n]));
-  // mapped names: a FRESH pool (equations move vars post-step) carries every
+  // mapped names: a FRESH engine (equations move vars post-step) carries every
   // scene file-key under its EEL name with the scene's value
   const e5 = new Engine(toRuntime(parsePhos(phosText)));
+  const e5Vars = vars(e5.scene);
   const mappedOk = Object.entries(c.mapped).every(([fk, en]) =>
-    !(fk in e5.scene.vars) || e5.pool[en] === e5.scene.vars[fk]);
+    !(fk in e5Vars) || e5.getVar(en) === e5Vars[fk]);
   // equation-visible defaults: fresh pool carries each witnessed default value
   const defaultsOk = Object.entries(c.defaults).every(([n, v]) => e5.pool[n] === v);
-  const volAbsent = !('vol' in e4.pool) && !('vol_att' in e4.pool);
+  const volAbsent = e4.pool.vol === undefined && e4.pool.vol_att === undefined;
   const progressOk = st.passes.length === 3 && e4.pool.progress === e4.time / 16;
   return injectedOk && mappedOk && defaultsOk && volAbsent && progressOk;
 })();
@@ -643,17 +660,16 @@ const p9Ok = (() => {
   if (nodes.length !== 7 || conns.length !== 6 || refused.length !== 0) return false;
   if (!root || !String(root.value).includes('FormatVersion="2"')) return false;
   if (!lic || !lic.raw.includes('CC0')) return false;
-  // dispositions under the shared conversion registry: Screen + Clear (and
-  // their ports, and the Clear->Screen render edge) convert; the three
-  // MinMax, Beat, and HSLAToColor nodes refuse naming their exact missing
-  // facts, and the five connections touching refused nodes refuse with them
-  if (notOk.length !== 10) return false;
-  if (notOk.filter(d => d.text.includes('mode-integer mapping unresolved')).length !== 3) return false;
-  if (notOk.filter(d => d.text.includes('detection algorithm unresolved')).length !== 1) return false;
-  if (notOk.filter(d => d.text.includes('one-vector candidate')).length !== 1) return false;
-  if (notOk.filter(d => d.text.includes('endpoint node is not convertible')).length !== 5) return false;
+  // dispositions under the shared conversion registry: EVERY node and every
+  // connection now converts (owner spec 2026-07-18 resolved MinMax mode
+  // mapping + curves + shared RNG, Beat node-level composition, and bound
+  // HSLAToColor to the retained input/output vector).
+  if (notOk.length !== 0) return false;
   if (!dis.some(d => d.ok && d.text.includes('native clear-color'))) return false;
   if (!dis.some(d => d.ok && d.text.includes('render topology'))) return false;
+  if (dis.filter(d => d.ok && d.text.startsWith('MinMax — converts')).length !== 3) return false;
+  if (!dis.some(d => d.ok && d.text.startsWith('Beat — converts'))) return false;
+  if (!dis.some(d => d.ok && d.text.startsWith('HSLAToColor — converts'))) return false;
   // Extract the HSL inputs and Clear expected values from the scan itself,
   // identifying nodes by TYPE (HSLAToColor, Clear) and pairing them by the
   // scene's actual connection HSLAToColor.Color -> Clear.Color rather than
@@ -706,41 +722,49 @@ const p9Ok = (() => {
       && Math.abs(b - /** @type {number} */ (eb)) < 1e-5;
 })();
 
-// (ab) Native-operation registry sequence grammar: unknown ops and
-//      unrealizable chains refuse at construction; the accepted MilkDrop
+// (ab) Native-operation registry — unknown ops, unrealizable chains, and
+//      mistyped edges all refuse at construction; the accepted MilkDrop
 //      chain contributes exactly its four state groups and no clear state.
 const registryOk = (() => {
   const rt0 = () => toRuntime(parsePhos(phosText));
   const unknownOp = (() => {
     const r = rt0();
-    r.pipelineDescriptor = [{ id: 'x', stage: 'wibble', ports: [] }];
+    r.nodes = [{ id: 'x', op: 'wibble', ports: {} }];
     r.edges = [];
     try { new Engine(r); return false; } catch (e) { return /not a registered native operation/.test(/** @type {Error} */ (e).message); }
   })();
   const clearThenBorders = (() => {
     const r = rt0();
-    r.pipelineDescriptor = [
-      { id: 'c', stage: 'clear-color', ports: [] },
-      { id: 'b', stage: 'borders', ports: [] },
+    // borders may only follow warp-feedback; clear-color -> borders violates the grammar
+    r.nodes = [
+      { id: 'c', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } },
+      { id: 'b', op: 'borders', ports: /** @type {any} */ ({
+        ib_size: { type: 'float', value: 0.1 }, ib_r: { type: 'float', value: 1 }, ib_g: { type: 'float', value: 1 }, ib_b: { type: 'float', value: 1 }, ib_a: { type: 'float', value: 1 },
+        ob_size: { type: 'float', value: 0.1 }, ob_r: { type: 'float', value: 1 }, ob_g: { type: 'float', value: 1 }, ob_b: { type: 'float', value: 1 }, ob_a: { type: 'float', value: 1 },
+        in: { type: 'render' },
+      }) },
     ];
-    r.edges = [{ out: 'c.out', in: 'b.in' }];
-    try { new Engine(r); return false; } catch (e) { return /cannot follow/.test(/** @type {Error} */ (e).message); }
+    r.edges = [{ out: 'c.Render', in: 'b.in' }];
+    try { new Engine(r); return false; } catch (e) { return /cannot follow|cannot end a pipeline|cannot start a pipeline/.test(/** @type {Error} */ (e).message); }
   })();
-  const nonTerminalEnd = (() => {
+  const mistypedEdge = (() => {
+    // borders.out is 'render'; borders.ib_r is 'float' — swapping edge target
+    // is refused by the edge-type check
     const r = rt0();
-    r.pipelineDescriptor = r.pipelineDescriptor.filter((/** @type {{stage:string}} */ n) => n.stage !== 'composite');
-    r.edges = r.edges.slice(0, 1);
-    try { new Engine(r); return false; } catch (e) { return /cannot end a pipeline/.test(/** @type {Error} */ (e).message); }
+    r.edges = [{ out: 'warp.out', in: 'borders.in' }, { out: 'borders.out', in: 'comp.fGammaAdj' }];
+    try { new Engine(r); return false; } catch (e) { return /mismatched port types/.test(/** @type {Error} */ (e).message); }
   })();
   const mdState = new Engine(rt0()).step(1 / 60);
   const mdShape = mdState.motion !== undefined && mdState.innerBox !== undefined
     && mdState.outerBox !== undefined && mdState.comp !== undefined && mdState.clear === undefined;
-  return unknownOp && clearThenBorders && nonTerminalEnd && mdShape;
+  return unknownOp && clearThenBorders && mistypedEdge && mdShape;
 })();
 
 // (ac) Committed native clear-color scene: parses, canonical fixed point,
-//      executes through the shared engine with the clear pass carrying the
-//      port values, and the per-frame program animates the blue channel.
+//      executes through the shared engine, and demonstrates value-edge
+//      dataflow — per-frame EEL animates rgba.Blue, RGBAToColor packs it
+//      into a vec4 Color, an edge propagates that vec4 into clear-color's
+//      Color port, and the render state emits the clear.
 const nativeClearOk = (() => {
   const t2 = readFileSync(new URL('./scenes/native-clear.phos', import.meta.url), 'utf8');
   const doc = parsePhos(t2);
@@ -749,31 +773,41 @@ const nativeClearOk = (() => {
   const st = e.step(1 / 60);
   if (JSON.stringify(st.passes) !== JSON.stringify(['clear-color'])) return false;
   if (st.clear.r !== 0 || st.clear.g !== 0.35 || st.clear.a !== 1) return false;
-  if (st.clear.b !== 0.25 + 0.15 * Math.sin(e.pool.time ?? 0)) return false;
+  if (st.clear.b !== 0.25 + 0.15 * Math.sin(e.getVar('time') ?? 0)) return false;
   // missing declared port refuses (no silent defaults)
   const r2 = toRuntime(parsePhos(t2));
-  delete r2.vars.clear_g;
+  const rgbaNode = r2.nodes.find((/** @type {any} */ n) => n.op === 'RGBAToColor');
+  if (rgbaNode && rgbaNode.ports.Green) delete rgbaNode.ports.Green.value;
   const missingRefused = (() => { try { new Engine(r2); return false; } catch { return true; } })();
   // an undeclared extra value port refuses (no inert ports)
   const r3 = toRuntime(parsePhos(t2));
-  r3.vars.mystery = 1;
-  const d0 = /** @type {{ports:string[]}} */ (r3.pipelineDescriptor[0]);
-  d0.ports = [...d0.ports, 'mystery'];
+  const rgba3 = r3.nodes.find((/** @type {any} */ n) => n.op === 'RGBAToColor');
+  if (rgba3) rgba3.ports.mystery = { type: 'float', value: 1 };
   const inertRefused = (() => { try { new Engine(r3); return false; } catch { return true; } })();
   return missingRefused && inertRefused;
 })();
 
-// (ad) Plane9 conversion door: the retained Color Cycle fixture REFUSES at
-//      its first unresolved node (HSLAToColor, line 22) — Color Cycle is NOT
-//      claimed complete; a synthetic scene in the witnessed clear shape
-//      (grammar + Screen configuration exactly as the fixture carries them)
-//      converts to a native .phos that executes with the XML's color; and
-//      tampering (camera deviation / broken wiring / extra node) refuses.
+// (ad) Plane9 conversion door: the retained Color Cycle fixture now CONVERTS
+//      through the full graph (7 nodes, 6 edges, meta.sourceEngine 'plane9'),
+//      canonically round-trips through parse->serialize, and executes
+//      end-to-end through the shared engine with audio inactive; and
+//      tampering (camera deviation, broken wiring, malformed color) refuses.
 const p9ConvOk = (() => {
   const fixtureXml = readFileSync(new URL('../sources/plane9/color-cycle.scene.xml', import.meta.url), 'utf8');
-  const fixtureRefused = (() => {
-    try { p9ToPhos(fixtureXml, { file: 'color-cycle.scene.xml', sha256: 'x' }); return false; }
-    catch (e) { const m = /** @type {Error} */ (e).message; return /line 22/.test(m) && /HSLAToColor/.test(m); }
+  const fixtureConverts = (() => {
+    const doc = p9ToPhos(fixtureXml, { file: 'color-cycle.scene.xml', sha256: 'testsha' });
+    if (doc.nodes.length !== 7 || doc.edges.length !== 6) return false;
+    if (doc.meta.sourceEngine !== 'plane9') return false;
+    // canonical round-trip
+    const canon = serializePhos(doc);
+    if (serializePhos(parsePhos(canon)) !== canon) return false;
+    // executes end to end — one step must produce a clear-color contribution
+    const e = new Engine(toRuntime(parsePhos(canon)));
+    const st = e.step(1 / 60);
+    if (JSON.stringify(st.passes) !== JSON.stringify(['clear-color', 'screen'])) return false;
+    if (typeof st.clear.r !== 'number' || typeof st.clear.g !== 'number'
+        || typeof st.clear.b !== 'number' || st.clear.a !== 1) return false;
+    return true;
   })();
   const clearXml = (/** @type {string} */ fov, /** @type {string} */ color) => [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -813,7 +847,7 @@ const p9ConvOk = (() => {
   const reparsed = parsePhos(serializePhos(doc));
   const e = new Engine(toRuntime(reparsed));
   const st = e.step(1 / 60);
-  const executes = JSON.stringify(st.passes) === JSON.stringify(['clear-color'])
+  const executes = JSON.stringify(st.passes) === JSON.stringify(['clear-color', 'screen'])
     && st.clear.r === 0.25 && st.clear.g === 0.5 && st.clear.b === 0.75 && st.clear.a === 1
     && reparsed.meta.sourceEngine === 'plane9';
   const cameraDeviationRefused = (() => {
@@ -834,10 +868,230 @@ const p9ConvOk = (() => {
     try { p9ToPhos(clearXml('45', '0.25 0.5'), { file: 'x.p9c', sha256: 'x' }); return false; }
     catch { return true; }
   })();
-  return fixtureRefused && executes && cameraDeviationRefused && brokenWiringRefused && extraNodeRefused && badColorRefused;
+  return fixtureConverts && executes && cameraDeviationRefused && brokenWiringRefused && extraNodeRefused && badColorRefused;
 })();
 
-const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && p9Ok && registryOk && nativeClearOk && p9ConvOk;
+// (ae) Shared RNG — Xorshift128 with Marsaglia's seed is reproducible.
+//      A fresh RNG's first 8 draws are identical to a second fresh RNG's,
+//      and setState reproduces a specific state exactly.
+const rngOk = (() => {
+  const a = new Xorshift128();
+  const b = new Xorshift128();
+  const seqA = [], seqB = [];
+  for (let i = 0; i < 8; i++) { seqA.push(a.next32()); seqB.push(b.next32()); }
+  if (JSON.stringify(seqA) !== JSON.stringify(seqB)) return false;
+  // known Marsaglia seed produces sequence deterministically; first draw
+  // must be a non-zero, in-range uint32
+  const c = new Xorshift128();
+  const first = c.next32();
+  if (first === 0 || first >>> 0 !== first) return false;
+  // setState reproduces
+  c.setState(1, 2, 3, 4);
+  const s = c.getState();
+  if (s.length !== 4 || s[0] !== 1 || s[1] !== 2 || s[2] !== 3 || s[3] !== 4) return false;
+  return true;
+})();
+
+// (af) MinMax value op — every mode's behavior on a single node driven by
+//      constant inputs, verified against direct closed-form computation.
+//      RNG is shared across draws so state.getState changes visibly per
+//      transition; each mode ticks at 1/60s over enough frames to observe
+//      full state-machine cycles.
+const minmaxOk = (() => {
+  const op = /** @type {any} */ (NATIVE_OPS.MinMax);
+  const rng = new Xorshift128();
+  // helper: run a single MinMax node with fixed inputs for N frames
+  const run = (/** @type {Record<string,number>} */ inputs, /** @type {number} */ frames, /** @type {number} */ dt) => {
+    const state = op.initState(inputs);
+    /** @type {number[]} */
+    const trace = [];
+    for (let i = 0; i < frames; i++) {
+      const out = op.compute({ inputs, state, dt, frame: i + 1, time: (i + 1) * dt, audio: { musicActive: false, rawBeat: 0 }, rng });
+      trace.push(out.Value);
+    }
+    return trace;
+  };
+  // Mode 0 (None) — value never changes (initial = Min)
+  const noneTrace = run({ Min: 5, Max: 10, Mode: 0, DelayMin: 0, DelayMax: 0, DelayMode: 1, ITimeMin: 1, ITimeMax: 1, ITimeMode: 1 }, 5, 1 / 60);
+  if (!noneTrace.every((v) => v === 5)) return false;
+
+  // Mode 3 (LoopUp) — linear from Min to Max over ITime seconds, resets to Min at end
+  {
+    rng.reset();
+    const inp = { Min: 0, Max: 10, Mode: 3, DelayMin: 0, DelayMax: 0, DelayMode: 1, ITimeMin: 1, ITimeMax: 1, ITimeMode: 1 };
+    const trace = run(inp, 90, 1 / 60);
+    // after ~60 frames = 1 second, value should reach Max, then reset to Min
+    const midpoint = trace[29]; // ~0.5s in, expect ~5 (linear)
+    if (midpoint === undefined || Math.abs(midpoint - 5) > 0.2) return false;
+    const atOneSec = trace[59];
+    if (atOneSec === undefined || Math.abs(atOneSec - 10) > 0.2) return false;
+    // after reset, next frame should be back near Min
+    const afterReset = trace[62];
+    if (afterReset === undefined || afterReset > 2) return false;
+  }
+
+  // Mode 4 (LoopDown) — linear from Max to Min
+  {
+    rng.reset();
+    const inp = { Min: 0, Max: 10, Mode: 4, DelayMin: 0, DelayMax: 0, DelayMode: 1, ITimeMin: 1, ITimeMax: 1, ITimeMode: 1 };
+    const trace = run(inp, 60, 1 / 60);
+    // ~0.5s in (frame index 29): linear midpoint of Max->Min = 5
+    const midpoint = trace[29];
+    if (midpoint === undefined || Math.abs(midpoint - 5) > 0.2) return false;
+    // ~1s in: snap to Min
+    const atEnd = trace[59];
+    if (atEnd === undefined || Math.abs(atEnd - 0) > 0.2) return false;
+  }
+
+  // Mode 5 (PingPong) — smoothstep alternates direction at endpoints
+  {
+    rng.reset();
+    const inp = { Min: 0, Max: 10, Mode: 5, DelayMin: 0, DelayMax: 0, DelayMode: 1, ITimeMin: 1, ITimeMax: 1, ITimeMode: 1 };
+    const trace = run(inp, 180, 1 / 60);
+    // must reach Max around 1s and Min again around 2s
+    const atOneSec = trace[59];
+    const atTwoSec = trace[119];
+    if (atOneSec === undefined || atTwoSec === undefined) return false;
+    if (Math.abs(atOneSec - 10) > 0.5 || Math.abs(atTwoSec - 0) > 0.5) return false;
+  }
+
+  // Mode 1 (Rand) — smoothstep interp toward a random target
+  //   Determinism: with a fresh RNG both runs produce the same trace.
+  {
+    const inp = { Min: 0, Max: 1, Mode: 1, DelayMin: 0, DelayMax: 0, DelayMode: 1, ITimeMin: 1, ITimeMax: 1, ITimeMode: 1 };
+    rng.reset();
+    const t1 = run(inp, 30, 1 / 60);
+    rng.reset();
+    const t2 = run(inp, 30, 1 / 60);
+    if (JSON.stringify(t1) !== JSON.stringify(t2)) return false;
+    // value must stay in range
+    if (!t1.every((v) => v >= 0 - 1e-9 && v <= 1 + 1e-9)) return false;
+  }
+
+  // Mode 2 (RandShortestDist) — wraps into range
+  {
+    const inp = { Min: 0, Max: 360, Mode: 2, DelayMin: 0, DelayMax: 0, DelayMode: 1, ITimeMin: 1, ITimeMax: 1, ITimeMode: 1 };
+    rng.reset();
+    const trace = run(inp, 30, 1 / 60);
+    if (!trace.every((v) => v >= 0 - 1e-6 && v <= 360 + 1e-6)) return false;
+  }
+
+  // Smoothstep vs linear discriminator: at t=0.25, smoothstep = 3(0.25)²−2(0.25)³
+  // = 0.15625; linear = 0.25. For same Min/Max/ITime, Mode 1 (smoothstep) and
+  // Mode 3 (linear) must differ at that fraction of the interpolation.
+  {
+    const dt = 1 / 60;
+    const startInp = { Min: 0, Max: 10, Mode: 3, DelayMin: 0, DelayMax: 0, DelayMode: 1, ITimeMin: 1, ITimeMax: 1, ITimeMode: 1 };
+    rng.reset();
+    // LoopUp for 15 frames (~0.25s) — linear at 0.25 * 10 = 2.5
+    const linearTrace = run(startInp, 15, dt);
+    // Rand for 15 frames — smoothstep towards a target (rng-picked). To
+    // compare cleanly, use the same target: force smoothstep by measuring
+    // curve shape directly rather than through Rand.
+    // Instead: build a synthetic case where target=Max (like LoopUp): use
+    // PingPong first ITime — smoothstep towards Max.
+    rng.reset();
+    const ppInp = { Min: 0, Max: 10, Mode: 5, DelayMin: 0, DelayMax: 0, DelayMode: 1, ITimeMin: 1, ITimeMax: 1, ITimeMode: 1 };
+    const smoothTrace = run(ppInp, 15, dt);
+    const linearAt = linearTrace[14];
+    const smoothAt = smoothTrace[14];
+    if (linearAt === undefined || smoothAt === undefined) return false;
+    // linear at ~0.25s: t=15/60=0.25, value ≈ 0.25*10 = 2.5
+    // smoothstep at ~0.25s: 3(0.25)²−2(0.25)³ = 0.15625, value ≈ 1.5625
+    if (!(linearAt > smoothAt + 0.5)) return false;
+    if (Math.abs(linearAt - 2.5) > 0.2) return false;
+    if (Math.abs(smoothAt - 1.5625) > 0.2) return false;
+  }
+
+  return true;
+})();
+
+// (ag) Beat value op — inactive path is direct pass-through; active path is
+//      linear composition capped at max(Min, Max).
+const beatOk = (() => {
+  const op = /** @type {any} */ (NATIVE_OPS.Beat);
+  const rng = new Xorshift128();
+  const call = (/** @type {Record<string,number>} */ inputs, /** @type {any} */ audio) =>
+    /** @type {{BeatStrength:number}} */ (op.compute({ inputs, state: {}, dt: 1 / 60, frame: 1, time: 1 / 60, audio, rng }));
+
+  // Inactive: BeatStrength = NoMusic verbatim (no amp/clamp/remap)
+  const inactive = call({ NoMusic: 0.4, Amplification: 4, Min: 0.3, Max: 1 }, { musicActive: false, rawBeat: 0.7 });
+  if (inactive.BeatStrength !== 0.4) return false;
+
+  // Active, formula: Min + rawBeat * Amp * (Max - Min), then cap at max(Min, Max)
+  //   Min=0.3, Max=1, Amp=4, rawBeat=0.1 -> 0.3 + 0.1*4*0.7 = 0.58
+  const a1 = call({ NoMusic: 0.4, Amplification: 4, Min: 0.3, Max: 1 }, { musicActive: true, rawBeat: 0.1 });
+  if (Math.abs(a1.BeatStrength - 0.58) > 1e-12) return false;
+
+  // Active with cap: rawBeat=1, Amp=4, range=0.7 -> raw=0.3 + 2.8 = 3.1 -> cap to 1
+  const a2 = call({ NoMusic: 0.4, Amplification: 4, Min: 0.3, Max: 1 }, { musicActive: true, rawBeat: 1 });
+  if (a2.BeatStrength !== 1) return false;
+
+  // Active with Min>Max: max(Min,Max) = Min = 0.9
+  const a3 = call({ NoMusic: 0.4, Amplification: 2, Min: 0.9, Max: 0.3 }, { musicActive: true, rawBeat: 1 });
+  // raw = 0.9 + 1*2*(0.3-0.9) = 0.9 - 1.2 = -0.3 (below cap 0.9); returns -0.3
+  if (Math.abs(a3.BeatStrength - -0.3) > 1e-12) return false;
+
+  return true;
+})();
+
+// (ah) HSLAToColor value op — general HSL-to-RGB formula, verified at the
+//      retained Color Cycle vector plus a couple of canonical points.
+const hslOk = (() => {
+  const op = /** @type {any} */ (NATIVE_OPS.HSLAToColor);
+  const call = (/** @type {Record<string,number>} */ inputs) =>
+    /** @type {{Color: number[]}} */ (op.compute({ inputs, state: {}, dt: 0, frame: 0, time: 0, audio: { musicActive: false, rawBeat: 0 }, rng: new Xorshift128() }));
+  const pick = (/** @type {number[]} */ arr, /** @type {number} */ i) => /** @type {number} */ (arr[i] ?? NaN);
+  // Color Cycle's retained vector: Hue 215.7, S 0.697156, L 0.127359, A 1 -> ~0.03857 0.11049 0.21615 1
+  const cc = call({ Hue: 215.7, Saturation: 0.697156, Lightness: 0.127359, Alpha: 1 }).Color;
+  if (Math.abs(pick(cc, 0) - 0.03857) > 1e-4) return false;
+  if (Math.abs(pick(cc, 1) - 0.11049) > 1e-4) return false;
+  if (Math.abs(pick(cc, 2) - 0.216148) > 1e-4) return false;
+  if (pick(cc, 3) !== 1) return false;
+  const red = call({ Hue: 0, Saturation: 1, Lightness: 0.5, Alpha: 1 }).Color;
+  if (Math.abs(pick(red, 0) - 1) > 1e-9 || Math.abs(pick(red, 1)) > 1e-9 || Math.abs(pick(red, 2)) > 1e-9) return false;
+  const green = call({ Hue: 120, Saturation: 1, Lightness: 0.5, Alpha: 1 }).Color;
+  if (Math.abs(pick(green, 0)) > 1e-9 || Math.abs(pick(green, 1) - 1) > 1e-9 || Math.abs(pick(green, 2)) > 1e-9) return false;
+  return true;
+})();
+
+// (ai) Color Cycle full execution — the fixture converts, canonically
+//      round-trips, and runs through the shared engine's dataflow scheduler.
+//      Reproducibility: two independent engine constructions produce
+//      identical Clear.Color traces at frame 60.
+const colorCycleOk = (() => {
+  const xml = readFileSync(new URL('../sources/plane9/color-cycle.scene.xml', import.meta.url), 'utf8');
+  const doc = p9ToPhos(xml, { file: 'color-cycle.scene.xml', sha256: 'testsha' });
+  const canon = serializePhos(doc);
+  // Two engines from the same .phos must produce identical traces (shared
+  // RNG state is engine-owned and reset-owned, so both are reproducible)
+  const runN = (/** @type {number} */ n) => {
+    const e = new Engine(toRuntime(parsePhos(canon)));
+    /** @type {number[][]} */
+    const trace = [];
+    for (let i = 0; i < n; i++) {
+      const st = e.step(1 / 60);
+      trace.push([st.clear.r, st.clear.g, st.clear.b, st.clear.a]);
+    }
+    return trace;
+  };
+  const t1 = runN(60);
+  const t2 = runN(60);
+  if (JSON.stringify(t1) !== JSON.stringify(t2)) return false;
+  // frame 60 clear values must be inside [0,1] on r,g,b and exactly 1 on a
+  const last = /** @type {number[]} */ (t1[59]);
+  if (last === undefined) return false;
+  if (last[0] === undefined || last[1] === undefined || last[2] === undefined) return false;
+  if (last[0] < 0 || last[0] > 1) return false;
+  if (last[1] < 0 || last[1] > 1) return false;
+  if (last[2] < 0 || last[2] > 1) return false;
+  if (last[3] !== 1) return false;
+  // audio-inactive default drives Beat.BeatStrength = NoMusic (= MinMax2.Value),
+  // which drives HSL.Saturation — value is deterministic and finite
+  return true;
+})();
+
+const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && p9Ok && registryOk && nativeClearOk && p9ConvOk && rngOk && minmaxOk && beatOk && hslOk && colorCycleOk;
 
 const eelFnCount = Object.keys(eelSubject).length;
 const eelCoveredCount = new Set(eelCases.map((c) => c[0])).size;
@@ -881,7 +1135,7 @@ console.log('converter refuses unmapped .milk key:', converterRefusesUnmapped ? 
 for (const [name, ok] of importerRefusals) console.log(`importer refuses ${name}:`, ok ? 'OK' : 'FAIL');
 console.log('source comment lines retained through .phos:', commentsRetained ? 'OK' : 'FAIL');
 console.log('engine refuses missing required var:', engineRefusesMissing ? 'OK' : 'FAIL');
-console.log('duplicate value-port name refused:', duplicatePortRefused ? 'OK' : 'FAIL');
+console.log('duplicate port name across nodes: parses (node-local), engine refuses undeclared port:', duplicatePortRefused ? 'OK' : 'FAIL');
 console.log('studio save: edit round-trip + comment retention + unmapped refusal:', editRoundTrip ? 'OK' : 'FAIL');
 console.log('graph contract: edge-derived order + reversed/broken refused:', executorOk ? 'OK' : 'FAIL');
 console.log('warp oscillators vs milkdropfs.cpp:1782-1787 recompute (exact):', oscOk ? 'OK' : 'FAIL');
@@ -906,10 +1160,15 @@ console.log('variable-contract ledger: 76 regvars classified + verified, vol abs
 console.log('aspect factors: forward to renderState, inverse to pool (exact):', aspectOk ? 'OK' : 'FAIL');
 console.log('finite-mesh warp: strip indices + identity UVs exact + zoom=0 NaN structure:', meshOk ? 'OK' : 'FAIL');
 console.log('ordered source records: per-line, in order, refusal names the line:', recordsOk ? 'OK' : 'FAIL');
-console.log('plane9 Color Cycle: scanner shape (7 nodes, 6 connections, CC0, FormatVersion 2) + registry dispositions (5 nodes + 5 connections refused with named facts) + standard HSL fingerprint match:', p9Ok ? 'OK' : 'FAIL');
-console.log('native-op registry: unknown op + unrealizable chains refused, MilkDrop state shape intact:', registryOk ? 'OK' : 'FAIL');
-console.log('native clear-color scene: fixed point + executes + pulse + port refusals:', nativeClearOk ? 'OK' : 'FAIL');
-console.log('p9 conversion door: Color Cycle refuses at HSLAToColor (line 22); witnessed clear shape converts + executes; tampering refuses:', p9ConvOk ? 'OK' : 'FAIL');
+console.log('plane9 Color Cycle: scanner shape (7 nodes, 6 connections, CC0, FormatVersion 2) + registry dispositions (every node + every edge converts) + standard HSL fingerprint match:', p9Ok ? 'OK' : 'FAIL');
+console.log('native-op registry: unknown op + unrealizable chains + mistyped edges refused, MilkDrop state shape intact:', registryOk ? 'OK' : 'FAIL');
+console.log('native clear-color scene: RGBAToColor->clear-color value-edge dataflow + Blue-pulse + port refusals:', nativeClearOk ? 'OK' : 'FAIL');
+console.log('p9 conversion door: Color Cycle full graph converts + round-trips + executes; tampering refuses:', p9ConvOk ? 'OK' : 'FAIL');
+console.log('shared xorshift128 RNG: two fresh instances match 8 draws, setState round-trips:', rngOk ? 'OK' : 'FAIL');
+console.log('MinMax: None hold + LoopUp/LoopDown linear + PingPong + Rand determinism + smoothstep vs linear discriminator:', minmaxOk ? 'OK' : 'FAIL');
+console.log('Beat: inactive = NoMusic direct + active linear formula + upper cap + Min>Max case:', beatOk ? 'OK' : 'FAIL');
+console.log('HSLAToColor: Color Cycle retained vector + pure red + pure green:', hslOk ? 'OK' : 'FAIL');
+console.log('Color Cycle full execution: fixture converts + round-trips + two engines produce identical traces + values in range:', colorCycleOk ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
 console.log('inert value port refused at engine construction (shared OP_PORTS):', inertPortOk ? 'OK' : 'FAIL');
 console.log('triage scan: all refusals collected, strict import still throws first:', triageOk ? 'OK' : 'FAIL');

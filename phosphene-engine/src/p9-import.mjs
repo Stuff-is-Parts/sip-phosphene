@@ -10,6 +10,7 @@
 // sources/PLANE9-CONTRACT.md. No Plane9 evaluator, no source-selected
 // runtime — PHOSPHENE-GOAL.md's "one native execution model".
 import { unzipSync } from '../vendor/fflate/fflate.mjs';
+import { NATIVE_OPS } from './engine.mjs';
 
 /** @param {Uint8Array} bytes @returns {string} the archive's scene.xml text */
 export function extractSceneXml(bytes) {
@@ -66,11 +67,77 @@ export function scanP9(xml) {
 // Refusal texts name the exact missing fact and the observation that would
 // resolve it; evidence offsets refer to Plane9Engine.dll sha256 4cebc1b3…
 // as recorded with reproduction procedure in sources/PLANE9-CONTRACT.md.
-const P9_REFUSALS = /** @type {Record<string,string>} */ ({
-  MinMax: 'MinMax — mode-integer mapping unresolved: the engine names exactly four modes (Rand, RandShortestDist, LoopUp, LoopDown; dll 0x1fab8c) but corpus Mode values span {1..4} while DelayMode spans {0,1}, so no single indexing is derivable; interpolation curve and RNG also unresolved. Observation: save a Studio probe scene at each Mode dropdown position and diff the saved integers.',
-  Beat: 'Beat — detection algorithm unresolved: the interface is witnessed (BeatStrength 0..1, NoMusic fallback, Amplification, Min/Max; dll 0x1fb038) but the detector is compiled code. Observation: controlled audio with known onsets against the live BeatStrength value.',
-  HSLAToColor: 'HSLAToColor — formula is a one-vector candidate: the standard HSL formula reproduces the single retained input/output vector to 1e-6 and Hue is in degrees (dll 0x1fa228), but one vector cannot establish a formula. Observation: save a second vector in a different Hue segment and compare.',
+// The 2026-07-18 owner spec resolved MinMax's mode mapping and semantics
+// and Beat's node-level composition from DLL static analysis, so those
+// node types now CONVERT rather than refuse. HSLAToColor remains a
+// one-vector candidate, but the executor implements the standard formula
+// binding for the accepted Color Cycle slice — the boundary is recorded.
+const P9_REFUSALS = /** @type {Record<string,string>} */ ({});
+
+// Which Plane9 node types map to which native ops. Presence in this table
+// is the sole convertibility signal — a node type absent from it refuses
+// with a "no native operation" message unless P9_REFUSALS carries a more
+// specific explanation.
+const P9_TYPE_TO_OP = /** @type {Record<string,string>} */ ({
+  Screen: 'screen',
+  Clear: 'clear-color',
+  HSLAToColor: 'HSLAToColor',
+  RGBAToColor: 'RGBAToColor',
+  MinMax: 'MinMax',
+  Beat: 'Beat',
 });
+
+// Port-name translation Plane9 -> native, per node type. Plane9 uses the
+// verbatim port ids from the .scene.xml; the native ops declare their own
+// port names (which for these types are identical to Plane9's).
+const P9_PORT_MAP = /** @type {Record<string, Record<string,string>>} */ ({
+  Screen: {
+    Viewport: 'Viewport', CamPos: 'CamPos', CamRot: 'CamRot', CamLookAt: 'CamLookAt',
+    CamLookAtInWorldSpace: 'CamLookAtInWorldSpace', CamFov: 'CamFov',
+    CamNear: 'CamNear', CamFar: 'CamFar', ScaleByAspect: 'ScaleByAspect',
+    Render: 'Render',
+  },
+  Clear: { Color: 'Color', Render: 'Render' },
+  HSLAToColor: { Hue: 'Hue', Saturation: 'Saturation', Lightness: 'Lightness', Alpha: 'Alpha', Color: 'Color' },
+  RGBAToColor: { Red: 'Red', Green: 'Green', Blue: 'Blue', Alpha: 'Alpha', Color: 'Color' },
+  MinMax: {
+    Min: 'Min', Max: 'Max', Mode: 'Mode',
+    DelayMin: 'DelayMin', DelayMax: 'DelayMax', DelayMode: 'DelayMode',
+    ITimeMin: 'ITimeMin', ITimeMax: 'ITimeMax', ITimeMode: 'ITimeMode',
+    Value: 'Value',
+  },
+  Beat: {
+    NoMusic: 'NoMusic', Amplification: 'Amplification',
+    Min: 'Min', Max: 'Max', BeatStrength: 'BeatStrength',
+  },
+});
+
+// Port defaults per Plane9 node type — used when a port name is declared by
+// the native op but the source scene.xml omits the port. Plane9 supplies
+// these implicitly; we materialize them so the .phos carries exact values.
+const P9_PORT_DEFAULTS = /** @type {Record<string, Record<string,number|number[]>>} */ ({
+  HSLAToColor: { Alpha: 1 },
+  RGBAToColor: { Alpha: 1 },
+});
+
+// Parse a Plane9 port value string ("0.5", "0.03857 0.11049 0.216148 1",
+// "true", "false") into the JS shape the native port type accepts.
+function parseP9Value(/** @type {string} */ s, /** @type {string} */ nativeType) {
+  const t = s.trim();
+  if (nativeType === 'float') {
+    if (t === 'true') return 1;
+    if (t === 'false') return 0;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (nativeType === 'vec2' || nativeType === 'vec3' || nativeType === 'vec4') {
+    const dim = nativeType === 'vec2' ? 2 : nativeType === 'vec3' ? 3 : 4;
+    const parts = t.split(/\s+/).map(Number);
+    if (parts.length !== dim || !parts.every((x) => Number.isFinite(x))) return null;
+    return parts;
+  }
+  return null;
+}
 
 // The witnessed geometry-free Screen configuration — the exact port values
 // carried by 79 of 252 corpus scenes including the retained Color Cycle
@@ -107,10 +174,15 @@ function disposeP9(records) {
     if (rec.kind === 'node' || rec.kind === 'node-open') {
       cur = rec.name || '';
       nodes[cur] = { type: rec.type || '', ports: {} };
-      if (rec.type === 'Screen') out.push({ line: rec.line, ok: true, text: 'Screen — render sink (witnessed geometry-free configuration)' });
-      else if (rec.type === 'Clear') out.push({ line: rec.line, ok: true, text: 'Clear — converts to native clear-color ("Fills the viewport with a single color.", dll 0x1f7ecc)' });
-      else if (rec.type !== undefined && P9_REFUSALS[rec.type]) out.push({ line: rec.line, ok: false, text: /** @type {string} */ (P9_REFUSALS[rec.type]) });
-      else out.push({ line: rec.line, ok: false, text: 'node type "' + rec.type + '" — no native operation implemented yet' });
+      const t = rec.type || '';
+      if (t === 'Screen') out.push({ line: rec.line, ok: true, text: 'Screen — render sink (witnessed geometry-free configuration)' });
+      else if (t === 'Clear') out.push({ line: rec.line, ok: true, text: 'Clear — converts to native clear-color ("Fills the viewport with a single color.", dll 0x1f7ecc)' });
+      else if (t === 'HSLAToColor') out.push({ line: rec.line, ok: true, text: 'HSLAToColor — converts to native HSLAToColor value op (formula bound to Color Cycle input/output vector at 1e-6, general Plane9 semantics unresolved beyond that)' });
+      else if (t === 'RGBAToColor') out.push({ line: rec.line, ok: true, text: 'RGBAToColor — converts to native RGBAToColor value op (packs 4 float channels into vec4 Color, dll 0x1fa3fc)' });
+      else if (t === 'MinMax') out.push({ line: rec.line, ok: true, text: 'MinMax — converts to native MinMax value op (mode integer mapping + curves + shared RNG per DLL static analysis at 0x100DD600/0x100DD9A0/0x100DDAE0/0x101FBB50; upstream mode-specific edge cases per contract)' });
+      else if (t === 'Beat') out.push({ line: rec.line, ok: true, text: 'Beat — converts to native Beat value op (node-level composition per dll 0x100DF5A0; inactive path direct, active path linear + upper cap; upstream detector for rawBeat unresolved)' });
+      else if (t !== '' && P9_REFUSALS[t]) out.push({ line: rec.line, ok: false, text: /** @type {string} */ (P9_REFUSALS[t]) });
+      else out.push({ line: rec.line, ok: false, text: 'node type "' + t + '" — no native operation implemented yet' });
       continue;
     }
     if (rec.kind === 'close' && rec.id === 'Node') { cur = ''; out.push({ line: rec.line, ok: true, text: 'scene structure / metadata' }); continue; }
@@ -140,9 +212,11 @@ function disposeP9(records) {
       connections.push(conn);
       const outNode = nodes[conn.out.split('.')[0] || ''];
       const inNode = nodes[conn.in.split('.')[0] || ''];
-      const convertible = (/** @type {{type:string}|undefined} */ n) => n !== undefined && (n.type === 'Screen' || n.type === 'Clear');
-      if (convertible(outNode) && convertible(inNode)) out.push({ line: rec.line, ok: true, text: 'connection ' + conn.out + ' → ' + conn.in + ' — render topology, realized as the canvas clear pass' });
-      else out.push({ line: rec.line, ok: false, text: 'connection ' + conn.out + ' → ' + conn.in + ' — an endpoint node is not convertible, so this wiring cannot be realized' });
+      const convertible = (/** @type {{type:string}|undefined} */ n) => n !== undefined && P9_TYPE_TO_OP[n.type] !== undefined;
+      if (convertible(outNode) && convertible(inNode)) {
+        const isRender = conn.out.endsWith('.Render') || conn.in.endsWith('.Render');
+        out.push({ line: rec.line, ok: true, text: 'connection ' + conn.out + ' → ' + conn.in + (isRender ? ' — render topology' : ' — value edge propagates node output to input') });
+      } else out.push({ line: rec.line, ok: false, text: 'connection ' + conn.out + ' → ' + conn.in + ' — an endpoint node is not convertible, so this wiring cannot be realized' });
       continue;
     }
     out.push({ line: rec.line, ok: true, text: 'scene structure / metadata' });
@@ -162,11 +236,12 @@ export function assessP9Records(records) {
 
 /**
  * Strict conversion door: scene.xml -> native .phos Scene. Refuses at the
- * first record whose disposition is not ok (naming the source line), then
- * validates that what remains is exactly the witnessed clear shape: one
- * Screen, one Clear with a constant Color, one Clear.Render -> Screen.Render
- * connection. The result is an ordinary .phos the shared executor runs —
- * a single native clear-color node.
+ * first record whose disposition is not ok (naming the source line). The
+ * result carries every source node as an ordinary native node with the
+ * source's own port values, and every source connection as a typed .phos
+ * edge — Plane9 structure (Screen, Clear, HSLAToColor, MinMax*, Beat)
+ * remains visible, editable and reloadable. The shared executor runs the
+ * result end to end through the ordinary `.phos → Engine → WebGPU` path.
  * @param {string} xml
  * @param {{file:string, sha256:string}} source
  */
@@ -174,38 +249,84 @@ export function p9ToPhos(xml, source) {
   const { dispositions, nodes, connections } = disposeP9(scanP9(xml));
   const bad = dispositions.find((d) => !d.ok);
   if (bad) throw new Error('p9ToPhos: line ' + bad.line + ' refused: ' + bad.text);
-  const entries = Object.entries(nodes);
-  const screens = entries.filter(([, n]) => n.type === 'Screen');
-  const clears = entries.filter(([, n]) => n.type === 'Clear');
-  if (screens.length !== 1 || clears.length !== 1 || entries.length !== 2) {
-    throw new Error(`p9ToPhos: convertible shape is exactly one Screen + one Clear, got ${entries.length} node(s) — refusing`);
+  // must have exactly one Screen (render sink)
+  const screens = Object.entries(nodes).filter(([, n]) => n.type === 'Screen');
+  if (screens.length !== 1) throw new Error(`p9ToPhos: expected exactly one Screen node, got ${screens.length} — refusing`);
+
+  /** @type {import('./phos.mjs').PhosNode[]} */
+  const outNodes = [];
+  for (const [nodeName, src] of Object.entries(nodes)) {
+    const nativeOp = P9_TYPE_TO_OP[src.type];
+    if (!nativeOp) throw new Error(`p9ToPhos: node "${nodeName}" type "${src.type}" has no native op mapping — refusing (disposition check missed this)`);
+    const portMap = P9_PORT_MAP[src.type];
+    if (!portMap) throw new Error(`p9ToPhos: node "${nodeName}" type "${src.type}" has no port map — refusing`);
+    const opDecl = NATIVE_OPS[nativeOp];
+    if (!opDecl) throw new Error(`p9ToPhos: native op "${nativeOp}" is not registered — refusing`);
+    const inputTypes = /** @type {Record<string,string>} */ (opDecl.inputs);
+    const outputTypes = /** @type {Record<string,string>} */ (opDecl.outputs);
+    /** @type {Record<string,{type:string, value?:number|number[]}>} */
+    const ports = {};
+
+    // Materialize every declared input port. Value ports from source.ports
+    // land through the port map; ports absent from the source XML take a
+    // materialized default when P9_PORT_DEFAULTS names one, else the
+    // structural port is declared without a value (typically render).
+    for (const [pname, ptype] of Object.entries(inputTypes)) {
+      const srcVal = src.ports[pname];
+      if (srcVal !== undefined) {
+        const parsed = parseP9Value(srcVal, ptype);
+        if (parsed === null) throw new Error(`p9ToPhos: node "${nodeName}" port "${pname}" value "${srcVal}" is not a valid ${ptype} — refusing`);
+        ports[pname] = { type: ptype, value: parsed };
+      } else if (P9_PORT_DEFAULTS[src.type]?.[pname] !== undefined) {
+        const dflt = /** @type {Record<string,number|number[]>} */ (P9_PORT_DEFAULTS[src.type])[pname];
+        ports[pname] = { type: ptype, value: /** @type {number|number[]} */ (dflt) };
+      } else if (ptype === 'render') {
+        ports[pname] = { type: 'render' };
+      } else {
+        throw new Error(`p9ToPhos: node "${nodeName}" is missing required port "${pname}" (${ptype}) and no default is defined — refusing`);
+      }
+    }
+    // Declare each declared output port so edges can target them.
+    for (const [pname, ptype] of Object.entries(outputTypes)) {
+      if (!(pname in ports)) ports[pname] = { type: ptype };
+    }
+    // Also carry any source ports the native op does not declare — refuse
+    // rather than silently drop, so an unmapped Plane9 port surfaces cleanly.
+    for (const [pname, val] of Object.entries(src.ports)) {
+      if (!(pname in inputTypes) && !(pname in outputTypes)) {
+        throw new Error(`p9ToPhos: node "${nodeName}" (${src.type}) carries port "${pname}"="${val}" that native op "${nativeOp}" does not declare — refusing`);
+      }
+    }
+    outNodes.push({ id: nodeName, primitive: 'graph', op: nativeOp, ports });
   }
-  const screenName = /** @type {[string, {type:string}]} */ (screens[0])[0];
-  const clearEntry = /** @type {[string, {type:string, ports:Record<string,string>}]} */ (clears[0]);
-  const clearName = clearEntry[0];
-  if (connections.length !== 1 || !connections[0] || connections[0].out !== clearName + '.Render' || connections[0].in !== screenName + '.Render') {
-    throw new Error('p9ToPhos: the witnessed clear shape carries exactly the connection ' + clearName + '.Render → ' + screenName + '.Render — refusing other wiring');
+
+  /** @type {{out:string,in:string}[]} */
+  const outEdges = [];
+  const byId = /** @type {Record<string, import('./phos.mjs').PhosNode>} */ (Object.fromEntries(outNodes.map((n) => [n.id, n])));
+  for (const c of connections) {
+    const [srcId, srcPort] = c.out.split('.');
+    const [dstId, dstPort] = c.in.split('.');
+    const srcNode = byId[srcId ?? ''];
+    const dstNode = byId[dstId ?? ''];
+    if (!srcNode || !dstNode || !srcPort || !dstPort) throw new Error(`p9ToPhos: edge "${c.out} -> ${c.in}" endpoint not in graph — refusing`);
+    const srcOp = NATIVE_OPS[srcNode.op];
+    const dstOp = NATIVE_OPS[dstNode.op];
+    if (srcOp === undefined || dstOp === undefined) throw new Error(`p9ToPhos: edge "${c.out} -> ${c.in}" references an op not in the registry — refusing`);
+    const srcType = /** @type {Record<string,string>} */ (srcOp.outputs)[srcPort];
+    const dstType = /** @type {Record<string,string>} */ (dstOp.inputs)[dstPort];
+    if (srcType === undefined) throw new Error(`p9ToPhos: edge source "${c.out}" is not an output of "${srcNode.op}" — refusing (the source port map may treat this port as an input)`);
+    if (dstType === undefined) throw new Error(`p9ToPhos: edge destination "${c.in}" is not an input of "${dstNode.op}" — refusing`);
+    if (srcType !== dstType) throw new Error(`p9ToPhos: edge "${c.out}" (${srcType}) -> "${c.in}" (${dstType}) has mismatched port types — refusing`);
+    outEdges.push({ out: c.out, in: c.in });
   }
-  const colorStr = clearEntry[1].ports['Color'];
-  if (colorStr === undefined) throw new Error('p9ToPhos: Clear node "' + clearName + '" has no saved Color port — refusing');
-  const rgba = colorStr.trim().split(/\s+/).map(Number);
-  const [r, g, b, a] = rgba;
-  if (rgba.length !== 4 || r === undefined || g === undefined || b === undefined || a === undefined) {
-    throw new Error('p9ToPhos: Clear.Color="' + colorStr + '" is not four floats — refusing');
-  }
+
   const name = 'p9-' + source.file.replace(/\.[^.]+$/, '');
-  return {
+  return /** @type {import('./phos.mjs').Scene} */ ({
     format: 'phos/1',
     meta: { name, sourceEngine: 'plane9', source: { engine: 'plane9', file: source.file, sha256: source.sha256 } },
     resources: /** @type {unknown[]} */ ([]),
-    nodes: [{
-      id: 'clear', primitive: 'graph', op: 'clear-color',
-      ports: {
-        clear_r: { type: 'float', value: r }, clear_g: { type: 'float', value: g },
-        clear_b: { type: 'float', value: b }, clear_a: { type: 'float', value: a },
-      },
-    }],
-    edges: /** @type {{out:string,in:string}[]} */ ([]),
-    expressions: /** @type {{id:string, stage:string, code:string[]}[]} */ ([]),
-  };
+    nodes: outNodes,
+    edges: outEdges,
+    expressions: /** @type {import('./phos.mjs').ExprProgram[]} */ ([]),
+  });
 }

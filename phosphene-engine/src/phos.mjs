@@ -1,17 +1,24 @@
 // .phos native scene format: parse (validate + strip annotations), serialize
-// (canonical form), toRuntime (flatten to the engine's runtime IR), and
-// milkToPhos (record-consuming conversion: every source record is handled or refused).
+// (canonical form), toRuntime (produce runtime IR the engine consumes), and
+// milkToPhos (record-consuming conversion: every source record handled or refused).
 // Spec: design/PHOS-FORMAT.md. Strict JSON; "//"-prefixed keys are authoring
 // annotations, stripped on parse; any other unknown key is a parse error.
+//
+// Ports are node-local (owner-decision 2026-07-18): duplicate port names
+// across nodes are ALLOWED because scenes with multiple same-typed nodes
+// (three MinMax in Plane9's Color Cycle) need node.port qualification. The
+// runtime IR carries `nodes: [{id, op, ports: {portName: {type, value?}}}]`
+// with edges qualified as "nodeId.portName". The engine dispatches per node.
 
-import { OP_PORTS } from './engine.mjs';
+import { OP_PORTS, NATIVE_OPS } from './engine.mjs';
 
-/** @typedef {{type:string, value?:number}} Port */
+/** @typedef {{type:string, value?:number|number[]}} Port */
 /** @typedef {{id:string, primitive:string, op:string, ports:Record<string,Port>}} PhosNode */
 /** @typedef {{id:string, stage:string, code:string[], comments?:string[]}} ExprProgram */
 /** @typedef {{format:string, meta:Record<string,unknown>, resources:unknown[], nodes:PhosNode[], edges:{out:string,in:string}[], expressions:ExprProgram[]}} Scene */
 
 const PORT_TYPES = ['float', 'vec2', 'vec3', 'vec4', 'color', 'texture', 'mesh', 'effect', 'render'];
+const VECTOR_TYPES = { vec2: 2, vec3: 3, vec4: 4 };
 const PRIMITIVES = ['graph', 'shader', 'expr', 'geom', 'compute'];
 const EXPR_STAGES = ['per-frame', 'per-vertex'];
 const ROOT_KEYS = ['format', 'meta', 'resources', 'nodes', 'edges', 'expressions', 'timeline'];
@@ -22,7 +29,6 @@ function fail(/** @type {string} */ path, /** @type {string} */ msg) {
   throw new Error(`phos: ${path}: ${msg}`);
 }
 
-// Return the object's meaningful keys (annotations stripped); refuse unknowns.
 function checkKeys(/** @type {Record<string,unknown>} */ obj, /** @type {string[]} */ allowed, /** @type {string} */ path) {
   for (const k of Object.keys(obj)) {
     if (k.startsWith('//')) continue;
@@ -42,7 +48,6 @@ export function parsePhos(/** @type {string} */ text) {
   checkKeys(raw, ROOT_KEYS, '$');
   if (raw.format !== 'phos/1') fail('$.format', `must be exactly "phos/1", got ${JSON.stringify(raw.format)}`);
 
-  // meta
   const metaRaw = raw.meta;
   if (typeof metaRaw !== 'object' || metaRaw === null || Array.isArray(metaRaw)) fail('$.meta', 'must be an object');
   const metaObj = /** @type {Record<string,unknown>} */ (metaRaw);
@@ -62,12 +67,10 @@ export function parsePhos(/** @type {string} */ text) {
     meta.source = { engine: srcObj.engine, file: srcObj.file, sha256: srcObj.sha256 };
   }
 
-  // skeleton slots — refused until a scene forces implementation (PHOS-FORMAT.md)
   if (!Array.isArray(raw.resources)) fail('$.resources', 'must be an array');
   if (raw.resources.length > 0) fail('$.resources', 'resources are not yet supported: refusing non-empty list');
   if ('timeline' in raw) fail('$.timeline', 'timeline is not yet supported: refusing its presence');
 
-  // nodes
   if (!Array.isArray(raw.nodes) || raw.nodes.length === 0) fail('$.nodes', 'must be a non-empty array');
   /** @type {PhosNode[]} */
   const nodes = [];
@@ -97,9 +100,19 @@ export function parsePhos(/** @type {string} */ text) {
       const type = reqString(pObj, 'type', ppath);
       if (!PORT_TYPES.includes(type)) fail(ppath, `type "${type}" not in [${PORT_TYPES.join(', ')}]`);
       if ('value' in pObj) {
-        if (type !== 'float') fail(ppath, `value is only supported on float ports in phos/1, port type is "${type}"`);
-        if (typeof pObj.value !== 'number' || !Number.isFinite(pObj.value)) fail(ppath, 'value must be a finite number');
-        ports[pname] = { type, value: pObj.value };
+        if (type === 'float') {
+          if (typeof pObj.value !== 'number' || !Number.isFinite(pObj.value)) fail(ppath, 'float value must be a finite number');
+          ports[pname] = { type, value: pObj.value };
+        } else if (type in VECTOR_TYPES) {
+          const dim = /** @type {number} */ (VECTOR_TYPES[/** @type {'vec2'|'vec3'|'vec4'} */ (type)]);
+          if (!Array.isArray(pObj.value) || pObj.value.length !== dim
+              || !pObj.value.every((v) => typeof v === 'number' && Number.isFinite(v))) {
+            fail(ppath, `${type} value must be an array of ${dim} finite numbers`);
+          }
+          ports[pname] = { type, value: [...pObj.value] };
+        } else {
+          fail(ppath, `constant value not supported for port type "${type}" in phos/1`);
+        }
       } else {
         ports[pname] = { type };
       }
@@ -107,20 +120,11 @@ export function parsePhos(/** @type {string} */ text) {
     nodes.push({ id, primitive, op, ports });
   });
 
-  // Duplicate value-port names across nodes would silently last-write-win when
-  // flattened to the runtime pool — refuse (exactness: no silent flattening).
-  /** @type {Map<string,string>} */
-  const valuePortOwner = new Map();
-  for (const n of nodes) {
-    for (const [pname, port] of Object.entries(n.ports)) {
-      if (typeof port.value !== 'number') continue;
-      const prior = valuePortOwner.get(pname);
-      if (prior) fail(`$.nodes(${n.id}).ports.${pname}`, `value port name "${pname}" already carried by node "${prior}" — duplicate names would collide in the variable pool`);
-      valuePortOwner.set(pname, n.id);
-    }
-  }
-
-  // edges — both ends must resolve, port types must match
+  // edges — both ends must resolve, port types must match. Port refs are
+  // "nodeId.portName" and are always node-qualified. Duplicate port NAMES
+  // across nodes are legal (Plane9's Color Cycle has three MinMax nodes
+  // each declaring a "Min", "Max", ... port); edge qualification
+  // disambiguates them.
   if (!Array.isArray(raw.edges)) fail('$.edges', 'must be an array');
   /** @type {{out:string,in:string}[]} */
   const edges = [];
@@ -146,7 +150,6 @@ export function parsePhos(/** @type {string} */ text) {
     edges.push({ out, in: inp });
   });
 
-  // expressions
   if (!Array.isArray(raw.expressions)) fail('$.expressions', 'must be an array');
   /** @type {ExprProgram[]} */
   const expressions = [];
@@ -184,7 +187,9 @@ export function serializePhos(/** @type {Scene} */ scene) {
     nodes: scene.nodes.map((n) => ({
       id: n.id, primitive: n.primitive, op: n.op,
       ports: Object.fromEntries(Object.entries(n.ports).map(([k, p]) =>
-        [k, 'value' in p ? { type: p.type, value: p.value } : { type: p.type }])),
+        [k, 'value' in p
+          ? { type: p.type, value: Array.isArray(p.value) ? [...p.value] : p.value }
+          : { type: p.type }])),
     })),
     edges: scene.edges.map((e) => ({ out: e.out, in: e.in })),
     expressions: scene.expressions.map((x) =>
@@ -193,17 +198,10 @@ export function serializePhos(/** @type {Scene} */ scene) {
   return JSON.stringify(out, null, 2) + '\n';
 }
 
-// Flatten the graph document into the runtime IR the registry-driven engine
-// consumes: port values -> variable pool, per-frame programs -> perFrame.
-// The .phos file is the durable scene; this IR conforms to it.
+// Produce the runtime IR the engine consumes. Nodes carry node-local port
+// state; edges stay qualified. The IR is a shallow clone so the engine can
+// mutate per-frame without affecting the durable Scene document.
 export function toRuntime(/** @type {Scene} */ scene) {
-  /** @type {Record<string,number>} */
-  const vars = {};
-  for (const n of scene.nodes) {
-    for (const [pname, port] of Object.entries(n.ports)) {
-      if (typeof port.value === 'number') vars[pname] = port.value;
-    }
-  }
   /** @type {string[]} */
   const perFrame = [];
   /** @type {string[]} */
@@ -217,29 +215,36 @@ export function toRuntime(/** @type {Scene} */ scene) {
   return {
     format: scene.format,
     meta: scene.meta,
-    vars,
-    expressions: { perFrame, perVertex, perFrameComments },
-    // display structure for the studio: each node with its value-carrying ports,
-    // plus the wiring so the studio can show edges (MUST: nodes + ports + wiring)
-    pipelineDescriptor: scene.nodes.map((n) => ({
-      id: n.id, stage: n.op,
-      ports: Object.keys(n.ports).filter((p) => typeof (/** @type {Port} */ (n.ports[p]).value) === 'number'),
+    nodes: scene.nodes.map((n) => ({
+      id: n.id, op: n.op,
+      ports: Object.fromEntries(Object.entries(n.ports).map(([k, p]) =>
+        [k, 'value' in p ? { type: p.type, value: Array.isArray(p.value) ? [...p.value] : p.value } : { type: p.type }])),
     })),
     edges: scene.edges.map((e) => ({ out: e.out, in: e.in })),
+    expressions: { perFrame, perVertex, perFrameComments },
   };
 }
 
-// Write studio edits back into the Scene document: variable values land on
-// their owning ports (value-port names are scene-unique per the parse-time
-// duplicate refusal, so the lookup is unambiguous), and the edited per-frame
-// code replaces the single per-frame program's code (comments retained).
-// Refusals: a variable with no owning port, or a scene whose per-frame code
-// is split across multiple programs (write-back target would be ambiguous).
+// Write studio edits back into the Scene document. Accepts EITHER the
+// node-qualified form ("nodeId.portName") for scenes with duplicate port
+// names, or the bare port-name form for scenes whose port names are unique
+// (MilkDrop presets). Refuses when the bare form is ambiguous or unmapped.
 export function updateScene(/** @type {Scene} */ scene, /** @type {Record<string,number>} */ vars, /** @type {string[]} */ perFrameCode) {
   for (const [name, value] of Object.entries(vars)) {
-    const owner = scene.nodes.find((n) => n.ports[name] && typeof (/** @type {Port} */ (n.ports[name])).value === 'number');
-    if (!owner) throw new Error(`updateScene: no value port named "${name}" in the scene — refusing to save an unmapped variable`);
-    /** @type {Port} */ (owner.ports[name]).value = value;
+    let owner;
+    let portName;
+    if (name.includes('.')) {
+      const [nid, pname] = name.split('.');
+      owner = scene.nodes.find((n) => n.id === nid);
+      portName = pname;
+    } else {
+      const matches = scene.nodes.filter((n) => n.ports[name] && 'value' in n.ports[name]);
+      if (matches.length > 1) throw new Error(`updateScene: port name "${name}" is claimed by ${matches.length} nodes — use "nodeId.portName" to disambiguate`);
+      owner = matches[0];
+      portName = name;
+    }
+    if (!owner || !portName || !owner.ports[portName]) throw new Error(`updateScene: no value port matches "${name}" — refusing to save an unmapped variable`);
+    /** @type {Port} */ (owner.ports[portName]).value = value;
   }
   const perFramePrograms = scene.expressions.filter((x) => x.stage === 'per-frame');
   if (perFramePrograms.length > 1) throw new Error('updateScene: scene has multiple per-frame programs — write-back target is ambiguous, refusing');
@@ -252,23 +257,13 @@ export function updateScene(/** @type {Scene} */ scene, /** @type {Record<string
 // --- MilkDrop conversion: record-consuming handler registry ---------------
 // The importer (src/milk-import.mjs) emits one ordered record per nonblank
 // source line; milkToPhos consumes EVERY record explicitly or refuses with
-// the source line. The exhaustive-consumption invariant lives here in the
-// converter itself, not in a separate verification tool.
+// the source line.
 //
 // Every port emission flows through emitPort, which enforces the ONE
 // authoritative port declaration shared with execution (OP_PORTS,
-// src/engine.mjs): a handler cannot emit a port the runtime does not consume,
-// and Engine construction independently refuses such a port arriving in any
-// .phos. Where MilkDrop applies semantics beyond storing the float, the
-// executable site is in the runtime path the declaration points to:
-// - fDecay quantizes through the 8-bit D3DCOLOR path before modulation —
-//   Engine.renderState motion.decay (d3dColor01; milkdropfs.cpp:41, :2007)
-// - border colors/alphas pass the same 8-bit conversion at Engine.renderState
-//   innerBox/outerBox (:3453-3457); the draw gate reads the RAW alpha (:3451)
-// - fGammaAdj clamps 0..8 and fVideoEchoZoom clamps 0.001..1000 after
-//   per-frame equations — Engine.step (:677-679)
-// - warp motion values feed the finite-mesh UV path (src/warp-mesh.mjs,
-//   :1877-1926) through Engine.renderState.motion
+// src/engine.mjs). Where MilkDrop applies semantics beyond storing the
+// float, the executable site is in the runtime path the declaration points
+// to (see NATIVE_OPS render contributes and warp-mesh.mjs).
 
 /** @typedef {{warp:Record<string,Port>, borders:Record<string,Port>, comp:Record<string,Port>}} NodePorts */
 /** @typedef {import('./milk-import.mjs').ValueRecord} ValueRecord */
@@ -291,8 +286,7 @@ function emitPort(ports, nodeId, key, value, line) {
 
 /** @type {Record<string, (rec:ValueRecord, ports:NodePorts) => void>} */
 const VALUE_HANDLERS = {
-  // warp-feedback motion — finite-mesh UVs (src/warp-mesh.mjs) + renderState.motion
-  fDecay: (rec, ports) => emitPort(ports, 'warp', 'fDecay', rec.value, rec.line), // 8-bit quantized at render (d3dColor01)
+  fDecay: (rec, ports) => emitPort(ports, 'warp', 'fDecay', rec.value, rec.line),
   zoom: (rec, ports) => emitPort(ports, 'warp', 'zoom', rec.value, rec.line),
   rot: (rec, ports) => emitPort(ports, 'warp', 'rot', rec.value, rec.line),
   warp: (rec, ports) => emitPort(ports, 'warp', 'warp', rec.value, rec.line),
@@ -305,8 +299,6 @@ const VALUE_HANDLERS = {
   fWarpAnimSpeed: (rec, ports) => emitPort(ports, 'warp', 'fWarpAnimSpeed', rec.value, rec.line),
   fWarpScale: (rec, ports) => emitPort(ports, 'warp', 'fWarpScale', rec.value, rec.line),
   fZoomExponent: (rec, ports) => emitPort(ports, 'warp', 'fZoomExponent', rec.value, rec.line),
-  // borders — rings after the warped blit (:3431-3487); 8-bit color conversion
-  // and raw-alpha gate execute at renderState
   ob_size: (rec, ports) => emitPort(ports, 'borders', 'ob_size', rec.value, rec.line),
   ob_r: (rec, ports) => emitPort(ports, 'borders', 'ob_r', rec.value, rec.line),
   ob_g: (rec, ports) => emitPort(ports, 'borders', 'ob_g', rec.value, rec.line),
@@ -317,19 +309,12 @@ const VALUE_HANDLERS = {
   ib_g: (rec, ports) => emitPort(ports, 'borders', 'ib_g', rec.value, rec.line),
   ib_b: (rec, ports) => emitPort(ports, 'borders', 'ib_b', rec.value, rec.line),
   ib_a: (rec, ports) => emitPort(ports, 'borders', 'ib_a', rec.value, rec.line),
-  // composite — gammaAdj + video echo (:4147-4260); clamps execute in Engine.step
   fGammaAdj: (rec, ports) => emitPort(ports, 'comp', 'fGammaAdj', rec.value, rec.line),
   fVideoEchoZoom: (rec, ports) => emitPort(ports, 'comp', 'fVideoEchoZoom', rec.value, rec.line),
   fVideoEchoAlpha: (rec, ports) => emitPort(ports, 'comp', 'fVideoEchoAlpha', rec.value, rec.line),
   nVideoEchoOrientation: (rec, ports) => emitPort(ports, 'comp', 'nVideoEchoOrientation', rec.value, rec.line),
 };
 
-// Source-defined defaults a preset may omit — MilkDrop state.cpp
-// (CState::Default): warp-motion params :654-665, composite params :541-544
-// (note fGammaAdj DEFAULTS TO 2.0 — "1.0 = reg; +2.0 = double"). Materialized
-// so the .phos carries "parsed fields, defaults" per the exactness standard.
-// The presence test reads the EMITTED ports (the records' own output), never
-// a derived view — the records stay authoritative end to end.
 const MILK_NODE_DEFAULTS = /** @type {{warp:Record<string,number>, comp:Record<string,number>}} */ ({
   warp: {
     zoom: 1, rot: 0, cx: 0.5, cy: 0.5, dx: 0, dy: 0, warp: 1, sx: 1, sy: 1,
@@ -341,9 +326,7 @@ const MILK_NODE_DEFAULTS = /** @type {{warp:Record<string,number>, comp:Record<s
 });
 
 /**
- * Per-record conversion disposition for the studio's triage view. Consults
- * the SAME handler registry conversion uses and emits nothing loadable — a
- * refused preset cannot reach the engine through this path.
+ * Per-record conversion disposition for the studio's triage view.
  * @param {(import('./milk-import.mjs').SourceRecord|import('./milk-import.mjs').RefusedRecord)[]} records
  * @returns {{line:number, ok:boolean, text:string}[]}
  */
@@ -367,21 +350,19 @@ export function milkToPhos(/** @type {{records:import('./milk-import.mjs').Sourc
   const nodePorts = { warp: {}, borders: {}, comp: {} };
   /** @type {string[]} */ const perFrame = [];
   /** @type {string[]} */ const perFrameComments = [];
-  // Exhaustive record consumption — every record produces exactly one concrete
-  // outcome (emit / preserve / structural) or conversion throws with the line.
   let consumed = 0;
   for (const rec of ir.records) {
     if (rec.kind === 'section') {
       if (rec.name !== 'preset00') throw new Error(`milkToPhos: line ${rec.line}: unknown section "${rec.raw}" — refusing`);
-      consumed++; // structural marker consumed
+      consumed++;
     } else if (rec.kind === 'comment') {
-      perFrameComments.push(rec.text); consumed++; // non-executable source content preserved
+      perFrameComments.push(rec.text); consumed++;
     } else if (rec.kind === 'equation') {
-      perFrame.push(rec.code); consumed++; // executable per-frame program code emitted
+      perFrame.push(rec.code); consumed++;
     } else if (rec.kind === 'value') {
       const handler = VALUE_HANDLERS[rec.key];
       if (!handler) throw new Error(`milkToPhos: line ${rec.line}: no conversion handler for "${rec.key}" — the target cannot yet express this property's behavior, refusing`);
-      handler(rec, nodePorts); consumed++; // target port emitted through the declared-port door
+      handler(rec, nodePorts); consumed++;
     } else {
       throw new Error(`milkToPhos: unknown record kind ${JSON.stringify(rec)} — refusing`);
     }
@@ -389,14 +370,12 @@ export function milkToPhos(/** @type {{records:import('./milk-import.mjs').Sourc
   if (consumed !== ir.records.length) {
     throw new Error(`milkToPhos: ${ir.records.length - consumed} source record(s) left unconsumed — refusing`);
   }
-  // defaults for ports the records did not emit — presence read from the
-  // emitted ports themselves, and emission goes through the same guarded door
   for (const nodeId of /** @type {('warp'|'comp')[]} */ (['warp', 'comp'])) {
     for (const [key, dflt] of Object.entries(MILK_NODE_DEFAULTS[nodeId])) {
       if (!(key in nodePorts[nodeId])) emitPort(nodePorts, nodeId, key, dflt);
     }
   }
-  // canonical wiring: warp -> borders -> comp (pipeline grammar, milkdropfs.cpp:1048-1214)
+  // canonical render wiring: warp -> borders -> comp
   nodePorts.warp.out = { type: 'render' };
   nodePorts.borders.in = { type: 'render' };
   nodePorts.borders.out = { type: 'render' };
@@ -409,8 +388,6 @@ export function milkToPhos(/** @type {{records:import('./milk-import.mjs').Sourc
     if (perFrameComments.length > 0) prog.comments = perFrameComments;
     expressions.push(prog);
   }
-  // converted-scene naming: source-engine prefix (md- for MilkDrop, p9- for
-  // Plane9 when that converter exists) so provenance shows in the filename
   const name = 'md-' + source.file.replace(/\.[^.]+$/, '');
   return /** @type {Scene} */ ({
     format: 'phos/1',
@@ -428,3 +405,5 @@ export function milkToPhos(/** @type {{records:import('./milk-import.mjs').Sourc
     expressions,
   });
 }
+// Re-export so downstream code has a single import surface.
+export { NATIVE_OPS };
