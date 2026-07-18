@@ -11,7 +11,7 @@
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { importMilk } from './src/milk-import.mjs';
-import { Engine } from './src/engine.mjs';
+import { Engine, d3dColor01 } from './src/engine.mjs';
 import { GRID_X, GRID_Y, VERT_COUNT, buildStripIndices, buildWarpUVs, meshPositions } from './src/warp-mesh.mjs';
 import { parsePhos, serializePhos, toRuntime, milkToPhos, updateScene } from './src/phos.mjs';
 import { eelSubject } from './src/eel.mjs';
@@ -33,9 +33,9 @@ let maxDiff = 0;
 const dt = 1 / 60;
 const samples = [];
 for (let i = 0; i < 600; i++) {          // 10 seconds
-  const st = eng.step(dt);
+  eng.step(dt);
   const expected = refIbR(eng.pool.time ?? 0); // engine's own time, exact
-  const got = st.innerBox.r;
+  const got = eng.pool.ib_r ?? 0; // pool value — renderState colors are 8-bit converted (d3dColor01)
   maxDiff = Math.max(maxDiff, Math.abs(expected - got));
   if (i % 120 === 0) samples.push({ t: +(eng.pool.time ?? 0).toFixed(3), expected: +expected.toFixed(6), got: +got.toFixed(6) });
 }
@@ -50,7 +50,7 @@ const importOk =
 const mutantScene = toRuntime(milkToPhos(importMilk(text.replace('0.4*sin(3*time)', '0.4*sin(4*time)')), { file: 'x.milk', sha256: 'x' }));
 const meng = new Engine(mutantScene);
 let mutDiff = 0;
-for (let i = 0; i < 600; i++) { const st = meng.step(dt); mutDiff = Math.max(mutDiff, Math.abs(refIbR(meng.pool.time ?? 0) - st.innerBox.r)); }
+for (let i = 0; i < 600; i++) { meng.step(dt); mutDiff = Math.max(mutDiff, Math.abs(refIbR(meng.pool.time ?? 0) - (meng.pool.ib_r ?? 0))); }
 
 const subjectOk = maxDiff <= EPS;
 const mutantRejected = mutDiff > EPS;
@@ -121,6 +121,8 @@ const importerRefusals = [
   ['unknown section header', (() => { try { importMilk('[preset99]\n' + text); return false; } catch { return true; } })()],
   ['per-vertex code', (() => { try { importMilk(text + 'per_pixel_1=zoom=zoom+0.1;\n'); return false; } catch { return true; } })()],
   ['per-vertex comment-only line', (() => { try { importMilk(text + 'per_pixel_1=// note\n'); return false; } catch { return true; } })()],
+  ['duplicate property', (() => { try { importMilk(text + 'zoom=1\n'); return false; } catch { return true; } })()],
+  ['equation line mixing code and trailing comment', (() => { try { importMilk(text + 'per_frame_2=x=1; // note\n'); return false; } catch { return true; } })()],
 ];
 const importerRefused = importerRefusals.every(([, ok]) => ok);
 
@@ -409,7 +411,7 @@ const clampAliasOk = (() => {
   const ez = e3.step(1 / 60).comp.echoZoom === 0.001;
   e3.recompile(['gamma=4;', 'decay=0.5;']);
   const st = e3.step(1 / 60);
-  const alias = st.comp.gamma === 4 && st.motion.decay === 0.5;
+  const alias = st.comp.gamma === 4 && st.motion.decay === d3dColor01(0.5); // decay renders 8-bit quantized (:2007)
   const get = e3.getVar('fGammaAdj') === 4; // studio reads through the alias
   return hi && lo && ez && alias && get;
 })();
@@ -512,7 +514,41 @@ const meshOk = (() => {
   return structuralOk && identOk && nanOk && wrapOk;
 })();
 
-const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk;
+// (v) Ordered source records — the recipe stays the unit of enumeration
+//     through conversion: one record per nonblank source line, in order, with
+//     line numbers and raw text; conversion refuses any record without a
+//     handler (converterRefusesUnmapped now names the source line).
+const recordsOk = (() => {
+  /** @type {{n:number, s:string}[]} */
+  const nonblank = [];
+  text.split(/\r?\n/).forEach((l, i) => { const s = l.trim(); if (s) nonblank.push({ n: i + 1, s }); });
+  const recs = scene.records;
+  if (recs.length !== nonblank.length) return false;
+  const aligned = recs.every((r, i) => {
+    const src = nonblank[i];
+    return src !== undefined && r.line === src.n && r.raw === src.s;
+  });
+  const lineNamed = (() => {
+    try { milkToPhos(importMilk(text + 'nWaveMode=7\n'), { file: 'x.milk', sha256: 'x' }); return false; }
+    catch (e) { return /line \d+/.test(/** @type {Error} */ (e).message); }
+  })();
+  return aligned && recs[0] !== undefined && recs[0].kind === 'section' && lineNamed;
+})();
+
+// (w) MilkDrop semantic transforms execute in the runtime path: the 8-bit
+//     color conversion (milkdropfs.cpp:41) wraps 1.1 to 24/255 — the scene-one
+//     border blink past 1.0 — and quantizes decay 0.98 to 249/255 (:2007);
+//     the post-equation clamps stay covered by clampAliasOk above.
+const transformOk = (() => {
+  if (d3dColor01(1.1) !== 24 / 255 || d3dColor01(0.98) !== 249 / 255) return false;
+  const e7 = new Engine(toRuntime(parsePhos(phosText)));
+  e7.recompile(['ib_r=1.1;']);
+  const st7 = e7.step(1 / 60);
+  return st7.innerBox.r === 24 / 255 && st7.innerBox.aGate === 1
+    && st7.motion.decay === 249 / 255 && e7.pool.ib_r === 1.1;
+})();
+
+const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk;
 
 const eelFnCount = Object.keys(eelSubject).length;
 const eelCoveredCount = new Set(eelCases.map((c) => c[0])).size;
@@ -580,6 +616,8 @@ console.log('post-equation clamps + EEL-name aliasing (gamma/decay/echo_zoom):',
 console.log('variable-contract ledger: 76 regvars classified + verified, vol absent:', varContractOk ? 'OK' : 'FAIL');
 console.log('aspect factors: forward to renderState, inverse to pool (exact):', aspectOk ? 'OK' : 'FAIL');
 console.log('finite-mesh warp: strip indices + identity UVs exact + zoom=0 NaN structure:', meshOk ? 'OK' : 'FAIL');
+console.log('ordered source records: per-line, in order, refusal names the line:', recordsOk ? 'OK' : 'FAIL');
+console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
 for (const [name, args] of eelFailures) { const fn = eelSubject[name]; console.log(`  FAIL: ${name}(${args.join(',')}) = ${fn ? fn(...args) : 'missing'}`); }
 console.log(`\nRESULT: ${pass ? 'PASS' : 'FAIL'}`);
 process.exit(pass ? 0 : 1);

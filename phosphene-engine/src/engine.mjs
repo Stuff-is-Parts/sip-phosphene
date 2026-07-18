@@ -4,6 +4,11 @@
 // GPU dispatch. Headless-capable (no GPU dependency) so it's testable.
 import { compileEEL } from './expr-vm.mjs';
 import { Timekeeper } from './timekeeper.mjs';
+
+// MilkDrop's float->D3DCOLOR channel conversion — (int)(v*255) masked to 8
+// bits (D3DCOLOR_RGBA_01, milkdropfs.cpp:41). Truncation then wrap: 1.1 ->
+// 24/255, 0.98 -> 249/255. The scene-one border blink past 1.0 IS this wrap.
+export function d3dColor01(/** @type {number} */ v) { return (Math.trunc(v * 255) & 0xFF) / 255; }
 import { GRID_X, GRID_Y } from './warp-mesh.mjs';
 
 // The value-ports each supported op consumes; a scene missing any of them is
@@ -182,7 +187,7 @@ export class Engine {
           // CLAMP (WarpedBlit_NoShaders texaddr, milkdropfs.cpp:1991; snap
           // point 0.5, :588 — blend-time snap variants gated with preset-blend)
           wrap: p.wrap ?? 0,
-          decay: p.decay ?? 0,
+          decay: d3dColor01(p.decay ?? 0), // quantized via the D3DCOLOR modulate path (:2007)
           zoom: p.zoom ?? 0, zoomExp: p.zoomexp ?? 0, rot: p.rot ?? 0, warp: p.warp ?? 0,
           cx: p.cx ?? 0, cy: p.cy ?? 0, dx: p.dx ?? 0, dy: p.dy ?? 0, sx: p.sx ?? 0, sy: p.sy ?? 0,
           warpTime,
@@ -193,8 +198,10 @@ export class Engine {
           f3: 11.49 + 4.0 * Math.cos(warpTime * 0.933 + 5),
         };
       } else if (n.stage === 'borders') {
-        state.innerBox = { size: p.ib_size ?? 0, r: p.ib_r ?? 0, g: p.ib_g ?? 0, b: p.ib_b ?? 0, a: p.ib_a ?? 0 };
-        state.outerBox = { size: p.ob_size ?? 0, r: p.ob_r ?? 0, g: p.ob_g ?? 0, b: p.ob_b ?? 0, a: p.ob_a ?? 0 };
+        // colors and alphas pass the 8-bit conversion (:3453-3457); the draw
+        // gate reads the RAW alpha (:3451) — aGate carries it separately
+        state.innerBox = { size: p.ib_size ?? 0, r: d3dColor01(p.ib_r ?? 0), g: d3dColor01(p.ib_g ?? 0), b: d3dColor01(p.ib_b ?? 0), a: d3dColor01(p.ib_a ?? 0), aGate: p.ib_a ?? 0 };
+        state.outerBox = { size: p.ob_size ?? 0, r: d3dColor01(p.ob_r ?? 0), g: d3dColor01(p.ob_g ?? 0), b: d3dColor01(p.ob_b ?? 0), a: d3dColor01(p.ob_a ?? 0), aGate: p.ob_a ?? 0 };
       } else if (n.stage === 'composite') {
         // gammaAdj + video echo — ShowToUser_NoShaders (milkdropfs.cpp:4147-4260)
         state.comp = {

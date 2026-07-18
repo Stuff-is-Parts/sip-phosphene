@@ -1,50 +1,90 @@
-// .milk importer: source preset -> PHOSPHENE runtime IR.
+// .milk importer: source preset -> ordered source records + derived views.
 // Parses the key=value format (milkdrop2 state.cpp:CState::Import model).
+// THE RECIPE IS THE UNIT OF ENUMERATION: every nonblank source line becomes
+// one ordered record carrying its line number and raw text, and the converter
+// (src/phos.mjs milkToPhos) must consume every record explicitly. The vars and
+// expressions views are DERIVED from the records for downstream consumers;
+// the records are the authoritative converter input.
 // REFUSAL DISCIPLINE (PHOSPHENE-GOAL.md): unsupported source content throws
-// naming the line — nothing is silently dropped. Comment-only equation lines
-// are source content and are retained verbatim in expressions.perFrameComments.
+// naming the source line — nothing is silently dropped.
+
+/** @typedef {{line:number, raw:string, kind:'section', name:string}} SectionRecord */
+/** @typedef {{line:number, raw:string, kind:'value', key:string, value:number}} ValueRecord */
+/** @typedef {{line:number, raw:string, kind:'equation', stage:'per-frame', key:string, code:string}} EquationRecord */
+/** @typedef {{line:number, raw:string, kind:'comment', stage:'per-frame', key:string, text:string}} CommentRecord */
+/** @typedef {SectionRecord|ValueRecord|EquationRecord|CommentRecord} SourceRecord */
+
 export function importMilk(/** @type {string} */ text) {
   const lines = text.split(/\r?\n/);
-  const vars = /** @type {Record<string,number>} */ ({});           // baseline preset variables (defaults + literals)
-  /** @type {string[]} */ const perFrame = [];       // per_frame_N equations, in order
-  /** @type {string[]} */ const perVertex = [];      // per_pixel_N / per_vertex_N equations
-  /** @type {string[]} */ const perFrameComments = []; // comment-only per_frame lines, verbatim
-  for (const raw of lines) {
-    const line = raw.trim();
+  /** @type {SourceRecord[]} */
+  const records = [];
+  /** @type {Map<string,number>} */
+  const seenValueKeys = new Map();
+  for (let i = 0; i < lines.length; i++) {
+    const lineNo = i + 1;
+    const line = (lines[i] ?? '').trim();
     if (!line) continue;
     if (line.startsWith('[')) {
-      if (line === '[preset00]') continue; // the one section header the format defines
-      throw new Error(`importMilk: unknown section "${line}" — refusing`);
+      if (line === '[preset00]') { records.push({ line: lineNo, raw: line, kind: 'section', name: 'preset00' }); continue; }
+      throw new Error(`importMilk: line ${lineNo}: unknown section "${line}" — refusing`);
     }
     const eq = line.indexOf('=');
-    if (eq < 0) throw new Error(`importMilk: line without '=' is not supported: "${line}"`);
+    if (eq < 0) throw new Error(`importMilk: line ${lineNo}: line without '=' is not supported: "${line}"`);
     const key = line.slice(0, eq).trim();
     const val = line.slice(eq + 1);
     if (/^per_frame_\d+$/.test(key)) {
-      const code = val.replace(/\/\/.*$/, '').trim();
-      if (code) perFrame.push(code);
-      else if (val.trim()) perFrameComments.push(val.trim());
-    } else if (/^per_pixel_\d+$/.test(key) || /^per_vertex_\d+$/.test(key)) {
+      const vt = val.trim();
+      const code = vt.replace(/\/\/.*$/, '').trim();
+      if (code && code !== vt) {
+        // a line carrying BOTH code and a trailing comment: the expression VM
+        // does not yet carry inline comments, and stripping one silently would
+        // drop source content — refuse until that support is witnessed
+        throw new Error(`importMilk: line ${lineNo}: "${key}" mixes code and a trailing comment — refusing rather than dropping the comment`);
+      }
+      if (code) records.push({ line: lineNo, raw: line, kind: 'equation', stage: 'per-frame', key, code });
+      else if (vt) records.push({ line: lineNo, raw: line, kind: 'comment', stage: 'per-frame', key, text: vt });
+      else throw new Error(`importMilk: line ${lineNo}: "${key}" carries no content — refusing`);
+      continue;
+    }
+    if (/^per_pixel_\d+$/.test(key) || /^per_vertex_\d+$/.test(key)) {
       // the engine does not yet execute per-vertex programs — refuse the key
-      // entirely (code OR comment-only: both are source content, and dropping
-      // a comment line silently would break the no-silent-drop claim)
-      throw new Error(`importMilk: "${key}" is a per-vertex line, which the engine does not yet execute — refusing`);
-    } else if (key.startsWith('per_frame') || key.startsWith('per_pixel') || key.startsWith('per_vertex')) {
+      // entirely (code OR comment-only: both are source content)
+      throw new Error(`importMilk: line ${lineNo}: "${key}" is a per-vertex line, which the engine does not yet execute — refusing`);
+    }
+    if (key.startsWith('per_frame') || key.startsWith('per_pixel') || key.startsWith('per_vertex')) {
       // per_frame_init_N, per_pixel_init_N, malformed indices — real preset
       // content this importer does not yet support. Refuse, never drop.
-      throw new Error(`importMilk: unsupported equation key "${key}" — extend the importer before converting this preset`);
-    } else {
-      const vt = val.trim();
-      // the COMPLETE value must be a number — parseFloat's prefix parsing would
-      // silently accept trailing garbage
-      if (!/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(vt)) {
-        throw new Error(`importMilk: value for "${key}" is not a complete number (${JSON.stringify(val)}) — refusing`);
-      }
-      vars[key] = parseFloat(vt);
+      throw new Error(`importMilk: line ${lineNo}: unsupported equation key "${key}" — extend the importer before converting this preset`);
     }
+    const vt = val.trim();
+    // the COMPLETE value must be a number — parseFloat's prefix parsing would
+    // silently accept trailing garbage
+    if (!/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(vt)) {
+      throw new Error(`importMilk: line ${lineNo}: value for "${key}" is not a complete number (${JSON.stringify(val)}) — refusing`);
+    }
+    const prior = seenValueKeys.get(key);
+    if (prior !== undefined) {
+      // MilkDrop's reader semantics for duplicate keys are unwitnessed —
+      // refuse rather than pick an occurrence (never fill with plausible behavior)
+      throw new Error(`importMilk: line ${lineNo}: duplicate property "${key}" (first at line ${prior}) — duplicate-key semantics are unwitnessed, refusing`);
+    }
+    seenValueKeys.set(key, lineNo);
+    records.push({ line: lineNo, raw: line, kind: 'value', key, value: parseFloat(vt) });
+  }
+  // Derived views for downstream consumers (runtime IR shape, checks, engine).
+  /** @type {Record<string,number>} */
+  const vars = {};
+  /** @type {string[]} */ const perFrame = [];
+  /** @type {string[]} */ const perVertex = [];
+  /** @type {string[]} */ const perFrameComments = [];
+  for (const r of records) {
+    if (r.kind === 'value') vars[r.key] = r.value;
+    else if (r.kind === 'equation') perFrame.push(r.code);
+    else if (r.kind === 'comment') perFrameComments.push(r.text);
   }
   return {
     format: 'phos/1',
+    records,
     vars,
     expressions: { perFrame, perVertex, perFrameComments },
     // Legacy display descriptor. The .phos scene graph (src/phos.mjs) is the

@@ -152,7 +152,7 @@ function initGPU(){
     // overscan edge per the :4086-4088 comment
     const sampWrap=device.createSampler({magFilter:'linear',minFilter:'linear',addressModeU:'repeat',addressModeV:'repeat'});
     const sampClamp=device.createSampler({magFilter:'linear',minFilter:'linear',addressModeU:'clamp-to-edge',addressModeV:'clamp-to-edge'});
-    const ubuf=device.createBuffer({size:48,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+    const ubuf=device.createBuffer({size:64,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
     // warp mesh: static positions + strip-derived indices + per-frame UVs
     // computed CPU-side (src/warp-mesh.mjs)
     const meshIdx=buildStripIndices();
@@ -186,7 +186,7 @@ function initGPU(){
         engine.setViewport(canvas.width,canvas.height,texW,texH); // live dims each frame (scene swaps replace the engine)
         const st=engine.step(dt,{bass:a.bass,mid:a.mid,treb:a.treb,bass_att:a.bassAtt,mid_att:a.midAtt,treb_att:a.trebAtt});
         const m=st.motion,ib=st.innerBox,ob=st.outerBox;
-        const u=new Float32Array([m.decay,ib.size,ib.r,ib.g,ib.b,ib.a,ob.size,ob.r,ob.g,ob.b,ob.a,0]);
+        const u=new Float32Array([m.decay,ib.size,ib.r,ib.g,ib.b,ib.a,ib.aGate,ob.size,ob.r,ob.g,ob.b,ob.a,ob.aGate,0,0,0]);
         device.queue.writeBuffer(ubuf,0,u);
         buildWarpUVs(m,texW,texH,uvArr);device.queue.writeBuffer(uvBuf,0,uvArr);
         const samp=(m.wrap>0.5)?sampWrap:sampClamp; // texaddr, milkdropfs.cpp:1991

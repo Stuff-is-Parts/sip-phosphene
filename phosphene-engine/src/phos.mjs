@@ -1,6 +1,6 @@
 // .phos native scene format: parse (validate + strip annotations), serialize
 // (canonical form), toRuntime (flatten to the engine's runtime IR), and
-// milkToPhos (convert a .milk preset via the completeness-checked key map).
+// milkToPhos (record-consuming conversion: every source record is handled or refused).
 // Spec: design/PHOS-FORMAT.md. Strict JSON; "//"-prefixed keys are authoring
 // annotations, stripped on parse; any other unknown key is a parse error.
 
@@ -247,17 +247,61 @@ export function updateScene(/** @type {Scene} */ scene, /** @type {Record<string
   return scene;
 }
 
-// .milk key -> node assignment for the canonical MilkDrop import.
-// Citations: design/PHOS-FORMAT.md scene-one mapping table (milkdropfs.cpp refs).
-// Any key not in this map throws — completeness by refusal, no silent drops.
-const MILK_KEY_TO_NODE = /** @type {Record<string,string>} */ ({
-  fDecay: 'warp', zoom: 'warp', rot: 'warp', warp: 'warp',
-  cx: 'warp', cy: 'warp', dx: 'warp', dy: 'warp', sx: 'warp', sy: 'warp',
-  fWarpAnimSpeed: 'warp', fWarpScale: 'warp', fZoomExponent: 'warp',
-  ob_size: 'borders', ob_r: 'borders', ob_g: 'borders', ob_b: 'borders', ob_a: 'borders',
-  ib_size: 'borders', ib_r: 'borders', ib_g: 'borders', ib_b: 'borders', ib_a: 'borders',
-  fGammaAdj: 'comp', fVideoEchoZoom: 'comp', fVideoEchoAlpha: 'comp', nVideoEchoOrientation: 'comp',
-});
+// --- MilkDrop conversion: record-consuming handler registry ---------------
+// The importer (src/milk-import.mjs) emits one ordered record per nonblank
+// source line; milkToPhos consumes EVERY record explicitly or refuses with
+// the source line. The exhaustive-consumption invariant lives here in the
+// converter itself, not in a separate verification tool.
+//
+// Each value handler EXECUTES the conversion: it emits the target port the
+// runtime actually consumes. Where MilkDrop applies semantics beyond storing
+// the float, the handler comment names the executable site that carries them:
+// - fDecay quantizes through the 8-bit D3DCOLOR path before modulation —
+//   executes at Engine.renderState motion.decay (d3dColor01; milkdropfs.cpp:41, :2007)
+// - border colors/alphas pass the same 8-bit conversion at Engine.renderState
+//   innerBox/outerBox (:3453-3457); the draw gate reads the RAW alpha (:3451)
+// - fGammaAdj clamps 0..8 and fVideoEchoZoom clamps 0.001..1000 after
+//   per-frame equations — executes in Engine.step (:677-679)
+// - warp motion values are consumed by the finite-mesh UV path
+//   (src/warp-mesh.mjs, :1877-1926) through Engine.renderState.motion
+
+/** @typedef {{warp:Record<string,Port>, borders:Record<string,Port>, comp:Record<string,Port>}} NodePorts */
+
+/** @type {Record<string, (value:number, ports:NodePorts) => void>} */
+const VALUE_HANDLERS = {
+  // warp-feedback motion — finite-mesh UVs (src/warp-mesh.mjs) + renderState.motion
+  fDecay: (v, ports) => { ports.warp.fDecay = { type: 'float', value: v }; }, // 8-bit quantized at render (d3dColor01)
+  zoom: (v, ports) => { ports.warp.zoom = { type: 'float', value: v }; },
+  rot: (v, ports) => { ports.warp.rot = { type: 'float', value: v }; },
+  warp: (v, ports) => { ports.warp.warp = { type: 'float', value: v }; },
+  cx: (v, ports) => { ports.warp.cx = { type: 'float', value: v }; },
+  cy: (v, ports) => { ports.warp.cy = { type: 'float', value: v }; },
+  dx: (v, ports) => { ports.warp.dx = { type: 'float', value: v }; },
+  dy: (v, ports) => { ports.warp.dy = { type: 'float', value: v }; },
+  sx: (v, ports) => { ports.warp.sx = { type: 'float', value: v }; },
+  sy: (v, ports) => { ports.warp.sy = { type: 'float', value: v }; },
+  fWarpAnimSpeed: (v, ports) => { ports.warp.fWarpAnimSpeed = { type: 'float', value: v }; },
+  fWarpScale: (v, ports) => { ports.warp.fWarpScale = { type: 'float', value: v }; },
+  fZoomExponent: (v, ports) => { ports.warp.fZoomExponent = { type: 'float', value: v }; },
+  // borders — rings drawn after the warped blit (:3431-3487); colors/alphas
+  // 8-bit converted at renderState, gate on raw alpha
+  ob_size: (v, ports) => { ports.borders.ob_size = { type: 'float', value: v }; },
+  ob_r: (v, ports) => { ports.borders.ob_r = { type: 'float', value: v }; },
+  ob_g: (v, ports) => { ports.borders.ob_g = { type: 'float', value: v }; },
+  ob_b: (v, ports) => { ports.borders.ob_b = { type: 'float', value: v }; },
+  ob_a: (v, ports) => { ports.borders.ob_a = { type: 'float', value: v }; },
+  ib_size: (v, ports) => { ports.borders.ib_size = { type: 'float', value: v }; },
+  ib_r: (v, ports) => { ports.borders.ib_r = { type: 'float', value: v }; },
+  ib_g: (v, ports) => { ports.borders.ib_g = { type: 'float', value: v }; },
+  ib_b: (v, ports) => { ports.borders.ib_b = { type: 'float', value: v }; },
+  ib_a: (v, ports) => { ports.borders.ib_a = { type: 'float', value: v }; },
+  // composite — gammaAdj saturating multiply + video echo (:4147-4260);
+  // post-equation clamps execute in Engine.step (:677-679)
+  fGammaAdj: (v, ports) => { ports.comp.fGammaAdj = { type: 'float', value: v }; },
+  fVideoEchoZoom: (v, ports) => { ports.comp.fVideoEchoZoom = { type: 'float', value: v }; },
+  fVideoEchoAlpha: (v, ports) => { ports.comp.fVideoEchoAlpha = { type: 'float', value: v }; },
+  nVideoEchoOrientation: (v, ports) => { ports.comp.nVideoEchoOrientation = { type: 'float', value: v }; },
+};
 
 // Source-defined defaults a preset may omit — MilkDrop state.cpp
 // (CState::Default): warp-motion params :654-665, composite params :541-544
@@ -274,34 +318,52 @@ const MILK_NODE_DEFAULTS = /** @type {Record<string, Record<string,number>>} */ 
   },
 });
 
-export function milkToPhos(/** @type {{vars:Record<string,number>, expressions:{perFrame:string[], perVertex:string[], perFrameComments:string[]}}} */ ir,
+export function milkToPhos(/** @type {{records:import('./milk-import.mjs').SourceRecord[], vars:Record<string,number>, expressions:{perFrame:string[], perVertex:string[], perFrameComments:string[]}}} */ ir,
                            /** @type {{file:string, sha256:string}} */ source) {
-  /** @type {Record<string, Record<string,Port>>} */
+  /** @type {NodePorts} */
   const nodePorts = { warp: {}, borders: {}, comp: {} };
-  for (const [key, value] of Object.entries(ir.vars)) {
-    const nodeId = MILK_KEY_TO_NODE[key];
-    if (!nodeId) throw new Error(`milkToPhos: no node mapping for .milk key "${key}" — extend the mapping table (design/PHOS-FORMAT.md) before converting`);
-    /** @type {Record<string,Port>} */ (nodePorts[nodeId])[key] = { type: 'float', value };
+  /** @type {string[]} */ const perFrame = [];
+  /** @type {string[]} */ const perFrameComments = [];
+  // Exhaustive record consumption — every record produces exactly one concrete
+  // outcome (emit / preserve / structural) or conversion throws with the line.
+  let consumed = 0;
+  for (const rec of ir.records) {
+    if (rec.kind === 'section') {
+      if (rec.name !== 'preset00') throw new Error(`milkToPhos: line ${rec.line}: unknown section "${rec.raw}" — refusing`);
+      consumed++; // structural marker consumed
+    } else if (rec.kind === 'comment') {
+      perFrameComments.push(rec.text); consumed++; // non-executable source content preserved
+    } else if (rec.kind === 'equation') {
+      perFrame.push(rec.code); consumed++; // executable per-frame program code emitted
+    } else if (rec.kind === 'value') {
+      const handler = VALUE_HANDLERS[rec.key];
+      if (!handler) throw new Error(`milkToPhos: line ${rec.line}: no conversion handler for "${rec.key}" — the target cannot yet express this property's behavior, refusing`);
+      handler(rec.value, nodePorts); consumed++; // target port emitted by the handler
+    } else {
+      throw new Error(`milkToPhos: unknown record kind ${JSON.stringify(rec)} — refusing`);
+    }
+  }
+  if (consumed !== ir.records.length) {
+    throw new Error(`milkToPhos: ${ir.records.length - consumed} source record(s) left unconsumed — refusing`);
   }
   for (const [nodeId, defaults] of Object.entries(MILK_NODE_DEFAULTS)) {
     for (const [key, dflt] of Object.entries(defaults)) {
-      if (!(key in ir.vars)) /** @type {Record<string,Port>} */ (nodePorts[nodeId])[key] = { type: 'float', value: dflt };
+      if (!(key in ir.vars)) /** @type {Record<string,Port>} */ (/** @type {Record<string,Record<string,Port>>} */ (/** @type {unknown} */ (nodePorts))[nodeId])[key] = { type: 'float', value: dflt };
     }
   }
   // canonical wiring: warp -> borders -> comp (pipeline grammar, milkdropfs.cpp:1048-1214)
-  /** @type {Record<string,Port>} */ (nodePorts.warp).out = { type: 'render' };
-  /** @type {Record<string,Port>} */ (nodePorts.borders).in = { type: 'render' };
-  /** @type {Record<string,Port>} */ (nodePorts.borders).out = { type: 'render' };
-  /** @type {Record<string,Port>} */ (nodePorts.comp).in = { type: 'render' };
+  nodePorts.warp.out = { type: 'render' };
+  nodePorts.borders.in = { type: 'render' };
+  nodePorts.borders.out = { type: 'render' };
+  nodePorts.comp.in = { type: 'render' };
   /** @type {ExprProgram[]} */
   const expressions = [];
-  if (ir.expressions.perFrame.length > 0 || ir.expressions.perFrameComments.length > 0) {
+  if (perFrame.length > 0 || perFrameComments.length > 0) {
     /** @type {ExprProgram} */
-    const prog = { id: 'preset-per-frame', stage: 'per-frame', code: ir.expressions.perFrame };
-    if (ir.expressions.perFrameComments.length > 0) prog.comments = ir.expressions.perFrameComments;
+    const prog = { id: 'preset-per-frame', stage: 'per-frame', code: perFrame };
+    if (perFrameComments.length > 0) prog.comments = perFrameComments;
     expressions.push(prog);
   }
-  if (ir.expressions.perVertex.length > 0) expressions.push({ id: 'preset-per-vertex', stage: 'per-vertex', code: ir.expressions.perVertex });
   // converted-scene naming: source-engine prefix (md- for MilkDrop, p9- for
   // Plane9 when that converter exists) so provenance shows in the filename
   const name = 'md-' + source.file.replace(/\.[^.]+$/, '');
@@ -310,9 +372,9 @@ export function milkToPhos(/** @type {{vars:Record<string,number>, expressions:{
     meta: { name, sourceEngine: 'milkdrop', source: { engine: 'milkdrop', file: source.file, sha256: source.sha256 } },
     resources: [],
     nodes: [
-      { id: 'warp', primitive: 'graph', op: 'warp-feedback', ports: /** @type {Record<string,Port>} */ (nodePorts.warp) },
-      { id: 'borders', primitive: 'shader', op: 'borders', ports: /** @type {Record<string,Port>} */ (nodePorts.borders) },
-      { id: 'comp', primitive: 'graph', op: 'composite', ports: /** @type {Record<string,Port>} */ (nodePorts.comp) },
+      { id: 'warp', primitive: 'graph', op: 'warp-feedback', ports: nodePorts.warp },
+      { id: 'borders', primitive: 'shader', op: 'borders', ports: nodePorts.borders },
+      { id: 'comp', primitive: 'graph', op: 'composite', ports: nodePorts.comp },
     ],
     edges: [
       { out: 'warp.out', in: 'borders.in' },

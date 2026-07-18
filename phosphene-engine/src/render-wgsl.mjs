@@ -63,9 +63,9 @@ struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> };
 export const feedbackWGSL = /* wgsl */`
 struct Uniforms {
   decay: f32,
-  ib_size: f32, ib_r: f32, ib_g: f32, ib_b: f32, ib_a: f32,
-  ob_size: f32, ob_r: f32, ob_g: f32, ob_b: f32, ob_a: f32,
-  _pad0: f32,
+  ib_size: f32, ib_r: f32, ib_g: f32, ib_b: f32, ib_a: f32, ib_aGate: f32,
+  ob_size: f32, ob_r: f32, ob_g: f32, ob_b: f32, ob_a: f32, ob_aGate: f32,
+  _p0: f32, _p1: f32, _p2: f32,
 };
 @group(0) @binding(0) var prevTex: texture_2d<f32>;
 @group(0) @binding(1) var prevSamp: sampler;
@@ -91,12 +91,13 @@ struct VSOut {
   // border frames drawn after the warped blit — milkdropfs.cpp:3431-3487.
   // Screen edge is radius 1 in max-norm; rings live in screen space.
   let c = max(abs(in.suv.x - 0.5), abs(in.suv.y - 0.5)) * 2.0;
-  // each ring draws only when its alpha exceeds the source threshold
-  // (if (a > 0.001f), milkdropfs.cpp:3451)
-  if (u.ob_a > 0.001 && c >= 1.0 - u.ob_size && c <= 1.0) {
+  // each ring draws only when its RAW alpha exceeds the source threshold
+  // (if (a > 0.001f), milkdropfs.cpp:3451); the blend uses the 8-bit-converted
+  // alpha (Diffuse, :3453-3457) carried in ib_a/ob_a
+  if (u.ob_aGate > 0.001 && c >= 1.0 - u.ob_size && c <= 1.0) {
     prev = mix(prev, vec3(u.ob_r, u.ob_g, u.ob_b), u.ob_a);
   }
-  if (u.ib_a > 0.001 && c >= 1.0 - u.ob_size - u.ib_size && c < 1.0 - u.ob_size) {
+  if (u.ib_aGate > 0.001 && c >= 1.0 - u.ob_size - u.ib_size && c < 1.0 - u.ob_size) {
     prev = mix(prev, vec3(u.ib_r, u.ib_g, u.ib_b), u.ib_a);
   }
   return vec4(prev, 1.0);
