@@ -7,7 +7,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint phosphene-engine/src phosphene-engine/check.mjs",
     "deadcode": "knip",
-    "syntax": "for f in phosphene-engine/src/*.mjs phosphene-engine/src/audio/*.mjs phosphene-engine/src/audio/*.js phosphene-engine/check.mjs; do node --check \"$f\" || exit 1; done",
+    "syntax": "node scripts/syntax-check.mjs",
     "audit": "npm audit --omit=dev || true",
     "gate": "npm run syntax && npm run typecheck && npm run lint && npm run deadcode"
   },
