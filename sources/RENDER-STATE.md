@@ -30,6 +30,8 @@ ships.** Source: MilkDrop2 @ Doormatty/MilkDrop2 d0670a3.
 |---|---|---|---|
 | Screen mapping | quad scaled LARGER than screen — aspect CROP + 1+1/W overscan (:4089-4114) | was stretch via canvas-pixels ÷ TEXTURE dims (also misplaced for canvas ≠ 1024) | **FIXED** — compositeWGSL crop with per-frame xmult/ymult |
 | gammaAdj | iterative additive redraws; net = min(1, color·gamma); DEFAULT 2.0 (state.cpp:541) | was absent (plain blit — half the source's brightness at defaults) | **FIXED** — saturating multiply, default materialized into .phos comp node |
+| Post-equation clamps | gamma clamped 0..8, echo_zoom clamped 0.001..1000 after per-frame equations (:677-679) | was absent — equations could push echo_zoom to 0 and divide by zero in the echo branch | **FIXED** — clamps in Engine.step, checked |
+| Equation variable names | equations write the EEL names: decay, gamma, echo_zoom, echo_alpha, echo_orient, zoomexp (state.cpp:260-331 regvar list) | pool used .milk file keys, so gamma=4 in the editor altered nothing | **FIXED** — pool carries EEL names via a witnessed alias map, checked |
 | Video echo | second zoomed/flipped layer mixed by echo alpha, applied only above the 0.001 threshold (:4168-4200); defaults zoom 2, alpha 0, orient 0 (state.cpp:542-544) | was absent | **FIXED** — implemented in compositeWGSL with the threshold |
 | Hue shade (fShader) | animated per-vertex tint when fShader > 0; default 0 (state.cpp:552) | not implemented; shade=1 at default | match at default — row unlocks when content sets fShader |
 | Blend states | ONE/ZERO first draw, ONE/ONE additive redraws (:4171-4247) | folded into the min() closed form (valid: non-negative adds with per-channel clamp are order-insensitive) | match by equivalence, stated |
@@ -40,3 +42,13 @@ Blur pyramid, motion vectors, waves, shapes, sprites, preset-blend: each
 carries its own source state block; its table section gets written in the same
 window that transcribes the pass — that is what the standing practice above
 exists to force.
+
+## Perimeter tracing (the generalized practice)
+
+This ledger is one dimension (GPU state) of a two-dimensional standing
+practice. The dataflow dimension — every per-frame variable name classified
+against the source's register list and asserted by check data — lives at
+sources/VAR-CONTRACT.md with its living table in phosphene-engine/check.mjs.
+The shared rule: a window that ships a transcribed element also ships the
+perimeter trace of that element's identifiers and render state, with every
+crossing implemented or refused.

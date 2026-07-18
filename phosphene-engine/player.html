@@ -128,7 +128,7 @@ function initGPU(){
     const ctx=canvas.getContext('webgpu');
     const fmt=navigator.gpu.getPreferredCanvasFormat();
     const dpr=devicePixelRatio||1;
-    const resize=()=>{canvas.width=innerWidth*dpr;canvas.height=innerHeight*dpr;};
+    const resize=()=>{canvas.width=innerWidth*dpr;canvas.height=innerHeight*dpr;engine.setViewport(canvas.width,canvas.height);};
     resize();addEventListener('resize',resize);
     ctx.configure({device,format:fmt,alphaMode:'opaque'});
     const mod=device.createShaderModule({code:feedbackWGSL});
@@ -156,7 +156,7 @@ function initGPU(){
         const a=audio.analysis;
         // derived relative-loudness values pass straight to the pool — no scaling
         // belongs between analyzer and engine (sources/AUDIO-PATH.md implication 1)
-        const st=engine.step(dt,{bass:a.bass,mid:a.mid,treb:a.treb,bass_att:a.bassAtt,mid_att:a.midAtt,treb_att:a.trebAtt,vol:a.vol,vol_att:a.volAtt});
+        const st=engine.step(dt,{bass:a.bass,mid:a.mid,treb:a.treb,bass_att:a.bassAtt,mid_att:a.midAtt,treb_att:a.trebAtt});
         const m=st.motion,ib=st.innerBox,ob=st.outerBox;
         const u=new Float32Array([m.decay,ib.size,ib.r,ib.g,ib.b,ib.a,ob.size,ob.r,ob.g,ob.b,ob.a,m.zoom,m.zoomExp,m.rot,m.warp,m.cx,m.cy,m.dx,m.dy,m.sx,m.sy,m.warpTime,m.warpScaleInv,m.f0,m.f1,m.f2,m.f3,0]);
         device.queue.writeBuffer(ubuf,0,u);

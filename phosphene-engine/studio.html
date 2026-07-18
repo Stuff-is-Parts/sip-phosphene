@@ -199,7 +199,7 @@ else {
   const ctx = canvas.getContext('webgpu');
   const fmt = navigator.gpu.getPreferredCanvasFormat();
   const dpr = devicePixelRatio||1;
-  const resize=()=>{canvas.width=canvas.clientWidth*dpr;canvas.height=canvas.clientHeight*dpr;};
+  const resize=()=>{canvas.width=canvas.clientWidth*dpr;canvas.height=canvas.clientHeight*dpr;engine.setViewport(canvas.width,canvas.height);};
   resize(); addEventListener('resize',resize);
   ctx.configure({device,format:fmt,alphaMode:'opaque'});
   const mod = device.createShaderModule({code:feedbackWGSL});
@@ -242,8 +242,8 @@ else {
       document.getElementById('fr').textContent=engine.frame;
       fpsAcc+=1/dt;fpsN++; if(fpsN>=15){document.getElementById('fps').textContent=Math.round(fpsAcc/fpsN);fpsAcc=0;fpsN=0;}
       const vd=document.getElementById('vars'); vd.innerHTML='';
-      for(const k of ['time','ib_r','ib_g','ib_b','decay']){ const val=k==='decay'?engine.pool.fDecay:engine.pool[k]; if(val!=null){const r=document.createElement('div');r.className='v';r.innerHTML=`<span>${k}</span><b>${(+val).toFixed(4)}</b>`;vd.append(r);} }
-      document.querySelectorAll('[data-live]').forEach(el=>{const v=engine.pool[el.dataset.live];if(v!=null)el.textContent=(+v).toFixed(3);});
+      for(const k of ['time','ib_r','ib_g','ib_b','decay']){ const val=engine.pool[k]; if(val!=null){const r=document.createElement('div');r.className='v';r.innerHTML=`<span>${k}</span><b>${(+val).toFixed(4)}</b>`;vd.append(r);} }
+      document.querySelectorAll('[data-live]').forEach(el=>{const v=engine.getVar(el.dataset.live);if(v!=null)el.textContent=(+v).toFixed(3);});
     }
     requestAnimationFrame(frame);
   }

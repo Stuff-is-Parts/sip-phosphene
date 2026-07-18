@@ -18,6 +18,38 @@ const OP_PORTS = /** @type {Record<string,string[]>} */ ({
 // Ports whose values reach the GPU. With the warp math implemented, every
 // value port of the supported ops is consumed; the studio uses this to mark
 // any future unconsumed port as inert rather than silently editable.
+// .milk file keys -> the EEL variable names per-frame equations actually see,
+// witnessed from the regvar list at state.cpp:260-331 ("decay", "gamma",
+// "echo_zoom", "echo_alpha", "echo_orient", "zoomexp"; all others identical).
+// fWarpAnimSpeed/fWarpScale have NO regvar — they are preset state, not
+// equation-visible variables, so they stay under their file keys.
+const KEY_TO_EEL = /** @type {Record<string,string>} */ ({
+  fDecay: 'decay', fGammaAdj: 'gamma', fVideoEchoZoom: 'echo_zoom',
+  fVideoEchoAlpha: 'echo_alpha', nVideoEchoOrientation: 'echo_orient',
+  fZoomExponent: 'zoomexp',
+});
+// Equation-visible preset defaults: values an equation READS even when the
+// preset file omits them, witnessed from CState::Default (state.cpp:541-683)
+// through the var_pf assignment block (milkdropfs.cpp:495-548). These are
+// pool-only until their subsystems' nodes exist; rendered vars get their
+// defaults materialized into the .phos by the converter instead.
+const EQ_DEFAULTS = /** @type {Record<string,number>} */ ({
+  wave_a: 0.8, wave_r: 1, wave_g: 1, wave_b: 1, wave_x: 0.5, wave_y: 0.5,
+  wave_mystery: 0, wave_mode: 0, wave_usedots: 0, wave_thick: 0,
+  wave_additive: 0, wave_brighten: 1,
+  darken_center: 0, wrap: 1, invert: 0, brighten: 0, darken: 0, solarize: 0,
+  mv_x: 12, mv_y: 9, mv_dx: 0, mv_dy: 0, mv_l: 0.9, mv_r: 1, mv_g: 1, mv_b: 1, mv_a: 1,
+  blur1_min: 0, blur2_min: 0, blur3_min: 0, blur1_max: 1, blur2_max: 1, blur3_max: 1,
+  blur1_edge_darken: 0.25, monitor: 0,
+});
+
+function buildPool(/** @type {Record<string,number>} */ vars) {
+  /** @type {Record<string,number>} */
+  const pool = { ...EQ_DEFAULTS };
+  for (const [k, v] of Object.entries(vars)) pool[KEY_TO_EEL[k] ?? k] = v;
+  return pool;
+}
+
 export const CONSUMED_PORTS = [...OP_PORTS['warp-feedback'] ?? [], ...OP_PORTS['borders'] ?? [], ...OP_PORTS['composite'] ?? []];
 
 export class Engine {
@@ -70,9 +102,10 @@ export class Engine {
     this.scene = scene;
     // immutable load-time baseline: Reset restores THIS, not the edited state
     this.baseline = { vars: { ...scene.vars }, perFrame: [...scene.expressions.perFrame] };
-    this.pool = /** @type {Record<string,number>} */ ({ ...scene.vars }); // live variable pool
+    this.pool = buildPool(scene.vars); // live variable pool, under EEL names
     this.perFrame = compileEEL(scene.expressions.perFrame);
     this.frame = 0;
+    this.viewportW = 1024; this.viewportH = 1024; // updated by pages via setViewport
     // INTERIM (design/PHOS-FORMAT.md Semantics): MilkDrop's timekeeping is
     // hardwired here for ALL scenes until the executor supports component
     // nodes that converted scenes can reference. Same for the audio chain.
@@ -83,23 +116,36 @@ export class Engine {
   // advance one frame. audio carries the derived analysis values (relative
   // loudness revolving around 1.0 — sources/AUDIO-PATH.md); absent values
   // default to 1, matching the source's silence behavior (Loudness.cpp:49-50).
-  step(/** @type {number} */ dt, /** @type {{bass?:number,mid?:number,treb?:number,bass_att?:number,mid_att?:number,treb_att?:number,vol?:number,vol_att?:number}} */ audio = {}) {
+  step(/** @type {number} */ dt, /** @type {{bass?:number,mid?:number,treb?:number,bass_att?:number,mid_att?:number,treb_att?:number}} */ audio = {}) {
     this.timekeeper.tick(dt); // time/fps per pluginshell.cpp:1895+ (src/timekeeper.mjs)
     this.frame += 1;
-    // inject engine-provided variables (milkdropfs.cpp:471+ sets these pre-eval)
+    // inject engine-provided variables (milkdropfs.cpp:471+ sets these pre-eval).
+    // NOTE: no vol/vol_att — the per-frame regvar list (state.cpp:260-331) has
+    // no such variables; classic equations reading vol see an auto-registered 0.
+    // projectM-4 exposes vol, but the tier-1 source governs the conflict.
     Object.assign(this.pool, {
       time: this.timekeeper.time, frame: this.frame, fps: this.timekeeper.fps,
       bass: audio.bass ?? 1, mid: audio.mid ?? 1, treb: audio.treb ?? 1,
       bass_att: audio.bass_att ?? 1, mid_att: audio.mid_att ?? 1, treb_att: audio.treb_att ?? 1,
-      vol: audio.vol ?? 1, vol_att: audio.vol_att ?? 1,
+      // progress: (time - presetStart)/(nextPreset - presetStart), milkdropfs.cpp:495;
+      // single-scene slice: start 0, duration = fTimeBetweenPresets default 16 (plugin.cpp:939)
+      progress: this.timekeeper.time / 16,
+      meshx: 48, meshy: 36,               // grid defaults, plugin.cpp:952-953
+      pixelsx: this.viewportW, pixelsy: this.viewportH, // GetWidth/GetHeight, milkdropfs.cpp:543-544
+      aspectx: 1, aspecty: 1,             // m_fInvAspect, 1 for the square target (plugin.cpp:2027-2029)
     });
     // run per-frame equations (the source-derived expression VM)
     this.perFrame(this.pool);
+    // post-equation range clamps — milkdropfs.cpp:677-679 ("a few range checks")
+    this.pool.gamma = Math.max(0, Math.min(8, this.pool.gamma ?? 0));
+    this.pool.echo_zoom = Math.max(0.001, Math.min(1000, this.pool.echo_zoom ?? 0));
     return this.renderState();
   }
 
   // --- studio live-edit surface ---
-  setVar(/** @type {string} */ name, /** @type {number} */ value) { this.scene.vars[name] = value; this.pool[name] = value; }
+  setVar(/** @type {string} */ name, /** @type {number} */ value) { this.scene.vars[name] = value; this.pool[KEY_TO_EEL[name] ?? name] = value; }
+  getVar(/** @type {string} */ name) { return this.pool[KEY_TO_EEL[name] ?? name]; }
+  setViewport(/** @type {number} */ w, /** @type {number} */ h) { this.viewportW = w; this.viewportH = h; }
   recompile(/** @type {string[]} */ perFrameSource) {
     this.scene.expressions.perFrame = perFrameSource;
     this.perFrame = compileEEL(perFrameSource);
@@ -109,7 +155,7 @@ export class Engine {
     // it would restore the edited state — the aliasing bug the review caught)
     this.scene.vars = { ...this.baseline.vars };
     this.scene.expressions.perFrame = [...this.baseline.perFrame];
-    this.pool = { ...this.baseline.vars };
+    this.pool = buildPool(this.baseline.vars);
     this.perFrame = compileEEL(this.baseline.perFrame);
     this.frame = 0; this.timekeeper.reset();
   }
@@ -126,8 +172,8 @@ export class Engine {
         // per-frame warp oscillators — milkdropfs.cpp:1782-1787
         const warpTime = t * (p.fWarpAnimSpeed ?? 0);
         state.motion = {
-          decay: p.fDecay ?? 0,
-          zoom: p.zoom ?? 0, zoomExp: p.fZoomExponent ?? 0, rot: p.rot ?? 0, warp: p.warp ?? 0,
+          decay: p.decay ?? 0,
+          zoom: p.zoom ?? 0, zoomExp: p.zoomexp ?? 0, rot: p.rot ?? 0, warp: p.warp ?? 0,
           cx: p.cx ?? 0, cy: p.cy ?? 0, dx: p.dx ?? 0, dy: p.dy ?? 0, sx: p.sx ?? 0, sy: p.sy ?? 0,
           warpTime,
           warpScaleInv: 1 / (p.fWarpScale ?? 1),
@@ -142,8 +188,8 @@ export class Engine {
       } else if (n.stage === 'composite') {
         // gammaAdj + video echo — ShowToUser_NoShaders (milkdropfs.cpp:4147-4260)
         state.comp = {
-          gamma: p.fGammaAdj ?? 0, echoAlpha: p.fVideoEchoAlpha ?? 0,
-          echoZoom: p.fVideoEchoZoom ?? 0, echoOrient: (p.nVideoEchoOrientation ?? 0) % 4,
+          gamma: p.gamma ?? 0, echoAlpha: p.echo_alpha ?? 0,
+          echoZoom: p.echo_zoom ?? 0, echoOrient: (p.echo_orient ?? 0) % 4,
         };
       }
     }

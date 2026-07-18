@@ -18,7 +18,7 @@ const device = await adapter.requestDevice();
 const ctx = canvas.getContext('webgpu');
 const fmt = navigator.gpu.getPreferredCanvasFormat();
 const dpr = devicePixelRatio || 1;
-function resize(){ canvas.width = innerWidth*dpr; canvas.height = innerHeight*dpr; }
+function resize(){ canvas.width = innerWidth*dpr; canvas.height = innerHeight*dpr; engine.setViewport(canvas.width, canvas.height); }
 resize(); addEventListener('resize', resize);
 ctx.configure({ device, format: fmt, alphaMode: 'opaque' });
 

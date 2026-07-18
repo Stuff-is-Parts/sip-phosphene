@@ -396,7 +396,67 @@ const resetOk = (() => {
     && e2.step(1 / 60).innerBox.g === baseIbG;
 })();
 
-const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk;
+// (r) Post-equation clamps (milkdropfs.cpp:677-679) and EEL-name aliasing
+//     (state.cpp:260-331: equations write gamma/decay/echo_zoom, not file keys).
+const clampAliasOk = (() => {
+  const e3 = new Engine(toRuntime(parsePhos(phosText)));
+  e3.recompile(['gamma=99;']);
+  const hi = e3.step(1 / 60).comp.gamma === 8;
+  e3.recompile(['gamma=0-5;']);
+  const lo = e3.step(1 / 60).comp.gamma === 0;
+  e3.recompile(['echo_zoom=0;']);
+  const ez = e3.step(1 / 60).comp.echoZoom === 0.001;
+  e3.recompile(['gamma=4;', 'decay=0.5;']);
+  const st = e3.step(1 / 60);
+  const alias = st.comp.gamma === 4 && st.motion.decay === 0.5;
+  const get = e3.getVar('fGammaAdj') === 4; // studio reads through the alias
+  return hi && lo && ez && alias && get;
+})();
+
+// (s) VARIABLE-CONTRACT LEDGER — every per-frame EEL variable MilkDrop
+//     registers (the full regvar list, state.cpp:260-331) classified and
+//     verified against engine reality. This is the drift guard: a future
+//     change that breaks any classification fails here. q1..q32 and init-code
+//     monitor semantics are gated behind per_frame_init support (refused at
+//     import); vol/vol_att are intentionally ABSENT (no regvar in tier-1).
+const VAR_CONTRACT = {
+  engine: ['time', 'fps', 'frame', 'bass', 'mid', 'treb', 'bass_att', 'mid_att', 'treb_att',
+    'progress', 'meshx', 'meshy', 'pixelsx', 'pixelsy', 'aspectx', 'aspecty'],
+  mapped: /** @type {Record<string,string>} */ ({ fDecay: 'decay', fGammaAdj: 'gamma', fVideoEchoZoom: 'echo_zoom',
+    fVideoEchoAlpha: 'echo_alpha', nVideoEchoOrientation: 'echo_orient', fZoomExponent: 'zoomexp',
+    zoom: 'zoom', rot: 'rot', warp: 'warp', cx: 'cx', cy: 'cy', dx: 'dx', dy: 'dy', sx: 'sx', sy: 'sy',
+    ib_size: 'ib_size', ib_r: 'ib_r', ib_g: 'ib_g', ib_b: 'ib_b', ib_a: 'ib_a',
+    ob_size: 'ob_size', ob_r: 'ob_r', ob_g: 'ob_g', ob_b: 'ob_b', ob_a: 'ob_a' }),
+  defaults: /** @type {Record<string,number>} */ ({ wave_a: 0.8, wave_r: 1, wave_g: 1, wave_b: 1, wave_x: 0.5, wave_y: 0.5,
+    wave_mystery: 0, wave_mode: 0, wave_usedots: 0, wave_thick: 0, wave_additive: 0, wave_brighten: 1,
+    darken_center: 0, wrap: 1, invert: 0, brighten: 0, darken: 0, solarize: 0,
+    mv_x: 12, mv_y: 9, mv_dx: 0, mv_dy: 0, mv_l: 0.9, mv_r: 1, mv_g: 1, mv_b: 1, mv_a: 1,
+    blur1_min: 0, blur2_min: 0, blur3_min: 0, blur1_max: 1, blur2_max: 1, blur3_max: 1,
+    blur1_edge_darken: 0.25, monitor: 0 }),
+};
+const varContractOk = (() => {
+  const c = VAR_CONTRACT;
+  const total = c.engine.length + Object.keys(c.mapped).length + Object.keys(c.defaults).length;
+  if (total !== 76) return false; // the witnessed regvar list has exactly 76 names
+  const eelNames = [...c.engine, ...Object.values(c.mapped), ...Object.keys(c.defaults)];
+  if (new Set(eelNames).size !== 76) return false; // no overlaps, no gaps
+  // injected names: present and finite after a step (post-step engine)
+  const e4 = new Engine(toRuntime(parsePhos(phosText)));
+  const st = e4.step(1 / 60);
+  const injectedOk = c.engine.every((n) => Number.isFinite(e4.pool[n]));
+  // mapped names: a FRESH pool (equations move vars post-step) carries every
+  // scene file-key under its EEL name with the scene's value
+  const e5 = new Engine(toRuntime(parsePhos(phosText)));
+  const mappedOk = Object.entries(c.mapped).every(([fk, en]) =>
+    !(fk in e5.scene.vars) || e5.pool[en] === e5.scene.vars[fk]);
+  // equation-visible defaults: fresh pool carries each witnessed default value
+  const defaultsOk = Object.entries(c.defaults).every(([n, v]) => e5.pool[n] === v);
+  const volAbsent = !('vol' in e4.pool) && !('vol_att' in e4.pool);
+  const progressOk = st.passes.length === 3 && e4.pool.progress === e4.time / 16;
+  return injectedOk && mappedOk && defaultsOk && volAbsent && progressOk;
+})();
+
+const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk;
 
 const eelFnCount = Object.keys(eelSubject).length;
 const eelCoveredCount = new Set(eelCases.map((c) => c[0])).size;
@@ -460,6 +520,8 @@ console.log('timekeeper vs pluginshell.cpp recompute (exact at 4 frames):', time
 console.log('index.html == player.html (byte guard):', pagesSynced ? 'OK' : 'FAIL');
 console.log('fixed-pipeline contract refuses 2-node graph + per-vertex code:', contractOk ? 'OK' : 'FAIL');
 console.log('reset restores load-time baseline (vars/equations/state):', resetOk ? 'OK' : 'FAIL');
+console.log('post-equation clamps + EEL-name aliasing (gamma/decay/echo_zoom):', clampAliasOk ? 'OK' : 'FAIL');
+console.log('variable-contract ledger: 76 regvars classified + verified, vol absent:', varContractOk ? 'OK' : 'FAIL');
 for (const [name, args] of eelFailures) { const fn = eelSubject[name]; console.log(`  FAIL: ${name}(${args.join(',')}) = ${fn ? fn(...args) : 'missing'}`); }
 console.log(`\nRESULT: ${pass ? 'PASS' : 'FAIL'}`);
 process.exit(pass ? 0 : 1);
