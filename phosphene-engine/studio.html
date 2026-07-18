@@ -82,6 +82,8 @@
   .eq{width:100%;background:var(--bg);border:1px solid var(--edge);color:var(--fg);border-radius:3px;padding:6px;font:inherit;resize:vertical;min-height:52px}
   .eq.dirty{border-color:var(--hot)}
   .row{display:flex;gap:8px;align-items:center;margin:6px 0}
+  /* seam between the master transport and the source cluster — two jobs */
+  .seam{width:1px;align-self:stretch;background:var(--edge);margin:0 4px}
   button{background:var(--edge);color:var(--fg);border:1px solid #2c3540;border-radius:4px;padding:5px 10px;cursor:pointer;font:inherit}
   button:hover{border-color:var(--accent)}
   .meta{color:var(--dim);font-size:11px}
@@ -173,6 +175,7 @@
     <div id="audioBridge">
       <div class="row wa-flex-wrap" style="margin:0 0 6px">
         <wa-button size="small" appearance="filled-outlined" id="play" style="width:88px">⏸ Pause</wa-button>
+        <span class="seam"></span>
         <wa-button size="small" variant="brand" appearance="filled-outlined" id="aDemo">▶ DEMO</wa-button>
         <wa-button size="small" appearance="filled-outlined" id="aFile">FILE…</wa-button>
         <wa-button size="small" appearance="filled-outlined" id="aMic">MIC</wa-button>
@@ -305,8 +308,17 @@ eqEl.addEventListener('change', () => {
 });
 
 // ---- transport (MUST: play/pause) ----
+// master transport: the scene button pauses the WORLD — render loop and
+// audio together (AudioEngine.pause suspends the context); the source
+// buttons below only choose or stop what is playing
 let playing = true;
-document.getElementById('play').onclick = e => { playing = !playing; e.target.textContent = playing ? '⏸ Pause' : '▶ Play'; };
+const playBtn = document.getElementById('play');
+async function setPlaying(v){
+  playing = v;
+  playBtn.textContent = v ? '⏸ Pause' : '▶ Play';
+  if (v) await audio.resume(); else await audio.pause();
+}
+playBtn.onclick = () => setPlaying(!playing);
 document.getElementById('reset').onclick = () => {
   // restore the COMPLETE loaded scene — metadata, vars, equations, engine
   // state, and every input field — by re-parsing the load-time serialization
@@ -693,6 +705,7 @@ function refreshDemoBtn(){
   document.getElementById('aDemo').textContent = audio.source==='demo' ? '■ STOP' : '▶ DEMO';
 }
 async function startAudio(fn,label){
+  if(!playing) await setPlaying(true); // starting a source resumes the master transport
   try{ await fn(); audioStatus.textContent='source: '+label; }
   catch(e){ audioStatus.textContent='audio failed: '+(e&&e.message||e); }
   refreshDemoBtn();

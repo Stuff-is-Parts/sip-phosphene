@@ -81,6 +81,14 @@ these web sources.
 10. **Labels never outrank the content they label.** The scene NAME is the
     scene strip's title in bright text; a "Scene" heading louder than the
     name it introduces is an inverted hierarchy (owner-witnessed).
+11. **Master transport versus source selection.** The play/pause button is
+    the master transport: it pauses the world — render loop and audio
+    together, via AudioContext suspend/resume. The source buttons (demo,
+    file, mic) only choose or stop what is playing and never touch the
+    scene. Starting a source resumes the master transport. A seam separates
+    the two clusters in the bridge so the two jobs read as two jobs
+    (owner-ratified 2026-07-18; the render-only pause that let music play
+    through "pause" was the witnessed failure).
 
 ## Layout — shared zone composition
 

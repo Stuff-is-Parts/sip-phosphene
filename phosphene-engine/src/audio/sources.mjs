@@ -47,6 +47,10 @@ export class AudioEngine {
     this.#stopAll();
     this.source = 'none'; this.label = 'no source';
   }
+  /** master-transport pause/resume: suspending the AudioContext halts every
+   * source, the clock, and the pcm tap together; resume continues in place */
+  async pause() { if (this.#ctx && this.#ctx.state === 'running') await this.#ctx.suspend(); }
+  async resume() { if (this.#ctx && this.#ctx.state === 'suspended') await this.#ctx.resume(); }
   async startDemo() {
     const ctx = await this.#ensure(); this.#stopAll();
     const tap = this.#tap;
