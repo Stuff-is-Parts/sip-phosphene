@@ -89,21 +89,24 @@ pages load the `.phos`; the `.milk` is the retained source recipe. Format spec:
   Stated residual differences: arithmetic runs in doubles where the C runs
   float32 (a numerical-path difference the goal doc permits), WaveformAligner
   and the right-channel spectrum are not ported (nothing consumes them yet).
-- MilkDrop's `Timekeeper` and its loudness/audio chain are still supplied
-  globally by the Engine, not through explicit graph components. `time` and
-  `fps` in the flat EEL pool come from `src/timekeeper.mjs` (DoTime,
-  pluginshell.cpp:1895+), and `bass`/`mid`/`treb`/`_att` come from
-  `src/audio/analysis.mjs`. This is an interim ownership problem: source-
-  specific timing and audio behavior must eventually be represented as
-  explicit graph components a scene references. No currently accepted Plane9
-  conversion consumes Plane9 time or audio — the accepted `Clear → Screen`
-  slice is time-invariant, Color Cycle refuses at the compatibility gate, and
-  Beat's detector remains unresolved so `musicActive=false` is supplied in
-  product. The native MinMax op advances using the raw `dt` passed to
-  `Engine.step()`, not MilkDrop's damped `Timekeeper.time`; before Plane9
-  MinMax conversion can be accepted, the project must establish the exact
-  meaning and lifecycle of Plane9's evaluator/frame delta from
-  `Plane9Engine.dll` and represent the appropriate timing dependency
+- MilkDrop time and audio are still delivered globally rather than through
+  explicit graph components. The Engine owns `Timekeeper` (`src/timekeeper.mjs`,
+  DoTime, pluginshell.cpp:1895+): it computes MilkDrop's damped `time` and
+  `fps` each step and injects them into the flat EEL pool. The product front
+  ends `src/player.mjs` and `src/studio.mjs` run `AudioEngine.analysis`
+  (backed by `src/audio/analysis.mjs`) and pass the resulting `bass`, `mid`,
+  `treb`, `bass_att`, `mid_att`, and `treb_att` values into `Engine.step()`;
+  the Engine then injects those supplied audio values globally into the same
+  EEL pool. Both behaviors remain interim because source-specific timing and
+  audio semantics must ultimately be represented as explicit graph components
+  referenced by each scene. No currently accepted Plane9 conversion consumes
+  Plane9 time or audio — the accepted `Clear → Screen` slice is
+  time-invariant, Color Cycle refuses at the compatibility gate, and Beat's
+  upstream detector remains unresolved so the product supplies
+  `musicActive=false`. Native MinMax advances using the raw `dt` passed to
+  `Engine.step()`, not MilkDrop's damped `Timekeeper.time`; Plane9 MinMax
+  conversion remains refused until the exact Plane9 evaluator/frame-delta
+  semantics and lifecycle are independently established and represented
   explicitly. See design/PHOS-FORMAT.md's Semantics section and the
   conversion rule in CLAUDE.md ("Both engines before shared machinery;
   convert, never emulate").
