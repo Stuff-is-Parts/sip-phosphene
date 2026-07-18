@@ -190,35 +190,49 @@ function initGPU(){
         // compiled code without exported entry per PLANE9-CONTRACT.md).
         // Passing musicActive=false makes any Beat node in the scene
         // return NoMusic; MilkDrop bass/mid/treb are independent.
-        const st=engine.step(dt,{bass:a.bass,mid:a.mid,treb:a.treb,bass_att:a.bassAtt,mid_att:a.midAtt,treb_att:a.trebAtt,musicActive:false,rawBeat:0});
+        const plan=engine.step(dt,{bass:a.bass,mid:a.mid,treb:a.treb,bass_att:a.bassAtt,mid_att:a.midAtt,treb_att:a.trebAtt,musicActive:false,rawBeat:0});
+        if(!plan) throw new Error('engine.step returned no render plan — the graph has no presentation sink');
+        // Execute the sink's render plan generically per pass — the graph
+        // is the sole render-execution authority, not a mode switch on
+        // state field presence (reviewer foundation 2026-07-18).
         const enc=device.createCommandEncoder();
-        if(st.clear){
-          // native clear-color graph: its whole realization is one WebGPU
-          // clear of the canvas to the op's RGBA (NATIVE_OPS, src/engine.mjs)
-          const rp=enc.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:st.clear.r,g:st.clear.g,b:st.clear.b,a:st.clear.a}}]});
-          rp.end();
-          device.queue.submit([enc.finish()]);
-        }else{
-        const m=st.motion,ib=st.innerBox,ob=st.outerBox;
-        const u=new Float32Array([m.decay,ib.size,ib.r,ib.g,ib.b,ib.a,ib.aGate,ob.size,ob.r,ob.g,ob.b,ob.a,ob.aGate,0,0,0]);
-        device.queue.writeBuffer(ubuf,0,u);
-        buildWarpUVs(m,texW,texH,uvArr);device.queue.writeBuffer(uvBuf,0,uvArr);
-        const samp=(m.wrap>0.5)?sampWrap:sampClamp; // texaddr, milkdropfs.cpp:1991
-        const bg=device.createBindGroup({layout:bgl,entries:[{binding:0,resource:tA.createView()},{binding:1,resource:samp},{binding:2,resource:{buffer:ubuf}}]});
-        let rp=enc.beginRenderPass({colorAttachments:[{view:tB.createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
-        rp.setPipeline(pipe);rp.setBindGroup(0,bg);rp.setVertexBuffer(0,posBuf);rp.setVertexBuffer(1,uvBuf);rp.setIndexBuffer(ibuf,'uint16');rp.drawIndexed(meshIdx.length);rp.end();
-        // composite crop per milkdropfs.cpp:4089-4114: aspect = W/(H*invAspectY) (:4101),
-        // one mult carries the aspect, both carry the 1+1/W overscan; with
-        // window-matched targets the aspect term nets to 1 (pure overscan)
-        const aspect=canvas.width/(canvas.height*(1/m.aspectY));
-        const cx2=(aspect>1?1:1/aspect)*(1+1/canvas.width), cy2=(aspect>1?aspect:1)*(1+1/canvas.height);
-        device.queue.writeBuffer(cbuf,0,new Float32Array([st.comp.gamma,st.comp.echoAlpha,st.comp.echoZoom,st.comp.echoOrient,cx2,cy2,0,0]));
-        const bbg=device.createBindGroup({layout:blitPipe.getBindGroupLayout(0),entries:[{binding:0,resource:tB.createView()},{binding:1,resource:sampWrap},{binding:2,resource:{buffer:cbuf}}]});
-        rp=enc.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
-        rp.setPipeline(blitPipe);rp.setBindGroup(0,bbg);rp.draw(3);rp.end();
-        device.queue.submit([enc.finish()]);
-        [tA,tB]=[tB,tA];
+        let swapNeeded=false;
+        for(const p of plan.passes){
+          if(p.kind==='clear-color'){
+            const rp=enc.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:p.clear.r,g:p.clear.g,b:p.clear.b,a:p.clear.a}}]});
+            rp.end();
+          }else if(p.kind==='warp-feedback'){
+            const m=p.motion;
+            // borders fold into the warp-feedback pass; a warp-feedback pass
+            // whose borders were never populated draws zero-alpha rings
+            const ib=p.borders.inner ?? {size:0,r:0,g:0,b:0,a:0,aGate:0};
+            const ob=p.borders.outer ?? {size:0,r:0,g:0,b:0,a:0,aGate:0};
+            const u=new Float32Array([m.decay,ib.size,ib.r,ib.g,ib.b,ib.a,ib.aGate,ob.size,ob.r,ob.g,ob.b,ob.a,ob.aGate,0,0,0]);
+            device.queue.writeBuffer(ubuf,0,u);
+            buildWarpUVs(m,texW,texH,uvArr);device.queue.writeBuffer(uvBuf,0,uvArr);
+            const samp=(m.wrap>0.5)?sampWrap:sampClamp; // texaddr, milkdropfs.cpp:1991
+            const bg=device.createBindGroup({layout:bgl,entries:[{binding:0,resource:tA.createView()},{binding:1,resource:samp},{binding:2,resource:{buffer:ubuf}}]});
+            const rp=enc.beginRenderPass({colorAttachments:[{view:tB.createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
+            rp.setPipeline(pipe);rp.setBindGroup(0,bg);rp.setVertexBuffer(0,posBuf);rp.setVertexBuffer(1,uvBuf);rp.setIndexBuffer(ibuf,'uint16');rp.drawIndexed(meshIdx.length);rp.end();
+            swapNeeded=true;
+            // stash motion so a subsequent composite pass can read aspect/crop
+            /** @type {any} */(plan).__lastMotion=m;
+          }else if(p.kind==='composite'){
+            const m=/** @type {any} */(plan).__lastMotion;
+            if(!m)throw new Error('composite pass reached without a prior warp-feedback pass — refusing');
+            const aspect=canvas.width/(canvas.height*(1/m.aspectY));
+            const cx2=(aspect>1?1:1/aspect)*(1+1/canvas.width), cy2=(aspect>1?aspect:1)*(1+1/canvas.height);
+            const c=p.comp;
+            device.queue.writeBuffer(cbuf,0,new Float32Array([c.gamma,c.echoAlpha,c.echoZoom,c.echoOrient,cx2,cy2,0,0]));
+            const bbg=device.createBindGroup({layout:blitPipe.getBindGroupLayout(0),entries:[{binding:0,resource:tB.createView()},{binding:1,resource:sampWrap},{binding:2,resource:{buffer:cbuf}}]});
+            const rp=enc.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
+            rp.setPipeline(blitPipe);rp.setBindGroup(0,bbg);rp.draw(3);rp.end();
+          }else{
+            throw new Error('unknown render pass kind: '+/** @type {any} */(p).kind);
+          }
         }
+        device.queue.submit([enc.finish()]);
+        if(swapNeeded)[tA,tB]=[tB,tA];
         bassEl.textContent='bass '+a.bass.toFixed(2);
         fpsAcc+=1/dt;fpsN++; if(fpsN>=15){fpsEl.textContent=Math.round(fpsAcc/fpsN)+' fps';fpsAcc=0;fpsN=0;}
       }

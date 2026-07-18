@@ -160,7 +160,21 @@ function circularInterp(/** @type {number} */ prev, /** @type {number} */ target
 // render input has an incoming edge". Dispatch is by .phos op name only —
 // nothing here reads source-engine metadata (PHOSPHENE-GOAL.md, "one
 // native execution model, no parallel runtimes").
-/** @typedef {{kind:'value'|'render', inputs:Record<string,string>, outputs:Record<string,string>, initState?:(inputs:Record<string,any>)=>any, compute?:(ctx:{inputs:Record<string,any>, state:any, dt:number, frame:number, time:number, audio:{musicActive:boolean, rawBeat:number}, rng:Xorshift128})=>Record<string,any>, contribute?:(state:any, ports:Record<string,any>, pool:Record<string,number>, eng:Engine)=>void}} NativeOp */
+/**
+ * Render plans are the values render edges carry (reviewer foundation call
+ * 2026-07-18). Every render op receives an incoming plan (or null when it
+ * starts a chain), extends or transforms it, and returns the outgoing plan.
+ * Render edges propagate plans exactly as value edges propagate scalars and
+ * vectors. The Engine's step() returns the presentation sink's plan; the
+ * player executes that plan generically per pass, with no
+ * `if (st.clear) else` dispatch.
+ * @typedef {{ passes: PassSpec[] }} RenderPlan
+ * @typedef {WarpFeedbackPass|CompositePass|ClearPass} PassSpec
+ * @typedef {{kind:'warp-feedback', motion:any, borders:{inner:null|any, outer:null|any}}} WarpFeedbackPass
+ * @typedef {{kind:'composite', comp:any}} CompositePass
+ * @typedef {{kind:'clear-color', clear:{r:number, g:number, b:number, a:number}}} ClearPass
+ */
+/** @typedef {{kind:'value'|'render', inputs:Record<string,string>, outputs:Record<string,string>, initState?:(inputs:Record<string,any>)=>any, compute?:(ctx:{inputs:Record<string,any>, state:any, dt:number, frame:number, time:number, audio:{musicActive:boolean, rawBeat:number}, rng:Xorshift128})=>Record<string,any>, contribute?:(inputPlan:RenderPlan|null, ports:Record<string,any>, pool:Record<string,number>, eng:Engine)=>RenderPlan}} NativeOp */
 
 export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
   // ---- MilkDrop render ops (semantics unchanged from f7afd9f) --------
@@ -172,14 +186,12 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       fWarpAnimSpeed: 'float', fWarpScale: 'float', fZoomExponent: 'float',
     },
     outputs: { out: 'render' },
-    contribute(state, ports, pool, eng) {
+    contribute(inputPlan, ports, pool, eng) {
+      if (inputPlan !== null) throw new Error('warp-feedback is a render-plan source and cannot follow another render op — refusing');
       // per-frame warp oscillators — milkdropfs.cpp:1782-1787
       const warpTime = eng.time * ports.fWarpAnimSpeed;
-      state.motion = {
+      const motion = {
         aspectX: eng.aspectX(), aspectY: eng.aspectY(), // plugin.cpp:2027-2028
-        // warp-pass sampler address choice: wrap > 0.5 selects WRAP else
-        // CLAMP (WarpedBlit_NoShaders texaddr, milkdropfs.cpp:1991; snap
-        // point 0.5, :588 — blend-time snap variants gated with preset-blend)
         wrap: pool.wrap ?? 0,   // wrap is EQ_DEFAULT / EEL-visible, not a port
         decay: d3dColor01(ports.fDecay), // quantized via the D3DCOLOR modulate path (:2007)
         zoom: ports.zoom, zoomExp: ports.fZoomExponent, rot: ports.rot, warp: ports.warp,
@@ -191,6 +203,7 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
         f2: 10.54 + 3.0 * Math.cos(warpTime * 1.233 + 3),
         f3: 11.49 + 4.0 * Math.cos(warpTime * 0.933 + 5),
       };
+      return { passes: [{ kind: 'warp-feedback', motion, borders: { inner: null, outer: null } }] };
     },
   },
   'borders': {
@@ -201,11 +214,15 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       in: 'render',
     },
     outputs: { out: 'render' },
-    contribute(state, ports) {
+    contribute(inputPlan, ports) {
+      if (!inputPlan || inputPlan.passes.length === 0) throw new Error('borders requires an incoming render plan carrying a warp-feedback pass to extend — refusing');
+      const last = inputPlan.passes[inputPlan.passes.length - 1];
+      if (last === undefined || last.kind !== 'warp-feedback') throw new Error(`borders extends an in-flight warp-feedback pass; the current plan's last pass is "${last?.kind ?? '(none)'}" — refusing`);
       // colors and alphas pass the 8-bit conversion (:3453-3457); the draw
       // gate reads the RAW alpha (:3451) — aGate carries it separately
-      state.innerBox = { size: ports.ib_size, r: d3dColor01(ports.ib_r), g: d3dColor01(ports.ib_g), b: d3dColor01(ports.ib_b), a: d3dColor01(ports.ib_a), aGate: ports.ib_a };
-      state.outerBox = { size: ports.ob_size, r: d3dColor01(ports.ob_r), g: d3dColor01(ports.ob_g), b: d3dColor01(ports.ob_b), a: d3dColor01(ports.ob_a), aGate: ports.ob_a };
+      last.borders.inner = { size: ports.ib_size, r: d3dColor01(ports.ib_r), g: d3dColor01(ports.ib_g), b: d3dColor01(ports.ib_b), a: d3dColor01(ports.ib_a), aGate: ports.ib_a };
+      last.borders.outer = { size: ports.ob_size, r: d3dColor01(ports.ob_r), g: d3dColor01(ports.ob_g), b: d3dColor01(ports.ob_b), a: d3dColor01(ports.ob_a), aGate: ports.ob_a };
+      return inputPlan;
     },
   },
   'composite': {
@@ -215,16 +232,21 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       in: 'render',
     },
     outputs: {},
-    contribute(state, ports, pool) {
+    contribute(inputPlan, ports, pool) {
+      if (!inputPlan || inputPlan.passes.length === 0) throw new Error('composite requires an incoming render plan — refusing');
       // gammaAdj + video echo — ShowToUser_NoShaders (milkdropfs.cpp:4147-4260).
       // MilkDrop's clamps on gamma (0..8) and echo_zoom (0.001..1000) run on
       // the EEL-visible pool aliases and sync back into these ports pre-render.
-      state.comp = {
-        gamma: pool.gamma ?? ports.fGammaAdj,
-        echoAlpha: ports.fVideoEchoAlpha,
-        echoZoom: pool.echo_zoom ?? ports.fVideoEchoZoom,
-        echoOrient: (ports.nVideoEchoOrientation) % 4,
-      };
+      inputPlan.passes.push({
+        kind: 'composite',
+        comp: {
+          gamma: pool.gamma ?? ports.fGammaAdj,
+          echoAlpha: ports.fVideoEchoAlpha,
+          echoZoom: pool.echo_zoom ?? ports.fVideoEchoZoom,
+          echoOrient: (ports.nVideoEchoOrientation) % 4,
+        },
+      });
+      return inputPlan;
     },
   },
   // ---- Native render ops (Plane9-source-neutral) --------------------
@@ -237,9 +259,10 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
     kind: 'render',
     inputs: { Color: 'vec4' },
     outputs: { Render: 'render' },
-    contribute(state, ports) {
+    contribute(inputPlan, ports) {
+      if (inputPlan !== null) throw new Error('clear-color is a render-plan source and cannot follow another render op — refusing');
       const c = ports.Color;
-      state.clear = { r: c[0], g: c[1], b: c[2], a: c[3] };
+      return { passes: [{ kind: 'clear-color', clear: { r: c[0], g: c[1], b: c[2], a: c[3] } }] };
     },
   },
   'screen': {
@@ -254,7 +277,10 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       ScaleByAspect: 'float', Render: 'render',
     },
     outputs: {},
-    contribute() { /* structural terminal — no state contribution beyond passes[] */ },
+    contribute(inputPlan) {
+      if (!inputPlan) throw new Error('screen requires an incoming render plan — refusing');
+      return inputPlan;
+    },
   },
   // ---- Native value ops (source-neutral) ----------------------------
   'HSLAToColor': {
@@ -571,6 +597,22 @@ export class Engine {
         }
       }
     }
+    // Exactly one presentation sink. A sink is a render op with a render
+    // input port (to receive the incoming plan) and no render output port
+    // (nothing to propagate to). The single-canvas front end can present
+    // only one plan per frame; two independent render chains have two
+    // independent sinks and would compete for the same canvas.
+    const sinks = renderOrder.filter((n) => {
+      const op = opOf(n.op);
+      const hasRenderInput = Object.values(op.inputs).includes('render');
+      const hasRenderOutput = Object.values(op.outputs).includes('render');
+      return hasRenderInput && !hasRenderOutput;
+    });
+    if (sinks.length !== 1) {
+      throw new Error(`Engine: graph has ${sinks.length} presentation sink(s); exactly one is required for the single-canvas front end — refusing`);
+    }
+    /** @type {string} */
+    this.sinkId = /** @type {{id:string}} */ (sinks[0]).id;
 
     // --- per-node state ---
     /** @type {Record<string, {ports:Record<string, any>, outputs:Record<string, any>, state:any}>} */
@@ -691,8 +733,15 @@ export class Engine {
     if ('echo_zoom' in this.pool) this.pool.echo_zoom = Math.max(0.001, Math.min(1000, this.pool.echo_zoom ?? 0));
     this._writePoolIntoPorts();
 
-    // --- walk topological order — value ops compute + propagate, render ops contribute ---
-    const state = /** @type {any} */ ({ passes: this.order.filter((n) => opOf(n.op).kind === 'render').map((n) => n.op) });
+    // --- walk topological order — value ops compute + propagate, render ops
+    // consume-and-return plans through render edges. Value edges carry
+    // scalars/vectors; render edges carry render plans. There is no shared
+    // mutable state between render ops.
+    /** @type {Record<string, import('./engine.mjs').RenderPlan|null>} */
+    const nodeIncomingPlan = {};
+    for (const node of this.order) nodeIncomingPlan[node.id] = null;
+    /** @type {import('./engine.mjs').RenderPlan|null} */
+    let sinkPlan = null;
     const audioCtx = { musicActive: !!audio.musicActive, rawBeat: audio.rawBeat ?? 0 };
     for (const node of this.order) {
       const op = /** @type {NativeOp} */ (NATIVE_OPS[node.op]);
@@ -713,10 +762,21 @@ export class Engine {
           }
         }
       } else if (op.kind === 'render' && op.contribute) {
-        op.contribute(state, ns.ports, this.pool, this);
+        const inputPlan = /** @type {import('./engine.mjs').RenderPlan|null} */ (nodeIncomingPlan[node.id] ?? null);
+        const outputPlan = op.contribute(inputPlan, ns.ports, this.pool, this);
+        if (node.id === this.sinkId) sinkPlan = outputPlan;
+        // Propagate the output plan along outgoing render edges. Every
+        // declared render output port carries the same plan reference to
+        // its downstream consumer.
+        for (const edge of this.outgoing.get(node.id) ?? []) {
+          const [, srcPort] = splitRef(edge.out);
+          const [dstId] = splitRef(edge.in);
+          const srcType = op.outputs[srcPort];
+          if (srcType === 'render') nodeIncomingPlan[dstId] = outputPlan;
+        }
       }
     }
-    return state;
+    return sinkPlan;
   }
 
   // --- studio live-edit surface -----------------------------------------
@@ -813,18 +873,6 @@ export class Engine {
     this._readPortsIntoPool();
   }
 
-  renderState() {
-    // Used by tests that want the state without advancing time. Behavior
-    // matches step() at dt=0: no phase advances, only current pool + node
-    // outputs are contributed.
-    const state = /** @type {any} */ ({ passes: this.order.filter((n) => /** @type {NativeOp} */ (NATIVE_OPS[n.op]).kind === 'render').map((n) => n.op) });
-    for (const node of this.order) {
-      const op = /** @type {NativeOp} */ (NATIVE_OPS[node.op]);
-      const ns = /** @type {{ports:Record<string,any>, outputs:Record<string,any>, state:any}} */ (this.nodeState[node.id]);
-      if (op.kind === 'render' && op.contribute) op.contribute(state, ns.ports, this.pool, this);
-    }
-    return state;
-  }
 }
 
 // --- Runtime IR helpers exposed for tests/tools -----------------------

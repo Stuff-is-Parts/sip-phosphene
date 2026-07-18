@@ -239,7 +239,12 @@ function disposeP9(records) {
       connections.push(conn);
       const outNode = nodes[conn.out.split('.')[0] || ''];
       const inNode = nodes[conn.in.split('.')[0] || ''];
-      const convertible = (/** @type {{type:string}|undefined} */ n) => n !== undefined && P9_TYPE_TO_OP[n.type] !== undefined;
+      // Convertibility for the triage disposition is the compatibility gate
+      // status, not merely the presence of a native-op mapping — a UNRESOLVED
+      // endpoint refuses conversion, so its incident edges are not realizable
+      // (reviewer 2026-07-18 minor).
+      const convertible = (/** @type {{type:string}|undefined} */ n) =>
+        n !== undefined && P9_COMPATIBILITY[n.type]?.status === 'PASS';
       if (convertible(outNode) && convertible(inNode)) {
         const isRender = conn.out.endsWith('.Render') || conn.in.endsWith('.Render');
         out.push({ line: rec.line, ok: true, text: 'connection ' + conn.out + ' → ' + conn.in + (isRender ? ' — render topology' : ' — value edge propagates node output to input') });

@@ -19,6 +19,28 @@ import { Engine, d3dColor01, NATIVE_OPS, Xorshift128, flatPortView } from './src
 // convention); throws on duplicate names (Plane9-style scenes must use
 // node-qualified access instead).
 const vars = /** @param {any} sceneOrRt */ (sceneOrRt) => flatPortView(sceneOrRt);
+
+// State-shape shim over the new render plan (reviewer foundation 2026-07-18).
+// The plan is the value the sink returns; tests still ask for the specific
+// per-pass shapes by name — this projects the plan back onto the old field
+// layout without carrying the shared mutable state the old model used.
+/** @param {any} plan */
+function stateOf(plan) {
+  const passes = plan?.passes ?? [];
+  const wf = passes.find((/** @type {any} */ p) => p.kind === 'warp-feedback');
+  const composite = passes.find((/** @type {any} */ p) => p.kind === 'composite');
+  const cc = passes.find((/** @type {any} */ p) => p.kind === 'clear-color');
+  /** @type {any} */
+  const shim = { passes: passes.map((/** @type {any} */ p) => p.kind) };
+  if (wf) {
+    shim.motion = wf.motion;
+    if (wf.borders.inner) shim.innerBox = wf.borders.inner;
+    if (wf.borders.outer) shim.outerBox = wf.borders.outer;
+  }
+  if (composite) shim.comp = composite.comp;
+  if (cc) shim.clear = cc.clear;
+  return shim;
+}
 import { GRID_X, GRID_Y, VERT_COUNT, buildStripIndices, buildWarpUVs, meshPositions } from './src/warp-mesh.mjs';
 import { parsePhos, serializePhos, toRuntime, milkToPhos, updateScene, assessRecords } from './src/phos.mjs';
 import { eelSubject } from './src/eel.mjs';
@@ -156,7 +178,7 @@ const engineRefusesMissing = (() => {
 //      warp-feedback -> borders -> composite.
 const executorOk = (() => {
   const good = new Engine(toRuntime(parsePhos(phosText)));
-  const orderOk = JSON.stringify(good.step(1 / 60).passes) === JSON.stringify(['warp-feedback', 'borders', 'composite']);
+  const orderOk = JSON.stringify(stateOf(good.step(1 / 60)).passes) === JSON.stringify(['warp-feedback', 'composite']);
   const reversed = (() => {
     const r = toRuntime(parsePhos(phosText));
     r.edges = r.edges.map((/** @type {{out:string,in:string}} */ e) => ({ out: e.in, in: e.out }));
@@ -174,7 +196,7 @@ const executorOk = (() => {
 //      at the engine's own time (exact — same double expressions).
 const oscOk = (() => {
   const e2 = new Engine(toRuntime(parsePhos(phosText)));
-  const st = e2.step(1 / 60);
+  const st = stateOf(e2.step(1 / 60));
   const wt = e2.time * 1; // fWarpAnimSpeed default 1 (state.cpp:654)
   return st.motion.warpTime === wt
     && st.motion.f0 === 11.68 + 4.0 * Math.cos(wt * 1.413 + 10)
@@ -416,7 +438,7 @@ const resetOk = (() => {
     && JSON.stringify(e2.perFrameSource) === baseEqs
     && e2.getVar('ib_g') === baseIbG
     && e2.frame === 0 && e2.time === 0
-    && e2.step(1 / 60).innerBox.g === baseIbG;
+    && stateOf(e2.step(1 / 60)).innerBox.g === baseIbG;
 })();
 
 // (r) Post-equation clamps (milkdropfs.cpp:677-679) and EEL-name aliasing
@@ -424,13 +446,13 @@ const resetOk = (() => {
 const clampAliasOk = (() => {
   const e3 = new Engine(toRuntime(parsePhos(phosText)));
   e3.recompile(['gamma=99;']);
-  const hi = e3.step(1 / 60).comp.gamma === 8;
+  const hi = stateOf(e3.step(1 / 60)).comp.gamma === 8;
   e3.recompile(['gamma=0-5;']);
-  const lo = e3.step(1 / 60).comp.gamma === 0;
+  const lo = stateOf(e3.step(1 / 60)).comp.gamma === 0;
   e3.recompile(['echo_zoom=0;']);
-  const ez = e3.step(1 / 60).comp.echoZoom === 0.001;
+  const ez = stateOf(e3.step(1 / 60)).comp.echoZoom === 0.001;
   e3.recompile(['gamma=4;', 'decay=0.5;']);
-  const st = e3.step(1 / 60);
+  const st = stateOf(e3.step(1 / 60));
   const alias = st.comp.gamma === 4 && st.motion.decay === d3dColor01(0.5); // decay renders 8-bit quantized (:2007)
   const get = e3.getVar('fGammaAdj') === 4 && e3.getVar('gamma') === 4; // studio reads through both file-key and EEL alias
   return hi && lo && ez && alias && get;
@@ -465,7 +487,7 @@ const varContractOk = (() => {
   if (new Set(eelNames).size !== 76) return false; // no overlaps, no gaps
   // injected names: present and finite after a step (post-step engine)
   const e4 = new Engine(toRuntime(parsePhos(phosText)));
-  const st = e4.step(1 / 60);
+  const st = stateOf(e4.step(1 / 60));
   const injectedOk = c.engine.every((n) => Number.isFinite(e4.pool[n]));
   // mapped names: a FRESH engine (equations move vars post-step) carries every
   // scene file-key under its EEL name with the scene's value
@@ -476,7 +498,8 @@ const varContractOk = (() => {
   // equation-visible defaults: fresh pool carries each witnessed default value
   const defaultsOk = Object.entries(c.defaults).every(([n, v]) => e5.pool[n] === v);
   const volAbsent = e4.pool.vol === undefined && e4.pool.vol_att === undefined;
-  const progressOk = st.passes.length === 3 && e4.pool.progress === e4.time / 16;
+  // MilkDrop plan: warp-feedback (with borders folded into it) + composite
+  const progressOk = st.passes.length === 2 && e4.pool.progress === e4.time / 16;
   return injectedOk && mappedOk && defaultsOk && volAbsent && progressOk;
 })();
 
@@ -487,7 +510,7 @@ const aspectOk = (() => {
   const e6 = new Engine(toRuntime(parsePhos(phosText)));
   const tw = 1920, th = 1080;
   e6.setViewport(tw, th, tw, th);
-  const st = e6.step(1 / 60);
+  const st = stateOf(e6.step(1 / 60));
   const aX = (th > tw) ? tw / th : 1; // same exprs as Engine.aspectX/Y (plugin.cpp:2027-2028)
   const aY = (tw > th) ? th / tw : 1;
   return st.motion.aspectX === aX && st.motion.aspectY === aY
@@ -531,7 +554,7 @@ const meshOk = (() => {
   const uv0 = buildWarpUVs({ ...ident, zoom: 0 }, 1024, 1024);
   let nanOk = true;
   for (const v of uv0) if (!Number.isNaN(v)) nanOk = false;
-  const wrapOk = new Engine(toRuntime(parsePhos(phosText))).step(1 / 60).motion.wrap === 1;
+  const wrapOk = stateOf(new Engine(toRuntime(parsePhos(phosText))).step(1 / 60)).motion.wrap === 1;
   return structuralOk && identOk && nanOk && wrapOk;
 })();
 
@@ -564,7 +587,7 @@ const transformOk = (() => {
   if (d3dColor01(1.1) !== 24 / 255 || d3dColor01(0.98) !== 249 / 255) return false;
   const e7 = new Engine(toRuntime(parsePhos(phosText)));
   e7.recompile(['ib_r=1.1;']);
-  const st7 = e7.step(1 / 60);
+  const st7 = stateOf(e7.step(1 / 60));
   return st7.innerBox.r === 24 / 255 && st7.innerBox.aGate === 1
     && st7.motion.decay === 249 / 255 && e7.pool.ib_r === 1.1;
 })();
@@ -760,7 +783,7 @@ const registryOk = (() => {
     r.edges = [{ out: 'warp.out', in: 'borders.in' }, { out: 'borders.out', in: 'comp.fGammaAdj' }];
     try { new Engine(r); return false; } catch (e) { return /mismatched port types/.test(/** @type {Error} */ (e).message); }
   })();
-  const mdState = new Engine(rt0()).step(1 / 60);
+  const mdState = stateOf(new Engine(rt0()).step(1 / 60));
   const mdShape = mdState.motion !== undefined && mdState.innerBox !== undefined
     && mdState.outerBox !== undefined && mdState.comp !== undefined && mdState.clear === undefined;
   return unknownOp && disconnectedRenderOutput && mistypedEdge && mdShape;
@@ -776,8 +799,8 @@ const nativeClearOk = (() => {
   const doc = parsePhos(t2);
   if (serializePhos(doc) !== t2) return false;
   const e = new Engine(toRuntime(doc));
-  const st = e.step(1 / 60);
-  if (JSON.stringify(st.passes) !== JSON.stringify(['clear-color', 'screen'])) return false;
+  const st = stateOf(e.step(1 / 60));
+  if (JSON.stringify(st.passes) !== JSON.stringify(['clear-color'])) return false;
   if (st.clear.r !== 0 || st.clear.g !== 0.35 || st.clear.a !== 1) return false;
   if (st.clear.b !== 0.25 + 0.15 * Math.sin(e.getVar('time') ?? 0)) return false;
   // missing declared port refuses (no silent defaults)
@@ -846,8 +869,8 @@ const p9ConvOk = (() => {
   const doc = p9ToPhos(good, { file: 'check-clear.p9c', sha256: 'x' });
   const reparsed = parsePhos(serializePhos(doc));
   const e = new Engine(toRuntime(reparsed));
-  const st = e.step(1 / 60);
-  const executes = JSON.stringify(st.passes) === JSON.stringify(['clear-color', 'screen'])
+  const st = stateOf(e.step(1 / 60));
+  const executes = JSON.stringify(st.passes) === JSON.stringify(['clear-color'])
     && st.clear.r === 0.25 && st.clear.g === 0.5 && st.clear.b === 0.75 && st.clear.a === 1
     && reparsed.meta.sourceEngine === 'plane9';
   const cameraDeviationRefused = (() => {
@@ -1120,6 +1143,71 @@ const delayItimeModeGuardOk = (() => {
 // (ak) Ambiguous-graph refusal — multi-driver last-writer-wins and
 //      disconnected render pipelines both refuse at Engine construction
 //      (reviewer 2026-07-18 finding 7).
+// (al) Render-plan dataflow + presentation-sink invariant (reviewer
+//      foundation 2026-07-18): a plan whose warp-feedback pass reaches
+//      composite carries the borders through the pass structure; a
+//      graph with two independent render chains refuses because it has
+//      two presentation sinks and the single-canvas front end can only
+//      present one plan per frame.
+const renderPlanFoundationOk = (() => {
+  const {readFileSync: rd} = { readFileSync };
+  const md = rd(new URL('./scenes/md-101-per_frame.phos', import.meta.url), 'utf8');
+  const mdPlan = new Engine(toRuntime(parsePhos(md))).step(1 / 60);
+  // MilkDrop plan: warp-feedback pass carries borders folded into it,
+  // followed by a composite pass
+  const md0 = /** @type {any} */ (mdPlan?.passes[0]);
+  const md1 = /** @type {any} */ (mdPlan?.passes[1]);
+  const mdShapeOk = mdPlan !== null && mdPlan.passes.length === 2
+    && md0?.kind === 'warp-feedback' && md0?.borders?.inner !== null && md0?.borders?.outer !== null
+    && md1?.kind === 'composite';
+  // Two independent render chains would have two sinks — refuse
+  const twoChains = /** @type {any} */ ({
+    format: 'phos/1', meta: { name: 'two' }, resources: [],
+    nodes: [
+      { id: 'c1', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } },
+      { id: 's1', primitive: 'graph', op: 'screen', ports: {
+        Viewport: { type: 'vec4', value: [0, 0, 1, 1] },
+        CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] },
+        CamLookAtInWorldSpace: { type: 'float', value: 0 }, CamFov: { type: 'float', value: 45 }, CamNear: { type: 'float', value: 0.1 }, CamFar: { type: 'float', value: 1000 },
+        ScaleByAspect: { type: 'float', value: 0 }, Render: { type: 'render' },
+      } },
+      { id: 'c2', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } },
+      { id: 's2', primitive: 'graph', op: 'screen', ports: {
+        Viewport: { type: 'vec4', value: [0, 0, 1, 1] },
+        CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] },
+        CamLookAtInWorldSpace: { type: 'float', value: 0 }, CamFov: { type: 'float', value: 45 }, CamNear: { type: 'float', value: 0.1 }, CamFar: { type: 'float', value: 1000 },
+        ScaleByAspect: { type: 'float', value: 0 }, Render: { type: 'render' },
+      } },
+    ],
+    edges: [ { out: 'c1.Render', in: 's1.Render' }, { out: 'c2.Render', in: 's2.Render' } ],
+    expressions: [],
+  });
+  const twoSinksRefused = (() => { try { new Engine(toRuntime(twoChains)); return false; } catch (e) { return /2 presentation sink|two presentation sinks|exactly one is required/i.test(/** @type {Error} */ (e).message); } })();
+  // A clear-color followed by borders should refuse — borders extends a
+  // warp-feedback pass, not a clear-color pass, and the plan model surfaces
+  // that at contribute-time as a data-shape refusal.
+  const clearThenBorders = /** @type {any} */ ({
+    format: 'phos/1', meta: { name: 'wrong' }, resources: [],
+    nodes: [
+      { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } },
+      { id: 'b', primitive: 'shader', op: 'borders', ports: {
+        ib_size: { type: 'float', value: 0 }, ib_r: { type: 'float', value: 0 }, ib_g: { type: 'float', value: 0 }, ib_b: { type: 'float', value: 0 }, ib_a: { type: 'float', value: 0 },
+        ob_size: { type: 'float', value: 0 }, ob_r: { type: 'float', value: 0 }, ob_g: { type: 'float', value: 0 }, ob_b: { type: 'float', value: 0 }, ob_a: { type: 'float', value: 0 },
+        in: { type: 'render' }, out: { type: 'render' },
+      } },
+      { id: 'cp', primitive: 'graph', op: 'composite', ports: {
+        fGammaAdj: { type: 'float', value: 1 }, fVideoEchoZoom: { type: 'float', value: 1 }, fVideoEchoAlpha: { type: 'float', value: 0 }, nVideoEchoOrientation: { type: 'float', value: 0 },
+        in: { type: 'render' },
+      } },
+    ],
+    edges: [ { out: 'c.Render', in: 'b.in' }, { out: 'b.out', in: 'cp.in' } ],
+    expressions: [],
+  });
+  const eng = new Engine(toRuntime(clearThenBorders));
+  const clearThenBordersRefused = (() => { try { eng.step(1 / 60); return false; } catch (e) { return /borders extends an in-flight warp-feedback pass/.test(/** @type {Error} */ (e).message); } })();
+  return mdShapeOk && twoSinksRefused && clearThenBordersRefused;
+})();
+
 const ambiguousGraphRefusedOk = (() => {
   // multi-driver: build a synthetic native scene with two MinMax->RGBAToColor.Red
   // edges — the second refuses because Red already has an incoming edge.
@@ -1193,7 +1281,7 @@ const ambiguousGraphRefusedOk = (() => {
 //   Beat REFUSE at the compatibility gate; Color Cycle refuses at
 //   conversion. This surface does NOT accept PHOSPHENE's internal
 //   regression tests as evidence of Plane9 fidelity.
-const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk;
+const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk && renderPlanFoundationOk;
 const plane9CompatibilityOk = p9Ok && p9ConvOk && colorCycleOk;
 const audioOk = engineRegressionOk && plane9CompatibilityOk;
 
@@ -1285,6 +1373,7 @@ console.log('[internal regression] Beat node-level composition against Todd\'s s
 console.log('[internal regression] HSLAToColor standard formula — Color Cycle retained vector + pure red + pure green (one-vector against Plane9 output, two invented probes):', hslOk ? 'OK' : 'FAIL');
 console.log('[plane9 compat] Color Cycle: fixture REFUSES at conversion (HSLAToColor UNRESOLVED at line 22) — provisional PHOSPHENE MinMax/Beat/HSL implementations do NOT run through as accepted Plane9 conversion:', colorCycleOk ? 'OK' : 'FAIL');
 console.log('[MinMax scope bound] DelayMode/ITimeMode ≠ 1 refuses at Engine construction:', delayItimeModeGuardOk ? 'OK' : 'FAIL');
+console.log('[render-plan foundation] MilkDrop plan carries borders inside its warp-feedback pass, two independent chains refuse (two sinks), and clear→borders refuses at contribute time:', renderPlanFoundationOk ? 'OK' : 'FAIL');
 console.log('[graph correctness] multi-driver refusal + render-input requires incoming edge:', ambiguousGraphRefusedOk ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
 console.log('inert value port refused at engine construction (shared OP_PORTS):', inertPortOk ? 'OK' : 'FAIL');
