@@ -7,6 +7,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint phosphene-engine/src phosphene-engine/check.mjs",
     "style": "stylelint \"phosphene-engine/*.html\"",
+    "check": "node phosphene-engine/check.mjs && check-html-links phosphene-engine",
     "deadcode": "knip",
     "syntax": "node scripts/syntax-check.mjs",
     "audit": "npm audit --omit=dev || true",
@@ -14,6 +15,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "check-html-links": "^0.2.4",
     "eslint": "^9.17.0",
     "knip": "^5.41.0",
     "postcss-html": "^1.8.0",

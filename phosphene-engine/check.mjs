@@ -574,7 +574,42 @@ const triageOk = (() => {
     && strictStillThrows;
 })();
 
-const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk;
+// (z) CSS @import chain integrity. check-html-links (the standard tool, in
+//     the repo's check script) validates HTML-level references but does not
+//     follow CSS @import chains — witnessed 2026-07-18: it passed while
+//     webawesome.css imported a missing native.css and the missing color
+//     palette, which broke every component's appearance silently. This case
+//     walks link-tag CSS files and their @import closure, asserting each
+//     file exists. Tripwire per CLAUDE.md: if this ever needs a second file
+//     or a config surface, stop and admit a real tool instead.
+const cssImportsOk = (() => {
+  const base = new URL('.', import.meta.url);
+  const pages = ['index.html', 'player.html', 'studio.html', 'engine-test.html'];
+  /** @type {URL[]} */
+  const cssQueue = [];
+  for (const pg of pages) {
+    const html = readFileSync(new URL(pg, base), 'utf8');
+    for (const m of html.matchAll(/(?:href|src)="(\.\/[^"]+)"/g)) {
+      const u = new URL(/** @type {string} */ (m[1]), base);
+      try { readFileSync(u); } catch { return false; }
+      if (u.pathname.endsWith('.css')) cssQueue.push(u);
+    }
+  }
+  const seen = new Set();
+  while (cssQueue.length) {
+    const u = /** @type {URL} */ (cssQueue.pop());
+    if (seen.has(u.href)) continue;
+    seen.add(u.href);
+    let text;
+    try { text = readFileSync(u, 'utf8'); } catch { return false; }
+    for (const m of text.matchAll(/@import\s+url\(['"]?([^'")]+)['"]?\)/g)) {
+      cssQueue.push(new URL(/** @type {string} */ (m[1]), u));
+    }
+  }
+  return seen.size > 0;
+})();
+
+const audioOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk;
 
 const eelFnCount = Object.keys(eelSubject).length;
 const eelCoveredCount = new Set(eelCases.map((c) => c[0])).size;
@@ -646,6 +681,7 @@ console.log('ordered source records: per-line, in order, refusal names the line:
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
 console.log('inert value port refused at engine construction (shared OP_PORTS):', inertPortOk ? 'OK' : 'FAIL');
 console.log('triage scan: all refusals collected, strict import still throws first:', triageOk ? 'OK' : 'FAIL');
+console.log('CSS @import chains: every page reference and import resolves:', cssImportsOk ? 'OK' : 'FAIL');
 for (const [name, args] of eelFailures) { const fn = eelSubject[name]; console.log(`  FAIL: ${name}(${args.join(',')}) = ${fn ? fn(...args) : 'missing'}`); }
 console.log(`\nRESULT: ${pass ? 'PASS' : 'FAIL'}`);
 process.exit(pass ? 0 : 1);

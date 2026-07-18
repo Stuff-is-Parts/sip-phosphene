@@ -4,7 +4,9 @@ button, split-panel, tab, tab-group, tab-panel, drawer plus their complete
 chunk import closure (55 chunks, resolved mechanically by walking every
 import statement), and dist/styles/webawesome.css +
 dist/styles/themes/default.css, plus dist/styles/utilities.css, layers.css,
-and the styles/utilities/ directory (shipped layout/wrap/gap utility
-classes). Consumed by the studio and player pages' chrome.
+and the COMPLETE CSS @import closure of webawesome.css and
+themes/default.css (27 files including native.css and color/palettes —
+resolved mechanically by walking @import statements, the same closure
+discipline as the JS chunks). Consumed by the studio and player pages' chrome.
 To re-vendor: npm install @awesome.me/webawesome@3.10.0, re-run the closure
 walk (see the fix-batch15 vendor script in repo history), npm uninstall.

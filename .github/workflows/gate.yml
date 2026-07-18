@@ -20,4 +20,4 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
       - run: npm ci
-      - run: node phosphene-engine/check.mjs
+      - run: npm run check

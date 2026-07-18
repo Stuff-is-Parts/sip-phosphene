@@ -39,7 +39,7 @@
   #hud{position:absolute;top:8px;left:8px;color:var(--dim);font-size:11px}
   #hud b{color:var(--good)}
   #panel{background:var(--panel);border-left:1px solid var(--edge);overflow-y:auto;padding:12px}
-  h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:16px 0 8px;font-weight:600}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin:16px 0 8px;font-weight:700;border-bottom:1px solid var(--edge);padding-bottom:4px}
   h2:first-child{margin-top:0}
   .node{border:1px solid var(--edge);border-radius:6px;margin-bottom:8px;background:#0f1317}
   .node-h{padding:6px 8px;border-bottom:1px solid var(--edge);color:var(--accent);font-weight:600;display:flex;justify-content:space-between}
@@ -102,7 +102,7 @@
       <a href="./index.html" style="margin-left:auto;font-size:11px;letter-spacing:.06em;padding:5px 10px;background:var(--edge);border:1px solid #4a4020;color:#f2d97d;text-decoration:none;border-radius:4px">← PLAYER</a>
     </div>
     <div class="row wa-flex-wrap">
-      <wa-button size="small" id="savePhos">⭳ Save .phos</wa-button>
+      <wa-button size="small" variant="brand" id="savePhos">⭳ Save .phos</wa-button>
       <wa-button size="small" id="importBtn">⭱ Import…</wa-button>
       <wa-button size="small" id="srcView" style="min-width:124px">⇄ Source</wa-button>
       <wa-button size="small" id="newScene">✦ New</wa-button>
@@ -121,11 +121,11 @@
         <div id="vars"></div>
       </wa-tab-panel>
       <wa-tab-panel name="tAudio">
-        <div class="row"><wa-button size="small" id="aDemo">▶ START — DEMO TRACK</wa-button></div>
+        <div class="row"><wa-button size="small" variant="brand" id="aDemo">▶ START — DEMO TRACK</wa-button></div>
         <div class="row"><wa-button size="small" id="aFile">OPEN AUDIO FILE…</wa-button><wa-button size="small" id="aMic">USE MICROPHONE</wa-button></div>
         <input type="file" id="audioFile" accept="audio/*" hidden>
         <canvas id="scope" width="352" height="90"></canvas>
-        <div class="meta" id="audioStatus">silent — bands hold 1.0 (source silence semantics) · meters: <b style="color:#3ddc84">bass</b> <b style="color:#ffcf6e">mid</b> <b style="color:#7db8ff">treb</b> with peak-hold, line = 1.0 · bars: log-frequency spectrum · green wave: raw samples</div>
+        <div class="meta" id="audioStatus">silent — bands hold 1.0 (source silence semantics) · meters: <b style="color:#39ff14">bass</b> <b style="color:#ff2ec4">mid</b> <b style="color:#00e5ff">treb</b> with peak-hold, line = 1.0 · bars: log-frequency spectrum · green wave: raw samples</div>
       </wa-tab-panel>
       <wa-tab-panel name="tMeta"><div id="metaEdit"></div></wa-tab-panel>
     </wa-tab-group>
@@ -638,7 +638,7 @@ document.getElementById('audioFile').onchange=e=>{ const f=e.target.files[0]; if
 // overlaid. All scaling is display-only; every element is real pipeline data.
 const scopeEl=document.getElementById('scope');
 const scopeCtx=scopeEl.getContext('2d');
-const BAND_COLORS={bass:'#3ddc84',mid:'#ffcf6e',treb:'#7db8ff'};
+const BAND_COLORS={bass:'#39ff14',mid:'#ff2ec4',treb:'#00e5ff'}; // neon set, owner-picked style
 const bandPeaks={bass:0,mid:0,treb:0};
 let specPeak=1e-6;
 function drawScope(){
@@ -651,9 +651,11 @@ function drawScope(){
   bands.forEach((k,i)=>{
     const v=a[k]||0, x=x0+i*(mw+gap);
     scopeCtx.fillStyle=BAND_COLORS[k];
+    scopeCtx.shadowColor=BAND_COLORS[k]; scopeCtx.shadowBlur=10; // neon glow
     scopeCtx.fillRect(x,h-Math.min(1,v/SCALE)*h,mw,Math.min(1,v/SCALE)*h);
     bandPeaks[k]=Math.max(v,bandPeaks[k]*0.96);
     scopeCtx.fillRect(x,h-Math.min(1,bandPeaks[k]/SCALE)*h-1,mw,2);
+    scopeCtx.shadowBlur=0;
   });
   const meterW=x0+bands.length*(mw+gap);
   scopeCtx.fillStyle='rgba(201,211,221,.5)';
@@ -675,7 +677,7 @@ function drawScope(){
   // raw waveform overlay
   const wf=a.waveform;
   if(wf&&wf.length){
-    scopeCtx.strokeStyle='rgba(61,220,132,.75)';
+    scopeCtx.strokeStyle='rgba(255,255,255,.45)'; // neutral so the wave never reads as the bass meter's color
     scopeCtx.beginPath();
     for(let i=0;i<wf.length;i++){
       const x=sx+i/(wf.length-1)*sw, y=h*0.5-((wf[i]||0)/256)*h;
