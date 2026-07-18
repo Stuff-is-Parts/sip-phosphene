@@ -739,7 +739,12 @@ export class Engine {
     // The mapping refuses ambiguity: two ports resolving to the same EEL
     // name would silently last-write-win, so any perFrame code with such an
     // overlap is refused. Scenes with empty perFrame skip this entirely.
-    /** @type {Map<string, {nodeId:string, portName:string}>} */
+    // The entry carries `opName` alongside `nodeId` and `portName` so the
+    // pool-back-to-port sync at `_writePoolIntoPorts` can call
+    // `assertPortValue` on every write without re-searching the scene
+    // (reviewer 2026-07-18: EEL was the last write path that bypassed the
+    // portConstraints hook).
+    /** @type {Map<string, {nodeId:string, portName:string, opName:string}>} */
     this.eelOwner = new Map();
     for (const n of nodes) {
       const op = opOf(n.op);
@@ -753,7 +758,7 @@ export class Engine {
           // no perFrame → collisions are harmless; keep first owner
           continue;
         }
-        this.eelOwner.set(eelName, { nodeId: n.id, portName: pname });
+        this.eelOwner.set(eelName, { nodeId: n.id, portName: pname, opName: n.op });
       }
     }
     this.baseline = {
@@ -786,12 +791,20 @@ export class Engine {
       if (typeof v === 'number') this.pool[eelName] = v;
     }
   }
-  /** Sync the flat EEL pool back to node ports (aliased where applicable). */
+  /**
+   * Sync the flat EEL pool back to node ports (aliased where applicable).
+   * Every write funnels through the same portConstraints hook that
+   * construction, setVar, and value-edge propagation use, so a per-frame
+   * EEL equation like `CamFov=60` cannot silently land a witnessed-value
+   * port on a value its op has no implementation for (reviewer 2026-07-18).
+   */
   _writePoolIntoPorts() {
-    for (const [eelName, { nodeId, portName }] of this.eelOwner) {
+    for (const [eelName, { nodeId, portName, opName }] of this.eelOwner) {
       const v = this.pool[eelName];
+      if (typeof v !== 'number') continue;
+      assertPortValue(nodeId, opName, portName, v);
       const ns = /** @type {{ports:Record<string,any>}} */ (this.nodeState[nodeId]);
-      if (typeof v === 'number') ns.ports[portName] = v;
+      ns.ports[portName] = v;
     }
   }
 

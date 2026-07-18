@@ -1208,93 +1208,82 @@ const renderPlanFoundationOk = (() => {
   return mdShapeOk && twoSinksRefused && clearThenBordersRefused;
 })();
 
-// (am) Render fan-out isolation (reviewer 2026-07-18 item 1 + 3): a plan
-//      cloned per consumer at fan-out must produce independent branches.
-//      Test the clonePlan invariant directly on a full-shape plan: mutate
-//      each pass kind's mutable inner state on the clone and assert the
-//      original is unchanged. Because the Engine's step() clones on every
-//      outgoing render-edge propagation using the same generic deep clone,
-//      the invariant proven here is also the guarantee at graph fan-out.
-//      Tests the extension-safety trap the reviewer flagged: a future pass
-//      kind added to the plan structure inherits the deep-clone behavior
-//      via structuredClone rather than needing per-kind code changes.
+// (am) Render fan-out isolation (reviewer 2026-07-18): drive a real fan-out
+//      graph through the Engine — one source's Render output feeds two
+//      independent branches that both feed a two-input presentation sink —
+//      and observe that mutating branch A's plan leaves branch B's plan
+//      untouched. Prior versions of this test called structuredClone directly
+//      or ran a single-edge scene; both proved shape rather than the fan-out
+//      the Engine's step() actually performs. Two test-local ops are
+//      registered on NATIVE_OPS: a passthrough render op with in/out ports,
+//      and a two-input inspection sink that captures both inputs on a
+//      module-scoped witness object so the test can inspect them post-step.
+const fanOutWitness = /** @type {{value: {a: any, b: any} | null}} */ ({ value: null });
+/** @type {any} */ (NATIVE_OPS)['test-passthrough'] = {
+  kind: 'render',
+  inputs: { in: 'render' },
+  outputs: { out: 'render' },
+  contribute(/** @type {any} */ inputPlans) {
+    const inPlan = inputPlans.in;
+    if (!inPlan) throw new Error('test-passthrough requires an incoming render plan on "in" — refusing');
+    return { out: inPlan };
+  },
+};
+/** @type {any} */ (NATIVE_OPS)['test-inspect-sink'] = {
+  kind: 'render',
+  inputs: { A: 'render', B: 'render' },
+  outputs: { presented: 'render' },
+  contribute(/** @type {any} */ inputPlans) {
+    if (!inputPlans.A || !inputPlans.B) throw new Error('test-inspect-sink requires both A and B — refusing');
+    fanOutWitness.value = { a: inputPlans.A, b: inputPlans.B };
+    return { presented: inputPlans.A };
+  },
+};
 const renderFanOutOk = (() => {
-  // Reach into the engine's exported clonePlan via a synthetic engine —
-  // the engine does not export clonePlan directly, but step() uses it on
-  // every render-edge propagation, so we can observe the invariant by
-  // running a scene and checking that intermediate plans remain distinct.
-  // Simpler and more direct: construct a plan value and use JSON to
-  // observe deep-clone independence, matching what structuredClone does.
-  // The Engine's clonePlan implementation is `structuredClone(plan)`, so
-  // reproducing that here mirrors it.
-  const original = {
-    passes: [
-      { kind: 'warp-feedback', motion: { decay: 0.5, wrap: 1 }, borders: { inner: null, outer: null } },
-      { kind: 'composite', comp: { gamma: 2, echoAlpha: 0 } },
-      { kind: 'clear-color', clear: { r: 0.1, g: 0.2, b: 0.3, a: 1 } },
-      { kind: 'unknown-future-kind', payload: { a: 1, nested: { b: 2 } } },
-    ],
-  };
-  const cloneA = structuredClone(original);
-  const cloneB = structuredClone(original);
-  // branch A: mutate every mutable slot
-  /** @type {any} */ (cloneA.passes[0]).borders.inner = { size: 0.1 };
-  /** @type {any} */ (cloneA.passes[0]).motion.decay = 0.99;
-  /** @type {any} */ (cloneA.passes[1]).comp.gamma = 4;
-  /** @type {any} */ (cloneA.passes[2]).clear.r = 1;
-  /** @type {any} */ (cloneA.passes[3]).payload.nested.b = 99;
-  // branch B and original must remain unmodified
-  const origUnchanged = /** @type {any} */ (original.passes[0]).borders.inner === null
-    && /** @type {any} */ (original.passes[0]).motion.decay === 0.5
-    && /** @type {any} */ (original.passes[1]).comp.gamma === 2
-    && /** @type {any} */ (original.passes[2]).clear.r === 0.1
-    && /** @type {any} */ (original.passes[3]).payload.nested.b === 2;
-  const cloneBUnchanged = /** @type {any} */ (cloneB.passes[0]).borders.inner === null
-    && /** @type {any} */ (cloneB.passes[3]).payload.nested.b === 2;
-  return origUnchanged && cloneBUnchanged;
-})();
-
-// (am2) Runtime fan-out proof — construct a graph where one clear-color
-//      producer's render output feeds two consumers, force each consumer's
-//      contribute to mutate its incoming plan, and observe that the two
-//      consumers receive distinct plan instances (their mutations do not
-//      collide). Uses the Engine's step() propagation directly.
-const renderFanOutRuntimeOk = (() => {
-  // Two-screen scene is refused by the exactly-one-sink rule, so we can
-  // observe fan-out through the Engine's internal nodeIncomingPlans map
-  // by driving a scene whose ONLY structural fan-out is a clear-color
-  // whose Render feeds a single screen. That's not fan-out, but the
-  // clone-per-edge propagation in step() runs each frame regardless of
-  // count. The direct invariant is asserted by renderFanOutOk above; the
-  // corresponding runtime witness is that step() calls clonePlan for every
-  // outgoing render edge (verifiable in engine.mjs source).
-  // Instead of asserting on internals, drive the same scene twice, mutate
-  // the first returned plan, and confirm the second run's plan is
-  // structurally identical to a fresh run (proving the previous step()'s
-  // returned plan is not the same object the executor kept internally).
+  fanOutWitness.value = null;
   /** @type {any} */
   const scene = {
-    format: 'phos/1', meta: { name: 'fanout-runtime' }, resources: [],
+    format: 'phos/1', meta: { name: 'fanout' }, resources: [],
     nodes: [
-      { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0.25, 0.5, 0.75, 1] }, Render: { type: 'render' } } },
-      { id: 's', primitive: 'graph', op: 'screen', ports: {
-        Viewport: { type: 'vec4', value: [0, 0, 1, 1] }, CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] },
-        CamLookAtInWorldSpace: { type: 'float', value: 0 }, CamFov: { type: 'float', value: 45 }, CamNear: { type: 'float', value: 0.1 }, CamFar: { type: 'float', value: 1000 },
-        ScaleByAspect: { type: 'float', value: 0 }, Render: { type: 'render' },
-      } },
+      { id: 'src', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0.5, 0.25, 0.125, 1] }, Render: { type: 'render' } } },
+      { id: 'a', primitive: 'graph', op: 'test-passthrough', ports: { in: { type: 'render' }, out: { type: 'render' } } },
+      { id: 'b', primitive: 'graph', op: 'test-passthrough', ports: { in: { type: 'render' }, out: { type: 'render' } } },
+      { id: 'sink', primitive: 'graph', op: 'test-inspect-sink', ports: { A: { type: 'render' }, B: { type: 'render' }, presented: { type: 'render' } } },
     ],
-    edges: [ { out: 'c.Render', in: 's.Render' } ], expressions: [],
+    edges: [
+      // Fan-out: src.Render drives BOTH a.in AND b.in from a single
+      // producer output port. Each destination must receive its own
+      // clone; the two must be independent objects.
+      { out: 'src.Render', in: 'a.in' },
+      { out: 'src.Render', in: 'b.in' },
+      // Both branches drain into the two-input sink so the graph
+      // terminates in exactly one presentation sink and every render
+      // output has an outgoing edge.
+      { out: 'a.out', in: 'sink.A' },
+      { out: 'b.out', in: 'sink.B' },
+    ],
+    expressions: [],
   };
-  const e = new Engine(toRuntime(scene));
-  const plan1 = /** @type {any} */ (e.step(1 / 60));
-  const originalR = plan1.passes[0].clear.r;
-  plan1.passes[0].clear.r = 999; // caller mutates the returned plan
-  const plan2 = /** @type {any} */ (e.step(1 / 60));
-  // A subsequent step must produce the correct clear.r regardless of the
-  // caller's mutation of the previous plan. The Engine's per-edge clone
-  // and the per-frame contribute both guarantee the runtime never
-  // observes the caller's mutation.
-  return plan2.passes[0].clear.r === originalR;
+  const eng = new Engine(toRuntime(scene));
+  eng.step(1 / 60);
+  const witness = /** @type {{a: any, b: any} | null} */ (fanOutWitness.value);
+  if (!witness) return false;
+  const a = witness.a, b = witness.b;
+  if (!a || !b || !a.passes[0] || !b.passes[0]) return false;
+  // Distinct object identities at the plan root and at every pass entry —
+  // shared state at any level would let branch mutations leak sideways.
+  if (a === b) return false;
+  if (a.passes === b.passes) return false;
+  if (a.passes[0] === b.passes[0]) return false;
+  if (a.passes[0].clear === b.passes[0].clear) return false;
+  // Content equality at handoff — the two branches start from the same
+  // source plan values before any downstream mutation.
+  const source = 0.5;
+  if (a.passes[0].clear.r !== source || b.passes[0].clear.r !== source) return false;
+  // Branch A mutates its plan; branch B's plan must be unaffected.
+  a.passes[0].clear.r = 999;
+  a.passes.push(/** @type {any} */ ({ kind: 'test-injected', payload: { note: 'branch A only' } }));
+  return b.passes[0].clear.r === source && b.passes.length === 1;
 })();
 
 // (am3) Value-multi-driver refusal — two edges into the same value input
@@ -1372,7 +1361,32 @@ const screenGuardOk = (() => {
     try { new Engine(toRuntime(scene)); return false; }
     catch (e) { const m = /** @type {Error} */ (e).message; return /both a constant and an incoming edge|witnessed-value port/.test(m); }
   })();
-  return baselineOk && deviationRefuses && setVarRefuses && edgeRefuses;
+  // EEL path — a per-frame equation that writes CamFov=60 into the flat
+  // pool must be refused by the same portConstraints hook when the pool
+  // syncs back into node ports, so the EEL surface cannot bypass the
+  // constraint the other three write paths honor (reviewer 2026-07-18 item 1).
+  const eelRefuses = (() => {
+    /** @type {any} */
+    const scene = {
+      format: 'phos/1', meta: { name: 'eel-into-screen' }, resources: [],
+      nodes: [
+        { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } },
+        { id: 's', primitive: 'graph', op: 'screen', ports: {
+          Viewport: { type: 'vec4', value: [0, 0, 1, 1] }, CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] },
+          CamLookAtInWorldSpace: { type: 'float', value: 0 }, CamFov: { type: 'float', value: 45 }, CamNear: { type: 'float', value: 0.1 }, CamFar: { type: 'float', value: 1000 },
+          ScaleByAspect: { type: 'float', value: 0 }, Render: { type: 'render' },
+        } },
+      ],
+      edges: [ { out: 'c.Render', in: 's.Render' } ],
+      expressions: [{ id: 'per-frame', stage: 'per-frame', code: ['CamFov=60;'] }],
+    };
+    try {
+      const eng = new Engine(toRuntime(scene));
+      try { eng.step(1 / 60); return false; }
+      catch (e) { const m = /** @type {Error} */ (e).message; return /"CamFov"=60/.test(m) && /witnessed value/.test(m); }
+    } catch { return false; }
+  })();
+  return baselineOk && deviationRefuses && setVarRefuses && edgeRefuses && eelRefuses;
 })();
 
 const ambiguousGraphRefusedOk = (() => {
@@ -1448,7 +1462,7 @@ const ambiguousGraphRefusedOk = (() => {
 //   Beat REFUSE at the compatibility gate; Color Cycle refuses at
 //   conversion. This surface does NOT accept PHOSPHENE's internal
 //   regression tests as evidence of Plane9 fidelity.
-const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk && renderPlanFoundationOk && renderFanOutOk && renderFanOutRuntimeOk && valueMultiDriverOk && screenGuardOk;
+const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk && renderPlanFoundationOk && renderFanOutOk && valueMultiDriverOk && screenGuardOk;
 const plane9CompatibilityOk = p9Ok && p9ConvOk && colorCycleOk;
 const audioOk = engineRegressionOk && plane9CompatibilityOk;
 
@@ -1541,10 +1555,9 @@ console.log('[internal regression] HSLAToColor standard formula — Color Cycle 
 console.log('[plane9 compat] Color Cycle: fixture REFUSES at conversion (HSLAToColor UNRESOLVED at line 22) — provisional PHOSPHENE MinMax/Beat/HSL implementations do NOT run through as accepted Plane9 conversion:', colorCycleOk ? 'OK' : 'FAIL');
 console.log('[MinMax scope bound] DelayMode/ITimeMode ≠ 1 refuses at Engine construction:', delayItimeModeGuardOk ? 'OK' : 'FAIL');
 console.log('[render-plan foundation] MilkDrop plan carries borders inside its warp-feedback pass, two independent chains refuse (two sinks), and clear→borders refuses at contribute time:', renderPlanFoundationOk ? 'OK' : 'FAIL');
-console.log('[render fan-out] deep-clone independence: mutating one branch of a fanned-out plan leaves the other branch and the original unchanged (extension-safe against a future pass kind):', renderFanOutOk ? 'OK' : 'FAIL');
-console.log('[render fan-out runtime] a plan the caller mutates after receiving it from step() does not affect the engine\'s next step():', renderFanOutRuntimeOk ? 'OK' : 'FAIL');
+console.log('[render fan-out] a real graph where one source Render output feeds two branches through a two-input inspection sink — branch A mutation leaves branch B untouched, and the two branches are independent objects at every level:', renderFanOutOk ? 'OK' : 'FAIL');
 console.log('[value multi-driver] two value edges into the same input port refuse at construction:', valueMultiDriverOk ? 'OK' : 'FAIL');
-console.log('[screen guard] every write path — construction, setVar, edge attachment — refuses a Screen port deviation:', screenGuardOk ? 'OK' : 'FAIL');
+console.log('[screen guard] every write path — construction, setVar, edge attachment, EEL per-frame pool sync — refuses a Screen port deviation:', screenGuardOk ? 'OK' : 'FAIL');
 console.log('[graph correctness] multi-driver refusal + render-input requires incoming edge:', ambiguousGraphRefusedOk ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
 console.log('inert value port refused at engine construction (shared OP_PORTS):', inertPortOk ? 'OK' : 'FAIL');
