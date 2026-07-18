@@ -364,6 +364,15 @@ function ensureCMs(){
     cmPhos.on('cursorActivity',()=>{ if(!alignScroll)jumpFromPhos(cmPhos.getCursor().line); });
   }
 }
+// Review finding 1: the "live" pane must carry unsaved edits. Serialize a
+// throwaway clone through the SAME inputs the Save path writes (scene.vars +
+// the equation editor's lines, studio Save handler) — sceneDoc is never
+// mutated by opening the viewer.
+function livePhosText(){
+  const clone=parsePhos(serializePhos(sceneDoc));
+  const eqLines=eqEl.value.split('\n').map(s=>s.trim()).filter(Boolean);
+  return serializePhos(updateScene(clone,scene.vars,eqLines));
+}
 function updateSrcBtn(){
   const hasSrc=!!(sceneDoc.meta&&sceneDoc.meta.source);
   document.getElementById('srcView').textContent=hasSrc?'⇄ Source':'{ } Scene code';
@@ -373,10 +382,22 @@ addEventListener('keydown',e=>{ if(e.key==='Escape')srcOverlay.classList.remove(
 document.getElementById('srcView').onclick=async()=>{
   const src=sceneDoc.meta&&sceneDoc.meta.source;
   if(!src){ openSingle(); return; }
-  let text=importedSrcText;
+  let text=importedSrcText; // imported text is exact by construction
   if(text==null){
-    try{ text=await (await fetch('./'+src.file)).text(); }
-    catch(e){ openSingle('source "'+src.file+'" is not served and not in memory — showing .phos only'); return; }
+    let r;
+    try{ r=await fetch('./'+src.file); }
+    catch(e){ openSingle('source fetch failed ('+e+') — showing .phos only'); return; }
+    if(!r.ok){ openSingle('source fetch failed: HTTP '+r.status+' — refusing the dual-source claim'); return; }
+    text=await r.text();
+    // review finding 2: the pinned hash exists to identify the exact recipe;
+    // a served file that does not match it must not wear the "source" title
+    if(crypto.subtle&&src.sha256){
+      const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
+      const hex=[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('');
+      if(hex!==src.sha256){ openSingle('source "'+src.file+'" does not match the pinned sha256 — the served file is not the converted recipe; showing .phos only'); return; }
+    } else if(!crypto.subtle){
+      srcNote.textContent='warning: no secure context — source hash unverified';
+    }
   }
   openDual(text,src.file);
 };
@@ -385,7 +406,7 @@ function openSingle(msg){
   srcOverlay.classList.add('open','single');
   document.querySelector('#srcOverlay .pane:not(.left) h3').textContent='scene code (.phos)';
   phosMeta=[]; lineMap=new Map(); hitLines=[]; alignScroll=false;
-  cmPhos.setValue(serializePhos(sceneDoc));
+  cmPhos.setValue(livePhosText());
   srcNote.textContent=msg||'native scene — .phos code (read-only; edit through the panel)';
 }
 function openDual(srcText,fileName){
@@ -393,7 +414,7 @@ function openDual(srcText,fileName){
   srcOverlay.classList.add('open'); srcOverlay.classList.remove('single');
   document.getElementById('srcTitleL').textContent=fileName;
   document.querySelector('#srcOverlay .pane:not(.left) h3').textContent='current .phos (live, incl. unsaved edits)';
-  const phosNow=serializePhos(sceneDoc);
+  const phosNow=livePhosText();
   phosMeta=[]; lineMap=new Map(); hitLines=[]; selLine=-1; alignScroll=false;
   cmSrc.setValue(srcText); cmPhos.setValue(phosNow);
   buildPhosView(srcText,phosNow);
@@ -472,12 +493,23 @@ function buildPhosView(srcText,phosText){
     for(let i=pt.line;i<=end;i++)phosMeta[i]=m;
     pt.meta=m; pt.end=end;
   }
-  // equations, comments, section -> their .phos landings
+  // equations, comments, section -> their .phos landings. Review finding 3:
+  // duplicate code or comment text must map occurrence-to-occurrence, so each
+  // search continues from a moving cursor instead of restarting at the top
+  let eqCursor=0, cmCursor=0;
   for(const rec of ir.records){
     let i=-1, label='';
-    if(rec.kind==='equation'){ i=phosLines.findIndex(l=>l.includes(JSON.stringify(rec.code))); label='per-frame program code ← source line '+rec.line; }
-    else if(rec.kind==='comment'){ i=phosLines.findIndex(l=>l.includes(JSON.stringify(rec.text))); label='preserved source comment ← source line '+rec.line; }
-    else if(rec.kind==='section'){ i=phosLines.findIndex(l=>l.includes('"sourceEngine"')); label='structural marker → provenance block'; }
+    if(rec.kind==='equation'){
+      const needle=JSON.stringify(rec.code);
+      i=phosLines.findIndex((l,idx)=>idx>=eqCursor&&l.includes(needle));
+      if(i>=0)eqCursor=i+1;
+      label='per-frame program code ← source line '+rec.line;
+    } else if(rec.kind==='comment'){
+      const needle=JSON.stringify(rec.text);
+      i=phosLines.findIndex((l,idx)=>idx>=cmCursor&&l.includes(needle));
+      if(i>=0)cmCursor=i+1;
+      label='preserved source comment ← source line '+rec.line;
+    } else if(rec.kind==='section'){ i=phosLines.findIndex(l=>l.includes('"sourceEngine"')); label='structural marker → provenance block'; }
     if(i>=0){
       phosMeta[i]={kind:'source',srcLine:rec.line,label};
       lineMap.set(rec.line,i);
