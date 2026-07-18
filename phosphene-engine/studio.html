@@ -125,7 +125,7 @@
         <div class="row"><wa-button size="small" id="aFile">OPEN AUDIO FILE…</wa-button><wa-button size="small" id="aMic">USE MICROPHONE</wa-button></div>
         <input type="file" id="audioFile" accept="audio/*" hidden>
         <canvas id="scope" width="352" height="90"></canvas>
-        <div class="meta" id="audioStatus">silent — bands hold 1.0 (source silence semantics) · traces: <b style="color:#3ddc84">bass</b> <b style="color:#ffcf6e">mid</b> <b style="color:#7db8ff">treb</b> around baseline · bars: log-frequency spectrum</div>
+        <div class="meta" id="audioStatus">silent — bands hold 1.0 (source silence semantics) · meters: <b style="color:#3ddc84">bass</b> <b style="color:#ffcf6e">mid</b> <b style="color:#7db8ff">treb</b> with peak-hold, line = 1.0 · bars: log-frequency spectrum · green wave: raw samples</div>
       </wa-tab-panel>
       <wa-tab-panel name="tMeta"><div id="metaEdit"></div></wa-tab-panel>
     </wa-tab-group>
@@ -632,34 +632,53 @@ document.getElementById('aMic').onclick=()=>startAudio(()=>audio.startMic(),'mic
 document.getElementById('aFile').onclick=()=>document.getElementById('audioFile').click();
 document.getElementById('audioFile').onchange=e=>{ const f=e.target.files[0]; if(f)startAudio(()=>audio.playFile(f),f.name); e.target.value=''; };
 
-// ---- band scope: bass/mid/treb exactly as engine.step receives them, over a
-// log-frequency spectrum with slow auto-gain (all scaling display-only) ----
+// ---- audio scope: three instantaneous band METERS (bass/mid/treb exactly as
+// engine.step receives them, 1.0 baseline marked, peak-hold), log-frequency
+// spectrum bars, and the raw waveform — the one true wave in the pipeline —
+// overlaid. All scaling is display-only; every element is real pipeline data.
 const scopeEl=document.getElementById('scope');
 const scopeCtx=scopeEl.getContext('2d');
-const bandHist={bass:[],mid:[],treb:[]};
 const BAND_COLORS={bass:'#3ddc84',mid:'#ffcf6e',treb:'#7db8ff'};
+const bandPeaks={bass:0,mid:0,treb:0};
 let specPeak=1e-6;
 function drawScope(){
   const a=audio.analysis, w=scopeEl.width, h=scopeEl.height;
-  for(const k of ['bass','mid','treb']){ bandHist[k].push(a[k]); if(bandHist[k].length>w)bandHist[k].shift(); }
   scopeCtx.clearRect(0,0,w,h);
+  // meters: left block, display scale 0..2.5 (relative loudness revolves
+  // around 1.0), peak-hold tick decaying at 4%/frame
+  const mw=16, gap=4, x0=2, SCALE=2.5;
+  const bands=['bass','mid','treb'];
+  bands.forEach((k,i)=>{
+    const v=a[k]||0, x=x0+i*(mw+gap);
+    scopeCtx.fillStyle=BAND_COLORS[k];
+    scopeCtx.fillRect(x,h-Math.min(1,v/SCALE)*h,mw,Math.min(1,v/SCALE)*h);
+    bandPeaks[k]=Math.max(v,bandPeaks[k]*0.96);
+    scopeCtx.fillRect(x,h-Math.min(1,bandPeaks[k]/SCALE)*h-1,mw,2);
+  });
+  const meterW=x0+bands.length*(mw+gap);
+  scopeCtx.fillStyle='rgba(201,211,221,.5)';
+  scopeCtx.fillRect(0,h-(1/SCALE)*h,meterW,1); // the 1.0 baseline
+  // spectrum: log-frequency, sqrt amplitude, slow auto-gain (right block)
+  const sx=meterW+6, sw=w-sx;
   let frameMax=0;
   for(let i=1;i<a.spectrum.length;i++)frameMax=Math.max(frameMax,a.spectrum[i]||0);
-  specPeak=Math.max(frameMax,specPeak*0.995,1e-6); // slow-decay auto-gain
-  scopeCtx.fillStyle='rgba(78,161,255,.35)';
+  specPeak=Math.max(frameMax,specPeak*0.995,1e-6);
+  scopeCtx.fillStyle='rgba(78,161,255,.45)';
   const N=a.spectrum.length;
-  for(let x=0;x<w;x++){ // log-frequency mapping spreads the low-bin energy
-    const i0=Math.max(1,Math.floor(Math.pow(N-1,x/w)));
-    const i1=Math.max(i0+1,Math.floor(Math.pow(N-1,(x+1)/w)));
+  for(let x=0;x<sw;x++){
+    const i0=Math.max(1,Math.floor(Math.pow(N-1,x/sw)));
+    const i1=Math.max(i0+1,Math.floor(Math.pow(N-1,(x+1)/sw)));
     let v=0; for(let i=i0;i<i1;i++)v=Math.max(v,a.spectrum[i]||0);
-    const y=Math.sqrt(v/specPeak)*h*0.92;
-    scopeCtx.fillRect(x,h-y,1,y);
+    const y=Math.sqrt(v/specPeak)*h*0.9;
+    scopeCtx.fillRect(sx+x,h-y,1,y);
   }
-  for(const k of ['bass','mid','treb']){ // traces around the 1.0 baseline
-    const hist=bandHist[k];
-    scopeCtx.strokeStyle=BAND_COLORS[k]; scopeCtx.beginPath();
-    for(let i=0;i<hist.length;i++){
-      const x=w-hist.length+i, y=h*0.5-((hist[i]||1)-1)*h*0.25;
+  // raw waveform overlay
+  const wf=a.waveform;
+  if(wf&&wf.length){
+    scopeCtx.strokeStyle='rgba(61,220,132,.75)';
+    scopeCtx.beginPath();
+    for(let i=0;i<wf.length;i++){
+      const x=sx+i/(wf.length-1)*sw, y=h*0.5-((wf[i]||0)/256)*h;
       if(i)scopeCtx.lineTo(x,y); else scopeCtx.moveTo(x,y);
     }
     scopeCtx.stroke();
