@@ -25,7 +25,7 @@ import { OP_PORTS } from './engine.mjs';
  * @typedef {{
  *   id:string,
  *   kind:'texture'|'presentation',
- *   format:'rgba8unorm'|'preferred-canvas',
+ *   format:'rgba8unorm'|'rgba16float'|'preferred-canvas',
  *   size:{policy:'canvas-16block'|'canvas'}|{policy:'fixed', width:number, height:number},
  *   lifetime:'persistent-pingpong'|'transient'|'per-frame',
  *   usage:('sampled'|'render-attachment'|'presentation')[]
@@ -43,7 +43,7 @@ const META_KEYS = ['name', 'sourceEngine', 'source', 'author', 'description', 't
 // axis parse-refuse per the substrate spec.
 const RES_KEYS = ['id', 'kind', 'format', 'size', 'lifetime', 'usage'];
 const RES_KINDS = ['texture', 'presentation'];
-const RES_FORMATS = ['rgba8unorm', 'preferred-canvas'];
+const RES_FORMATS = ['rgba8unorm', 'rgba16float', 'preferred-canvas'];
 const RES_SIZE_POLICIES = ['canvas-16block', 'canvas', 'fixed'];
 const RES_LIFETIMES = ['persistent-pingpong', 'transient', 'per-frame'];
 const RES_USAGES = ['sampled', 'render-attachment', 'presentation'];

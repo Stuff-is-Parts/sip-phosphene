@@ -186,7 +186,7 @@ function circularInterp(/** @type {number} */ prev, /** @type {number} */ target
  * @typedef {{
  *   id:string,
  *   kind:'texture'|'presentation',
- *   format:'rgba8unorm'|'preferred-canvas',
+ *   format:'rgba8unorm'|'rgba16float'|'preferred-canvas',
  *   size:{policy:'canvas-16block'|'canvas'}|{policy:'fixed', width:number, height:number},
  *   lifetime:'persistent-pingpong'|'transient'|'per-frame',
  *   usage:('sampled'|'render-attachment'|'presentation')[]
@@ -830,7 +830,7 @@ function validateResourceDescriptors(resources) {
       continue;
     }
     if (kind === 'texture') {
-      if (format !== 'rgba8unorm') throw new Error(`Engine: resource "${rid}" kind "texture" requires format "rgba8unorm", got "${format}"; format "preferred-canvas" is presentation-kind-only — refusing`);
+      if (format !== 'rgba8unorm' && format !== 'rgba16float') throw new Error(`Engine: resource "${rid}" kind "texture" requires format in {rgba8unorm, rgba16float}, got "${format}"; format "preferred-canvas" is presentation-kind-only — refusing`);
       if (policy !== 'canvas' && policy !== 'canvas-16block' && policy !== 'fixed') throw new Error(`Engine: resource "${rid}" kind "texture" requires size.policy in {canvas, canvas-16block, fixed}, got "${policy}" — refusing`);
       if (policy === 'fixed') {
         const w = /** @type {any} */ (r.size).width;

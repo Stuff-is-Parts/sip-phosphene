@@ -65,6 +65,7 @@ export function createRenderContext(device, canvas, ctx, fmt) {
   /** @param {import('./engine.mjs').ResourceDescriptor} desc */
   function resolveFormat(desc) {
     if (desc.format === 'preferred-canvas') return fmt;
+    if (desc.format === 'rgba16float') return /** @type {GPUTextureFormat} */ ('rgba16float');
     return /** @type {GPUTextureFormat} */ ('rgba8unorm');
   }
   /** @param {import('./engine.mjs').ResourceDescriptor} desc */
