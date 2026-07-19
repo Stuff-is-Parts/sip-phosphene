@@ -133,7 +133,9 @@ const refusalChecks = [
   ['unknown port type', refuses(phosText.replace('"type": "render"', '"type": "hologram"'))],
   ['dangling edge reference', refuses(phosText.replace('"out": "warp.out"', '"out": "wisp.out"'))],
   ['wrong format version', refuses(phosText.replace('"phos/1"', '"phos/2"'))],
-  ['non-empty resources', refuses(phosText.replace('"resources": []', '"resources": [{}]'))],
+  // Substrate: resources[] carries typed descriptors; an empty object
+  // in the list is missing every required field and must refuse.
+  ['unknown resource shape', refuses(phosText.replace(/"resources": \[[\s\S]*?\]/, '"resources": [{}]'))],
 ];
 const allRefused = refusalChecks.every(([, ok]) => ok);
 
@@ -167,7 +169,7 @@ const engineRefusesMissing = (() => {
   const r = toRuntime(parsePhos(phosText));
   // Remove the fDecay port value from its owning node — engine construction
   // must refuse (no silent defaults)
-  const owner = r.nodes.find((/** @type {any} */ n) => 'fDecay' in n.ports);
+  const owner = /** @type {any} */ (r.nodes.find((/** @type {any} */ n) => 'fDecay' in n.ports));
   if (owner && owner.ports.fDecay) delete owner.ports.fDecay.value;
   try { new Engine(r); return false; } catch { return true; }
 })();
@@ -415,12 +417,15 @@ const timekeeperOk = (() => {
 //     unimplemented and must still refuse.
 const contractOk = (() => {
   const loneClear = /** @type {any} */ ({
-    format: 'phos/1', meta: { name: 'lone' }, resources: [],
-    nodes: [{ id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } }],
+    format: 'phos/1', meta: { name: 'lone' },
+    resources: [
+      { id: 'clear-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
+    ],
+    nodes: [{ id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Target: { type: 'texture', value: { resourceId: 'clear-out' } }, Render: { type: 'render' } } }],
     edges: [],
     expressions: [],
   });
-  const refusesLoneClear = (() => { try { new Engine(toRuntime(loneClear)); return false; } catch (e) { return /render chain is incomplete/.test(/** @type {Error} */ (e).message); } })();
+  const refusesLoneClear = (() => { try { new Engine(toRuntime(loneClear)); return false; } catch (e) { return /render chain is incomplete|presentation sink/i.test(/** @type {Error} */ (e).message); } })();
   const withPv = { ...toRuntime(parsePhos(phosText)) };
   withPv.expressions = { ...withPv.expressions, perVertex: ['zoom=zoom+0.1;'] };
   const refusesPerVertex = (() => { try { new Engine(withPv); return false; } catch { return true; } })();
@@ -765,8 +770,11 @@ const registryOk = (() => {
     // render chain is incomplete. This is the "graph-as-sole-authority"
     // replacement for first/after/terminal.
     const r = rt0();
+    r.resources = /** @type {any} */ ([
+      { id: 'clear-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
+    ]);
     r.nodes = [
-      { id: 'c', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } },
+      { id: 'c', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Target: { type: 'texture', value: { resourceId: 'clear-out' } }, Render: { type: 'render' } } },
       { id: 'b', op: 'borders', ports: /** @type {any} */ ({
         ib_size: { type: 'float', value: 0.1 }, ib_r: { type: 'float', value: 1 }, ib_g: { type: 'float', value: 1 }, ib_b: { type: 'float', value: 1 }, ib_a: { type: 'float', value: 1 },
         ob_size: { type: 'float', value: 0.1 }, ob_r: { type: 'float', value: 1 }, ob_g: { type: 'float', value: 1 }, ob_b: { type: 'float', value: 1 }, ob_a: { type: 'float', value: 1 },
@@ -774,7 +782,7 @@ const registryOk = (() => {
       }) },
     ];
     r.edges = [{ out: 'c.Render', in: 'b.in' }];
-    try { new Engine(r); return false; } catch (e) { return /render chain is incomplete|has no outgoing edge/.test(/** @type {Error} */ (e).message); }
+    try { new Engine(r); return false; } catch (e) { return /render chain is incomplete|has no outgoing edge|presentation sink/.test(/** @type {Error} */ (e).message); }
   })();
   const mistypedEdge = (() => {
     // borders.out is 'render'; borders.ib_r is 'float' — swapping edge target
@@ -805,12 +813,12 @@ const nativeClearOk = (() => {
   if (st.clear.b !== 0.25 + 0.15 * Math.sin(e.getVar('time') ?? 0)) return false;
   // missing declared port refuses (no silent defaults)
   const r2 = toRuntime(parsePhos(t2));
-  const rgbaNode = r2.nodes.find((/** @type {any} */ n) => n.op === 'RGBAToColor');
+  const rgbaNode = /** @type {any} */ (r2.nodes.find((/** @type {any} */ n) => n.op === 'RGBAToColor'));
   if (rgbaNode && rgbaNode.ports.Green) delete rgbaNode.ports.Green.value;
   const missingRefused = (() => { try { new Engine(r2); return false; } catch { return true; } })();
   // an undeclared extra value port refuses (no inert ports)
   const r3 = toRuntime(parsePhos(t2));
-  const rgba3 = r3.nodes.find((/** @type {any} */ n) => n.op === 'RGBAToColor');
+  const rgba3 = /** @type {any} */ (r3.nodes.find((/** @type {any} */ n) => n.op === 'RGBAToColor'));
   if (rgba3) rgba3.ports.mystery = { type: 'float', value: 1 };
   const inertRefused = (() => { try { new Engine(r3); return false; } catch { return true; } })();
   return missingRefused && inertRefused;
@@ -1143,7 +1151,10 @@ const delayItimeModeGuardOk = (() => {
   // compatibility gate). Build a synthetic native scene with one MinMax
   // whose Value feeds an RGBAToColor.Red, then vary DelayMode/ITimeMode.
   const mkScene = (/** @type {number} */ delayMode, /** @type {number} */ iTimeMode) => /** @type {any} */ ({
-    format: 'phos/1', meta: { name: 'guard' }, resources: [],
+    format: 'phos/1', meta: { name: 'guard' },
+    resources: [
+      { id: 'clear-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
+    ],
     nodes: [
       { id: 'mm', primitive: 'graph', op: 'MinMax', ports: {
         Min: { type: 'float', value: 0 }, Max: { type: 'float', value: 1 }, Mode: { type: 'float', value: 1 },
@@ -1155,7 +1166,7 @@ const delayItimeModeGuardOk = (() => {
         Red: { type: 'float' }, Green: { type: 'float', value: 0 }, Blue: { type: 'float', value: 0 }, Alpha: { type: 'float', value: 1 },
         Color: { type: 'vec4' },
       } },
-      { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4' }, Render: { type: 'render' } } },
+      { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4' }, Target: { type: 'texture', value: { resourceId: 'clear-out' } }, Render: { type: 'render' } } },
       { id: 's', primitive: 'graph', op: 'screen', ports: {
         Viewport: { type: 'vec4', value: [0, 0, 1, 1] },
         CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] },
@@ -1196,16 +1207,20 @@ const renderPlanFoundationOk = (() => {
     && md1?.kind === 'composite';
   // Two independent render chains would have two sinks — refuse
   const twoChains = /** @type {any} */ ({
-    format: 'phos/1', meta: { name: 'two' }, resources: [],
+    format: 'phos/1', meta: { name: 'two' },
+    resources: [
+      { id: 'a-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
+      { id: 'b-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
+    ],
     nodes: [
-      { id: 'c1', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } },
+      { id: 'c1', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Target: { type: 'texture', value: { resourceId: 'a-out' } }, Render: { type: 'render' } } },
       { id: 's1', primitive: 'graph', op: 'screen', ports: {
         Viewport: { type: 'vec4', value: [0, 0, 1, 1] },
         CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] },
         CamLookAtInWorldSpace: { type: 'float', value: 0 }, CamFov: { type: 'float', value: 45 }, CamNear: { type: 'float', value: 0.1 }, CamFar: { type: 'float', value: 1000 },
         ScaleByAspect: { type: 'float', value: 0 }, Render: { type: 'render' },
       } },
-      { id: 'c2', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } },
+      { id: 'c2', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Target: { type: 'texture', value: { resourceId: 'b-out' } }, Render: { type: 'render' } } },
       { id: 's2', primitive: 'graph', op: 'screen', ports: {
         Viewport: { type: 'vec4', value: [0, 0, 1, 1] },
         CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] },
@@ -1221,9 +1236,14 @@ const renderPlanFoundationOk = (() => {
   // warp-feedback pass, not a clear-color pass, and the plan model surfaces
   // that at contribute-time as a data-shape refusal.
   const clearThenBorders = /** @type {any} */ ({
-    format: 'phos/1', meta: { name: 'wrong' }, resources: [],
+    format: 'phos/1', meta: { name: 'wrong' },
+    resources: [
+      { id: 'clear-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
+      { id: 'md-feedback', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas-16block' }, lifetime: 'persistent-pingpong', usage: ['sampled', 'render-attachment'] },
+      { id: 'canvas', kind: 'presentation', format: 'preferred-canvas', size: { policy: 'canvas' }, lifetime: 'per-frame', usage: ['render-attachment', 'presentation'] },
+    ],
     nodes: [
-      { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } },
+      { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Target: { type: 'texture', value: { resourceId: 'clear-out' } }, Render: { type: 'render' } } },
       { id: 'b', primitive: 'shader', op: 'borders', ports: {
         ib_size: { type: 'float', value: 0 }, ib_r: { type: 'float', value: 0 }, ib_g: { type: 'float', value: 0 }, ib_b: { type: 'float', value: 0 }, ib_a: { type: 'float', value: 0 },
         ob_size: { type: 'float', value: 0 }, ob_r: { type: 'float', value: 0 }, ob_g: { type: 'float', value: 0 }, ob_b: { type: 'float', value: 0 }, ob_a: { type: 'float', value: 0 },
@@ -1257,42 +1277,45 @@ const fanOutWitness = /** @type {{value: {a: any, b: any} | null}} */ ({ value: 
   kind: 'render',
   inputs: { in: 'render' },
   outputs: { out: 'render' },
-  contribute(/** @type {any} */ inputPlans) {
-    const inPlan = inputPlans.in;
-    if (!inPlan) throw new Error('test-passthrough requires an incoming render plan on "in" — refusing');
-    return { out: inPlan };
+  contribute(/** @type {any} */ inputRefs) {
+    const inRef = inputRefs.in;
+    if (!inRef) throw new Error('test-passthrough requires an incoming render reference on "in" — refusing');
+    return { out: inRef };
   },
 };
 /** @type {any} */ (NATIVE_OPS)['test-inspect-sink'] = {
   kind: 'render',
   inputs: { A: 'render', B: 'render' },
   outputs: { presented: 'render' },
-  contribute(/** @type {any} */ inputPlans) {
-    if (!inputPlans.A || !inputPlans.B) throw new Error('test-inspect-sink requires both A and B — refusing');
-    fanOutWitness.value = { a: inputPlans.A, b: inputPlans.B };
-    return { presented: inputPlans.A };
+  contribute(/** @type {any} */ inputRefs, /** @type {any} */ _ports, /** @type {any} */ _pool, /** @type {any} */ _eng, /** @type {any} */ plan) {
+    if (!inputRefs.A || !inputRefs.B) throw new Error('test-inspect-sink requires both A and B — refusing');
+    fanOutWitness.value = { a: inputRefs.A, b: inputRefs.B };
+    plan.presentation = { resourceId: inputRefs.A.resourceId };
+    return { presented: inputRefs.A };
   },
 };
+// Under the resource-ref substrate, fan-out propagates ResourceRef
+// objects (id strings) rather than mutable plans. This test verifies
+// that a single source's render output flows through two branches into
+// a two-input sink, and both branches see the same resource id at the
+// sink — the exact resource identity is stable across the fan-out.
 const renderFanOutOk = (() => {
   fanOutWitness.value = null;
   /** @type {any} */
   const scene = {
-    format: 'phos/1', meta: { name: 'fanout' }, resources: [],
+    format: 'phos/1', meta: { name: 'fanout' },
+    resources: [
+      { id: 'src-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
+    ],
     nodes: [
-      { id: 'src', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0.5, 0.25, 0.125, 1] }, Render: { type: 'render' } } },
+      { id: 'src', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0.5, 0.25, 0.125, 1] }, Target: { type: 'texture', value: { resourceId: 'src-out' } }, Render: { type: 'render' } } },
       { id: 'a', primitive: 'graph', op: 'test-passthrough', ports: { in: { type: 'render' }, out: { type: 'render' } } },
       { id: 'b', primitive: 'graph', op: 'test-passthrough', ports: { in: { type: 'render' }, out: { type: 'render' } } },
       { id: 'sink', primitive: 'graph', op: 'test-inspect-sink', ports: { A: { type: 'render' }, B: { type: 'render' }, presented: { type: 'render' } } },
     ],
     edges: [
-      // Fan-out: src.Render drives BOTH a.in AND b.in from a single
-      // producer output port. Each destination must receive its own
-      // clone; the two must be independent objects.
       { out: 'src.Render', in: 'a.in' },
       { out: 'src.Render', in: 'b.in' },
-      // Both branches drain into the two-input sink so the graph
-      // terminates in exactly one presentation sink and every render
-      // output has an outgoing edge.
       { out: 'a.out', in: 'sink.A' },
       { out: 'b.out', in: 'sink.B' },
     ],
@@ -1302,22 +1325,9 @@ const renderFanOutOk = (() => {
   eng.step(1 / 60);
   const witness = /** @type {{a: any, b: any} | null} */ (fanOutWitness.value);
   if (!witness) return false;
-  const a = witness.a, b = witness.b;
-  if (!a || !b || !a.passes[0] || !b.passes[0]) return false;
-  // Distinct object identities at the plan root and at every pass entry —
-  // shared state at any level would let branch mutations leak sideways.
-  if (a === b) return false;
-  if (a.passes === b.passes) return false;
-  if (a.passes[0] === b.passes[0]) return false;
-  if (a.passes[0].clear === b.passes[0].clear) return false;
-  // Content equality at handoff — the two branches start from the same
-  // source plan values before any downstream mutation.
-  const source = 0.5;
-  if (a.passes[0].clear.r !== source || b.passes[0].clear.r !== source) return false;
-  // Branch A mutates its plan; branch B's plan must be unaffected.
-  a.passes[0].clear.r = 999;
-  a.passes.push(/** @type {any} */ ({ kind: 'test-injected', payload: { note: 'branch A only' } }));
-  return b.passes[0].clear.r === source && b.passes.length === 1;
+  if (witness.a.resourceId !== 'src-out' || witness.b.resourceId !== 'src-out') return false;
+  // Distinct object identities per edge (refs cloned on propagation)
+  return witness.a !== witness.b;
 })();
 
 // (am3) Value-multi-driver refusal — two edges into the same value input
@@ -1325,10 +1335,14 @@ const renderFanOutOk = (() => {
 //       fan-out test above.
 const valueMultiDriverOk = (() => {
   const twoIntoOne = /** @type {any} */ ({
-    format: 'phos/1', meta: { name: 'multi-into-one' }, resources: [],
+    format: 'phos/1', meta: { name: 'multi-into-one' },
+    resources: [
+      { id: 'a-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
+      { id: 'b-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
+    ],
     nodes: [
-      { id: 'c1', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } },
-      { id: 'c2', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [1, 0, 0, 1] }, Render: { type: 'render' } } },
+      { id: 'c1', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Target: { type: 'texture', value: { resourceId: 'a-out' } }, Render: { type: 'render' } } },
+      { id: 'c2', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [1, 0, 0, 1] }, Target: { type: 'texture', value: { resourceId: 'b-out' } }, Render: { type: 'render' } } },
       { id: 's', primitive: 'graph', op: 'screen', ports: {
         Viewport: { type: 'vec4', value: [0, 0, 1, 1] }, CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] },
         CamLookAtInWorldSpace: { type: 'float', value: 0 }, CamFov: { type: 'float', value: 45 }, CamNear: { type: 'float', value: 0.1 }, CamFar: { type: 'float', value: 1000 },
@@ -1346,9 +1360,12 @@ const valueMultiDriverOk = (() => {
 //      exactly the witnessed geometry-free value.
 const screenGuardOk = (() => {
   const mkScreen = (/** @type {number} */ camFov) => /** @type {any} */ ({
-    format: 'phos/1', meta: { name: 'sg' }, resources: [],
+    format: 'phos/1', meta: { name: 'sg' },
+    resources: [
+      { id: 'clear-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
+    ],
     nodes: [
-      { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } },
+      { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Target: { type: 'texture', value: { resourceId: 'clear-out' } }, Render: { type: 'render' } } },
       { id: 's', primitive: 'graph', op: 'screen', ports: {
         Viewport: { type: 'vec4', value: [0, 0, 1, 1] }, CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] },
         CamLookAtInWorldSpace: { type: 'float', value: 0 }, CamFov: { type: 'float', value: camFov }, CamNear: { type: 'float', value: 0.1 }, CamFar: { type: 'float', value: 1000 },
@@ -1374,7 +1391,10 @@ const screenGuardOk = (() => {
   const edgeRefuses = (() => {
     /** @type {any} */
     const scene = {
-      format: 'phos/1', meta: { name: 'edge-into-screen' }, resources: [],
+      format: 'phos/1', meta: { name: 'edge-into-screen' },
+      resources: [
+        { id: 'clear-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
+      ],
       nodes: [
         { id: 'mm', primitive: 'graph', op: 'MinMax', ports: {
           Min: { type: 'float', value: 0 }, Max: { type: 'float', value: 60 }, Mode: { type: 'float', value: 1 },
@@ -1382,7 +1402,7 @@ const screenGuardOk = (() => {
           ITimeMin: { type: 'float', value: 1 }, ITimeMax: { type: 'float', value: 1 }, ITimeMode: { type: 'float', value: 1 },
           Value: { type: 'float' },
         } },
-        { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } },
+        { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Target: { type: 'texture', value: { resourceId: 'clear-out' } }, Render: { type: 'render' } } },
         { id: 's', primitive: 'graph', op: 'screen', ports: {
           Viewport: { type: 'vec4', value: [0, 0, 1, 1] }, CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] },
           CamLookAtInWorldSpace: { type: 'float', value: 0 }, CamFov: { type: 'float', value: 45 }, CamNear: { type: 'float', value: 0.1 }, CamFar: { type: 'float', value: 1000 },
@@ -1402,9 +1422,12 @@ const screenGuardOk = (() => {
   const eelRefuses = (() => {
     /** @type {any} */
     const scene = {
-      format: 'phos/1', meta: { name: 'eel-into-screen' }, resources: [],
+      format: 'phos/1', meta: { name: 'eel-into-screen' },
+      resources: [
+        { id: 'clear-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
+      ],
       nodes: [
-        { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } },
+        { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Target: { type: 'texture', value: { resourceId: 'clear-out' } }, Render: { type: 'render' } } },
         { id: 's', primitive: 'graph', op: 'screen', ports: {
           Viewport: { type: 'vec4', value: [0, 0, 1, 1] }, CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] },
           CamLookAtInWorldSpace: { type: 'float', value: 0 }, CamFov: { type: 'float', value: 45 }, CamNear: { type: 'float', value: 0.1 }, CamFar: { type: 'float', value: 1000 },
@@ -1427,7 +1450,10 @@ const ambiguousGraphRefusedOk = (() => {
   // multi-driver: build a synthetic native scene with two MinMax->RGBAToColor.Red
   // edges — the second refuses because Red already has an incoming edge.
   const twoDriverScene = /** @type {any} */ ({
-    format: 'phos/1', meta: { name: 'multi' }, resources: [],
+    format: 'phos/1', meta: { name: 'multi' },
+    resources: [
+      { id: 'clear-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
+    ],
     nodes: [
       { id: 'a', primitive: 'graph', op: 'MinMax', ports: {
         Min: { type: 'float', value: 0 }, Max: { type: 'float', value: 1 }, Mode: { type: 'float', value: 1 },
@@ -1445,7 +1471,7 @@ const ambiguousGraphRefusedOk = (() => {
         Red: { type: 'float' }, Green: { type: 'float', value: 0 }, Blue: { type: 'float', value: 0 }, Alpha: { type: 'float', value: 1 },
         Color: { type: 'vec4' },
       } },
-      { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4' }, Render: { type: 'render' } } },
+      { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4' }, Target: { type: 'texture', value: { resourceId: 'clear-out' } }, Render: { type: 'render' } } },
       { id: 's', primitive: 'graph', op: 'screen', ports: {
         Viewport: { type: 'vec4', value: [0, 0, 1, 1] },
         CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] },
@@ -1465,9 +1491,11 @@ const ambiguousGraphRefusedOk = (() => {
   const disconnected = /** @type {any} */ ({
     format: 'phos/1',
     meta: { name: 'x' },
-    resources: [],
+    resources: [
+      { id: 'clear-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
+    ],
     nodes: [
-      { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Render: { type: 'render' } } },
+      { id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Target: { type: 'texture', value: { resourceId: 'clear-out' } }, Render: { type: 'render' } } },
       { id: 's', primitive: 'graph', op: 'screen', ports: {
         Viewport: { type: 'vec4', value: [0, 0, 1, 1] },
         CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] },
@@ -1483,6 +1511,76 @@ const ambiguousGraphRefusedOk = (() => {
   return multiDriverRefuses && disconnectedRefuses;
 })();
 
+// (ao) Substrate regressions (reviewer 2026-07-18 substrate spec): the
+//      RenderPlan carries explicit resources, per-pass reads/writes, and
+//      a presentation resource id. Every failure mode the substrate
+//      forbids must surface either at parse, at Engine construction, or
+//      at step time.
+const substrateOk = (() => {
+  const md = readFileSync(new URL('./scenes/md-101-per_frame.phos', import.meta.url), 'utf8');
+  const mdPlan = /** @type {any} */ (new Engine(toRuntime(parsePhos(md))).step(1 / 60));
+  // (1) MilkDrop plan declares md-feedback and canvas resources
+  const resourcesShapeOk = mdPlan.resources.length === 2
+    && mdPlan.resources.some((/** @type {any} */ r) => r.id === 'md-feedback' && r.lifetime === 'persistent-pingpong')
+    && mdPlan.resources.some((/** @type {any} */ r) => r.id === 'canvas' && r.kind === 'presentation');
+  // (2) Warp reads and writes md-feedback; composite reads md-feedback and writes canvas
+  const warp = mdPlan.passes.find((/** @type {any} */ p) => p.kind === 'warp-feedback');
+  const comp = mdPlan.passes.find((/** @type {any} */ p) => p.kind === 'composite');
+  const passesShapeOk = warp && warp.reads[0] === 'md-feedback' && warp.writes[0] === 'md-feedback'
+    && comp && comp.reads[0] === 'md-feedback' && comp.writes[0] === 'canvas';
+  // (3) Presentation names canvas
+  const presentationOk = mdPlan.presentation && mdPlan.presentation.resourceId === 'canvas';
+  // (4) Native clear scene: clear-color writes clear-out; presentation is clear-out
+  const nc = readFileSync(new URL('./scenes/native-clear.phos', import.meta.url), 'utf8');
+  const ncPlan = /** @type {any} */ (new Engine(toRuntime(parsePhos(nc))).step(1 / 60));
+  const clearPass = ncPlan.passes.find((/** @type {any} */ p) => p.kind === 'clear-color');
+  const clearPresentation = clearPass && clearPass.writes[0] === 'clear-out'
+    && ncPlan.presentation && ncPlan.presentation.resourceId === 'clear-out';
+  // (5) Parser refuses a clear-color scene whose Target references an undeclared resource
+  const undeclaredRefuses = (() => {
+    try {
+      parsePhos(nc.replace('"clear-out"', '"not-declared"'));
+      return false;
+    } catch (e) { return /is not declared in \$\.resources/.test(/** @type {Error} */ (e).message); }
+  })();
+  // (6) Engine refuses a warp-feedback scene missing the required
+  //     md-feedback resource
+  const missingFeedbackRefuses = (() => {
+    try {
+      const doc = parsePhos(md);
+      doc.resources = doc.resources.filter((/** @type {any} */ r) => r.id !== 'md-feedback');
+      new Engine(toRuntime(doc)).step(1 / 60);
+      return false;
+    } catch (e) { return /md-feedback/.test(/** @type {Error} */ (e).message); }
+  })();
+  // (7) Engine refuses a scene declaring feedback with wrong lifetime
+  const wrongLifetimeRefuses = (() => {
+    try {
+      const doc = /** @type {any} */ (parsePhos(md));
+      doc.resources.find((/** @type {any} */ r) => r.id === 'md-feedback').lifetime = 'transient';
+      new Engine(toRuntime(doc)).step(1 / 60);
+      return false;
+    } catch (e) { return /persistent-pingpong/.test(/** @type {Error} */ (e).message); }
+  })();
+  // (8) Parser refuses an unknown resource kind
+  const unknownKindRefuses = (() => {
+    try {
+      parsePhos(nc.replace('"kind": "texture"', '"kind": "buffer"'));
+      return false;
+    } catch (e) { return /kind "buffer" not in/.test(/** @type {Error} */ (e).message); }
+  })();
+  // (9) Parser refuses an unknown resource format
+  const unknownFormatRefuses = (() => {
+    try {
+      parsePhos(nc.replace('"format": "rgba8unorm"', '"format": "rg32sint"'));
+      return false;
+    } catch (e) { return /format "rg32sint" not in/.test(/** @type {Error} */ (e).message); }
+  })();
+  return resourcesShapeOk && passesShapeOk && presentationOk && clearPresentation
+    && undeclaredRefuses && missingFeedbackRefuses && wrongLifetimeRefuses
+    && unknownKindRefuses && unknownFormatRefuses;
+})();
+
 // ==== TWO SEPARATE SURFACES (reviewer foundation 2026-07-18) ====
 // engineRegressionOk: PHOSPHENE's own executor behaves as this codebase
 //   specifies it — MilkDrop scene 1 renders unchanged, the graph executor
@@ -1496,7 +1594,7 @@ const ambiguousGraphRefusedOk = (() => {
 //   Beat REFUSE at the compatibility gate; Color Cycle refuses at
 //   conversion. This surface does NOT accept PHOSPHENE's internal
 //   regression tests as evidence of Plane9 fidelity.
-const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && nativeHueCycleOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk && renderPlanFoundationOk && renderFanOutOk && valueMultiDriverOk && screenGuardOk;
+const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && nativeHueCycleOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk && renderPlanFoundationOk && renderFanOutOk && valueMultiDriverOk && screenGuardOk && substrateOk;
 const plane9CompatibilityOk = p9Ok && p9ConvOk && colorCycleOk;
 const audioOk = engineRegressionOk && plane9CompatibilityOk;
 
@@ -1593,6 +1691,7 @@ console.log('[render-plan foundation] MilkDrop plan carries borders inside its w
 console.log('[render fan-out] a real graph where one source Render output feeds two branches through a two-input inspection sink — branch A mutation leaves branch B untouched, and the two branches are independent objects at every level:', renderFanOutOk ? 'OK' : 'FAIL');
 console.log('[value multi-driver] two value edges into the same input port refuse at construction:', valueMultiDriverOk ? 'OK' : 'FAIL');
 console.log('[screen guard] every write path — construction, setVar, edge attachment, EEL per-frame pool sync — refuses a Screen port deviation:', screenGuardOk ? 'OK' : 'FAIL');
+console.log('[substrate] MilkDrop plan carries resources + explicit reads/writes + presentation; parser refuses undeclared/wrong-kind/wrong-format resources; engine refuses missing feedback and wrong lifetime:', substrateOk ? 'OK' : 'FAIL');
 console.log('[graph correctness] multi-driver refusal + render-input requires incoming edge:', ambiguousGraphRefusedOk ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
 console.log('inert value port refused at engine construction (shared OP_PORTS):', inertPortOk ? 'OK' : 'FAIL');

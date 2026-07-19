@@ -9,7 +9,34 @@
       "sha256": "c67614510e18383559ad2ac2a76362ca241a07b865f3ad59731736ae3f7d6ea7"
     }
   },
-  "resources": [],
+  "resources": [
+    {
+      "id": "md-feedback",
+      "kind": "texture",
+      "format": "rgba8unorm",
+      "size": {
+        "policy": "canvas-16block"
+      },
+      "lifetime": "persistent-pingpong",
+      "usage": [
+        "sampled",
+        "render-attachment"
+      ]
+    },
+    {
+      "id": "canvas",
+      "kind": "presentation",
+      "format": "preferred-canvas",
+      "size": {
+        "policy": "canvas"
+      },
+      "lifetime": "per-frame",
+      "usage": [
+        "render-attachment",
+        "presentation"
+      ]
+    }
+  ],
   "nodes": [
     {
       "id": "warp",

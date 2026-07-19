@@ -303,6 +303,9 @@ export function p9ToPhos(xml, source) {
     // land through the port map; ports absent from the source XML take a
     // materialized default when P9_PORT_DEFAULTS names one, else the
     // structural port is declared without a value (typically render).
+    // The Clear->clear-color mapping synthesizes a Target texture port
+    // referencing a per-node output resource; the scene's resources[]
+    // declares the matching descriptor below.
     for (const [pname, ptype] of Object.entries(inputTypes)) {
       const srcVal = src.ports[pname];
       if (srcVal !== undefined) {
@@ -314,6 +317,11 @@ export function p9ToPhos(xml, source) {
         ports[pname] = { type: ptype, value: /** @type {number|number[]} */ (dflt) };
       } else if (ptype === 'render') {
         ports[pname] = { type: 'render' };
+      } else if (ptype === 'texture' && nativeOp === 'clear-color' && pname === 'Target') {
+        // Synthesized Target port for Plane9 Clear conversion: writes to
+        // a per-node transient texture resource ("<clearNodeName>-out")
+        // declared in the scene's resources[] below.
+        ports[pname] = /** @type {any} */ ({ type: 'texture', value: { resourceId: nodeName + '-out' } });
       } else {
         throw new Error(`p9ToPhos: node "${nodeName}" is missing required port "${pname}" (${ptype}) and no default is defined — refusing`);
       }
@@ -352,11 +360,29 @@ export function p9ToPhos(xml, source) {
     outEdges.push({ out: c.out, in: c.in });
   }
 
+  // Synthesize resource descriptors for each converted clear-color node
+  // (Plane9's Clear). Each writes to a per-node transient texture, and
+  // that texture is the presentation source that the executor blits to
+  // the canvas at present time.
+  /** @type {import('./phos.mjs').ResourceDescriptor[]} */
+  const resources = [];
+  for (const n of outNodes) {
+    if (n.op === 'clear-color') {
+      resources.push({
+        id: n.id + '-out',
+        kind: 'texture',
+        format: 'rgba8unorm',
+        size: { policy: 'canvas' },
+        lifetime: 'transient',
+        usage: ['sampled', 'render-attachment'],
+      });
+    }
+  }
   const name = 'p9-' + source.file.replace(/\.[^.]+$/, '');
   return /** @type {import('./phos.mjs').Scene} */ ({
     format: 'phos/1',
     meta: { name, sourceEngine: 'plane9', source: { engine: 'plane9', file: source.file, sha256: source.sha256 } },
-    resources: /** @type {unknown[]} */ ([]),
+    resources,
     nodes: outNodes,
     edges: outEdges,
     expressions: /** @type {import('./phos.mjs').ExprProgram[]} */ ([]),

@@ -12,10 +12,26 @@
 
 import { OP_PORTS } from './engine.mjs';
 
-/** @typedef {{type:string, value?:number|number[]}} Port */
+/** @typedef {{resourceId:string}} ResourceRef */
+/** @typedef {{type:string, value?:number|number[]|ResourceRef}} Port */
 /** @typedef {{id:string, primitive:string, op:string, ports:Record<string,Port>}} PhosNode */
 /** @typedef {{id:string, stage:string, code:string[], comments?:string[]}} ExprProgram */
-/** @typedef {{format:string, meta:Record<string,unknown>, resources:unknown[], nodes:PhosNode[], edges:{out:string,in:string}[], expressions:ExprProgram[]}} Scene */
+/**
+ * ResourceDescriptor — an explicit graphical resource declared by a scene
+ * (reviewer 2026-07-18 substrate spec). Every render pass names the
+ * resources it reads and writes by id, the executor allocates physical
+ * textures from these descriptors, and presentation names one exact
+ * resource to display on the canvas. Fields are strictly allowlisted.
+ * @typedef {{
+ *   id:string,
+ *   kind:'texture'|'presentation',
+ *   format:'rgba8unorm'|'preferred-canvas',
+ *   size:{policy:'canvas-16block'|'canvas'},
+ *   lifetime:'persistent-pingpong'|'transient'|'per-frame',
+ *   usage:('sampled'|'render-attachment'|'presentation')[]
+ * }} ResourceDescriptor
+ */
+/** @typedef {{format:string, meta:Record<string,unknown>, resources:ResourceDescriptor[], nodes:PhosNode[], edges:{out:string,in:string}[], expressions:ExprProgram[]}} Scene */
 
 const PORT_TYPES = ['float', 'vec2', 'vec3', 'vec4', 'color', 'texture', 'mesh', 'effect', 'render'];
 const VECTOR_TYPES = { vec2: 2, vec3: 3, vec4: 4 };
@@ -23,6 +39,14 @@ const PRIMITIVES = ['graph', 'shader', 'expr', 'geom', 'compute'];
 const EXPR_STAGES = ['per-frame', 'per-vertex'];
 const ROOT_KEYS = ['format', 'meta', 'resources', 'nodes', 'edges', 'expressions', 'timeline'];
 const META_KEYS = ['name', 'sourceEngine', 'source', 'author', 'description', 'tags', 'license', 'credit'];
+// Resource schema: strict allowlists per field. Unknown values on any
+// axis parse-refuse per the substrate spec.
+const RES_KEYS = ['id', 'kind', 'format', 'size', 'lifetime', 'usage'];
+const RES_KINDS = ['texture', 'presentation'];
+const RES_FORMATS = ['rgba8unorm', 'preferred-canvas'];
+const RES_SIZE_POLICIES = ['canvas-16block', 'canvas'];
+const RES_LIFETIMES = ['persistent-pingpong', 'transient', 'per-frame'];
+const RES_USAGES = ['sampled', 'render-attachment', 'presentation'];
 
 /** @returns {never} */
 function fail(/** @type {string} */ path, /** @type {string} */ msg) {
@@ -68,7 +92,42 @@ export function parsePhos(/** @type {string} */ text) {
   }
 
   if (!Array.isArray(raw.resources)) fail('$.resources', 'must be an array');
-  if (raw.resources.length > 0) fail('$.resources', 'resources are not yet supported: refusing non-empty list');
+  /** @type {ResourceDescriptor[]} */
+  const resources = [];
+  /** @type {Set<string>} */
+  const resourceIds = new Set();
+  raw.resources.forEach((r, i) => {
+    const rpath = `$.resources[${i}]`;
+    if (typeof r !== 'object' || r === null) fail(rpath, 'must be an object');
+    const rObj = /** @type {Record<string,unknown>} */ (r);
+    checkKeys(rObj, RES_KEYS, rpath);
+    const id = reqString(rObj, 'id', rpath);
+    if (resourceIds.has(id)) fail(rpath, `duplicate resource id "${id}"`);
+    resourceIds.add(id);
+    const kind = reqString(rObj, 'kind', rpath);
+    if (!RES_KINDS.includes(kind)) fail(rpath, `kind "${kind}" not in [${RES_KINDS.join(', ')}]`);
+    const format = reqString(rObj, 'format', rpath);
+    if (!RES_FORMATS.includes(format)) fail(rpath, `format "${format}" not in [${RES_FORMATS.join(', ')}]`);
+    const size = rObj.size;
+    if (typeof size !== 'object' || size === null || Array.isArray(size)) fail(rpath + '.size', 'must be an object');
+    const sizeObj = /** @type {Record<string,unknown>} */ (size);
+    checkKeys(sizeObj, ['policy'], rpath + '.size');
+    const policy = reqString(sizeObj, 'policy', rpath + '.size');
+    if (!RES_SIZE_POLICIES.includes(policy)) fail(rpath + '.size', `policy "${policy}" not in [${RES_SIZE_POLICIES.join(', ')}]`);
+    const lifetime = reqString(rObj, 'lifetime', rpath);
+    if (!RES_LIFETIMES.includes(lifetime)) fail(rpath, `lifetime "${lifetime}" not in [${RES_LIFETIMES.join(', ')}]`);
+    const usage = rObj.usage;
+    if (!Array.isArray(usage) || usage.length === 0) fail(rpath + '.usage', 'must be a non-empty array');
+    for (const u of usage) {
+      if (typeof u !== 'string' || !RES_USAGES.includes(u)) fail(rpath + '.usage', `entry "${u}" not in [${RES_USAGES.join(', ')}]`);
+    }
+    resources.push(/** @type {ResourceDescriptor} */ ({
+      id, kind: /** @type {any} */ (kind), format: /** @type {any} */ (format),
+      size: { policy: /** @type {any} */ (policy) },
+      lifetime: /** @type {any} */ (lifetime),
+      usage: /** @type {any} */ ([...usage]),
+    }));
+  });
   if ('timeline' in raw) fail('$.timeline', 'timeline is not yet supported: refusing its presence');
 
   if (!Array.isArray(raw.nodes) || raw.nodes.length === 0) fail('$.nodes', 'must be a non-empty array');
@@ -110,6 +169,14 @@ export function parsePhos(/** @type {string} */ text) {
             fail(ppath, `${type} value must be an array of ${dim} finite numbers`);
           }
           ports[pname] = { type, value: [...pObj.value] };
+        } else if (type === 'texture') {
+          const val = pObj.value;
+          if (typeof val !== 'object' || val === null || Array.isArray(val)) fail(ppath, 'texture value must be an object of the form {"resourceId": "..."}');
+          const valObj = /** @type {Record<string,unknown>} */ (val);
+          checkKeys(valObj, ['resourceId'], ppath + '.value');
+          const rid = reqString(valObj, 'resourceId', ppath + '.value');
+          if (!resourceIds.has(rid)) fail(ppath + '.value', `resourceId "${rid}" is not declared in $.resources`);
+          ports[pname] = { type, value: { resourceId: rid } };
         } else {
           fail(ppath, `constant value not supported for port type "${type}" in phos/1`);
         }
@@ -171,7 +238,7 @@ export function parsePhos(/** @type {string} */ text) {
     expressions.push(prog);
   });
 
-  return /** @type {Scene} */ ({ format: 'phos/1', meta, resources: [], nodes, edges, expressions });
+  return /** @type {Scene} */ ({ format: 'phos/1', meta, resources, nodes, edges, expressions });
 }
 
 // Canonical serialization: fixed key order, 2-space indent, trailing newline.
@@ -183,13 +250,21 @@ export function serializePhos(/** @type {Scene} */ scene) {
   const out = {
     format: scene.format,
     meta,
-    resources: scene.resources,
+    resources: scene.resources.map((r) => ({
+      id: r.id, kind: r.kind, format: r.format,
+      size: { policy: r.size.policy },
+      lifetime: r.lifetime,
+      usage: [...r.usage],
+    })),
     nodes: scene.nodes.map((n) => ({
       id: n.id, primitive: n.primitive, op: n.op,
-      ports: Object.fromEntries(Object.entries(n.ports).map(([k, p]) =>
-        [k, 'value' in p
-          ? { type: p.type, value: Array.isArray(p.value) ? [...p.value] : p.value }
-          : { type: p.type }])),
+      ports: Object.fromEntries(Object.entries(n.ports).map(([k, p]) => {
+        if (!('value' in p)) return [k, { type: p.type }];
+        const v = p.value;
+        if (Array.isArray(v)) return [k, { type: p.type, value: [...v] }];
+        if (typeof v === 'object' && v !== null && 'resourceId' in v) return [k, { type: p.type, value: { resourceId: v.resourceId } }];
+        return [k, { type: p.type, value: v }];
+      })),
     })),
     edges: scene.edges.map((e) => ({ out: e.out, in: e.in })),
     expressions: scene.expressions.map((x) =>
@@ -215,10 +290,21 @@ export function toRuntime(/** @type {Scene} */ scene) {
   return {
     format: scene.format,
     meta: scene.meta,
+    resources: scene.resources.map((r) => ({
+      id: r.id, kind: r.kind, format: r.format,
+      size: { policy: r.size.policy },
+      lifetime: r.lifetime,
+      usage: [...r.usage],
+    })),
     nodes: scene.nodes.map((n) => ({
       id: n.id, op: n.op,
-      ports: Object.fromEntries(Object.entries(n.ports).map(([k, p]) =>
-        [k, 'value' in p ? { type: p.type, value: Array.isArray(p.value) ? [...p.value] : p.value } : { type: p.type }])),
+      ports: Object.fromEntries(Object.entries(n.ports).map(([k, p]) => {
+        if (!('value' in p)) return [k, { type: p.type }];
+        const v = p.value;
+        if (Array.isArray(v)) return [k, { type: p.type, value: [...v] }];
+        if (typeof v === 'object' && v !== null && 'resourceId' in v) return [k, { type: p.type, value: { resourceId: v.resourceId } }];
+        return [k, { type: p.type, value: v }];
+      })),
     })),
     edges: scene.edges.map((e) => ({ out: e.out, in: e.in })),
     expressions: { perFrame, perVertex, perFrameComments },
@@ -392,7 +478,13 @@ export function milkToPhos(/** @type {{records:import('./milk-import.mjs').Sourc
   return /** @type {Scene} */ ({
     format: 'phos/1',
     meta: { name, sourceEngine: 'milkdrop', source: { engine: 'milkdrop', file: source.file, sha256: source.sha256 } },
-    resources: [],
+    // MilkDrop pipeline requires a persistent-pingpong feedback texture
+    // (warp reads/writes it each frame) and a presentation resource that
+    // composite writes to and the executor blits to the canvas.
+    resources: /** @type {ResourceDescriptor[]} */ ([
+      { id: 'md-feedback', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas-16block' }, lifetime: 'persistent-pingpong', usage: ['sampled', 'render-attachment'] },
+      { id: 'canvas', kind: 'presentation', format: 'preferred-canvas', size: { policy: 'canvas' }, lifetime: 'per-frame', usage: ['render-attachment', 'presentation'] },
+    ]),
     nodes: [
       { id: 'warp', primitive: 'graph', op: 'warp-feedback', ports: nodePorts.warp },
       { id: 'borders', primitive: 'shader', op: 'borders', ports: nodePorts.borders },

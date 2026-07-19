@@ -4,7 +4,21 @@
     "name": "native-clear",
     "description": "Native clear-color demonstration exercising the value-edge dataflow: RGBAToColor packs four float channels into a vec4 Color, an edge propagates that vec4 into clear-color's Color port, and clear-color's WebGPU realization fills the canvas. The per-frame program pulses the blue channel so live edge propagation is visible. A screen node closes the render chain."
   },
-  "resources": [],
+  "resources": [
+    {
+      "id": "clear-out",
+      "kind": "texture",
+      "format": "rgba8unorm",
+      "size": {
+        "policy": "canvas"
+      },
+      "lifetime": "transient",
+      "usage": [
+        "sampled",
+        "render-attachment"
+      ]
+    }
+  ],
   "nodes": [
     {
       "id": "rgba",
@@ -39,6 +53,12 @@
       "ports": {
         "Color": {
           "type": "vec4"
+        },
+        "Target": {
+          "type": "texture",
+          "value": {
+            "resourceId": "clear-out"
+          }
         },
         "Render": {
           "type": "render"

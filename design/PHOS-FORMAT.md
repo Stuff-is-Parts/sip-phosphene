@@ -32,7 +32,7 @@ phosphene-engine/scenes/TEMPLATE.phos.
     "source"?: { "engine", "file", "sha256" },   // provenance of a ported scene
     "author"?, "description"?, "tags"?, "license"?, "credit"?
   },
-  "resources": [],                      // v1: must be empty — refused if non-empty
+  "resources": [ ResourceDescriptor ],  // graphical resources the scene declares
   "nodes":   [ Node ],
   "edges":   [ { "out": "nodeId.portId", "in": "nodeId.portId" } ],
   "expressions": [ { "id", "stage": "per-frame"|"per-vertex", "code": [string],
@@ -74,10 +74,32 @@ message naming the specific failure.
 recipe file it was transcribed from, hash-pinned. [DERIVED — goal-doc Validation
 Rule: expected values identify provenance]
 
-`resources` and `timeline` are skeleton slots from SCENE-ANATOMY. They are
-refused (non-empty `resources`, any `timeline`) until a scene forces their
-implementation — same discipline as the engine buildout. [DERIVED — refusal
-over unimplemented acceptance]
+**Explicit graphical resources (reviewer 2026-07-18 substrate spec).** The
+`resources` array declares the graphical resources the scene needs. Each
+`ResourceDescriptor` has strict allowlisted fields:
+
+```
+{
+  "id": string,                                   // unique per scene
+  "kind": "texture" | "presentation",
+  "format": "rgba8unorm" | "preferred-canvas",
+  "size": { "policy": "canvas-16block" | "canvas" },
+  "lifetime": "persistent-pingpong" | "transient" | "per-frame",
+  "usage": ["sampled" | "render-attachment" | "presentation", ...]
+}
+```
+
+Unknown fields, kinds, formats, policies, lifetimes, and usage values
+parse-refuse. Every `texture`-typed port whose value references a
+`resourceId` must name an id declared in this list, and the engine
+refuses at construction otherwise. The render plan the engine emits
+carries a copy of the scene's resources, per-pass `reads` and `writes`
+arrays naming resource ids, and a `presentation` field naming exactly
+one resource the executor blits to the canvas.
+
+`timeline` remains a skeleton slot from SCENE-ANATOMY; a non-empty
+timeline refuses until a scene forces its implementation. [DERIVED —
+refusal over unimplemented acceptance]
 
 ## Node and Port
 

@@ -176,24 +176,34 @@ function circularInterp(/** @type {number} */ prev, /** @type {number} */ target
  * The Engine's step() returns the presentation sink's read of its input
  * plan; the player executes that plan generically per pass with no
  * `if (st.clear) else` dispatch.
- * @typedef {{ passes: PassSpec[] }} RenderPlan
+ *
+ * Explicit-resource substrate (reviewer 2026-07-18): the plan now names
+ * its resources and each pass names the resources it reads and writes.
+ * The executor allocates textures from descriptors and dispatches from
+ * named references rather than pass position; presentation names one
+ * exact resource the executor blits to the canvas.
+ *
+ * @typedef {{
+ *   id:string,
+ *   kind:'texture'|'presentation',
+ *   format:'rgba8unorm'|'preferred-canvas',
+ *   size:{policy:'canvas-16block'|'canvas'},
+ *   lifetime:'persistent-pingpong'|'transient'|'per-frame',
+ *   usage:('sampled'|'render-attachment'|'presentation')[]
+ * }} ResourceDescriptor
+ * @typedef {{
+ *   resources: ResourceDescriptor[],
+ *   passes: PassSpec[],
+ *   presentation: {resourceId:string}|null
+ * }} RenderPlan
  * @typedef {WarpFeedbackPass|CompositePass|ClearPass} PassSpec
- * @typedef {{kind:'warp-feedback', motion:any, borders:{inner:null|any, outer:null|any}}} WarpFeedbackPass
- * @typedef {{kind:'composite', comp:any}} CompositePass
- * @typedef {{kind:'clear-color', clear:{r:number, g:number, b:number, a:number}}} ClearPass
+ * @typedef {{kind:'warp-feedback', motion:any, borders:{inner:null|any, outer:null|any}, reads:string[], writes:string[]}} WarpFeedbackPass
+ * @typedef {{kind:'composite', comp:any, reads:string[], writes:string[]}} CompositePass
+ * @typedef {{kind:'clear-color', clear:{r:number, g:number, b:number, a:number}, reads:string[], writes:string[]}} ClearPass
+ * @typedef {{resourceId:string}} ResourceRef
+ * @typedef {{plan:RenderPlan, outputs:Record<string, ResourceRef>}} ContributeResult
  */
-/** @typedef {{kind:'value'|'render', inputs:Record<string,string>, outputs:Record<string,string>, portConstraints?:Record<string, number|number[]>, initState?:(inputs:Record<string,any>)=>any, compute?:(ctx:{inputs:Record<string,any>, state:any, dt:number, frame:number, time:number, audio:{musicActive:boolean, rawBeat:number}, rng:Xorshift128})=>Record<string,any>, contribute?:(inputPlans:Record<string,RenderPlan|null>, ports:Record<string,any>, pool:Record<string,number>, eng:Engine)=>Record<string,RenderPlan>}} NativeOp */
-
-/**
- * Deep-clone a render plan so fan-out consumers cannot share mutable state.
- * Uses structuredClone so a new pass kind added later without updating this
- * function cannot silently restore shared references — the whole plan
- * structure is generic plain data and structuredClone deep-copies all of it.
- * @param {RenderPlan} plan
- */
-function clonePlan(plan) {
-  return /** @type {RenderPlan} */ (structuredClone(plan));
-}
+/** @typedef {{kind:'value'|'render', inputs:Record<string,string>, outputs:Record<string,string>, portConstraints?:Record<string, number|number[]>, initState?:(inputs:Record<string,any>)=>any, compute?:(ctx:{inputs:Record<string,any>, state:any, dt:number, frame:number, time:number, audio:{musicActive:boolean, rawBeat:number}, rng:Xorshift128})=>Record<string,any>, contribute?:(inputRefs:Record<string,ResourceRef>, ports:Record<string,any>, pool:Record<string,number>, eng:Engine, plan:RenderPlan)=>Record<string,ResourceRef>}} NativeOp */
 
 /**
  * The single op-level port-value constraint hook (reviewer 2026-07-18).
@@ -225,10 +235,15 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       fWarpAnimSpeed: 'float', fWarpScale: 'float', fZoomExponent: 'float',
     },
     outputs: { out: 'render' },
-    contribute(inputPlans, ports, pool, eng) {
-      // warp-feedback is a plan source — it has no render inputs at all.
-      // The port-qualified inputPlans dict must therefore be empty.
-      if (Object.keys(inputPlans).length !== 0) throw new Error('warp-feedback is a render-plan source and takes no render inputs — refusing');
+    contribute(inputRefs, ports, pool, eng, plan) {
+      if (Object.keys(inputRefs).length !== 0) throw new Error('warp-feedback is a plan source and takes no render inputs — refusing');
+      // MilkDrop convention: warp-feedback reads and writes the scene's
+      // persistent-pingpong feedback resource. The scene must declare a
+      // resource id 'md-feedback'.
+      const feedbackId = 'md-feedback';
+      const desc = plan.resources.find((r) => r.id === feedbackId);
+      if (!desc) throw new Error(`warp-feedback: scene must declare a resource with id "${feedbackId}" (persistent-pingpong texture) — refusing`);
+      if (desc.lifetime !== 'persistent-pingpong') throw new Error(`warp-feedback: resource "${feedbackId}" must have lifetime "persistent-pingpong", got "${desc.lifetime}" — refusing`);
       // per-frame warp oscillators — milkdropfs.cpp:1782-1787
       const warpTime = eng.time * ports.fWarpAnimSpeed;
       const motion = {
@@ -244,7 +259,11 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
         f2: 10.54 + 3.0 * Math.cos(warpTime * 1.233 + 3),
         f3: 11.49 + 4.0 * Math.cos(warpTime * 0.933 + 5),
       };
-      return { out: { passes: [{ kind: 'warp-feedback', motion, borders: { inner: null, outer: null } }] } };
+      plan.passes.push({
+        kind: 'warp-feedback', motion, borders: { inner: null, outer: null },
+        reads: [feedbackId], writes: [feedbackId],
+      });
+      return { out: { resourceId: feedbackId } };
     },
   },
   'borders': {
@@ -255,21 +274,17 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       in: 'render',
     },
     outputs: { out: 'render' },
-    contribute(inputPlans, ports) {
-      const inPlan = inputPlans.in;
-      if (!inPlan || inPlan.passes.length === 0) throw new Error('borders requires an incoming render plan on its "in" port carrying a warp-feedback pass to extend — refusing');
-      const lastIn = inPlan.passes[inPlan.passes.length - 1];
+    contribute(inputRefs, ports, _pool, _eng, plan) {
+      const inRef = inputRefs.in;
+      if (!inRef) throw new Error('borders requires an incoming render reference on its "in" port — refusing');
+      const lastIn = plan.passes[plan.passes.length - 1];
       if (lastIn === undefined || lastIn.kind !== 'warp-feedback') throw new Error(`borders extends an in-flight warp-feedback pass; the current plan's last pass is "${lastIn?.kind ?? '(none)'}" — refusing`);
-      // Clone before mutating so fan-out consumers of the incoming plan
-      // do not see the modification, and so this op's output plan is
-      // independent of any other consumer's later contribute calls.
-      const cloned = clonePlan(inPlan);
-      const last = /** @type {WarpFeedbackPass} */ (cloned.passes[cloned.passes.length - 1]);
+      const last = /** @type {WarpFeedbackPass} */ (lastIn);
       // colors and alphas pass the 8-bit conversion (:3453-3457); the draw
       // gate reads the RAW alpha (:3451) — aGate carries it separately
       last.borders.inner = { size: ports.ib_size, r: d3dColor01(ports.ib_r), g: d3dColor01(ports.ib_g), b: d3dColor01(ports.ib_b), a: d3dColor01(ports.ib_a), aGate: ports.ib_a };
       last.borders.outer = { size: ports.ob_size, r: d3dColor01(ports.ob_r), g: d3dColor01(ports.ob_g), b: d3dColor01(ports.ob_b), a: d3dColor01(ports.ob_a), aGate: ports.ob_a };
-      return { out: cloned };
+      return { out: inRef };
     },
   },
   'composite': {
@@ -278,20 +293,20 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       fGammaAdj: 'float', fVideoEchoZoom: 'float', fVideoEchoAlpha: 'float', nVideoEchoOrientation: 'float',
       in: 'render',
     },
-    // `presented` is a well-known sink output whose plan is the frame the
-    // front end submits. The Engine exempts `presented` from the outgoing-
-    // -edge rule and captures the sink's `presented` value each step.
+    // `presented` is a well-known sink output; the Engine exempts it from
+    // the outgoing-edge rule and captures the sink's presentation each step.
     outputs: { presented: 'render' },
-    contribute(inputPlans, ports, pool) {
-      const inPlan = inputPlans.in;
-      if (!inPlan || inPlan.passes.length === 0) throw new Error('composite requires an incoming render plan on its "in" port — refusing');
-      // Clone before appending so a fan-out sibling reading the same input
-      // plan does not see the new composite pass.
-      const cloned = clonePlan(inPlan);
+    contribute(inputRefs, ports, pool, _eng, plan) {
+      const inRef = inputRefs.in;
+      if (!inRef) throw new Error('composite requires an incoming render reference on its "in" port — refusing');
+      // MilkDrop convention: composite writes to the scene's presentation
+      // resource (id 'canvas'). The scene must declare it.
+      const targetId = 'canvas';
+      const desc = plan.resources.find((r) => r.id === targetId);
+      if (!desc) throw new Error(`composite: scene must declare a resource with id "${targetId}" (kind "presentation") — refusing`);
+      if (desc.kind !== 'presentation') throw new Error(`composite: resource "${targetId}" must have kind "presentation", got "${desc.kind}" — refusing`);
       // gammaAdj + video echo — ShowToUser_NoShaders (milkdropfs.cpp:4147-4260).
-      // MilkDrop's clamps on gamma (0..8) and echo_zoom (0.001..1000) run on
-      // the EEL-visible pool aliases and sync back into these ports pre-render.
-      cloned.passes.push({
+      plan.passes.push({
         kind: 'composite',
         comp: {
           gamma: pool.gamma ?? ports.fGammaAdj,
@@ -299,31 +314,39 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
           echoZoom: pool.echo_zoom ?? ports.fVideoEchoZoom,
           echoOrient: (ports.nVideoEchoOrientation) % 4,
         },
+        reads: [inRef.resourceId], writes: [targetId],
       });
-      return { presented: cloned };
+      plan.presentation = { resourceId: targetId };
+      return { presented: { resourceId: targetId } };
     },
   },
   // ---- Native render ops (Plane9-source-neutral) --------------------
   'clear-color': {
-    // Source-neutral native clear: fills the render surface with one RGBA
-    // color read from its vec4 Color input port. Plane9's Clear node
-    // converts onto this op ("Fills the viewport with a single color."
-    // Plane9Engine.dll 0x1f7ecc). Realization is a real WebGPU clear pass
-    // in both studio.mjs and player.mjs.
+    // Source-neutral native clear: fills the target texture resource with
+    // one RGBA color read from its vec4 Color input port. Plane9's Clear
+    // node converts onto this op. Realization is a real WebGPU clear pass.
     kind: 'render',
-    inputs: { Color: 'vec4' },
+    inputs: { Color: 'vec4', Target: 'texture' },
     outputs: { Render: 'render' },
-    contribute(inputPlans, ports) {
-      if (Object.keys(inputPlans).length !== 0) throw new Error('clear-color is a render-plan source and takes no render inputs — refusing');
+    contribute(inputRefs, ports, _pool, _eng, plan) {
+      if (Object.keys(inputRefs).length !== 0) throw new Error('clear-color is a plan source and takes no render inputs — refusing');
+      const target = /** @type {ResourceRef|undefined} */ (ports.Target);
+      if (!target || typeof target !== 'object' || !('resourceId' in target)) throw new Error('clear-color: Target port must carry a texture resource reference — refusing');
+      const desc = plan.resources.find((r) => r.id === target.resourceId);
+      if (!desc) throw new Error(`clear-color: Target references resource "${target.resourceId}" which is not declared in the scene — refusing`);
+      if (!desc.usage.includes('render-attachment')) throw new Error(`clear-color: target resource "${target.resourceId}" must include usage "render-attachment", got [${desc.usage.join(', ')}] — refusing`);
       const c = ports.Color;
-      return { Render: { passes: [{ kind: 'clear-color', clear: { r: c[0], g: c[1], b: c[2], a: c[3] } }] } };
+      plan.passes.push({
+        kind: 'clear-color',
+        clear: { r: c[0], g: c[1], b: c[2], a: c[3] },
+        reads: [], writes: [target.resourceId],
+      });
+      return { Render: { resourceId: target.resourceId } };
     },
   },
   'screen': {
-    // Plane9 render sink. Present in converted Plane9 scenes so the source
-    // Screen node, its camera ports and the Clear.Render->Screen.Render edge
-    // remain visible, editable and reloadable. Structural — contributes no
-    // additional render state beyond marking the pipeline terminal.
+    // Plane9 render sink. Identifies the connected resource as the
+    // presentation source; the executor blits it to the canvas.
     kind: 'render',
     inputs: {
       Viewport: 'vec4', CamPos: 'vec3', CamRot: 'vec3', CamLookAt: 'vec3',
@@ -331,22 +354,18 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       ScaleByAspect: 'float', Render: 'render',
     },
     outputs: { presented: 'render' },
-    // Witnessed geometry-free configuration (79/252 corpus scenes). The
-    // contribute below reads none of these values, so any deviation would
-    // be a declared functional port backed by no behavior. The single
-    // portConstraints hook fires at construction, setVar, and value-edge
-    // propagation — every write path.
     portConstraints: {
       Viewport: [0, 0, 1, 1], CamPos: [0, 0, -2], CamRot: [0, 0, 0], CamLookAt: [0, 0, 1],
       CamLookAtInWorldSpace: 0, CamFov: 45, CamNear: 0.1, CamFar: 1000, ScaleByAspect: 0,
     },
-    contribute(inputPlans) {
-      const inPlan = inputPlans.Render;
-      if (!inPlan) throw new Error('screen requires an incoming render plan on its "Render" port — refusing');
-      // screen is a passthrough sink; the port witnessed-values check at
-      // Engine construction guarantees the camera ports carry only the
-      // configuration whose runtime effect is documented as "no-op".
-      return { presented: inPlan };
+    contribute(inputRefs, _ports, _pool, _eng, plan) {
+      const inRef = inputRefs.Render;
+      if (!inRef) throw new Error('screen requires an incoming render reference on its "Render" port — refusing');
+      const desc = plan.resources.find((r) => r.id === inRef.resourceId);
+      if (!desc) throw new Error(`screen: incoming render reference names resource "${inRef.resourceId}" which is not declared in the scene — refusing`);
+      if (!desc.usage.includes('sampled') && desc.kind !== 'presentation') throw new Error(`screen: presented resource "${inRef.resourceId}" must be either kind "presentation" or have usage "sampled" so the executor can source it — refusing`);
+      plan.presentation = { resourceId: inRef.resourceId };
+      return { presented: { resourceId: inRef.resourceId } };
     },
   },
   // ---- Native value ops (source-neutral) ----------------------------
@@ -829,18 +848,23 @@ export class Engine {
     if ('echo_zoom' in this.pool) this.pool.echo_zoom = Math.max(0.001, Math.min(1000, this.pool.echo_zoom ?? 0));
     this._writePoolIntoPorts();
 
-    // --- walk topological order — value ops compute + propagate, render ops
-    // consume-and-return plans through render edges. Both kinds now speak
-    // the same port-qualified interface: op receives inputs keyed by input
-    // port name, returns outputs keyed by output port name.
-    // Render plans are propagated to consumers by cloning at fan-out, so
-    // two downstream consumers of the same producer's render output cannot
-    // share a mutable plan reference.
-    /** @type {Record<string, Record<string, import('./engine.mjs').RenderPlan|null>>} */
-    const nodeIncomingPlans = {};
-    for (const node of this.order) nodeIncomingPlans[node.id] = {};
-    /** @type {import('./engine.mjs').RenderPlan|null} */
-    let sinkPlan = null;
+    // --- walk topological order — value ops compute + propagate; render
+    // ops mutate a shared plan builder (resources declared once from the
+    // scene; passes accumulated in topological order; presentation set
+    // by the sink) and propagate ResourceRefs along render edges.
+    /** @type {Record<string, Record<string, ResourceRef>>} */
+    const nodeIncomingRefs = {};
+    for (const node of this.order) nodeIncomingRefs[node.id] = {};
+    /** @type {import('./engine.mjs').RenderPlan} */
+    const plan = {
+      resources: this.scene.resources.map((/** @type {ResourceDescriptor} */ r) => ({
+        id: r.id, kind: r.kind, format: r.format,
+        size: { policy: r.size.policy },
+        lifetime: r.lifetime, usage: [...r.usage],
+      })),
+      passes: [],
+      presentation: null,
+    };
     const audioCtx = { musicActive: !!audio.musicActive, rawBeat: audio.rawBeat ?? 0 };
     for (const node of this.order) {
       const op = /** @type {NativeOp} */ (NATIVE_OPS[node.op]);
@@ -856,12 +880,6 @@ export class Engine {
           const [, srcPort] = splitRef(edge.out);
           const [dstId, dstPort] = splitRef(edge.in);
           if (outputs[srcPort] !== undefined) {
-            // Run the same op-level port-constraint hook that construction
-            // and setVar use. A value-edge write that violates a witnessed
-            // port constraint refuses here, so no path can bypass the hook
-            // (reviewer 2026-07-18 item 1). The constant-plus-edge
-            // refusal at construction ensures a constrained port has no
-            // incoming edge, so this assertion is defense in depth.
             const dstNode = /** @type {{op:string}|undefined} */ (this.scene.nodes.find((/** @type {{id:string}} */ n) => n.id === dstId));
             if (dstNode) assertPortValue(dstId, dstNode.op, dstPort, outputs[srcPort]);
             const dstNs = /** @type {{ports:Record<string,any>}} */ (this.nodeState[dstId]);
@@ -869,30 +887,33 @@ export class Engine {
           }
         }
       } else if (op.kind === 'render' && op.contribute) {
-        const inputPlans = /** @type {Record<string, import('./engine.mjs').RenderPlan|null>} */ (nodeIncomingPlans[node.id]);
-        const outputPlans = op.contribute(inputPlans, ns.ports, this.pool, this);
-        if (node.id === this.sinkId && outputPlans.presented) sinkPlan = outputPlans.presented;
-        // Propagate each output plan along outgoing edges from its own
-        // port. Fan-out from the same port clones per consumer so their
-        // views cannot share state; the `presented` port is presentation-
-        // -only and has no outgoing edges by the earlier exemption.
+        const inputRefs = /** @type {Record<string, ResourceRef>} */ (nodeIncomingRefs[node.id]);
+        const outputRefs = op.contribute(inputRefs, ns.ports, this.pool, this, plan);
         for (const edge of this.outgoing.get(node.id) ?? []) {
           const [, srcPort] = splitRef(edge.out);
           const [dstId, dstPort] = splitRef(edge.in);
           const srcType = op.outputs[srcPort];
           if (srcType === 'render') {
-            const producedPlan = outputPlans[srcPort];
-            if (producedPlan === undefined) throw new Error(`Engine: node "${node.id}" (${node.op}) declared render output "${srcPort}" but its contribute returned no plan for that port — refusing`);
-            const dstInputs = /** @type {Record<string, import('./engine.mjs').RenderPlan|null>} */ (nodeIncomingPlans[dstId]);
+            const producedRef = outputRefs[srcPort];
+            if (producedRef === undefined) throw new Error(`Engine: node "${node.id}" (${node.op}) declared render output "${srcPort}" but its contribute returned no resource ref for that port — refusing`);
+            const dstInputs = /** @type {Record<string, ResourceRef>} */ (nodeIncomingRefs[dstId]);
             if (dstInputs[dstPort] !== undefined) {
-              throw new Error(`Engine: node "${dstId}" render input "${dstPort}" already carries a plan from a prior edge — refusing multiple-driver render input at execution`);
+              throw new Error(`Engine: node "${dstId}" render input "${dstPort}" already carries a resource ref from a prior edge — refusing multiple-driver render input at execution`);
             }
-            dstInputs[dstPort] = clonePlan(producedPlan);
+            dstInputs[dstPort] = { resourceId: producedRef.resourceId };
           }
         }
       }
     }
-    return sinkPlan;
+    // Post-execution plan validation per the substrate spec.
+    if (!plan.presentation) throw new Error('Engine: plan has no presentation resource — the presentation sink did not set plan.presentation, refusing');
+    const pres = plan.resources.find((r) => r.id === /** @type {{resourceId:string}} */ (plan.presentation).resourceId);
+    if (!pres) throw new Error(`Engine: plan.presentation names resource "${plan.presentation.resourceId}" not declared in scene.resources — refusing`);
+    for (const p of plan.passes) {
+      for (const rid of p.reads) if (!plan.resources.some((r) => r.id === rid)) throw new Error(`Engine: pass "${p.kind}" reads undeclared resource "${rid}" — refusing`);
+      for (const rid of p.writes) if (!plan.resources.some((r) => r.id === rid)) throw new Error(`Engine: pass "${p.kind}" writes undeclared resource "${rid}" — refusing`);
+    }
+    return plan;
   }
 
   // --- studio live-edit surface -----------------------------------------
