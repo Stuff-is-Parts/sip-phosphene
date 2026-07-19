@@ -196,10 +196,11 @@ function circularInterp(/** @type {number} */ prev, /** @type {number} */ target
  *   passes: PassSpec[],
  *   presentation: {resourceId:string}|null
  * }} RenderPlan
- * @typedef {WarpFeedbackPass|CompositePass|ClearPass} PassSpec
+ * @typedef {WarpFeedbackPass|CompositePass|ClearPass|Plane9BlurPass} PassSpec
  * @typedef {{id:string, kind:'warp-feedback', motion:any, borders:{inner:null|any, outer:null|any}, reads:string[], writes:string[]}} WarpFeedbackPass
  * @typedef {{id:string, kind:'composite', comp:any, reads:string[], writes:string[]}} CompositePass
  * @typedef {{id:string, kind:'clear-color', clear:{r:number, g:number, b:number, a:number}, reads:string[], writes:string[]}} ClearPass
+ * @typedef {{id:string, kind:'plane9-blur', pass:number, brightness:number, reads:string[], writes:string[]}} Plane9BlurPass
  * @typedef {{resourceId:string, passId?:string}} ResourceRef
  * @typedef {{plan:RenderPlan, outputs:Record<string, ResourceRef>}} ContributeResult
  */
@@ -360,6 +361,55 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
         kind: 'clear-color',
         clear: { r: c[0], g: c[1], b: c[2], a: c[3] },
         reads: [], writes: [target.resourceId],
+      }));
+      return { Render: /** @type {any} */ ({ resourceId: target.resourceId, passId }) };
+    },
+  },
+  'plane9-blur': {
+    // Plane9's blur.glsl (C:\Program Files (x86)\Plane9\nodedata\blur.glsl,
+    // v2.5.1 install). Each `plane9-blur` op invocation contributes one
+    // shader pass — Pass=0 is horizontal-4, Pass=1 vertical-4, Pass=2
+    // horizontal-6, Pass=3 vertical-6, matching the source's four
+    // `#if PASS == N` branches. Src is the incoming rendered pass whose
+    // resource is the shader's texture sample source; Target names the
+    // destination texture resource the pass writes; Brightness maps to
+    // the shader's gBrightness uniform (blur.glsl:3 default 1.0); the
+    // gSourceTextureSize uniform (blur.glsl:4) is computed by the
+    // executor from the source texture's actual dimensions each frame
+    // (1/textureWidth, 1/textureHeight) — Plane9 supplies this uniform
+    // at runtime rather than storing it on the Blur node itself. The
+    // Plane9 Blur node's Dir="2" ("Both") + Width={4,6} pair is expanded
+    // by the p9 converter into two `plane9-blur` graph nodes (H then V)
+    // with distinct Pass values, so each shader pass is a first-class
+    // pass in the plan.
+    kind: 'render',
+    inputs: {
+      Src: 'render',
+      Target: 'texture',
+      Pass: 'float',
+      Brightness: 'float',
+    },
+    outputs: { Render: 'render' },
+    contribute(inputRefs, ports, _pool, eng, plan) {
+      const inRef = /** @type {any} */ (inputRefs.Src);
+      if (!inRef) throw new Error('plane9-blur requires an incoming render reference on its "Src" port — refusing');
+      const target = /** @type {ResourceRef|undefined} */ (ports.Target);
+      if (!target || typeof target !== 'object' || !('resourceId' in target)) throw new Error('plane9-blur: Target port must carry a texture resource reference — refusing');
+      const targetDesc = plan.resources.find((r) => r.id === target.resourceId);
+      if (!targetDesc) throw new Error(`plane9-blur: Target references resource "${target.resourceId}" which is not declared in the scene — refusing`);
+      if (targetDesc.kind !== 'texture') throw new Error(`plane9-blur: Target resource "${target.resourceId}" must have kind "texture", got "${targetDesc.kind}" — refusing`);
+      const passNumberRaw = /** @type {number} */ (ports.Pass);
+      const passNumber = Math.round(passNumberRaw);
+      if (passNumber !== 0 && passNumber !== 1 && passNumber !== 2 && passNumber !== 3) throw new Error(`plane9-blur: Pass port must be 0, 1, 2, or 3 (matching blur.glsl PASS branches), got ${passNumberRaw} — refusing`);
+      const brightness = /** @type {number} */ (ports.Brightness);
+      if (!Number.isFinite(brightness)) throw new Error(`plane9-blur: Brightness port must be a finite float, got ${brightness} — refusing`);
+      const passId = eng.nextPassId();
+      plan.passes.push(/** @type {any} */ ({
+        id: passId,
+        kind: 'plane9-blur',
+        pass: passNumber,
+        brightness,
+        reads: [inRef.resourceId], writes: [target.resourceId],
       }));
       return { Render: /** @type {any} */ ({ resourceId: target.resourceId, passId }) };
     },

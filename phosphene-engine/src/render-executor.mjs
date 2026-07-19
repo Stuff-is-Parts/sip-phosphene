@@ -14,7 +14,7 @@
 // per-resource physical textures). It does not infer inputs from pass
 // position, does not choose targets based on whether a pass is last,
 // and does not synthesize resources the plan did not declare.
-import { feedbackWGSL, compositeWGSL } from './render-wgsl.mjs';
+import { feedbackWGSL, compositeWGSL, plane9BlurWGSL } from './render-wgsl.mjs';
 import { buildStripIndices, buildWarpUVs, meshPositions, VERT_COUNT } from './warp-mesh.mjs';
 
 // WGSL blit shader: samples a texture and writes it to the canvas using
@@ -150,6 +150,7 @@ export function createRenderContext(device, canvas, ctx, fmt) {
   const mod = device.createShaderModule({ code: feedbackWGSL });
   const blitMod = device.createShaderModule({ code: compositeWGSL });
   const blitOnlyMod = device.createShaderModule({ code: blitWGSL });
+  const p9BlurMod = device.createShaderModule({ code: plane9BlurWGSL });
   // warp-pass address mode follows the wrap variable per frame (texaddr,
   // milkdropfs.cpp:1991); composite keeps WRAP for the overscan edge
   // per the :4086-4088 comment.
@@ -201,6 +202,24 @@ export function createRenderContext(device, canvas, ctx, fmt) {
       layout: 'auto',
       vertex: { module: blitMod, entryPoint: 'vs' },
       fragment: { module: blitMod, entryPoint: 'fs', targets: [{ format: targetFmt }] },
+      primitive: { topology: 'triangle-list' },
+    });
+    pipelineCache.set(key, p);
+    return p;
+  }
+  // Plane9 blur pipeline cache — one pipeline per (pass, targetFmt).
+  // The uniform buffer for gSourceTextureSize+gBrightness is created
+  // once and rewritten per pass.
+  const p9BlurUbuf = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  /** @param {number} passNumber @param {GPUTextureFormat} targetFmt */
+  function plane9BlurPipeline(passNumber, targetFmt) {
+    const key = 'plane9-blur|' + passNumber + '|' + targetFmt;
+    let p = pipelineCache.get(key);
+    if (p) return p;
+    p = device.createRenderPipeline({
+      layout: 'auto',
+      vertex: { module: p9BlurMod, entryPoint: 'vs' },
+      fragment: { module: p9BlurMod, entryPoint: 'fs' + passNumber, targets: [{ format: targetFmt }] },
       primitive: { topology: 'triangle-list' },
     });
     pipelineCache.set(key, p);
@@ -310,6 +329,31 @@ export function createRenderContext(device, canvas, ctx, fmt) {
         ] });
         const rp = enc.beginRenderPass({ colorAttachments: [{ view: ctx.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } }] });
         rp.setPipeline(pipe); rp.setBindGroup(0, bbg); rp.draw(3); rp.end();
+      } else if (p.kind === 'plane9-blur') {
+        // Plane9 blur pass — samples the source resource once through
+        // the shader's kernel and writes to the target resource. The
+        // gSourceTextureSize uniform is computed from the source
+        // texture's actual dimensions each frame (1/w, 1/h).
+        if (p.reads.length !== 1 || p.writes.length !== 1) throw new Error('render executor: plane9-blur must read one and write one resource — refusing');
+        const readId = /** @type {string} */ (p.reads[0]);
+        const writeId = /** @type {string} */ (p.writes[0]);
+        const readDesc = /** @type {any} */ (resourcePool.get(readId))?.desc;
+        const writeDesc = /** @type {any} */ (resourcePool.get(writeId))?.desc;
+        if (!readDesc || !writeDesc) throw new Error(`render executor: plane9-blur references resource(s) not allocated (read="${readId}", write="${writeId}") — refusing`);
+        const readTex = textureFor(readId, 'read');
+        const writeTex = textureFor(writeId, 'write');
+        const { w: srcW, h: srcH } = resolveSize(readDesc);
+        const targetFmt = resolveFormat(writeDesc);
+        device.queue.writeBuffer(p9BlurUbuf, 0, new Float32Array([1 / srcW, 1 / srcH, p.brightness, 0]));
+        const pipe = plane9BlurPipeline(p.pass, targetFmt);
+        const bg = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [
+          { binding: 0, resource: readTex.createView() },
+          { binding: 1, resource: sampClamp },
+          { binding: 2, resource: { buffer: p9BlurUbuf } },
+        ] });
+        const rp = enc.beginRenderPass({ colorAttachments: [{ view: writeTex.createView(), loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } }] });
+        rp.setPipeline(pipe); rp.setBindGroup(0, bg); rp.draw(3); rp.end();
+        writeSwap(writeId);
       } else {
         throw new Error('render executor: unknown render pass kind: ' + /** @type {any} */ (p).kind);
       }

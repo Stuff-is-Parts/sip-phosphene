@@ -60,6 +60,108 @@ struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> };
   return vec4(min(vec3(1.0), mixed * cu.gamma), 1.0);
 }`;
 
+// Plane9 blur shader (nodedata/blur.glsl in the v2.5.1 install). Four
+// fragment entry points map to the source file's four #if PASS branches:
+//   fs0 — horizontalPass4 (blur.glsl:49-61)
+//   fs1 — verticalPass4   (blur.glsl:63-75)
+//   fs2 — horizontalPass6 (blur.glsl:77-89)
+//   fs3 — verticalPass6   (blur.glsl:91-103)
+// The kernel constants are transcribed verbatim from blur.glsl:9-10 and
+// :13-14. `gSourceTextureSize` is UV-per-pixel (i.e. 1/textureWidth,
+// 1/textureHeight) since the shader multiplies pixel offsets by it to
+// produce UV space steps; the executor supplies that value each frame
+// from the actual source texture dimensions. `gBrightness` is a scalar
+// multiplier applied to the summed kernel result, defaulting to 1.0 per
+// the source line 3 uniform initializer.
+export const plane9BlurWGSL = /* wgsl */`
+struct BlurUniforms {
+  gSourceTextureSize: vec2<f32>,
+  gBrightness: f32,
+  _pad: f32,
+};
+@group(0) @binding(0) var gSrcSampler_tex: texture_2d<f32>;
+@group(0) @binding(1) var gSrcSampler_samp: sampler;
+@group(0) @binding(2) var<uniform> u: BlurUniforms;
+
+struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) tex: vec2<f32> };
+@vertex fn vs(@builtin(vertex_index) i: u32) -> VSOut {
+  var p = array<vec2<f32>, 3>(vec2(-1.0, -3.0), vec2(-1.0, 1.0), vec2(3.0, 1.0));
+  var o: VSOut;
+  o.pos = vec4(p[i], 0.0, 1.0);
+  o.tex = vec2(0.5 * p[i].x + 0.5, 0.5 - 0.5 * p[i].y);
+  return o;
+}
+
+// radius-4 kernel — blur.glsl:9-10
+const OFF4_1: f32 = 1.3846153846;
+const OFF4_2: f32 = 3.2307692308;
+const W4_0:   f32 = 0.2270270270;
+const W4_1:   f32 = 0.3162162162;
+const W4_2:   f32 = 0.0702702703;
+
+// radius-6 kernel — blur.glsl:13-14
+const OFF6_1: f32 = 1.44827586206897;
+const OFF6_2: f32 = 3.37931034482759;
+const OFF6_3: f32 = 5.31034482758621;
+const W6_0:   f32 = 0.151343978258946;
+const W6_1:   f32 = 0.256023563221383;
+const W6_2:   f32 = 0.130521816544234;
+const W6_3:   f32 = 0.03778263110491;
+
+// horizontalPass4 — blur.glsl:49-61
+@fragment fn fs0(in: VSOut) -> @location(0) vec4<f32> {
+  var c = textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex, 0.0) * W4_0;
+  let ox1 = OFF4_1 * u.gSourceTextureSize.x;
+  let ox2 = OFF4_2 * u.gSourceTextureSize.x;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex + vec2(ox1, 0.0), 0.0) * W4_1;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex - vec2(ox1, 0.0), 0.0) * W4_1;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex + vec2(ox2, 0.0), 0.0) * W4_2;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex - vec2(ox2, 0.0), 0.0) * W4_2;
+  return c * u.gBrightness;
+}
+
+// verticalPass4 — blur.glsl:63-75
+@fragment fn fs1(in: VSOut) -> @location(0) vec4<f32> {
+  var c = textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex, 0.0) * W4_0;
+  let oy1 = OFF4_1 * u.gSourceTextureSize.y;
+  let oy2 = OFF4_2 * u.gSourceTextureSize.y;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex + vec2(0.0, oy1), 0.0) * W4_1;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex - vec2(0.0, oy1), 0.0) * W4_1;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex + vec2(0.0, oy2), 0.0) * W4_2;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex - vec2(0.0, oy2), 0.0) * W4_2;
+  return c * u.gBrightness;
+}
+
+// horizontalPass6 — blur.glsl:77-89
+@fragment fn fs2(in: VSOut) -> @location(0) vec4<f32> {
+  var c = textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex, 0.0) * W6_0;
+  let ox1 = OFF6_1 * u.gSourceTextureSize.x;
+  let ox2 = OFF6_2 * u.gSourceTextureSize.x;
+  let ox3 = OFF6_3 * u.gSourceTextureSize.x;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex + vec2(ox1, 0.0), 0.0) * W6_1;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex - vec2(ox1, 0.0), 0.0) * W6_1;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex + vec2(ox2, 0.0), 0.0) * W6_2;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex - vec2(ox2, 0.0), 0.0) * W6_2;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex + vec2(ox3, 0.0), 0.0) * W6_3;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex - vec2(ox3, 0.0), 0.0) * W6_3;
+  return c * u.gBrightness;
+}
+
+// verticalPass6 — blur.glsl:91-103
+@fragment fn fs3(in: VSOut) -> @location(0) vec4<f32> {
+  var c = textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex, 0.0) * W6_0;
+  let oy1 = OFF6_1 * u.gSourceTextureSize.y;
+  let oy2 = OFF6_2 * u.gSourceTextureSize.y;
+  let oy3 = OFF6_3 * u.gSourceTextureSize.y;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex + vec2(0.0, oy1), 0.0) * W6_1;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex - vec2(0.0, oy1), 0.0) * W6_1;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex + vec2(0.0, oy2), 0.0) * W6_2;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex - vec2(0.0, oy2), 0.0) * W6_2;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex + vec2(0.0, oy3), 0.0) * W6_3;
+  c = c + textureSampleLevel(gSrcSampler_tex, gSrcSampler_samp, in.tex - vec2(0.0, oy3), 0.0) * W6_3;
+  return c * u.gBrightness;
+}`;
+
 export const feedbackWGSL = /* wgsl */`
 struct Uniforms {
   decay: f32,

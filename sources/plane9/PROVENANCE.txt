@@ -19,3 +19,21 @@ Provenance chain:
 Re-extract with:
   python -c "import zipfile; open('scene.xml','wb').write(zipfile.ZipFile(r'source-scenes/plane9/Other/Color Cycle.p9c').read('scene.xml'))"
 The sha256 of the resulting file must match the value above.
+
+---
+
+blur-fixture.scene.xml — hand-authored minimal Plane9 fixture exercising
+the Clear -> Blur -> Screen shape under the DLL-witnessed Blur contract
+(Dir="2" Width="4" Brightness="1", grounded at Plane9Engine.dll offset
+0x1f8514 metadata block, sha256
+4cebc1b36f003a550b4fc6ae1979d579f4f7f27b03599c7aef88fd5526ba1196,
+v2.5.1 install). Not extracted from a shipping Plane9 scene — authored
+by PHOSPHENE for end-to-end verification of the p9 Blur conversion path.
+
+Provenance chain:
+- authored:  2026-07-18
+- purpose:   PHOSPHENE p9-to-phos Blur conversion regression + committed
+             scene byte-for-byte equality check
+- sha256:    ddf2e6cb5b4d290eacd691a016eb79ae58bd87731d2e658ba60af728f43fffc5
+- bytes:     1652
+- license:   CC0 (declared in the file)

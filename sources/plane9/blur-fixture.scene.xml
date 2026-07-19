@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Plane9Scene FormatVersion="2" Id="phosphene-blur-fixture" ParentId="" WarmupTime="0" SceneType="1" Version="1" DevelopmentTime="0" Created="20260718 00:00" LastModified="20260718 00:00">
+	<Author>PHOSPHENE</Author>
+	<Desc>Minimal Clear -> Blur -> Screen fixture that exercises the Plane9 Blur node under the witnessed Dir="2" Width="4" contract. Clear fills the target with a single color; Blur runs its two-pass separable Gaussian (horizontal-4 then vertical-4 per blur.glsl); Screen presents the blurred result. Constructed for PHOSPHENE end-to-end verification of the p9 Blur conversion path; not a shipping Plane9 scene.</Desc>
+	<Tags></Tags>
+	<License Type="CC0" RelicensingPossible="1">PHOSPHENE fixture</License>
+	<Nodes>
+		<Node Type="Screen" Name="Screen">
+			<Port Id="Viewport" Value="0 0 1 1"/>
+			<Port Id="CamPos" Value="0 0 -2"/>
+			<Port Id="CamRot" Value="0 0 0"/>
+			<Port Id="CamLookAt" Value="0 0 1"/>
+			<Port Id="CamLookAtInWorldSpace" Value="false"/>
+			<Port Id="CamFov" Value="45"/>
+			<Port Id="CamNear" Value="0.1"/>
+			<Port Id="CamFar" Value="1000"/>
+			<Port Id="ScaleByAspect" Value="false"/>
+		</Node>
+		<Node Type="Clear" Name="Clear1">
+			<Port Id="Color" Value="0.15 0.35 0.85 1"/>
+		</Node>
+		<Node Type="Blur" Name="Blur1">
+			<Port Id="Dir" Value="2"/>
+			<Port Id="Width" Value="4"/>
+			<Port Id="Brightness" Value="1"/>
+		</Node>
+	</Nodes>
+	<Connections>
+		<Connection Out="Clear1.Render" In="Blur1.Texture"/>
+		<Connection Out="Blur1.Texture" In="Screen.Render"/>
+	</Connections>
+	<SceneCompatibility>
+		<GoodScenes/>
+		<BadScenes/>
+	</SceneCompatibility>
+</Plane9Scene>
