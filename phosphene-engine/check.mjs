@@ -2147,22 +2147,24 @@ const nestedPayloadRefusalOk = (() => {
 // UNRESOLVED disposition.
 const lightWormsPath = new URL('../source-scenes/plane9/Abstract/Light Worms.p9c', import.meta.url);
 const lightWormsAvailable = existsSync(lightWormsPath);
-const lightWormsCorpusOk = (() => {
-  if (!lightWormsAvailable) return true; // skipped
+// Tri-state result. 'SKIP' when the gitignored corpus is absent from a
+// clean checkout. 'PASS' or 'FAIL' when the corpus is present. The
+// SKIP value is a string on purpose — it is never truthy in a boolean
+// sense and cannot participate in an && chain that would fold an
+// absent corpus into a passing compatibility claim.
+/** @type {'PASS'|'FAIL'|'SKIP'} */
+const plane9RetainedSourceOk = (() => {
+  if (!lightWormsAvailable) return 'SKIP';
   const b = readFileSync(lightWormsPath);
   const xml = extractSceneXml(new Uint8Array(b.buffer, b.byteOffset, b.byteLength));
-  // Assert the actual source-scene connection appears verbatim.
-  if (!xml.includes('<Connection Out="Shader4.Effect" In="RenderToTexture2.Effect"/>')) return false;
-  // RTT must refuse at UNRESOLVED disposition.
+  if (!xml.includes('<Connection Out="Shader4.Effect" In="RenderToTexture2.Effect"/>')) return 'FAIL';
   const dis = assessP9Records(scanP9(xml));
   const bad = dis.filter((d) => !d.ok);
   const rttUnresolved = bad.some((d) => /^RenderToTexture.*Plane9 conversion REFUSED \(UNRESOLVED\)/.test(d.text));
-  if (!rttUnresolved) return false;
-  // Nested Shader and Expression payloads on each RTT node must refuse
-  // via the nested-port disposition.
+  if (!rttUnresolved) return 'FAIL';
   const nestedShaderRefusal = bad.filter((d) => /RenderToTexture[123]/.test(d.text) && /Shader/.test(d.text) && /nested port payloads are not consumed/.test(d.text));
-  if (nestedShaderRefusal.length < 3) return false;
-  return true;
+  if (nestedShaderRefusal.length < 3) return 'FAIL';
+  return 'PASS';
 })();
 
 // (at) Fixed-pixel-size resource capability + honest Plane9 UNRESOLVED
@@ -2219,41 +2221,37 @@ const fixedSizeSubstrateOk = (() => {
   const plan128 = /** @type {any} */ (eng128.step(1 / 60));
   const planR128 = plan128.resources.find((/** @type {any} */ r) => r.id === 'r256');
   if (planR128.size.width !== 128 || planR128.size.height !== 128) return false;
-  // (5) The generic texture-blit native op runs from a hand-authored
-  //     PHOS-native scene with fixed 256x256 rgba16float target — this
-  //     exercises the substrate texture-edge propagation without any
-  //     Plane9 claim.
-  const blitScene = /** @type {any} */ ({
-    format: 'phos/1', meta: { name: 'blit-native' },
+  // (5) A grounded native op (clear-color) targets a fixed 256x256
+  //     rgba16float resource. The check inspects the render plan
+  //     produced by Engine.step — pass kinds, resource descriptor
+  //     in plan.resources — and does not execute WebGPU. This
+  //     exercises the substrate rgba16float allocation path and the
+  //     fixed-size descriptor propagation from scene to plan
+  //     without introducing any speculative op.
+  const fixedFmtScene = /** @type {any} */ ({
+    format: 'phos/1', meta: { name: 'fixed-rgba16float-target' },
     resources: [
-      { id: 'clear-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
-      { id: 'blit-out', kind: 'texture', format: 'rgba16float', size: { policy: 'fixed', width: 256, height: 256 }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
+      { id: 'rgba16f-out', kind: 'texture', format: 'rgba16float', size: { policy: 'fixed', width: 256, height: 256 }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
     ],
     nodes: [
-      { id: 'clear', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Target: { type: 'texture', value: { resourceId: 'clear-out' } }, Render: { type: 'render' } } },
-      { id: 'blit', primitive: 'graph', op: 'texture-blit', ports: {
-        Render: { type: 'render' },
-        Target: { type: 'texture', value: { resourceId: 'blit-out' } },
-        Color: { type: 'texture' },
-      } },
+      { id: 'clear', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0.1, 0.2, 0.3, 1] }, Target: { type: 'texture', value: { resourceId: 'rgba16f-out' } }, Render: { type: 'render' } } },
       { id: 'sink', primitive: 'graph', op: 'test-inspect-sink', ports: { A: { type: 'render' }, B: { type: 'render' }, presented: { type: 'render' } } },
     ],
     edges: [
-      { out: 'clear.Render', in: 'blit.Render' },
       { out: 'clear.Render', in: 'sink.A' },
       { out: 'clear.Render', in: 'sink.B' },
     ],
     expressions: [],
   });
-  const engBlit = new Engine(toRuntime(blitScene));
-  engBlit.setViewport(1024, 1024, 1024, 1024);
-  const planBlit = /** @type {any} */ (engBlit.step(1 / 60));
-  const blitKinds = planBlit.passes.map((/** @type {any} */ p) => p.kind);
-  if (JSON.stringify(blitKinds) !== JSON.stringify(['clear-color', 'texture-blit'])) return false;
-  const blitPass = planBlit.passes[1];
-  if (blitPass.reads[0] !== 'clear-out' || blitPass.writes[0] !== 'blit-out') return false;
-  const blitR = planBlit.resources.find((/** @type {any} */ x) => x.id === 'blit-out');
-  if (!blitR || blitR.format !== 'rgba16float' || blitR.size.width !== 256 || blitR.size.height !== 256) return false;
+  const engFmt = new Engine(toRuntime(fixedFmtScene));
+  engFmt.setViewport(1024, 1024, 1024, 1024);
+  const planFmt = /** @type {any} */ (engFmt.step(1 / 60));
+  const fmtKinds = planFmt.passes.map((/** @type {any} */ p) => p.kind);
+  if (JSON.stringify(fmtKinds) !== JSON.stringify(['clear-color'])) return false;
+  const fmtWrite = planFmt.passes[0].writes[0];
+  if (fmtWrite !== 'rgba16f-out') return false;
+  const fmtR = planFmt.resources.find((/** @type {any} */ x) => x.id === 'rgba16f-out');
+  if (!fmtR || fmtR.format !== 'rgba16float' || fmtR.size.width !== 256 || fmtR.size.height !== 256) return false;
   // (6) Existing canvas/canvas-16block scenes intact.
   const md = readFileSync(new URL('./scenes/md-101-per_frame.phos', import.meta.url), 'utf8');
   try { new Engine(toRuntime(parsePhos(md))).step(1 / 60); } catch { return false; }
@@ -2263,22 +2261,30 @@ const fixedSizeSubstrateOk = (() => {
 })();
 
 
-// ==== TWO SEPARATE SURFACES (reviewer foundation 2026-07-18) ====
+// ==== THREE SEPARATE RESULT SURFACES ====
 // engineRegressionOk: PHOSPHENE's own executor behaves as this codebase
-//   specifies it — MilkDrop scene 1 renders unchanged, the graph executor
-//   admits every valid graph and refuses every malformed one, PHOSPHENE's
-//   PHOSPHENE-native ops (MinMax/Beat/HSL as internal implementations,
-//   RGBAToColor, clear-color) behave as their PHOSPHENE spec requires.
-//   This does NOT establish Plane9 fidelity.
-// plane9CompatibilityOk: PHOSPHENE's Plane9 conversion door refuses every
-//   UNRESOLVED source shape and passes every evidence-backed one. Screen
-//   (witnessed geometry-free) and Clear PASS; HSLAToColor, MinMax, and
-//   Beat REFUSE at the compatibility gate; Color Cycle refuses at
-//   conversion. This surface does NOT accept PHOSPHENE's internal
-//   regression tests as evidence of Plane9 fidelity.
-const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && nativeHueCycleOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk && renderPlanFoundationOk && renderFanOutOk && valueMultiDriverOk && screenGuardOk && substrateOk && substrateCompletionOk && substrateRefinementOk && studioLifecycleOk;
-const plane9CompatibilityOk = p9Ok && p9ConvOk && colorCycleOk && plane9BlurSliceOk && fixedSizeSubstrateOk && nestedPayloadRefusalOk && lightWormsCorpusOk;
-const audioOk = engineRegressionOk && plane9CompatibilityOk;
+//   specifies. MilkDrop scene 1 renders unchanged; the graph executor
+//   admits every valid graph and refuses every malformed one; the
+//   substrate rgba16float allocation path and fixed-size descriptor
+//   propagation are verified via the render plan produced by
+//   Engine.step (no WebGPU execution in the check). This does NOT
+//   establish Plane9 fidelity.
+// plane9ImportGateOk: PHOSPHENE's Plane9 import door accepts every
+//   authorized shape and refuses every UNRESOLVED or malformed shape.
+//   Screen (witnessed geometry-free) and Clear pass through the door;
+//   HSLAToColor/MinMax/Beat/Blur/RenderToTexture refuse at the door;
+//   the nested-payload sentinel test asserts port-open and value-line
+//   refusal with node/port/line named. This surface does NOT claim
+//   Plane9 compatibility of any node; it verifies the door itself.
+// plane9RetainedSourceOk: tri-state result computed from the actual
+//   Light Worms.p9c scene when the gitignored corpus is present.
+//   SKIP when absent (never true, never in an && chain). PASS when
+//   the actual Shader4.Effect -> RenderToTexture2.Effect connection
+//   is present, RTT refuses at UNRESOLVED, and at least three nested
+//   Shader payload refusals are witnessed. FAIL otherwise.
+const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && nativeHueCycleOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk && renderPlanFoundationOk && renderFanOutOk && valueMultiDriverOk && screenGuardOk && substrateOk && substrateCompletionOk && substrateRefinementOk && studioLifecycleOk && fixedSizeSubstrateOk;
+const plane9ImportGateOk = p9Ok && p9ConvOk && colorCycleOk && plane9BlurSliceOk && nestedPayloadRefusalOk;
+const audioOk = engineRegressionOk && plane9ImportGateOk && plane9RetainedSourceOk !== 'FAIL';
 
 const eelFnCount = Object.keys(eelSubject).length;
 const eelCoveredCount = new Set(eelCases.map((c) => c[0])).size;
@@ -2347,27 +2353,29 @@ console.log('variable-contract ledger: 76 regvars classified + verified, vol abs
 console.log('aspect factors: forward to renderState, inverse to pool (exact):', aspectOk ? 'OK' : 'FAIL');
 console.log('finite-mesh warp: strip indices + identity UVs exact + zoom=0 NaN structure:', meshOk ? 'OK' : 'FAIL');
 console.log('ordered source records: per-line, in order, refusal names the line:', recordsOk ? 'OK' : 'FAIL');
-console.log('[plane9 compat] Color Cycle: scanner shape (7 nodes, 6 connections, CC0, FormatVersion 2) + compat-gate dispositions (Screen+Clear PASS, MinMax/Beat/HSLAToColor REFUSED UNRESOLVED) + standard HSL fingerprint match against retained fixture:', p9Ok ? 'OK' : 'FAIL');
+console.log('[plane9 import-gate] Color Cycle: scanner shape (7 nodes, 6 connections, CC0, FormatVersion 2) + compat-gate dispositions (Screen+Clear PASS, MinMax/Beat/HSLAToColor REFUSED UNRESOLVED) + standard HSL fingerprint match against retained fixture:', p9Ok ? 'OK' : 'FAIL');
 console.log('native-op registry: unknown op + unrealizable chains + mistyped edges refused, MilkDrop state shape intact:', registryOk ? 'OK' : 'FAIL');
 console.log('native clear-color scene: RGBAToColor->clear-color value-edge dataflow + Blue-pulse + port refusals:', nativeClearOk ? 'OK' : 'FAIL');
 console.log('native hue-cycle scene: MinMax(Rand) -> HSLAToColor -> clear-color animates and matches the HSL formula:', nativeHueCycleOk ? 'OK' : 'FAIL');
-console.log('[plane9 compat] p9 conversion door: Color Cycle refuses (HSLAToColor UNRESOLVED) + Screen+Clear PASS shape converts and executes + tampering refuses:', p9ConvOk ? 'OK' : 'FAIL');
-console.log('=== SEMANTIC-SCOPE NOTE (reviewer foundation 2026-07-18) ===');
-console.log('two separate surfaces are reported below:');
-console.log('  [engine regression]  — PHOSPHENE internal implementation behaves');
-console.log('                         as this codebase specifies (does NOT');
-console.log('                         verify Plane9 runtime fidelity).');
-console.log('  [plane9 compat]      — Plane9 conversion gate refuses UNRESOLVED');
-console.log('                         source shapes and passes evidence-backed');
-console.log('                         ones (Screen witnessed-config + Clear).');
-console.log('an unresolved Plane9 behavior may be exercised by native scenes');
-console.log('but cannot contribute to the compatibility surface passing.');
+console.log('[plane9 import-gate] p9 conversion door: Color Cycle refuses (HSLAToColor UNRESOLVED) + Screen+Clear PASS shape converts and executes + tampering refuses:', p9ConvOk ? 'OK' : 'FAIL');
+console.log('=== SEMANTIC-SCOPE NOTE ===');
+console.log('three separate result surfaces are reported below:');
+console.log('  [engine regression]      PHOSPHENE internal implementation behaves');
+console.log('                           as this codebase specifies (does NOT verify');
+console.log('                           Plane9 runtime fidelity).');
+console.log('  [plane9 import-gate]     Plane9 import door accepts authorized shapes');
+console.log('                           (Screen+Clear) and refuses UNRESOLVED ones');
+console.log('                           (HSLAToColor, MinMax, Beat, Blur, RTT). Does');
+console.log('                           NOT claim Plane9 compatibility of any node.');
+console.log('  [plane9 retained-source] PASS/FAIL/SKIP against the actual Light');
+console.log('                           Worms scene when the gitignored corpus is');
+console.log('                           present. SKIP does not fold into PASS.');
 console.log('===');
 console.log('[internal regression] shared xorshift128 RNG: two fresh instances match 8 draws + setState round-trips (does NOT verify Plane9 DLL RNG identity):', rngOk ? 'OK' : 'FAIL');
 console.log('[internal regression] MinMax against PHOSPHENE\'s own implementation of Todd\'s spec — None + LoopUp/LoopDown linear + PingPong + Rand determinism + smoothstep vs linear discriminator (does NOT verify vs Plane9 traces):', minmaxOk ? 'OK' : 'FAIL');
 console.log('[internal regression] Beat node-level composition against Todd\'s spec — inactive=NoMusic direct + active linear formula + upper cap + Min>Max case (does NOT verify upstream detector):', beatOk ? 'OK' : 'FAIL');
 console.log('[internal regression] HSLAToColor standard formula — Color Cycle retained vector + pure red + pure green (one-vector against Plane9 output, two invented probes):', hslOk ? 'OK' : 'FAIL');
-console.log('[plane9 compat] Color Cycle: fixture REFUSES at conversion (HSLAToColor UNRESOLVED at line 22) — provisional PHOSPHENE MinMax/Beat/HSL implementations do NOT run through as accepted Plane9 conversion:', colorCycleOk ? 'OK' : 'FAIL');
+console.log('[plane9 import-gate] Color Cycle: fixture REFUSES at conversion (HSLAToColor UNRESOLVED at line 22) — provisional PHOSPHENE MinMax/Beat/HSL implementations do NOT run through as accepted Plane9 conversion:', colorCycleOk ? 'OK' : 'FAIL');
 console.log('[MinMax scope bound] DelayMode/ITimeMode ≠ 1 refuses at Engine construction:', delayItimeModeGuardOk ? 'OK' : 'FAIL');
 console.log('[render-plan foundation] MilkDrop plan carries borders inside its warp-feedback pass, two independent chains refuse (two sinks), and clear→borders refuses at contribute time:', renderPlanFoundationOk ? 'OK' : 'FAIL');
 console.log('[render fan-out] a real graph where one source Render output feeds two branches through a two-input inspection sink — branch A mutation leaves branch B untouched, and the two branches are independent objects at every level:', renderFanOutOk ? 'OK' : 'FAIL');
@@ -2376,10 +2384,10 @@ console.log('[screen guard] every write path — construction, setVar, edge atta
 console.log('[substrate] MilkDrop plan carries resources + explicit reads/writes + presentation; parser refuses undeclared/wrong-kind/wrong-format resources; engine refuses missing feedback and wrong lifetime:', substrateOk ? 'OK' : 'FAIL');
 console.log('[substrate completion] resources rename does not touch ops; borders references producer pass by id; composite carries aspectY; usage/kind cross-field rules refuse; persistent-pingpong aliasing authorized; existing plans intact:', substrateCompletionOk ? 'OK' : 'FAIL');
 console.log('[substrate refinement] mutating fan-out refused at construction; cross-field descriptor validation refuses invalid unused + zero-usage + presentation combos; multi-writer refused for every resource; every pass has a unique nonempty id; existing renamed plans stay valid:', substrateRefinementOk ? 'OK' : 'FAIL');
-console.log('[plane9 compat] Plane9 Blur native op refuses Pass outside {0,1,2,3} and non-finite Brightness at contribute; invalid Clear.Render → Blur.Texture fixture refuses at source-port-type mismatch; synthetic RGBAToColor.Color → Screen.Render refuses at type mismatch:', plane9BlurSliceOk ? 'OK' : 'FAIL');
-console.log('[engine regression] fixed-pixel-size resource substrate: parse round-trip; invalid fixed dimensions refuse; executor honors width/height regardless of canvas viewport; the source-neutral texture-blit native op runs a fixed 256x256 rgba16float target from a hand-authored PHOS-native scene; existing canvas/canvas-16block scenes intact:', fixedSizeSubstrateOk ? 'OK' : 'FAIL');
-console.log('[plane9 compat] nested-payload ownership: a synthetic RenderToTexture node carrying <Port Id="Shader"><Value>PhosphenePayloadSentinel-A1B2C3</Value></Port> refuses at the port-open with node/port/line named, and the enclosed <Value> payload line is refused separately as inside an unhandled nested port (no silent omission):', nestedPayloadRefusalOk ? 'OK' : 'FAIL');
-console.log(`[plane9 compat] Light Worms retained corpus: ${lightWormsAvailable ? (lightWormsCorpusOk ? 'OK — actual Shader4.Effect -> RenderToTexture2.Effect connection asserted; RTT refuses at UNRESOLVED; ≥3 nested Shader payload refusals witnessed on RTT1/RTT2/RTT3' : 'FAIL') : 'SKIP — source-scenes/plane9/Abstract/Light Worms.p9c not present; corpus is gitignored per PROVENANCE, not folded into compatibility PASS'}`);
+console.log('[plane9 import-gate] Plane9 Blur native op refuses Pass outside {0,1,2,3} and non-finite Brightness at contribute; invalid Clear.Render → Blur.Texture fixture refuses at source-port-type mismatch; synthetic RGBAToColor.Color → Screen.Render refuses at type mismatch:', plane9BlurSliceOk ? 'OK' : 'FAIL');
+console.log('[engine regression] fixed-pixel-size resource substrate (render-plan inspection, no WebGPU execution): parse round-trip; invalid fixed dimensions refuse; executor honors width/height regardless of canvas viewport; a clear-color pass targets a fixed 256x256 rgba16float resource and the plan carries the expected descriptor; existing canvas/canvas-16block scenes intact:', fixedSizeSubstrateOk ? 'OK' : 'FAIL');
+console.log('[plane9 import-gate] nested-payload ownership: a synthetic RenderToTexture node carrying <Port Id="Shader"><Value>PhosphenePayloadSentinel-A1B2C3</Value></Port> refuses at the port-open with node/port/line named, and the enclosed <Value> payload line is refused separately as inside an unhandled nested port (no silent omission):', nestedPayloadRefusalOk ? 'OK' : 'FAIL');
+console.log(`[plane9 retained-source] Light Worms.p9c: ${plane9RetainedSourceOk}${plane9RetainedSourceOk === 'PASS' ? ' — actual <Connection Out="Shader4.Effect" In="RenderToTexture2.Effect"/> asserted; RTT refuses at UNRESOLVED; ≥3 nested Shader payload refusals witnessed on RTT1/RTT2/RTT3' : plane9RetainedSourceOk === 'SKIP' ? ' — source-scenes/plane9/Abstract/Light Worms.p9c not present in this checkout; the corpus is gitignored per sources/plane9/PROVENANCE.txt; SKIP is not folded into any PASS' : ' — retained-source assertion failed against the present Light Worms.p9c; see stderr'}`);
 console.log('[studio lifecycle] setViewport before step drives composite motion.aspectY (landscape/portrait/square); two Engines from the same scene text produce independent plan objects; changing viewport between step calls updates aspectY at the next step:', studioLifecycleOk ? 'OK' : 'FAIL');
 console.log('[graph correctness] multi-driver refusal + render-input requires incoming edge:', ambiguousGraphRefusedOk ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
@@ -2387,8 +2395,9 @@ console.log('inert value port refused at engine construction (shared OP_PORTS):'
 console.log('triage scan: all refusals collected, strict import still throws first:', triageOk ? 'OK' : 'FAIL');
 console.log('CSS @import chains: every page reference and import resolves:', cssImportsOk ? 'OK' : 'FAIL');
 for (const [name, args] of eelFailures) { const fn = eelSubject[name]; console.log(`  FAIL: ${name}(${args.join(',')}) = ${fn ? fn(...args) : 'missing'}`); }
-console.log(`\n=== TWO-SURFACE SUMMARY ===`);
-console.log(`engine regression: ${engineRegressionOk ? 'PASS' : 'FAIL'}`);
-console.log(`plane9 compat:     ${plane9CompatibilityOk ? 'PASS' : 'FAIL'} (Screen + Clear PASS; HSLAToColor + MinMax + Beat + Blur + RenderToTexture REFUSED UNRESOLVED; corpus ${lightWormsAvailable ? 'PRESENT' : 'ABSENT — source-backed subset SKIPPED, not folded into PASS'})`);
+console.log(`\n=== THREE-SURFACE SUMMARY ===`);
+console.log(`engine regression:          ${engineRegressionOk ? 'PASS' : 'FAIL'}`);
+console.log(`plane9 import-gate:         ${plane9ImportGateOk ? 'PASS' : 'FAIL'} (Screen + Clear accepted at door; HSLAToColor + MinMax + Beat + Blur + RenderToTexture refused UNRESOLVED at door)`);
+console.log(`plane9 retained-source:     ${plane9RetainedSourceOk}`);
 console.log(`\nRESULT: ${pass ? 'PASS' : 'FAIL'}`);
 process.exit(pass ? 0 : 1);

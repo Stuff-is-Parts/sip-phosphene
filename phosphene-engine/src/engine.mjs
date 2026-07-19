@@ -196,12 +196,11 @@ function circularInterp(/** @type {number} */ prev, /** @type {number} */ target
  *   passes: PassSpec[],
  *   presentation: {resourceId:string}|null
  * }} RenderPlan
- * @typedef {WarpFeedbackPass|CompositePass|ClearPass|Plane9BlurPass|TextureBlitPass} PassSpec
+ * @typedef {WarpFeedbackPass|CompositePass|ClearPass|Plane9BlurPass} PassSpec
  * @typedef {{id:string, kind:'warp-feedback', motion:any, borders:{inner:null|any, outer:null|any}, reads:string[], writes:string[]}} WarpFeedbackPass
  * @typedef {{id:string, kind:'composite', comp:any, reads:string[], writes:string[]}} CompositePass
  * @typedef {{id:string, kind:'clear-color', clear:{r:number, g:number, b:number, a:number}, reads:string[], writes:string[]}} ClearPass
  * @typedef {{id:string, kind:'plane9-blur', pass:number, brightness:number, reads:string[], writes:string[]}} Plane9BlurPass
- * @typedef {{id:string, kind:'texture-blit', reads:string[], writes:string[]}} TextureBlitPass
  * @typedef {{resourceId:string, passId?:string}} ResourceRef
  * @typedef {{plan:RenderPlan, outputs:Record<string, ResourceRef>}} ContributeResult
  */
@@ -418,36 +417,6 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
         kind: 'plane9-blur',
         pass: passNumber,
         brightness,
-        reads: [inRef.resourceId], writes: [target.resourceId],
-      }));
-      return { Color: /** @type {any} */ ({ resourceId: target.resourceId, passId }) };
-    },
-  },
-  'texture-blit': {
-    // Source-neutral generic texture-to-texture blit. Reads the source
-    // resource named by the incoming Render reference and writes the
-    // target texture resource named by the Target port. The op does
-    // NOT claim to implement any specific Plane9 or MilkDrop node's
-    // semantics; it is a substrate primitive for testing the texture-
-    // typed edge propagation and fixed-pixel-size resource capabilities.
-    kind: 'render',
-    inputs: {
-      Render: 'render',
-      Target: 'texture',
-    },
-    outputs: { Color: 'texture' },
-    contribute(inputRefs, ports, _pool, eng, plan) {
-      const inRef = /** @type {any} */ (inputRefs.Render);
-      if (!inRef) throw new Error('texture-blit requires an incoming render reference on its "Render" port — refusing');
-      const target = /** @type {ResourceRef|undefined} */ (ports.Target);
-      if (!target || typeof target !== 'object' || !('resourceId' in target)) throw new Error('texture-blit: Target port must carry a texture resource reference — refusing');
-      const targetDesc = plan.resources.find((r) => r.id === target.resourceId);
-      if (!targetDesc) throw new Error(`texture-blit: Target references resource "${target.resourceId}" which is not declared in the scene — refusing`);
-      if (targetDesc.kind !== 'texture') throw new Error(`texture-blit: Target resource "${target.resourceId}" must have kind "texture", got "${targetDesc.kind}" — refusing`);
-      const passId = eng.nextPassId();
-      plan.passes.push(/** @type {any} */ ({
-        id: passId,
-        kind: 'texture-blit',
         reads: [inRef.resourceId], writes: [target.resourceId],
       }));
       return { Color: /** @type {any} */ ({ resourceId: target.resourceId, passId }) };

@@ -335,27 +335,6 @@ export function createRenderContext(device, canvas, ctx, fmt) {
         ] });
         const rp = enc.beginRenderPass({ colorAttachments: [{ view: ctx.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } }] });
         rp.setPipeline(pipe); rp.setBindGroup(0, bbg); rp.draw(3); rp.end();
-      } else if (p.kind === 'texture-blit') {
-        // Source-neutral texture-to-texture blit: samples the source
-        // resource and writes it to the target using the same blit
-        // shader the presentation path uses. Does not claim any
-        // source-node semantics.
-        if (p.reads.length !== 1 || p.writes.length !== 1) throw new Error('render executor: texture-blit must read one and write one resource — refusing');
-        const readId = /** @type {string} */ (p.reads[0]);
-        const writeId = /** @type {string} */ (p.writes[0]);
-        const writeDesc = /** @type {any} */ (resourcePool.get(writeId))?.desc;
-        if (!writeDesc) throw new Error(`render executor: texture-blit target "${writeId}" not allocated — refusing`);
-        const readTex = textureFor(readId, 'read');
-        const writeTex = textureFor(writeId, 'write');
-        const targetFmt = resolveFormat(writeDesc);
-        const pipe = blitPipeline(targetFmt);
-        const bg = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [
-          { binding: 0, resource: readTex.createView() },
-          { binding: 1, resource: sampClamp },
-        ] });
-        const rp = enc.beginRenderPass({ colorAttachments: [{ view: writeTex.createView(), loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } }] });
-        rp.setPipeline(pipe); rp.setBindGroup(0, bg); rp.draw(3); rp.end();
-        writeSwap(writeId);
       } else if (p.kind === 'plane9-blur') {
         // Plane9 blur pass — samples the source resource once through
         // the shader's kernel and writes to the target resource. The
