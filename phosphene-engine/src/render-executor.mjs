@@ -333,9 +333,24 @@ export function createRenderContext(device, canvas, ctx, fmt) {
     device.queue.submit([enc.finish()]);
   }
 
+  /**
+   * Destroy every pooled scene-specific texture and clear the pool.
+   * Immutable device resources (shader modules, pipelines, samplers,
+   * uniform buffers, static mesh buffers) are retained across scene
+   * loads because they encode API contracts, not scene state. Called
+   * by Studio's atomic applyScene sequence so the new engine's plan
+   * starts from a clean texture pool rather than reusing physical
+   * textures allocated for the prior scene's resource ids.
+   */
+  function resetScene() {
+    for (const entry of resourcePool.values()) for (const t of entry.textures) t.destroy();
+    resourcePool.clear();
+  }
+
   return {
     executeFrame,
     resize,
+    resetScene,
     get texW() {
       const { blockW } = canvasSize(); return blockW;
     },

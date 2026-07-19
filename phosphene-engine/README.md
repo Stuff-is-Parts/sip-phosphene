@@ -10,7 +10,6 @@ pages load the `.phos`; the `.milk` is the retained source recipe. Format spec:
 ## Entry points
 - `index.html` — player (splash, demo/mic/file audio, HUD, fullscreen)
 - `studio.html` — editor (shows the scene graph's nodes/ports from the .phos, edits values/equation live, export .milk)
-- `engine-test.html` — bare engine render, no UI
 
 ## What is verified, and how (run these)
 - `node check.mjs` — expression path: engine runs the preset equation; a changed

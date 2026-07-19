@@ -36,10 +36,26 @@ let baselineText = serializePhos(sceneDoc);
 // load a new scene document as the baseline (initial load, template button)
 /** @param {any} doc */
 function loadDoc(doc){ baselineText = serializePhos(doc); applyScene(doc); updateSrcBtn(); }
-// swap in a scene document and refresh the whole UI
+// Swap in a scene document atomically (reviewer 2026-07-18 lifecycle-seam
+// fix). The sequence: build the next runtime and Engine into locals
+// without touching the active engine; synchronize the live canvas
+// dimensions so the next Engine starts with the correct viewport;
+// initialize the next Engine's viewport with those dimensions; reset
+// scene-specific renderer resources (pooled ping-pong textures) so the
+// prior scene's pool cannot leak into the new plan; only then assign the
+// next Engine as active; finally refresh the UI. Before renderCtx exists
+// (module init before the WebGPU block runs) the sequence still applies,
+// with the sync and reset steps skipped.
 /** @param {any} doc */
 function applyScene(doc){
-  sceneDoc = doc; scene = toRuntime(doc); engine = new Engine(scene);
+  const nextScene = toRuntime(doc);
+  const nextEngine = new Engine(nextScene);
+  if (renderCtx) {
+    updateCanvasBacking();
+    nextEngine.setViewport(canvas.width, canvas.height, renderCtx.texW, renderCtx.texH);
+    renderCtx.resetScene();
+  }
+  sceneDoc = doc; scene = nextScene; engine = nextEngine;
   renderGraph(); renderMetaInputs();
   eqEl.value = scene.expressions.perFrame.join('\n');
   renderSceneStrip();
@@ -204,6 +220,53 @@ $('savePhos').onclick = async () => {
 
 // ---- WebGPU render (MUST: running visual) ----
 const canvas = $cv('c');
+// Canvas sync + renderCtx handles live at module scope so applyScene can
+// call them during the atomic scene swap. They stay null until the
+// WebGPU init block below assigns them; before then the applyScene
+// pre-sync branch skips (module init has not yet reached the WebGPU
+// initialization).
+/** @type {ReturnType<typeof createRenderContext>|null} */
+let renderCtx = null;
+// Authoritative canvas-backing sync (reviewer 2026-07-18 lifecycle-seam
+// fix). Reads getBoundingClientRect and the CURRENT devicePixelRatio each
+// call — never captures dpr once — computes the required integer backing
+// dimensions from client size × dpr, updates canvas.width and
+// canvas.height only when the values change, and calls renderCtx.resize()
+// only when the backing dimensions actually changed. This is the single
+// function every synchronization site calls; the naming makes it visible
+// that scene-swap, ResizeObserver, fullscreenchange, library close, and
+// per-frame all funnel through the same code path.
+function updateCanvasBacking(){
+  if (!renderCtx) return false;
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(1, Math.round(rect.width * dpr));
+  const h = Math.max(1, Math.round(rect.height * dpr));
+  if (canvas.width === w && canvas.height === h) return false;
+  canvas.width = w;
+  canvas.height = h;
+  renderCtx.resize();
+  return true;
+}
+// Full sync — update the backing then push the current backing plus
+// renderCtx.texW/texH into the active engine's viewport. This is the
+// function the task specification named "one Studio function that,
+// whenever called, ... calls engine.setViewport(...)"; it runs after
+// renderCtx is created, before every frame, after applyScene, after the
+// Library drawer closes, after fullscreen changes, and from the
+// ResizeObserver on #stage.
+function syncCanvas(){
+  if (!renderCtx) return;
+  updateCanvasBacking();
+  engine.setViewport(canvas.width, canvas.height, renderCtx.texW, renderCtx.texH);
+}
+// Studio-swap hook — applyScene() reaches this at construction time.
+// Kept as a plain function reference so studio-lifecycle tests can
+// exercise the same seam without depending on a WebGPU context.
+/** @type {boolean} */
+const showDiag = new window.URLSearchParams(window.location.search).has('diag');
+const diagEl = $('diag');
+if (!showDiag) diagEl.style.display = 'none';
 if (!navigator.gpu) { $('hud').innerHTML = 'WebGPU not available'; }
 else {
   const adapter = await navigator.gpu.requestAdapter();
@@ -213,27 +276,44 @@ else {
   if (!maybeCtx) throw new Error('WebGPU canvas context unavailable');
   const ctx = maybeCtx;
   const fmt = navigator.gpu.getPreferredCanvasFormat();
-  const dpr = devicePixelRatio||1;
-  const resize=()=>{canvas.width=canvas.clientWidth*dpr;canvas.height=canvas.clientHeight*dpr;renderCtx.resize();};
   ctx.configure({device,format:fmt,alphaMode:'opaque'});
-  const renderCtx=createRenderContext(device,canvas,ctx,fmt);
-  resize(); addEventListener('resize',resize);
+  const localRenderCtx = createRenderContext(device,canvas,ctx,fmt);
+  renderCtx = localRenderCtx;
+  // Sync once after the context is created so the first frame draws at
+  // the right backing dimensions. Every subsequent sync site funnels
+  // through syncCanvas().
+  syncCanvas();
+  addEventListener('resize', syncCanvas);
+  document.addEventListener('fullscreenchange', syncCanvas);
+  // Observe the stage container so split-panel drags and component
+  // relayouts fire the sync even when no window.resize event happens
+  // (the wa-split-panel drag between the stage and the panel is the
+  // exact scenario the resize listener alone misses).
+  new window.ResizeObserver(syncCanvas).observe($('stage'));
 
   let last=performance.now(),fpsAcc=0,fpsN=0;
   /** @param {number} now */
   function frame(now){
     const dt=Math.min(0.05,(now-last)/1000); last=now;
     if(playing){
-      engine.setViewport(canvas.width,canvas.height,renderCtx.texW,renderCtx.texH);
+      syncCanvas();
       audio.analysis.update(dt);
       const a=audio.analysis;
       // Plane9 Beat runs INACTIVE in PHOSPHENE per PLANE9-CONTRACT.md §Beat
       const plan=engine.step(dt,{bass:a.bass,mid:a.mid,treb:a.treb,bass_att:a.bassAtt,mid_att:a.midAtt,treb_att:a.trebAtt,musicActive:false,rawBeat:0});
       drawScope();
-      renderCtx.executeFrame(plan);
+      localRenderCtx.executeFrame(plan);
       // MUST: live variable readout + live port values
       $('fr').textContent=String(engine.frame);
       fpsAcc+=1/dt;fpsN++; if(fpsN>=15){$('fps').textContent=String(Math.round(fpsAcc/fpsN));fpsAcc=0;fpsN=0;}
+      if (showDiag) {
+        const rect = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        diagEl.textContent = ' · client ' + Math.round(rect.width) + '×' + Math.round(rect.height)
+          + ' · canvas ' + canvas.width + '×' + canvas.height
+          + ' · tex ' + localRenderCtx.texW + '×' + localRenderCtx.texH
+          + ' · dpr ' + dpr.toFixed(2);
+      }
       const vd=$('vars'); vd.innerHTML='';
       // time is always present; each other row picks the first numeric
       // reading of a well-known EEL-aliased port so the readout is useful
@@ -691,17 +771,17 @@ async function renderLibrary(){
   catch{ /* session imports still listed below */ }
   /** @param {string} label @param {() => void} fn */
   const add=(label,fn)=>{ const b=document.createElement('wa-button'); b.setAttribute('size','s'); b.style.display='block'; b.style.marginBottom='6px'; b.textContent=label; b.addEventListener('click',fn); list.append(b); };
-  for(const sc of manifest.scenes||[]) add(sc.name,async()=>{ loadDoc(parsePhos(await (await fetch('./scenes/'+sc.file)).text())); importedSrcText=null; libDrawer.open=false; });
+  for(const sc of manifest.scenes||[]) add(sc.name,async()=>{ loadDoc(parsePhos(await (await fetch('./scenes/'+sc.file)).text())); importedSrcText=null; libDrawer.open=false; syncCanvas(); });
   for(const sc of importedScenes) add(sc.name+' (imported)',async()=>{
     if(sc.ext==='p9c'){
       try{ await loadP9(sc.text,sc.name); }
       catch{ openTriage(sc.text, sc.name+' :: scene.xml', assessP9Records(scanP9(sc.text))); }
-      libDrawer.open=false; return;
+      libDrawer.open=false; syncCanvas(); return;
     }
     const h=IMPORTERS[sc.ext];
     try{ if(h)await h(sc.text,sc.name); }
     catch{ if(sc.ext==='milk')openTriage(sc.text, sc.name, assessRecords(scanMilk(sc.text))); }
-    libDrawer.open=false;
+    libDrawer.open=false; syncCanvas();
   });
   if(!(manifest.scenes||[]).length&&!importedScenes.length)list.textContent='no scenes listed';
 }
@@ -710,6 +790,10 @@ $('library').onclick=async()=>{
   await renderLibrary();
   libDrawer.open=true;
 };
+// wa-drawer fires 'wa-after-hide' after its close animation; sync at
+// that boundary so the layout the drawer was hiding is picked up even
+// when the user closed the drawer without loading a scene.
+libDrawer.addEventListener('wa-after-hide', () => { syncCanvas(); });
 
 // ---- one Import button: dispatch by format, refuse unknowns by name --------
 // .phos loads natively; .milk converts through the strict door (a refusal

@@ -633,7 +633,7 @@ const triageOk = (() => {
 //     or a config surface, stop and admit a real tool instead.
 const cssImportsOk = (() => {
   const base = new URL('.', import.meta.url);
-  const pages = ['index.html', 'player.html', 'studio.html', 'engine-test.html'];
+  const pages = ['index.html', 'player.html', 'studio.html'];
   /** @type {URL[]} */
   const cssQueue = [];
   for (const pg of pages) {
@@ -1924,6 +1924,75 @@ const substrateRefinementOk = (() => {
     && uniquePassIdsOk && existingRenamedClearOk;
 })();
 
+// (ar) Studio scene-swap lifecycle-seam regressions (reviewer 2026-07-18
+//      Studio fix). The Studio bug loaded a scene whose composite pass
+//      inherited stale canvas dimensions because canvas sync did not
+//      happen before the new Engine's first step. These checks exercise
+//      the same seam at the engine layer where the fix's logic lives:
+//      viewport-before-step drives composite motion.aspectY, successive
+//      scene loads with the same resource ids remain independent, and
+//      the composite pass reads its aspect from the current Engine's
+//      viewport rather than any prior state.
+const studioLifecycleOk = (() => {
+  const md = readFileSync(new URL('./scenes/md-101-per_frame.phos', import.meta.url), 'utf8');
+  // (1) setViewport landing before step() drives the composite's
+  //     aspect. A landscape viewport (1920x1080) produces aspectY < 1;
+  //     a portrait viewport (1080x1920) produces aspectY = 1; a square
+  //     viewport (1024x1024) also produces aspectY = 1. The precise
+  //     values follow the Engine.aspectY expression:
+  //       aspectY = (texW > texH) ? texH/texW : 1
+  const engLandscape = new Engine(toRuntime(parsePhos(md)));
+  engLandscape.setViewport(1920, 1080, 1920, 1080);
+  const planLandscape = /** @type {any} */ (engLandscape.step(1 / 60));
+  const compLandscape = planLandscape.passes.find((/** @type {any} */ p) => p.kind === 'composite');
+  if (Math.abs(compLandscape.comp.aspectY - (1080 / 1920)) > 1e-9) return false;
+  const engPortrait = new Engine(toRuntime(parsePhos(md)));
+  engPortrait.setViewport(1080, 1920, 1080, 1920);
+  const planPortrait = /** @type {any} */ (engPortrait.step(1 / 60));
+  const compPortrait = planPortrait.passes.find((/** @type {any} */ p) => p.kind === 'composite');
+  if (compPortrait.comp.aspectY !== 1) return false;
+  const engSquare = new Engine(toRuntime(parsePhos(md)));
+  engSquare.setViewport(1024, 1024, 1024, 1024);
+  const planSquare = /** @type {any} */ (engSquare.step(1 / 60));
+  const compSquare = planSquare.passes.find((/** @type {any} */ p) => p.kind === 'composite');
+  if (compSquare.comp.aspectY !== 1) return false;
+  // (2) Two successive Engine constructions from the same scene text
+  //     produce independent plan objects — a Studio scene swap that
+  //     builds the next Engine before replacing the active one cannot
+  //     let plan state leak between them. The passes carry the same
+  //     stable ids across both engines (nextPassId resets per frame,
+  //     so identical scenes at frame 1 yield identical id strings),
+  //     but the containing plan objects and pass objects are distinct.
+  const engA = new Engine(toRuntime(parsePhos(md)));
+  engA.setViewport(1920, 1080, 1920, 1080);
+  const planA = /** @type {any} */ (engA.step(1 / 60));
+  const engB = new Engine(toRuntime(parsePhos(md)));
+  engB.setViewport(1024, 1024, 1024, 1024);
+  const planB = /** @type {any} */ (engB.step(1 / 60));
+  if (planA === planB) return false;
+  if (planA.passes[0] === planB.passes[0]) return false;
+  // Same-frame pass ids are deterministic strings, so both plans carry
+  // 'pass-1' / 'pass-2'; the plan-level uniqueness check still passed
+  // per plan, which is what validatePlan enforces.
+  const idsA = planA.passes.map((/** @type {any} */ p) => p.id);
+  const idsB = planB.passes.map((/** @type {any} */ p) => p.id);
+  if (JSON.stringify(idsA) !== JSON.stringify(idsB)) return false;
+  // (3) Changing viewport between step() calls on a single engine
+  //     updates comp.aspectY at the next step — the composite reads
+  //     its aspect from the current Engine viewport, not any cached
+  //     first-frame value.
+  const engMut = new Engine(toRuntime(parsePhos(md)));
+  engMut.setViewport(1024, 1024, 1024, 1024);
+  const planMutSquare = /** @type {any} */ (engMut.step(1 / 60));
+  const compMutSquare = planMutSquare.passes.find((/** @type {any} */ p) => p.kind === 'composite');
+  if (compMutSquare.comp.aspectY !== 1) return false;
+  engMut.setViewport(1920, 1080, 1920, 1080);
+  const planMutLand = /** @type {any} */ (engMut.step(1 / 60));
+  const compMutLand = planMutLand.passes.find((/** @type {any} */ p) => p.kind === 'composite');
+  if (Math.abs(compMutLand.comp.aspectY - (1080 / 1920)) > 1e-9) return false;
+  return true;
+})();
+
 // ==== TWO SEPARATE SURFACES (reviewer foundation 2026-07-18) ====
 // engineRegressionOk: PHOSPHENE's own executor behaves as this codebase
 //   specifies it — MilkDrop scene 1 renders unchanged, the graph executor
@@ -1937,7 +2006,7 @@ const substrateRefinementOk = (() => {
 //   Beat REFUSE at the compatibility gate; Color Cycle refuses at
 //   conversion. This surface does NOT accept PHOSPHENE's internal
 //   regression tests as evidence of Plane9 fidelity.
-const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && nativeHueCycleOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk && renderPlanFoundationOk && renderFanOutOk && valueMultiDriverOk && screenGuardOk && substrateOk && substrateCompletionOk && substrateRefinementOk;
+const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && nativeHueCycleOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk && renderPlanFoundationOk && renderFanOutOk && valueMultiDriverOk && screenGuardOk && substrateOk && substrateCompletionOk && substrateRefinementOk && studioLifecycleOk;
 const plane9CompatibilityOk = p9Ok && p9ConvOk && colorCycleOk;
 const audioOk = engineRegressionOk && plane9CompatibilityOk;
 
@@ -2037,6 +2106,7 @@ console.log('[screen guard] every write path — construction, setVar, edge atta
 console.log('[substrate] MilkDrop plan carries resources + explicit reads/writes + presentation; parser refuses undeclared/wrong-kind/wrong-format resources; engine refuses missing feedback and wrong lifetime:', substrateOk ? 'OK' : 'FAIL');
 console.log('[substrate completion] resources rename does not touch ops; borders references producer pass by id; composite carries aspectY; usage/kind cross-field rules refuse; persistent-pingpong aliasing authorized; existing plans intact:', substrateCompletionOk ? 'OK' : 'FAIL');
 console.log('[substrate refinement] mutating fan-out refused at construction; cross-field descriptor validation refuses invalid unused + zero-usage + presentation combos; multi-writer refused for every resource; every pass has a unique nonempty id; existing renamed plans stay valid:', substrateRefinementOk ? 'OK' : 'FAIL');
+console.log('[studio lifecycle] setViewport before step drives composite motion.aspectY (landscape/portrait/square); two Engines from the same scene text produce independent plan objects; changing viewport between step calls updates aspectY at the next step:', studioLifecycleOk ? 'OK' : 'FAIL');
 console.log('[graph correctness] multi-driver refusal + render-input requires incoming edge:', ambiguousGraphRefusedOk ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
 console.log('inert value port refused at engine construction (shared OP_PORTS):', inertPortOk ? 'OK' : 'FAIL');
