@@ -196,12 +196,12 @@ function circularInterp(/** @type {number} */ prev, /** @type {number} */ target
  *   passes: PassSpec[],
  *   presentation: {resourceId:string}|null
  * }} RenderPlan
- * @typedef {WarpFeedbackPass|CompositePass|ClearPass|Plane9BlurPass|Plane9RttPass} PassSpec
+ * @typedef {WarpFeedbackPass|CompositePass|ClearPass|Plane9BlurPass|TextureBlitPass} PassSpec
  * @typedef {{id:string, kind:'warp-feedback', motion:any, borders:{inner:null|any, outer:null|any}, reads:string[], writes:string[]}} WarpFeedbackPass
  * @typedef {{id:string, kind:'composite', comp:any, reads:string[], writes:string[]}} CompositePass
  * @typedef {{id:string, kind:'clear-color', clear:{r:number, g:number, b:number, a:number}, reads:string[], writes:string[]}} ClearPass
  * @typedef {{id:string, kind:'plane9-blur', pass:number, brightness:number, reads:string[], writes:string[]}} Plane9BlurPass
- * @typedef {{id:string, kind:'plane9-rendertotexture', reads:string[], writes:string[]}} Plane9RttPass
+ * @typedef {{id:string, kind:'texture-blit', reads:string[], writes:string[]}} TextureBlitPass
  * @typedef {{resourceId:string, passId?:string}} ResourceRef
  * @typedef {{plan:RenderPlan, outputs:Record<string, ResourceRef>}} ContributeResult
  */
@@ -423,24 +423,13 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       return { Color: /** @type {any} */ ({ resourceId: target.resourceId, passId }) };
     },
   },
-  'plane9-rendertotexture': {
-    // Plane9's RenderToTexture node — DLL description at Plane9Engine.dll
-    // offset 0x1f8ad4 (v2.5.1 install, sha256 4cebc1b3...ba1196) reads
-    // "Converts a render port to a texture port." The native op models
-    // that description as a blit from the incoming Render's resource to
-    // the Target texture — the resource descriptor the scene declares
-    // owns the realized pixel size and format, so no Format/Width/
-    // Height/CreateMipMaps ports appear on the op (they would be inert
-    // if the resource owns the realized size, and inert ports fail
-    // sip-code-guidelines Complete Representation). Plane9 CONVERSION
-    // of this node is UNRESOLVED at src/p9-import.mjs P9_COMPATIBILITY
-    // because the RTT Format enum labels (which specific pixel format
-    // Plane9 selects for Format=5) are not adjacent to the metadata
-    // block at 0x1f8b00-0x1f8cb8 in the DLL string table and cannot be
-    // resolved without a separate table pointer walk; a native PHOS
-    // scene may still use this op with an explicit fixed-pixel-size
-    // Target resource per the new size.policy="fixed" descriptor
-    // capability.
+  'texture-blit': {
+    // Source-neutral generic texture-to-texture blit. Reads the source
+    // resource named by the incoming Render reference and writes the
+    // target texture resource named by the Target port. The op does
+    // NOT claim to implement any specific Plane9 or MilkDrop node's
+    // semantics; it is a substrate primitive for testing the texture-
+    // typed edge propagation and fixed-pixel-size resource capabilities.
     kind: 'render',
     inputs: {
       Render: 'render',
@@ -449,16 +438,16 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
     outputs: { Color: 'texture' },
     contribute(inputRefs, ports, _pool, eng, plan) {
       const inRef = /** @type {any} */ (inputRefs.Render);
-      if (!inRef) throw new Error('plane9-rendertotexture requires an incoming render reference on its "Render" port — refusing');
+      if (!inRef) throw new Error('texture-blit requires an incoming render reference on its "Render" port — refusing');
       const target = /** @type {ResourceRef|undefined} */ (ports.Target);
-      if (!target || typeof target !== 'object' || !('resourceId' in target)) throw new Error('plane9-rendertotexture: Target port must carry a texture resource reference — refusing');
+      if (!target || typeof target !== 'object' || !('resourceId' in target)) throw new Error('texture-blit: Target port must carry a texture resource reference — refusing');
       const targetDesc = plan.resources.find((r) => r.id === target.resourceId);
-      if (!targetDesc) throw new Error(`plane9-rendertotexture: Target references resource "${target.resourceId}" which is not declared in the scene — refusing`);
-      if (targetDesc.kind !== 'texture') throw new Error(`plane9-rendertotexture: Target resource "${target.resourceId}" must have kind "texture", got "${targetDesc.kind}" — refusing`);
+      if (!targetDesc) throw new Error(`texture-blit: Target references resource "${target.resourceId}" which is not declared in the scene — refusing`);
+      if (targetDesc.kind !== 'texture') throw new Error(`texture-blit: Target resource "${target.resourceId}" must have kind "texture", got "${targetDesc.kind}" — refusing`);
       const passId = eng.nextPassId();
       plan.passes.push(/** @type {any} */ ({
         id: passId,
-        kind: 'plane9-rendertotexture',
+        kind: 'texture-blit',
         reads: [inRef.resourceId], writes: [target.resourceId],
       }));
       return { Color: /** @type {any} */ ({ resourceId: target.resourceId, passId }) };

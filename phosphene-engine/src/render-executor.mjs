@@ -335,17 +335,16 @@ export function createRenderContext(device, canvas, ctx, fmt) {
         ] });
         const rp = enc.beginRenderPass({ colorAttachments: [{ view: ctx.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } }] });
         rp.setPipeline(pipe); rp.setBindGroup(0, bbg); rp.draw(3); rp.end();
-      } else if (p.kind === 'plane9-rendertotexture') {
-        // Plane9 RenderToTexture — blit the source resource into the
-        // target resource using the same blit shader the presentation
-        // path uses. DLL description at Plane9Engine.dll 0x1f8ad4
-        // ("Converts a render port to a texture port."); the actual
-        // operation is a texture copy of the incoming rendered surface.
-        if (p.reads.length !== 1 || p.writes.length !== 1) throw new Error('render executor: plane9-rendertotexture must read one and write one resource — refusing');
+      } else if (p.kind === 'texture-blit') {
+        // Source-neutral texture-to-texture blit: samples the source
+        // resource and writes it to the target using the same blit
+        // shader the presentation path uses. Does not claim any
+        // source-node semantics.
+        if (p.reads.length !== 1 || p.writes.length !== 1) throw new Error('render executor: texture-blit must read one and write one resource — refusing');
         const readId = /** @type {string} */ (p.reads[0]);
         const writeId = /** @type {string} */ (p.writes[0]);
         const writeDesc = /** @type {any} */ (resourcePool.get(writeId))?.desc;
-        if (!writeDesc) throw new Error(`render executor: plane9-rendertotexture target "${writeId}" not allocated — refusing`);
+        if (!writeDesc) throw new Error(`render executor: texture-blit target "${writeId}" not allocated — refusing`);
         const readTex = textureFor(readId, 'read');
         const writeTex = textureFor(writeId, 'write');
         const targetFmt = resolveFormat(writeDesc);

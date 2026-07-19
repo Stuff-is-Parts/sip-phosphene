@@ -87,6 +87,18 @@ diligence while withholding the work. Before writing any "known limit,"
 apply the test and name the missing falsifier in the entry itself — an entry
 that cannot name one is a fix you are avoiding.
 
+## Source compatibility is variant-level (owner-ratified 2026-07-19)
+A source-engine node's compatibility status is variant-level, not
+type-level. A node may be marked PASS only when the evidence covers
+all serialized scalar ports, every nested `<Value>` payload, input
+and output port types, the actual incident source connections in the
+real scene, execution semantics, and resource/state/output lifecycle.
+Evidence for one field cannot promote the whole node. A hand-authored
+substitute fixture cannot establish source compatibility — only the
+actual source scene, or a mechanically extracted closed subgraph
+retaining every relevant field, nested payload, and incident
+connection, counts.
+
 ## Behavior is judged by the human, not the machine
 The user is the frame diff for VISUAL correctness. Do not build a producer-
 controlled universal behavioral-certification system, a frame-diff, or a visual

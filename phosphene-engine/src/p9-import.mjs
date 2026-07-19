@@ -81,7 +81,7 @@ export function scanP9(xml) {
 //                  conversion, cite the DLL RVA or observation that would
 //                  settle it. PHOSPHENE's native op may still exist for
 //                  native scenes to use.
-const P9_COMPATIBILITY = /** @type {Record<string,{status:'PASS'|'UNRESOLVED', nativeOp:string, reason:string}>} */ ({
+const P9_COMPATIBILITY = /** @type {Record<string,{status:'PASS'|'UNRESOLVED', nativeOp:string|null, reason:string}>} */ ({
   Screen: {
     status: 'PASS', nativeOp: 'screen',
     reason: 'Plane9 Screen node function as the render sink is witnessed corpus-wide (79/252 scenes in the exact geometry-free port configuration); PHOSPHENE converts Screen only in that witnessed configuration and refuses camera-port deviations',
@@ -98,28 +98,38 @@ const P9_COMPATIBILITY = /** @type {Record<string,{status:'PASS'|'UNRESOLVED', n
     // Plane9 Blur node — DLL metadata at Plane9Engine.dll v2.5.1 offset
     // 0x1f8514 ("Blur" + "Blurs a texture" + Dir/Width/Brightness
     // ports); blur.glsl kernels transcribed at src/render-wgsl.mjs
-    // plane9BlurWGSL. Conversion PASS for the exact witnessed variant:
-    // Dir=2 (Both), Width in {4, 6}, Brightness finite float. The
-    // p9 converter expands one Blur node into two `plane9-blur` graph
-    // nodes (H then V) plus two intermediate texture resources sized
-    // fixed 256x256 rgba16float (matching the RenderToTexture output
-    // that must feed it).
-    status: 'PASS', nativeOp: 'plane9-blur',
-    reason: 'Plane9 Blur function grounded by DLL 0x1f8514 metadata block; blur.glsl semantically transcribed at src/render-wgsl.mjs plane9BlurWGSL. The converter expands the exact witnessed variant (Dir=2, Width in {4,6}, Brightness finite) into two plane9-blur graph nodes with fixed 256x256 rgba16float intermediates that match the RenderToTexture upstream.',
+    // plane9BlurWGSL. Compatibility is UNRESOLVED because a real
+    // Light Worms Blur1 is fed by RenderToTexture2.Color, and
+    // RenderToTexture conversion itself is UNRESOLVED (see below).
+    // The native `plane9-blur` op is source-grounded and remains
+    // available for PHOS-native scenes; scene-level Plane9 Blur
+    // conversion does not.
+    status: 'UNRESOLVED', nativeOp: 'plane9-blur',
+    reason: 'the native `plane9-blur` op is source-grounded (blur.glsl transcription at src/render-wgsl.mjs, DLL metadata at 0x1f8514), but scene-level Blur conversion in every real corpus scene depends on a Texture-producing upstream that PHOSPHENE has not resolved. Light Worms Blur1 is fed by RenderToTexture2.Color, and RenderToTexture conversion is UNRESOLVED per its own compat entry (missing Effect input semantics, nested Shader/Expression payloads, execution model). Observation that would settle it: resolve the RenderToTexture contract completely, and then the Blur end-to-end path can be re-evaluated against a mechanically extracted Light Worms subgraph.',
   },
   RenderToTexture: {
-    // Plane9 RenderToTexture node — Format=5 → RGBA 16bit float →
-    // GL_RGBA16F (0x881A) → WebGPU rgba16float; DLL description at
-    // Plane9Engine.dll v2.5.1 offset 0x1f8ad4 ("Converts a render port
-    // to a texture port."). Enum registration walked in the DLL at
-    // 0x100CDA70 (CRenderToTextureNode) — see
-    // sources/plane9/RENDERTOTEXTURE-FORMAT-EVIDENCE.md. Width=0 and
-    // Height=0 select "Custom size in pixels", so WidthCustom=256 and
-    // HeightCustom=256 produce a 256x256 target texture; CreateMipMaps=
-    // false selects one mip level. Conversion PASS only for that exact
-    // witnessed shape.
-    status: 'PASS', nativeOp: 'plane9-rendertotexture',
-    reason: 'Plane9 RenderToTexture function grounded by DLL v2.5.1 metadata at 0x1f8ad4 plus enum registration at 0x100CDA70 mapping Format=5 → "RGBA 16bit float" (sources/plane9/RENDERTOTEXTURE-FORMAT-EVIDENCE.md). PHOSPHENE converts only the witnessed variant (Format=5, Format2/3/4=0, Width=Height=0 Custom, WidthCustom=HeightCustom=256, CreateMipMaps=false, In1/2/3="0 0 0", RandomSeed=1) into a plane9-rendertotexture graph node writing a fixed 256x256 rgba16float target texture; every other field or value refuses.',
+    // Plane9 RenderToTexture node — Format=5 pixel-format mapping IS
+    // grounded (Format=5 → GL_RGBA16F → WebGPU rgba16float per
+    // sources/plane9/RENDERTOTEXTURE-FORMAT-EVIDENCE.md), but Format
+    // is one field on a node whose full contract is not yet
+    // established. Every real Light Worms RenderToTexture node also
+    // carries a nested `<Port Id="Shader"><Value>...GLSL...</Value>
+    // </Port>` and a nested `<Port Id="Expression"><Value></Value>
+    // </Port>` (verified from source-scenes/plane9/Abstract/
+    // Light Worms.p9c 2026-07-19), plus an Effect-driven incident
+    // edge (Shader4.Effect -> RenderToTexture2.Effect) that the DLL
+    // port block at 0x1f8b00-0x1f8cb8 alone does not describe.
+    // PHOSPHENE has no executable evidence for how these behaviors
+    // combine, whether the node renders the incoming Render stream,
+    // an Effect-driven shader, or the nested Shader Value; what
+    // load/store/clear behavior the output receives; how the Color
+    // texture is actually produced; or how the six-value Format enum
+    // interacts with an Effect input. Compatibility remains
+    // UNRESOLVED until those facts are established from executable
+    // evidence (RTTI class routine walk, runtime capture, or the
+    // upstream Shader/Effect subsystem itself).
+    status: 'UNRESOLVED', nativeOp: null,
+    reason: 'Format=5 pixel format is grounded (see sources/plane9/RENDERTOTEXTURE-FORMAT-EVIDENCE.md), but that is one field of many. The complete RenderToTexture contract is UNRESOLVED: full port inventory including Effect (evidenced by Light Worms Shader4.Effect -> RenderToTexture2.Effect); Render-driven versus Effect-driven behavior distinction; nested <Port Id="Shader"><Value>GLSL</Value></Port> payload semantics (present on every Light Worms RTT node); nested <Port Id="Expression"><Value></Value></Port> payload semantics; exact render-target execution path; how the Color texture output is actually produced; load/store/clear and depth-buffer state behavior. No native op is registered for Plane9 RenderToTexture — the earlier `plane9-rendertotexture` blit op has been renamed to source-neutral `texture-blit` because a blit is not evidenced as the correct execution semantics. Observation that would settle it: walk the CRenderToTextureNode render path in Plane9Engine.dll from its RTTI-identified constructor at 0x100CDA70 into the render loop, or take a runtime graphics capture of RenderToTexture2 executing in Light Worms.',
   },
   HSLAToColor: {
     status: 'UNRESOLVED', nativeOp: 'HSLAToColor',
@@ -139,7 +149,9 @@ const P9_COMPATIBILITY = /** @type {Record<string,{status:'PASS'|'UNRESOLVED', n
 // name -> native-op-name, so the port-map/defaults lookups below keep
 // working without conditional guards.
 const P9_TYPE_TO_OP = /** @type {Record<string,string>} */ (
-  Object.fromEntries(Object.entries(P9_COMPATIBILITY).map(([type, c]) => [type, c.nativeOp])));
+  Object.fromEntries(Object.entries(P9_COMPATIBILITY)
+    .filter(([, c]) => c.nativeOp !== null)
+    .map(([type, c]) => [type, /** @type {string} */ (c.nativeOp)])));
 
 // Port-name translation Plane9 -> native, per node type. Plane9 uses the
 // verbatim port ids from the .scene.xml; the native ops declare their own
@@ -163,23 +175,6 @@ const P9_PORT_MAP = /** @type {Record<string, Record<string,string>>} */ ({
   Beat: {
     NoMusic: 'NoMusic', Amplification: 'Amplification',
     Min: 'Min', Max: 'Max', BeatStrength: 'BeatStrength',
-  },
-  // Blur is expanded specially in p9ToPhos (one source Blur → two graph
-  // nodes). The map carries the three scalar port names plus the dual-
-  // direction Texture port so the "port name not in map" check surfaces
-  // unmapped fields.
-  Blur: { Dir: 'Dir', Width: 'Width', Brightness: 'Brightness', Texture: 'Texture' },
-  // RenderToTexture is also expanded specially. The map covers every
-  // witnessed scalar/vector port plus the Render input and Color
-  // output.
-  RenderToTexture: {
-    Format: 'Format', Format2: 'Format2', Format3: 'Format3', Format4: 'Format4',
-    Width: 'Width', Height: 'Height',
-    WidthCustom: 'WidthCustom', HeightCustom: 'HeightCustom',
-    CreateMipMaps: 'CreateMipMaps',
-    In1: 'In1', In2: 'In2', In3: 'In3',
-    RandomSeed: 'RandomSeed',
-    Render: 'Render', Color: 'Color',
   },
 });
 
@@ -221,25 +216,6 @@ const P9_PORT_TYPES = /** @type {Record<string, {inputs:Record<string,string>, o
   Beat: {
     inputs: { NoMusic: 'float', Amplification: 'float', Min: 'float', Max: 'float' },
     outputs: { BeatStrength: 'float' },
-  },
-  Blur: {
-    // Texture-typed on both sides — the same port name serves as
-    // the Texture input from a Texture-producing upstream and as the
-    // Texture output into a Texture-consuming downstream.
-    inputs: { Dir: 'int', Width: 'int', Brightness: 'float', Texture: 'Texture' },
-    outputs: { Texture: 'Texture' },
-  },
-  RenderToTexture: {
-    inputs: {
-      Format: 'int', Format2: 'int', Format3: 'int', Format4: 'int',
-      Width: 'int', Height: 'int',
-      WidthCustom: 'int', HeightCustom: 'int',
-      CreateMipMaps: 'bool',
-      In1: 'vec3', In2: 'vec3', In3: 'vec3',
-      RandomSeed: 'int',
-      Render: 'Render',
-    },
-    outputs: { Color: 'Texture' },
   },
 });
 
@@ -299,11 +275,14 @@ function disposeP9(records) {
   /** @type {{out:string, in:string}[]} */
   const connections = [];
   let cur = '';
+  /** @type {{node:string, port:string, line:number}|null} */
+  let openPort = null;
   for (const rec of records) {
     if (rec.kind === 'blank') continue;
     if (rec.kind === 'refused') { out.push({ line: rec.line, ok: false, text: rec.reason || 'refused' }); continue; }
     if (rec.kind === 'node' || rec.kind === 'node-open') {
       cur = rec.name || '';
+      openPort = null;
       nodes[cur] = { type: rec.type || '', ports: {} };
       const t = rec.type || '';
       const compat = P9_COMPATIBILITY[t];
@@ -316,7 +295,14 @@ function disposeP9(records) {
       }
       continue;
     }
-    if (rec.kind === 'close' && rec.id === 'Node') { cur = ''; out.push({ line: rec.line, ok: true, text: 'scene structure / metadata' }); continue; }
+    if (rec.kind === 'close' && rec.id === 'Node') { cur = ''; openPort = null; out.push({ line: rec.line, ok: true, text: 'scene structure / metadata' }); continue; }
+    if (rec.kind === 'close' && rec.id === 'Port') {
+      // The nested port block just closed. The port-open itself was
+      // already refused (see below); this close just resets state.
+      openPort = null;
+      out.push({ line: rec.line, ok: true, text: 'end of nested port block' });
+      continue;
+    }
     if (rec.kind === 'port') {
       const owner = nodes[cur];
       if (owner && rec.id !== undefined && rec.value !== undefined) owner.ports[rec.id] = rec.value;
@@ -336,8 +322,29 @@ function disposeP9(records) {
       out.push({ line: rec.line, ok: true, text: 'port ' + rec.id + ' of ' + cur + ' (scanned)' });
       continue;
     }
-    if (rec.kind === 'port-open') { out.push({ line: rec.line, ok: true, text: 'port ' + rec.id + ' of ' + cur + ' (scanned)' }); continue; }
-    if (rec.kind === 'value' || rec.kind === 'value-open' || rec.kind === 'value-content') { out.push({ line: rec.line, ok: true, text: 'embedded value text (scanned)' }); continue; }
+    if (rec.kind === 'port-open') {
+      // Nested port blocks (<Port Id="X">...children...</Port>) carry a
+      // <Value>...</Value> payload — for example every Light Worms
+      // RenderToTexture node has <Port Id="Shader"><Value>...GLSL...
+      // </Value></Port> and <Port Id="Expression"><Value></Value>
+      // </Port>. No current conversion path consumes those payloads,
+      // and silently omitting them is exactly the failure the reviewer
+      // named. Refuse every nested port until a conversion path claims
+      // ownership of its payload; the refusal names node, port, and
+      // source line so the missing behavior is visible in triage.
+      const portId = rec.id ?? '(unknown)';
+      openPort = { node: cur, port: portId, line: rec.line };
+      out.push({ line: rec.line, ok: false, text: 'node "' + cur + '" nested <Port Id="' + portId + '"> at line ' + rec.line + ' — nested port payloads are not consumed by any current Plane9 conversion path; silently omitting the enclosed <Value> payload is not permitted — refusing' });
+      continue;
+    }
+    if (rec.kind === 'value' || rec.kind === 'value-open' || rec.kind === 'value-content') {
+      if (openPort) {
+        out.push({ line: rec.line, ok: false, text: 'payload line inside unhandled nested port "' + openPort.node + '.' + openPort.port + '" (opened line ' + openPort.line + ') — refusing' });
+      } else {
+        out.push({ line: rec.line, ok: false, text: 'orphan <Value> record outside a nested port block — refusing' });
+      }
+      continue;
+    }
     if (rec.kind === 'connection') {
       const conn = { out: rec.out || '', in: rec.in || '' };
       connections.push(conn);
@@ -411,91 +418,7 @@ export function p9ToPhos(xml, source) {
 
   /** @type {import('./phos.mjs').PhosNode[]} */
   const outNodes = [];
-  /** @type {Map<string, {hName:string, vName:string, hOutId:string, vOutId:string}>} */
-  const blurExpansions = new Map();
-  /** @type {import('./phos.mjs').ResourceDescriptor[]} */
-  const blurResources = [];
-  /** @type {import('./phos.mjs').ResourceDescriptor[]} */
-  const rttResourceList = [];
   for (const [nodeName, src] of Object.entries(nodes)) {
-    if (src.type === 'Blur') {
-      // One Blur source node materializes as two `plane9-blur` graph
-      // nodes (H then V) plus two intermediate rgba16float 256x256
-      // texture resources matching the RenderToTexture output. Refuse
-      // ports outside {Dir, Width, Brightness}, refuse Dir != "2",
-      // refuse Width outside {4, 6}, materialize Brightness default
-      // 1.0 per blur.glsl:3.
-      for (const pname of Object.keys(src.ports)) {
-        if (pname !== 'Dir' && pname !== 'Width' && pname !== 'Brightness') {
-          throw new Error(`p9ToPhos: Blur node "${nodeName}" carries port "${pname}" that is not among the DLL-witnessed Blur ports (Dir, Width, Brightness) — refusing`);
-        }
-      }
-      const dirRaw = src.ports.Dir;
-      const widthRaw = src.ports.Width;
-      const brightnessRaw = src.ports.Brightness;
-      if (dirRaw !== '2') throw new Error(`p9ToPhos: Blur node "${nodeName}" port "Dir"="${dirRaw}" — only Dir="2" (the "Both" enum position at DLL 0x1f853c, corpus-witnessed 18/18) is supported — refusing`);
-      const width = Number(widthRaw);
-      if (width !== 4 && width !== 6) throw new Error(`p9ToPhos: Blur node "${nodeName}" port "Width"="${widthRaw}" — blur.glsl only defines shaders for Width=4 (PASS 0/1) and Width=6 (PASS 2/3); other widths are UNRESOLVED — refusing`);
-      const brightness = brightnessRaw !== undefined ? Number(brightnessRaw) : 1;
-      if (!Number.isFinite(brightness)) throw new Error(`p9ToPhos: Blur node "${nodeName}" port "Brightness"="${brightnessRaw}" is not a finite float — refusing`);
-      const hPass = width === 4 ? 0 : 2;
-      const vPass = width === 4 ? 1 : 3;
-      const hName = nodeName + '-h';
-      const vName = nodeName + '-v';
-      const hOutId = nodeName + '-h-out';
-      const vOutId = nodeName + '-out';
-      /** @param {string} id @param {number} passNumber @param {string} targetId */
-      const mkBlurNode = (id, passNumber, targetId) => (/** @type {import('./phos.mjs').PhosNode} */ ({
-        id, primitive: 'graph', op: 'plane9-blur',
-        ports: /** @type {any} */ ({
-          Texture: { type: 'texture' },
-          Target: { type: 'texture', value: { resourceId: targetId } },
-          Pass: { type: 'float', value: passNumber },
-          Brightness: { type: 'float', value: brightness },
-          Color: { type: 'texture' },
-        }),
-      }));
-      outNodes.push(mkBlurNode(hName, hPass, hOutId));
-      outNodes.push(mkBlurNode(vName, vPass, vOutId));
-      blurResources.push({ id: hOutId, kind: 'texture', format: 'rgba16float', size: /** @type {any} */ ({ policy: 'fixed', width: 256, height: 256 }), lifetime: 'transient', usage: ['sampled', 'render-attachment'] });
-      blurResources.push({ id: vOutId, kind: 'texture', format: 'rgba16float', size: /** @type {any} */ ({ policy: 'fixed', width: 256, height: 256 }), lifetime: 'transient', usage: ['sampled', 'render-attachment'] });
-      blurExpansions.set(nodeName, { hName, vName, hOutId, vOutId });
-      continue;
-    }
-    if (src.type === 'RenderToTexture') {
-      // Strict field-by-field: refuse any port outside the DLL-
-      // witnessed set; refuse every field value outside the exact
-      // corpus-uniform variant (Format=5, W=H=0, WCust=HCust=256,
-      // CreateMipMaps=false, In1/2/3="0 0 0", RandomSeed=1). Format=5
-      // → GL_RGBA16F → WebGPU rgba16float per the binary evidence at
-      // sources/plane9/RENDERTOTEXTURE-FORMAT-EVIDENCE.md.
-      const allowed = new Set(['Format','Format2','Format3','Format4','Width','Height','WidthCustom','HeightCustom','CreateMipMaps','In1','In2','In3','RandomSeed']);
-      for (const pname of Object.keys(src.ports)) {
-        if (!allowed.has(pname)) throw new Error(`p9ToPhos: RenderToTexture node "${nodeName}" carries port "${pname}" that is not among the DLL-witnessed ports — refusing`);
-      }
-      const requireVal = (/** @type {string} */ name, /** @type {string} */ expected) => {
-        const raw = src.ports[name];
-        if (raw !== expected) throw new Error(`p9ToPhos: RenderToTexture node "${nodeName}" port "${name}"="${raw ?? '(missing)'}" is outside the witnessed variant (expected "${expected}") — refusing`);
-      };
-      requireVal('Format', '5'); requireVal('Format2', '0'); requireVal('Format3', '0'); requireVal('Format4', '0');
-      requireVal('Width', '0'); requireVal('Height', '0');
-      requireVal('WidthCustom', '256'); requireVal('HeightCustom', '256');
-      requireVal('CreateMipMaps', 'false');
-      requireVal('In1', '0 0 0'); requireVal('In2', '0 0 0'); requireVal('In3', '0 0 0');
-      requireVal('RandomSeed', '1');
-      const outId = nodeName + '-color';
-      /** @type {import('./phos.mjs').PhosNode} */
-      const rttNode = ({ id: nodeName, primitive: 'graph', op: 'plane9-rendertotexture',
-        ports: /** @type {any} */ ({
-          Render: { type: 'render' },
-          Target: { type: 'texture', value: { resourceId: outId } },
-          Color: { type: 'texture' },
-        }),
-      });
-      outNodes.push(rttNode);
-      rttResourceList.push({ id: outId, kind: 'texture', format: 'rgba16float', size: /** @type {any} */ ({ policy: 'fixed', width: 256, height: 256 }), lifetime: 'transient', usage: ['sampled', 'render-attachment'] });
-      continue;
-    }
     const nativeOp = P9_TYPE_TO_OP[src.type];
     if (!nativeOp) throw new Error(`p9ToPhos: node "${nodeName}" type "${src.type}" has no native op mapping — refusing (disposition check missed this)`);
     const portMap = P9_PORT_MAP[src.type];
@@ -557,41 +480,20 @@ export function p9ToPhos(xml, source) {
   const outEdges = [];
   const byId = /** @type {Record<string, import('./phos.mjs').PhosNode>} */ (Object.fromEntries(outNodes.map((n) => [n.id, n])));
   for (const c of connections) {
-    let outRef = c.out;
-    let inRef = c.in;
-    const [rawSrcId, rawSrcPort] = c.out.split('.');
-    const [rawDstId, rawDstPort] = c.in.split('.');
-    // Rewrite Blur endpoints: Plane9's dual-typed Texture port maps to
-    // `-h.Texture` (incoming) and `-v.Color` (outgoing). Both endpoints
-    // stay Texture-typed.
-    if (rawSrcId && blurExpansions.has(rawSrcId)) {
-      const exp = /** @type {any} */ (blurExpansions.get(rawSrcId));
-      if (rawSrcPort !== 'Texture') throw new Error(`p9ToPhos: Blur node "${rawSrcId}" outgoing edge uses port "${rawSrcPort}" but the DLL-witnessed output port is "Texture" — refusing`);
-      outRef = exp.vName + '.Color';
-    }
-    if (rawDstId && blurExpansions.has(rawDstId)) {
-      const exp = /** @type {any} */ (blurExpansions.get(rawDstId));
-      if (rawDstPort !== 'Texture') throw new Error(`p9ToPhos: Blur node "${rawDstId}" incoming edge uses port "${rawDstPort}" but the DLL-witnessed input port is "Texture" — refusing`);
-      inRef = exp.hName + '.Texture';
-    }
-    const [srcId, srcPort] = outRef.split('.');
-    const [dstId, dstPort] = inRef.split('.');
+    const [srcId, srcPort] = c.out.split('.');
+    const [dstId, dstPort] = c.in.split('.');
     const srcNode = byId[srcId ?? ''];
     const dstNode = byId[dstId ?? ''];
-    if (!srcNode || !dstNode || !srcPort || !dstPort) throw new Error(`p9ToPhos: edge "${outRef} -> ${inRef}" endpoint not in graph — refusing`);
+    if (!srcNode || !dstNode || !srcPort || !dstPort) throw new Error(`p9ToPhos: edge "${c.out} -> ${c.in}" endpoint not in graph — refusing`);
     const srcOp = NATIVE_OPS[srcNode.op];
     const dstOp = NATIVE_OPS[dstNode.op];
-    if (srcOp === undefined || dstOp === undefined) throw new Error(`p9ToPhos: edge "${outRef} -> ${inRef}" references an op not in the registry — refusing`);
+    if (srcOp === undefined || dstOp === undefined) throw new Error(`p9ToPhos: edge "${c.out} -> ${c.in}" references an op not in the registry — refusing`);
     const srcType = /** @type {Record<string,string>} */ (srcOp.outputs)[srcPort];
     const dstType = /** @type {Record<string,string>} */ (dstOp.inputs)[dstPort];
-    if (srcType === undefined) throw new Error(`p9ToPhos: edge source "${outRef}" is not an output of "${srcNode.op}" — refusing`);
-    if (dstType === undefined) throw new Error(`p9ToPhos: edge destination "${inRef}" is not an input of "${dstNode.op}" — refusing`);
-    if (srcType !== dstType) throw new Error(`p9ToPhos: edge "${outRef}" (${srcType}) -> "${inRef}" (${dstType}) has mismatched port types — refusing`);
-    outEdges.push({ out: outRef, in: inRef });
-  }
-  // Internal Blur H -> V texture wire.
-  for (const exp of blurExpansions.values()) {
-    outEdges.push({ out: exp.hName + '.Color', in: exp.vName + '.Texture' });
+    if (srcType === undefined) throw new Error(`p9ToPhos: edge source "${c.out}" is not an output of "${srcNode.op}" — refusing`);
+    if (dstType === undefined) throw new Error(`p9ToPhos: edge destination "${c.in}" is not an input of "${dstNode.op}" — refusing`);
+    if (srcType !== dstType) throw new Error(`p9ToPhos: edge "${c.out}" (${srcType}) -> "${c.in}" (${dstType}) has mismatched port types — refusing`);
+    outEdges.push({ out: c.out, in: c.in });
   }
 
   // Synthesize resource descriptors for each converted clear-color node
@@ -612,8 +514,6 @@ export function p9ToPhos(xml, source) {
       });
     }
   }
-  for (const r of rttResourceList) resources.push(r);
-  for (const r of blurResources) resources.push(r);
   const name = 'p9-' + source.file.replace(/\.[^.]+$/, '');
   return /** @type {import('./phos.mjs').Scene} */ ({
     format: 'phos/1',
