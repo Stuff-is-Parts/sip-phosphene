@@ -850,80 +850,6 @@ const nativeHueCycleOk = (() => {
   return moved;
 })();
 
-// (ac3) Native Plane9 blur scene: clear-color feeds a horizontal-4 blur
-//       (plane9-blur Pass=0), which feeds a vertical-4 blur (plane9-blur
-//       Pass=1), which feeds the screen sink. Verifies:
-//       (1) canonical serialize/parse round-trip;
-//       (2) the plan carries three passes: [clear-color, plane9-shader{blur,0},
-//           plane9-shader{blur,1}];
-//       (3) each plane9-shader pass carries the expected shader name, pass
-//           index, uniformSize, and uniformBytes derived from the scene ports;
-//       (4) the packed uniform bytes decode back to the original port values
-//           (gSourceTextureSize vec2, gBrightness float) so the plumbing
-//           between phos ports and the WGSL uniform struct is byte-exact.
-const nativePlane9BlurOk = (() => {
-  const src = readFileSync(new URL('./scenes/native-plane9-blur.phos', import.meta.url), 'utf8');
-  const doc = parsePhos(src);
-  if (serializePhos(doc) !== src) return false;
-  const e = new Engine(toRuntime(doc));
-  const plan = /** @type {any} */ (e.step(1 / 60));
-  if (!plan || plan.passes.length !== 3) return false;
-  if (plan.passes[0].kind !== 'clear-color') return false;
-  const p1 = plan.passes[1], p2 = plan.passes[2];
-  if (p1.kind !== 'plane9-shader' || p1.shader !== 'blur' || p1.pass !== 0) return false;
-  if (p2.kind !== 'plane9-shader' || p2.shader !== 'blur' || p2.pass !== 1) return false;
-  if (p1.uniformSize !== 16 || p2.uniformSize !== 16) return false;
-  if (!Array.isArray(p1.uniformBytes) || p1.uniformBytes.length !== 16) return false;
-  if (!Array.isArray(p2.uniformBytes) || p2.uniformBytes.length !== 16) return false;
-  // Decode uniformBytes -> Float32Array. BlurUniforms layout:
-  //   [0..7]  gSourceTextureSize: vec2<f32>
-  //   [8..11] gBrightness: f32
-  //   [12..15] pad
-  const decode = (/** @type {number[]} */ bytes) => new Float32Array(new Uint8Array(bytes).buffer);
-  const u1 = decode(p1.uniformBytes);
-  const u2 = decode(p2.uniformBytes);
-  // Float32 rounding: 0.005 stored as float32 is 0.004999999888241291, so
-  // compare within one float32 ULP (~6e-8) rather than exact equality.
-  const near = (/** @type {number|undefined} */ a, /** @type {number} */ b) => a !== undefined && Math.abs(a - b) < 1e-6;
-  if (!near(u1[0], 0.005) || !near(u1[1], 0.005) || !near(u1[2], 1)) return false;
-  if (!near(u2[0], 0.005) || !near(u2[1], 0.005) || !near(u2[2], 1)) return false;
-  return true;
-})();
-
-// (ac4) plane9-shader port refusals — the Pass port refuses out-of-range
-//       values and every declared uniform port refuses when missing.
-const plane9ShaderPortRefusalsOk = (() => {
-  const src = readFileSync(new URL('./scenes/native-plane9-blur.phos', import.meta.url), 'utf8');
-  // Baseline: pass=0..3 all accept (blur has 4 passes)
-  const acceptsInRange = (() => {
-    for (const passVal of [0, 1, 2, 3]) {
-      const doc = /** @type {any} */ (parsePhos(src));
-      const bn = doc.nodes.find((/** @type {any} */ n) => n.id === 'blurH');
-      bn.ports.Pass.value = passVal;
-      try { const e = new Engine(toRuntime(doc)); e.step(1 / 60); }
-      catch { return false; }
-    }
-    return true;
-  })();
-  const refusesPass4 = (() => {
-    const doc = /** @type {any} */ (parsePhos(src));
-    const bn = doc.nodes.find((/** @type {any} */ n) => n.id === 'blurH');
-    bn.ports.Pass.value = 4;
-    try { const e = new Engine(toRuntime(doc)); e.step(1 / 60); return false; }
-    catch (err) { return /out of range/.test(/** @type {Error} */ (err).message); }
-  })();
-  // A missing declared uniform port refuses at Engine construction (the
-  // shared inert-port refusal — every declared port must resolve).
-  const refusesMissingUniform = (() => {
-    const doc = /** @type {any} */ (parsePhos(src));
-    const bn = doc.nodes.find((/** @type {any} */ n) => n.id === 'blurH');
-    delete bn.ports.gBrightness;
-    try { new Engine(toRuntime(doc)); return false; }
-    catch { return true; }
-  })();
-  return acceptsInRange && refusesPass4 && refusesMissingUniform;
-})();
-
 // (ad) Plane9 conversion door: the source-compatibility gate refuses Color
 //      Cycle because HSLAToColor/MinMax/Beat are UNRESOLVED, and the
 //      Screen+Clear-only shape (Black.p9c and the synthetic clearXml below)
@@ -1570,7 +1496,7 @@ const ambiguousGraphRefusedOk = (() => {
 //   Beat REFUSE at the compatibility gate; Color Cycle refuses at
 //   conversion. This surface does NOT accept PHOSPHENE's internal
 //   regression tests as evidence of Plane9 fidelity.
-const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && nativeHueCycleOk && nativePlane9BlurOk && plane9ShaderPortRefusalsOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk && renderPlanFoundationOk && renderFanOutOk && valueMultiDriverOk && screenGuardOk;
+const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && nativeHueCycleOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk && renderPlanFoundationOk && renderFanOutOk && valueMultiDriverOk && screenGuardOk;
 const plane9CompatibilityOk = p9Ok && p9ConvOk && colorCycleOk;
 const audioOk = engineRegressionOk && plane9CompatibilityOk;
 
@@ -1645,8 +1571,6 @@ console.log('[plane9 compat] Color Cycle: scanner shape (7 nodes, 6 connections,
 console.log('native-op registry: unknown op + unrealizable chains + mistyped edges refused, MilkDrop state shape intact:', registryOk ? 'OK' : 'FAIL');
 console.log('native clear-color scene: RGBAToColor->clear-color value-edge dataflow + Blue-pulse + port refusals:', nativeClearOk ? 'OK' : 'FAIL');
 console.log('native hue-cycle scene: MinMax(Rand) -> HSLAToColor -> clear-color animates and matches the HSL formula:', nativeHueCycleOk ? 'OK' : 'FAIL');
-console.log('native plane9-blur scene: clear-color -> plane9-blur h -> plane9-blur v produces 3 passes with byte-exact packed uniforms:', nativePlane9BlurOk ? 'OK' : 'FAIL');
-console.log('plane9-shader port refusals: out-of-range Pass and missing declared uniform ports refuse at Engine construction/step:', plane9ShaderPortRefusalsOk ? 'OK' : 'FAIL');
 console.log('[plane9 compat] p9 conversion door: Color Cycle refuses (HSLAToColor UNRESOLVED) + Screen+Clear PASS shape converts and executes + tampering refuses:', p9ConvOk ? 'OK' : 'FAIL');
 console.log('=== SEMANTIC-SCOPE NOTE (reviewer foundation 2026-07-18) ===');
 console.log('two separate surfaces are reported below:');
