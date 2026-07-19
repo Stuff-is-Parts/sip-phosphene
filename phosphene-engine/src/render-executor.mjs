@@ -71,6 +71,11 @@ export function createRenderContext(device, canvas, ctx, fmt) {
   function resolveSize(desc) {
     const { canvasW, canvasH, blockW, blockH } = canvasSize();
     if (desc.size.policy === 'canvas-16block') return { w: blockW, h: blockH };
+    if (desc.size.policy === 'fixed') {
+      const w = /** @type {any} */ (desc.size).width;
+      const h = /** @type {any} */ (desc.size).height;
+      return { w, h };
+    }
     return { w: canvasW, h: canvasH };
   }
   /** @param {import('./engine.mjs').ResourceDescriptor} desc — WebGPU usage flags derived from declared usage entries only. */

@@ -187,7 +187,7 @@ function circularInterp(/** @type {number} */ prev, /** @type {number} */ target
  *   id:string,
  *   kind:'texture'|'presentation',
  *   format:'rgba8unorm'|'preferred-canvas',
- *   size:{policy:'canvas-16block'|'canvas'},
+ *   size:{policy:'canvas-16block'|'canvas'}|{policy:'fixed', width:number, height:number},
  *   lifetime:'persistent-pingpong'|'transient'|'per-frame',
  *   usage:('sampled'|'render-attachment'|'presentation')[]
  * }} ResourceDescriptor
@@ -426,52 +426,27 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
   'plane9-rendertotexture': {
     // Plane9's RenderToTexture node — DLL description at Plane9Engine.dll
     // offset 0x1f8ad4 (v2.5.1 install, sha256 4cebc1b3...ba1196) reads
-    // "Converts a render port to a texture port." Ports enumerated in
-    // the DLL metadata block (offsets 0x1f8b00 through 0x1f8cb8): Format
-    // through Format4 (output-texture format enums), Width and Height
-    // (size enum with "Custom size in pixels" at position 0, "100%..."
-    // through "3.125% of render size" following), WidthCustom and
-    // HeightCustom (pixel dimensions used when Width or Height is
-    // "Custom"), CreateMipMaps (bool). Corpus scan (252 scenes) shows
-    // 30 nodes with the exact witnessed RenderToTexture2 shape:
-    // Format=5 Format2/3/4=0 Width=0 (Custom) Height=0 (Custom)
-    // WidthCustom=256 HeightCustom=256 CreateMipMaps=false In1/2/3=
-    // "0 0 0" RandomSeed=1. Format=5 semantics (which specific pixel
-    // format Plane9 selects) remain UNRESOLVED without the DLL Format
-    // enum table; PHOSPHENE treats Format=5 as the substrate's
-    // rgba8unorm and refuses all other Format values. The Render input
-    // carries a ResourceRef into the source pass; the Target port
-    // names the destination texture resource; the Color output emits
-    // the target's ResourceRef for downstream Texture-typed consumers
-    // (Blur.Texture, etc.). The executor's pass is a blit from the
-    // source texture to the target texture using the same blit shader
-    // the presentation path uses. Substrate limitation named explicitly:
-    // the target resource uses size.policy="canvas" because the
-    // substrate does not yet support fixed-pixel-size resource
-    // descriptors, so the WidthCustom=256 HeightCustom=256 evidenced
-    // values are accepted as port values but the produced texture is
-    // canvas-sized. This is a known bounded divergence, not silent
-    // drift — a subsequent slice can add a "custom-px" size policy
-    // when a scene requires the pixel-precise behavior.
+    // "Converts a render port to a texture port." The native op models
+    // that description as a blit from the incoming Render's resource to
+    // the Target texture — the resource descriptor the scene declares
+    // owns the realized pixel size and format, so no Format/Width/
+    // Height/CreateMipMaps ports appear on the op (they would be inert
+    // if the resource owns the realized size, and inert ports fail
+    // sip-code-guidelines Complete Representation). Plane9 CONVERSION
+    // of this node is UNRESOLVED at src/p9-import.mjs P9_COMPATIBILITY
+    // because the RTT Format enum labels (which specific pixel format
+    // Plane9 selects for Format=5) are not adjacent to the metadata
+    // block at 0x1f8b00-0x1f8cb8 in the DLL string table and cannot be
+    // resolved without a separate table pointer walk; a native PHOS
+    // scene may still use this op with an explicit fixed-pixel-size
+    // Target resource per the new size.policy="fixed" descriptor
+    // capability.
     kind: 'render',
     inputs: {
-      Format: 'float', Format2: 'float', Format3: 'float', Format4: 'float',
-      Width: 'float', Height: 'float',
-      WidthCustom: 'float', HeightCustom: 'float',
-      CreateMipMaps: 'float',
-      In1: 'vec3', In2: 'vec3', In3: 'vec3',
-      RandomSeed: 'float',
       Render: 'render',
       Target: 'texture',
     },
     outputs: { Color: 'texture' },
-    portConstraints: {
-      Format: 5, Format2: 0, Format3: 0, Format4: 0,
-      Width: 0, Height: 0,
-      CreateMipMaps: 0,
-      In1: [0, 0, 0], In2: [0, 0, 0], In3: [0, 0, 0],
-      RandomSeed: 1,
-    },
     contribute(inputRefs, ports, _pool, eng, plan) {
       const inRef = /** @type {any} */ (inputRefs.Render);
       if (!inRef) throw new Error('plane9-rendertotexture requires an incoming render reference on its "Render" port — refusing');
@@ -480,10 +455,6 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       const targetDesc = plan.resources.find((r) => r.id === target.resourceId);
       if (!targetDesc) throw new Error(`plane9-rendertotexture: Target references resource "${target.resourceId}" which is not declared in the scene — refusing`);
       if (targetDesc.kind !== 'texture') throw new Error(`plane9-rendertotexture: Target resource "${target.resourceId}" must have kind "texture", got "${targetDesc.kind}" — refusing`);
-      const wCust = /** @type {number} */ (ports.WidthCustom);
-      const hCust = /** @type {number} */ (ports.HeightCustom);
-      if (!Number.isFinite(wCust) || wCust <= 0) throw new Error(`plane9-rendertotexture: WidthCustom must be a positive number, got ${wCust} — refusing`);
-      if (!Number.isFinite(hCust) || hCust <= 0) throw new Error(`plane9-rendertotexture: HeightCustom must be a positive number, got ${hCust} — refusing`);
       const passId = eng.nextPassId();
       plan.passes.push(/** @type {any} */ ({
         id: passId,
@@ -860,7 +831,13 @@ function validateResourceDescriptors(resources) {
     }
     if (kind === 'texture') {
       if (format !== 'rgba8unorm') throw new Error(`Engine: resource "${rid}" kind "texture" requires format "rgba8unorm", got "${format}"; format "preferred-canvas" is presentation-kind-only — refusing`);
-      if (policy !== 'canvas' && policy !== 'canvas-16block') throw new Error(`Engine: resource "${rid}" kind "texture" requires size.policy in {canvas, canvas-16block}, got "${policy}" — refusing`);
+      if (policy !== 'canvas' && policy !== 'canvas-16block' && policy !== 'fixed') throw new Error(`Engine: resource "${rid}" kind "texture" requires size.policy in {canvas, canvas-16block, fixed}, got "${policy}" — refusing`);
+      if (policy === 'fixed') {
+        const w = /** @type {any} */ (r.size).width;
+        const h = /** @type {any} */ (r.size).height;
+        if (!Number.isInteger(w) || w <= 0) throw new Error(`Engine: resource "${rid}" size.policy "fixed" requires positive integer width, got ${w} — refusing`);
+        if (!Number.isInteger(h) || h <= 0) throw new Error(`Engine: resource "${rid}" size.policy "fixed" requires positive integer height, got ${h} — refusing`);
+      }
       if (lifetime !== 'persistent-pingpong' && lifetime !== 'transient') throw new Error(`Engine: resource "${rid}" kind "texture" requires lifetime in {persistent-pingpong, transient}, got "${lifetime}" — refusing`);
       if (usage.includes('presentation')) throw new Error(`Engine: resource "${rid}" kind "texture" carries usage "presentation"; that usage entry is presentation-kind-only — refusing`);
       // Every texture must declare at least one realizable GPU usage
@@ -1231,7 +1208,9 @@ export class Engine {
     const plan = {
       resources: this.scene.resources.map((/** @type {ResourceDescriptor} */ r) => ({
         id: r.id, kind: r.kind, format: r.format,
-        size: { policy: r.size.policy },
+        size: /** @type {any} */ (r.size.policy === 'fixed'
+          ? { policy: 'fixed', width: /** @type {any} */ (r.size).width, height: /** @type {any} */ (r.size).height }
+          : { policy: r.size.policy }),
         lifetime: r.lifetime, usage: [...r.usage],
       })),
       passes: [],

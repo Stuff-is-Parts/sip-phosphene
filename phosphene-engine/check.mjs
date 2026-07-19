@@ -2025,18 +2025,18 @@ const plane9BlurNativeOk = (() => {
 })();
 
 const plane9BlurCompatUnresolvedOk = (() => {
-  // The retained invalid Plane9 fixture (Clear.Render into Blur.Texture,
-  // Blur.Texture into Screen.Render) still refuses at the Plane9
-  // compatibility gate — Blur is now PASS but the port types don't
-  // match (Render output into Texture input, and Texture output into
-  // Render input). The source-port-type check refuses both edges.
+  // The retained invalid Plane9 fixture refuses at the Plane9
+  // compatibility gate: Blur is UNRESOLVED (Format=5 in the required
+  // RTT producer is unresolved), so the fixture's Blur node refuses
+  // at disposition. The exact edge-level typing check does not fire
+  // because the node itself is not convertible.
   const fixture = readFileSync(new URL('../sources/plane9/blur-fixture.scene.xml', import.meta.url), 'utf8');
   const converted = (() => { try { p9ToPhos(fixture, { file: 'blur-fixture.scene.xml', sha256: 'x' }); return true; } catch { return false; } })();
   if (converted) return false;
   const dis = assessP9Records(scanP9(fixture));
   const bad = dis.filter((d) => !d.ok);
-  const hasRenderIntoTexture = bad.some((d) => /source port type mismatch/.test(d.text) && /Render/.test(d.text) && /Texture/.test(d.text));
-  if (!hasRenderIntoTexture) return false;
+  const hasBlurUnresolved = bad.some((d) => /^Blur.*Plane9 conversion REFUSED \(UNRESOLVED\)/.test(d.text));
+  if (!hasBlurUnresolved) return false;
   return true;
 })();
 
@@ -2105,197 +2105,108 @@ const plane9BlurSourcePortTypingOk = (() => {
 
 const plane9BlurSliceOk = plane9BlurNativeOk && plane9BlurCompatUnresolvedOk && plane9BlurSourcePortTypingOk;
 
-// (at) Plane9 RenderToTexture end-to-end slice — source-field mapping,
-//      texture-typed edge propagation, resource allocation, renaming,
-//      variant refusal, RTT.Color → Blur.Texture as a Texture edge,
-//      Blur.Color → downstream as a Texture edge. Light Worms advances
-//      past RTT and Blur node types and refuses at the first unsupported
-//      remaining node.
+// (at) Fixed-pixel-size resource capability + honest Plane9 UNRESOLVED
+//      status for RTT and Blur (Format=5 pixel-format semantics not
+//      evidenced in the DLL string table). The fixed capability is a
+//      bounded additive substrate extension; the compat status honesty
+//      is a correction of the prior overreach.
 const plane9RttSliceOk = (() => {
-  // Build a synthetic Plane9 fixture: Clear → RTT → Blur wired via a
-  // native inspect sink at the p9 layer would need Screen, which
-  // requires Render input. To assert texture-edge propagation, use a
-  // p9 fixture that terminates at Screen through Clear's Render output
-  // and independently exercise the RTT/Blur mapping at the .phos layer.
-  // (1) Source-field mapping via p9ToPhos: an isolated RTT node with
-  //     the exact witnessed values converts.
-  const rttFixture = [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    '<Plane9Scene FormatVersion="2" Id="x" ParentId="" WarmupTime="0" SceneType="1" Version="1" DevelopmentTime="0" Created="20260718 00:00" LastModified="20260718 00:00">',
-    '\t<Author>t</Author>',
-    '\t<Desc></Desc>',
-    '\t<Tags></Tags>',
-    '\t<License Type="CC0" RelicensingPossible="1">t</License>',
-    '\t<Nodes>',
-    '\t\t<Node Type="Screen" Name="Screen">',
-    '\t\t\t<Port Id="Viewport" Value="0 0 1 1"/>',
-    '\t\t\t<Port Id="CamPos" Value="0 0 -2"/>',
-    '\t\t\t<Port Id="CamRot" Value="0 0 0"/>',
-    '\t\t\t<Port Id="CamLookAt" Value="0 0 1"/>',
-    '\t\t\t<Port Id="CamLookAtInWorldSpace" Value="false"/>',
-    '\t\t\t<Port Id="CamFov" Value="45"/>',
-    '\t\t\t<Port Id="CamNear" Value="0.1"/>',
-    '\t\t\t<Port Id="CamFar" Value="1000"/>',
-    '\t\t\t<Port Id="ScaleByAspect" Value="false"/>',
-    '\t\t</Node>',
-    '\t\t<Node Type="Clear" Name="Clear1">',
-    '\t\t\t<Port Id="Color" Value="0.1 0.2 0.3 1"/>',
-    '\t\t</Node>',
-    '\t\t<Node Type="RenderToTexture" Name="RTT1">',
-    '\t\t\t<Port Id="Format" Value="5"/>',
-    '\t\t\t<Port Id="Format2" Value="0"/>',
-    '\t\t\t<Port Id="Format3" Value="0"/>',
-    '\t\t\t<Port Id="Format4" Value="0"/>',
-    '\t\t\t<Port Id="Width" Value="0"/>',
-    '\t\t\t<Port Id="Height" Value="0"/>',
-    '\t\t\t<Port Id="WidthCustom" Value="256"/>',
-    '\t\t\t<Port Id="HeightCustom" Value="256"/>',
-    '\t\t\t<Port Id="CreateMipMaps" Value="false"/>',
-    '\t\t\t<Port Id="In1" Value="0 0 0"/>',
-    '\t\t\t<Port Id="In2" Value="0 0 0"/>',
-    '\t\t\t<Port Id="In3" Value="0 0 0"/>',
-    '\t\t\t<Port Id="RandomSeed" Value="1"/>',
-    '\t\t</Node>',
-    '\t</Nodes>',
-    '\t<Connections>',
-    '\t\t<Connection Out="Clear1.Render" In="RTT1.Render"/>',
-    '\t\t<Connection Out="Clear1.Render" In="Screen.Render"/>',
-    '\t</Connections>',
-    '\t<SceneCompatibility>',
-    '\t\t<GoodScenes/>',
-    '\t\t<BadScenes/>',
-    '\t</SceneCompatibility>',
-    '</Plane9Scene>',
-    '',
-  ].join('\n');
-  const rttDoc = /** @type {any} */ (p9ToPhos(rttFixture, { file: 'rtt.scene.xml', sha256: 'x' }));
-  const rttNode = rttDoc.nodes.find((/** @type {any} */ n) => n.id === 'RTT1');
-  if (!rttNode || rttNode.op !== 'plane9-rendertotexture') return false;
-  if (rttNode.ports.Format.value !== 5) return false;
-  if (rttNode.ports.WidthCustom.value !== 256 || rttNode.ports.HeightCustom.value !== 256) return false;
-  if (rttNode.ports.CreateMipMaps.value !== 0) return false;
-  if (JSON.stringify(rttNode.ports.In1.value) !== JSON.stringify([0, 0, 0])) return false;
-  // (2) Materialized target resource sits in scene.resources.
-  const rttOut = rttDoc.resources.find((/** @type {any} */ r) => r.id === 'RTT1-color');
-  if (!rttOut || rttOut.kind !== 'texture' || rttOut.format !== 'rgba8unorm') return false;
-  if (rttOut.size.policy !== 'canvas' || rttOut.lifetime !== 'transient') return false;
-  // (3) Typed Render input, Texture output — the op declaration reports
-  //     the ports correctly.
-  const opDecl = /** @type {any} */ (NATIVE_OPS['plane9-rendertotexture']);
-  if (opDecl.inputs.Render !== 'render' || opDecl.outputs.Color !== 'texture') return false;
-  // (4) Unsupported RTT variants refuse at p9ToPhos. Each field
-  //     substitution is a separate case.
-  const mutRtt = (/** @type {(x:string)=>string} */ f) => {
-    try { p9ToPhos(f(rttFixture), { file: 'x', sha256: 'x' }); return null; }
-    catch (e) { return /** @type {Error} */ (e).message; }
-  };
-  const badFormat = mutRtt((x) => x.replace('Format" Value="5"', 'Format" Value="1"'));
-  const badWidth = mutRtt((x) => x.replace('Width" Value="0"', 'Width" Value="1"'));
-  const badWCust = mutRtt((x) => x.replace('WidthCustom" Value="256"', 'WidthCustom" Value="512"'));
-  const badMip = mutRtt((x) => x.replace('CreateMipMaps" Value="false"', 'CreateMipMaps" Value="true"'));
-  const extraPort = mutRtt((x) => x.replace('<Port Id="Format"', '<Port Id="Mystery" Value="1"/>\n\t\t\t<Port Id="Format"'));
-  if (!(badFormat && /Format"="1"/.test(badFormat))) return false;
-  if (!(badWidth && /Width"="1"/.test(badWidth))) return false;
-  if (!(badWCust && /WidthCustom"="512"/.test(badWCust))) return false;
-  if (!(badMip && /CreateMipMaps"="true"/.test(badMip))) return false;
-  if (!(extraPort && /Mystery/.test(extraPort))) return false;
-  // (5) Texture-edge propagation at the substrate level. Build an
-  //     inline .phos: clear-color -> RTT -> Blur H -> Blur V -> screen
-  //     is not a legal sink chain (screen wants render input, blur
-  //     outputs texture). Instead, build clear-color -> RTT and verify
-  //     the RTT's texture output resource id appears on the RTT pass's
-  //     writes[0]. Also verify a texture edge from RTT.Color → Blur.
-  //     Texture propagates the ref through nodeState.ports.
-  const inlineDoc = /** @type {any} */ ({
-    format: 'phos/1', meta: { name: 'rtt-inline' },
+  // (1) Fixed policy round-trips through parse/serialize.
+  const fixedText = JSON.stringify({
+    format: 'phos/1', meta: { name: 'fixed-round-trip' },
+    resources: [{ id: 'r256', kind: 'texture', format: 'rgba8unorm', size: { policy: 'fixed', width: 256, height: 256 }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] }],
+    nodes: [{ id: 'c', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Target: { type: 'texture', value: { resourceId: 'r256' } }, Render: { type: 'render' } } }, { id: 's', primitive: 'graph', op: 'screen', ports: { Viewport: { type: 'vec4', value: [0, 0, 1, 1] }, CamPos: { type: 'vec3', value: [0, 0, -2] }, CamRot: { type: 'vec3', value: [0, 0, 0] }, CamLookAt: { type: 'vec3', value: [0, 0, 1] }, CamLookAtInWorldSpace: { type: 'float', value: 0 }, CamFov: { type: 'float', value: 45 }, CamNear: { type: 'float', value: 0.1 }, CamFar: { type: 'float', value: 1000 }, ScaleByAspect: { type: 'float', value: 0 }, Render: { type: 'render' } } }],
+    edges: [{ out: 'c.Render', in: 's.Render' }], expressions: [],
+  }, null, 2) + '\n';
+  const parsedFixed = /** @type {any} */ (parsePhos(fixedText));
+  const r256Res = parsedFixed.resources.find((/** @type {any} */ r) => r.id === 'r256');
+  if (!r256Res || r256Res.size.policy !== 'fixed' || r256Res.size.width !== 256 || r256Res.size.height !== 256) return false;
+  const roundTripped = serializePhos(parsedFixed);
+  const reparsed = /** @type {any} */ (parsePhos(roundTripped));
+  if (reparsed.resources[0].size.width !== 256 || reparsed.resources[0].size.height !== 256) return false;
+  // (2) Invalid fixed dimensions refuse at parse (non-integer, zero,
+  //     negative, non-number).
+  const mkFixed = (/** @type {any} */ w, /** @type {any} */ h) => JSON.stringify({
+    format: 'phos/1', meta: { name: 'x' },
+    resources: [{ id: 'r', kind: 'texture', format: 'rgba8unorm', size: { policy: 'fixed', width: w, height: h }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] }],
+    nodes: parsedFixed.nodes, edges: parsedFixed.edges, expressions: [],
+  });
+  const badFixed = [[256.5, 256], [0, 256], [-1, 256], ['256', 256], [256, 0], [256, -1]];
+  for (const [w, h] of badFixed) {
+    try { parsePhos(mkFixed(w, h)); return false; } catch { /* refused */ }
+  }
+  // (3) Executor size resolution for the fixed resource is exactly
+  //     256x256 regardless of the canvas viewport, and the descriptor
+  //     appears in the plan with the same policy+dimensions.
+  const eng256 = new Engine(toRuntime(parsePhos(fixedText)));
+  eng256.setViewport(1920, 1080, 1920, 1080);
+  const plan256 = /** @type {any} */ (eng256.step(1 / 60));
+  const planR256 = plan256.resources.find((/** @type {any} */ r) => r.id === 'r256');
+  if (planR256.size.policy !== 'fixed' || planR256.size.width !== 256 || planR256.size.height !== 256) return false;
+  // Different canvas viewport, same fixed dims — the descriptor should
+  // not shift.
+  eng256.setViewport(400, 300, 400, 300);
+  const planTiny = /** @type {any} */ (eng256.step(1 / 60));
+  const planRTiny = planTiny.resources.find((/** @type {any} */ r) => r.id === 'r256');
+  if (planRTiny.size.width !== 256 || planRTiny.size.height !== 256) return false;
+  // (4) Fixed dimensions in descriptor equivalence: the render-executor
+  //     resolveSize computes fixed→(width, height) directly. Verify
+  //     resolveSize behavior indirectly by making a second scene with
+  //     different fixed dims and checking the plan carries them.
+  const fixed128 = fixedText.replace(/"width": 256,\s*\n\s*"height": 256/, '"width": 128,\n          "height": 128');
+  const eng128 = new Engine(toRuntime(parsePhos(fixed128)));
+  eng128.setViewport(1024, 1024, 1024, 1024);
+  const plan128 = /** @type {any} */ (eng128.step(1 / 60));
+  const planR128 = plan128.resources.find((/** @type {any} */ r) => r.id === 'r256');
+  if (planR128.size.width !== 128 || planR128.size.height !== 128) return false;
+  // (5) The RTT native op still runs from a hand-authored scene using
+  //     Render input + fixed Target — proving the substrate-level
+  //     capability without any Plane9 conversion.
+  const rttNativeScene = /** @type {any} */ ({
+    format: 'phos/1', meta: { name: 'rtt-native' },
     resources: [
-      { id: 'clear-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
-      { id: 'rtt-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
-      { id: 'blur-h-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
-      { id: 'blur-v-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
+      { id: 'clear-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'fixed', width: 256, height: 256 }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
+      { id: 'rtt-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'fixed', width: 256, height: 256 }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
     ],
     nodes: [
       { id: 'clear', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0, 0, 0, 1] }, Target: { type: 'texture', value: { resourceId: 'clear-out' } }, Render: { type: 'render' } } },
       { id: 'rtt', primitive: 'graph', op: 'plane9-rendertotexture', ports: {
-        Format: { type: 'float', value: 5 }, Format2: { type: 'float', value: 0 }, Format3: { type: 'float', value: 0 }, Format4: { type: 'float', value: 0 },
-        Width: { type: 'float', value: 0 }, Height: { type: 'float', value: 0 },
-        WidthCustom: { type: 'float', value: 256 }, HeightCustom: { type: 'float', value: 256 },
-        CreateMipMaps: { type: 'float', value: 0 },
-        In1: { type: 'vec3', value: [0, 0, 0] }, In2: { type: 'vec3', value: [0, 0, 0] }, In3: { type: 'vec3', value: [0, 0, 0] },
-        RandomSeed: { type: 'float', value: 1 },
         Render: { type: 'render' },
         Target: { type: 'texture', value: { resourceId: 'rtt-out' } },
-        Color: { type: 'texture' },
-      } },
-      { id: 'blurH', primitive: 'graph', op: 'plane9-blur', ports: {
-        Texture: { type: 'texture' },
-        Target: { type: 'texture', value: { resourceId: 'blur-h-out' } },
-        Pass: { type: 'float', value: 0 }, Brightness: { type: 'float', value: 1 },
-        Color: { type: 'texture' },
-      } },
-      { id: 'blurV', primitive: 'graph', op: 'plane9-blur', ports: {
-        Texture: { type: 'texture' },
-        Target: { type: 'texture', value: { resourceId: 'blur-v-out' } },
-        Pass: { type: 'float', value: 1 }, Brightness: { type: 'float', value: 1 },
         Color: { type: 'texture' },
       } },
       { id: 'sink', primitive: 'graph', op: 'test-inspect-sink', ports: { A: { type: 'render' }, B: { type: 'render' }, presented: { type: 'render' } } },
     ],
     edges: [
       { out: 'clear.Render', in: 'rtt.Render' },
-      { out: 'rtt.Color', in: 'blurH.Texture' },
-      { out: 'blurH.Color', in: 'blurV.Texture' },
-      // Terminate at sink via two dummy render inputs — sink is a
-      // native-only test op that presents the resource from its A input.
       { out: 'clear.Render', in: 'sink.A' },
       { out: 'clear.Render', in: 'sink.B' },
     ],
     expressions: [],
   });
-  const eng = new Engine(toRuntime(inlineDoc));
-  eng.setViewport(1024, 1024, 1024, 1024);
-  const plan = /** @type {any} */ (eng.step(1 / 60));
-  const kinds = plan.passes.map((/** @type {any} */ p) => p.kind);
-  if (JSON.stringify(kinds) !== JSON.stringify(['clear-color', 'plane9-rendertotexture', 'plane9-blur', 'plane9-blur'])) return false;
-  const [, rttPass, hPass, vPass] = plan.passes;
+  const engRtt = new Engine(toRuntime(rttNativeScene));
+  engRtt.setViewport(1024, 1024, 1024, 1024);
+  const planRtt = /** @type {any} */ (engRtt.step(1 / 60));
+  const kinds = planRtt.passes.map((/** @type {any} */ p) => p.kind);
+  if (JSON.stringify(kinds) !== JSON.stringify(['clear-color', 'plane9-rendertotexture'])) return false;
+  const rttPass = planRtt.passes[1];
   if (rttPass.reads[0] !== 'clear-out' || rttPass.writes[0] !== 'rtt-out') return false;
-  if (hPass.reads[0] !== 'rtt-out' || hPass.writes[0] !== 'blur-h-out') return false;
-  if (vPass.reads[0] !== 'blur-h-out' || vPass.writes[0] !== 'blur-v-out') return false;
-  // (6) Renamed resource ids still work.
-  const renamed = JSON.parse(JSON.stringify(inlineDoc));
-  for (const r of renamed.resources) { if (r.id === 'rtt-out') r.id = 'mid-tex'; }
-  for (const n of renamed.nodes) for (const p of Object.values(/** @type {any} */ (n.ports))) {
-    const port = /** @type {any} */ (p);
-    if (port.type === 'texture' && port.value && port.value.resourceId === 'rtt-out') port.value.resourceId = 'mid-tex';
-  }
-  const engR = new Engine(toRuntime(renamed));
-  engR.setViewport(1024, 1024, 1024, 1024);
-  const planR = /** @type {any} */ (engR.step(1 / 60));
-  if (planR.passes[1].writes[0] !== 'mid-tex' || planR.passes[2].reads[0] !== 'mid-tex') return false;
-  // (7) Light Worms: convert attempt refuses. Find the first refusal
-  //     and confirm it names a node OTHER than RenderToTexture or Blur.
-  const lwPath = 'source-scenes/plane9/Abstract/Light Worms.p9c';
-  // Read the scene.xml directly from the .p9c container.
-  const lwBytes = readFileSync(new URL('../' + lwPath, import.meta.url));
-  const lwXml = extractSceneXml(new Uint8Array(lwBytes.buffer, lwBytes.byteOffset, lwBytes.byteLength));
+  // (6) Plane9 Blur + RTT compat gate refuses. Light Worms conversion
+  //     still refuses; Blur and RTT nodes now surface as UNRESOLVED.
+  const b = readFileSync(new URL('../source-scenes/plane9/Abstract/Light Worms.p9c', import.meta.url));
+  const lwXml = extractSceneXml(new Uint8Array(b.buffer, b.byteOffset, b.byteLength));
   const lwDis = assessP9Records(scanP9(lwXml));
-  const lwBad = lwDis.filter((d) => !d.ok);
-  if (lwBad.length === 0) return false;
-  // Neither RTT nor Blur appears as the source of a refusal.
-  const rttRefused = lwBad.some((d) => /RenderToTexture.*(REFUSED|UNRESOLVED|no Plane9 compatibility entry)/.test(d.text));
-  const blurRefused = lwBad.some((d) => /^Blur.*(REFUSED|UNRESOLVED|no Plane9 compatibility entry)/.test(d.text));
-  if (rttRefused || blurRefused) return false;
-  // The first refused node is one of the still-unresolved bridge nodes.
-  const firstBadNodeLine = lwBad.find((d) => /node type/.test(d.text));
-  if (!firstBadNodeLine) return false;
-  // (8) Existing MilkDrop plan, Plane9 Clear scene, and native scenes
-  //     intact.
+  const blurUnresolved = lwDis.some((d) => !d.ok && /^Blur.*Plane9 conversion REFUSED \(UNRESOLVED\)/.test(d.text));
+  const rttUnresolved = lwDis.some((d) => !d.ok && /^RenderToTexture.*Plane9 conversion REFUSED \(UNRESOLVED\)/.test(d.text));
+  if (!blurUnresolved || !rttUnresolved) return false;
+  // (7) Existing canvas/canvas-16block scenes intact.
   const md = readFileSync(new URL('./scenes/md-101-per_frame.phos', import.meta.url), 'utf8');
   try { new Engine(toRuntime(parsePhos(md))).step(1 / 60); } catch { return false; }
   const nc = readFileSync(new URL('./scenes/native-clear.phos', import.meta.url), 'utf8');
   try { new Engine(toRuntime(parsePhos(nc))).step(1 / 60); } catch { return false; }
   return true;
 })();
+
 
 // ==== TWO SEPARATE SURFACES (reviewer foundation 2026-07-18) ====
 // engineRegressionOk: PHOSPHENE's own executor behaves as this codebase
@@ -2411,7 +2322,7 @@ console.log('[substrate] MilkDrop plan carries resources + explicit reads/writes
 console.log('[substrate completion] resources rename does not touch ops; borders references producer pass by id; composite carries aspectY; usage/kind cross-field rules refuse; persistent-pingpong aliasing authorized; existing plans intact:', substrateCompletionOk ? 'OK' : 'FAIL');
 console.log('[substrate refinement] mutating fan-out refused at construction; cross-field descriptor validation refuses invalid unused + zero-usage + presentation combos; multi-writer refused for every resource; every pass has a unique nonempty id; existing renamed plans stay valid:', substrateRefinementOk ? 'OK' : 'FAIL');
 console.log('[plane9 compat] Plane9 Blur native op refuses Pass outside {0,1,2,3} and non-finite Brightness at contribute; invalid Clear.Render → Blur.Texture fixture refuses at source-port-type mismatch; synthetic RGBAToColor.Color → Screen.Render refuses at type mismatch:', plane9BlurSliceOk ? 'OK' : 'FAIL');
-console.log('[plane9 compat] Plane9 RenderToTexture slice: RTT1 (Format=5 W=H=0 WCust=HCust=256 CreateMipMaps=false In1/2/3=0 RandomSeed=1) converts with correct field mapping and Texture output resource; texture-typed edges propagate from RTT.Color into Blur.Texture; renamed resource ids still run; unsupported Format/Width/WidthCustom/CreateMipMaps and extra ports refuse; Light Worms refuses at a still-unresolved bridge node (neither RTT nor Blur); MilkDrop + Plane9 Clear + native scenes intact:', plane9RttSliceOk ? 'OK' : 'FAIL');
+console.log('[plane9 compat] Fixed-pixel-size resource capability: parse round-trips 256x256; invalid fixed dims refuse; the executor allocates and reuses fixed dims independent of the canvas viewport; distinct fixed dims produce distinct plans; the native plane9-rendertotexture op runs from a hand-authored scene with a fixed Target. Plane9 CONVERSION of Blur and RenderToTexture is UNRESOLVED because Format=5 semantics are not evidenced in the DLL string table:', plane9RttSliceOk ? 'OK' : 'FAIL');
 console.log('[studio lifecycle] setViewport before step drives composite motion.aspectY (landscape/portrait/square); two Engines from the same scene text produce independent plan objects; changing viewport between step calls updates aspectY at the next step:', studioLifecycleOk ? 'OK' : 'FAIL');
 console.log('[graph correctness] multi-driver refusal + render-input requires incoming edge:', ambiguousGraphRefusedOk ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');

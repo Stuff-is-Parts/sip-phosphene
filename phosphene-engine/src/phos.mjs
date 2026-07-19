@@ -26,7 +26,7 @@ import { OP_PORTS } from './engine.mjs';
  *   id:string,
  *   kind:'texture'|'presentation',
  *   format:'rgba8unorm'|'preferred-canvas',
- *   size:{policy:'canvas-16block'|'canvas'},
+ *   size:{policy:'canvas-16block'|'canvas'}|{policy:'fixed', width:number, height:number},
  *   lifetime:'persistent-pingpong'|'transient'|'per-frame',
  *   usage:('sampled'|'render-attachment'|'presentation')[]
  * }} ResourceDescriptor
@@ -44,7 +44,7 @@ const META_KEYS = ['name', 'sourceEngine', 'source', 'author', 'description', 't
 const RES_KEYS = ['id', 'kind', 'format', 'size', 'lifetime', 'usage'];
 const RES_KINDS = ['texture', 'presentation'];
 const RES_FORMATS = ['rgba8unorm', 'preferred-canvas'];
-const RES_SIZE_POLICIES = ['canvas-16block', 'canvas'];
+const RES_SIZE_POLICIES = ['canvas-16block', 'canvas', 'fixed'];
 const RES_LIFETIMES = ['persistent-pingpong', 'transient', 'per-frame'];
 const RES_USAGES = ['sampled', 'render-attachment', 'presentation'];
 
@@ -111,9 +111,21 @@ export function parsePhos(/** @type {string} */ text) {
     const size = rObj.size;
     if (typeof size !== 'object' || size === null || Array.isArray(size)) fail(rpath + '.size', 'must be an object');
     const sizeObj = /** @type {Record<string,unknown>} */ (size);
-    checkKeys(sizeObj, ['policy'], rpath + '.size');
     const policy = reqString(sizeObj, 'policy', rpath + '.size');
     if (!RES_SIZE_POLICIES.includes(policy)) fail(rpath + '.size', `policy "${policy}" not in [${RES_SIZE_POLICIES.join(', ')}]`);
+    /** @type {{policy:string, width?:number, height?:number}} */
+    let sizeOut;
+    if (policy === 'fixed') {
+      checkKeys(sizeObj, ['policy', 'width', 'height'], rpath + '.size');
+      const width = sizeObj.width;
+      const height = sizeObj.height;
+      if (typeof width !== 'number' || !Number.isInteger(width) || width <= 0) fail(rpath + '.size.width', `must be a positive integer, got ${JSON.stringify(width)}`);
+      if (typeof height !== 'number' || !Number.isInteger(height) || height <= 0) fail(rpath + '.size.height', `must be a positive integer, got ${JSON.stringify(height)}`);
+      sizeOut = { policy, width, height };
+    } else {
+      checkKeys(sizeObj, ['policy'], rpath + '.size');
+      sizeOut = { policy };
+    }
     const lifetime = reqString(rObj, 'lifetime', rpath);
     if (!RES_LIFETIMES.includes(lifetime)) fail(rpath, `lifetime "${lifetime}" not in [${RES_LIFETIMES.join(', ')}]`);
     const usage = rObj.usage;
@@ -123,7 +135,7 @@ export function parsePhos(/** @type {string} */ text) {
     }
     resources.push(/** @type {ResourceDescriptor} */ ({
       id, kind: /** @type {any} */ (kind), format: /** @type {any} */ (format),
-      size: { policy: /** @type {any} */ (policy) },
+      size: /** @type {any} */ (sizeOut),
       lifetime: /** @type {any} */ (lifetime),
       usage: /** @type {any} */ ([...usage]),
     }));
@@ -252,7 +264,9 @@ export function serializePhos(/** @type {Scene} */ scene) {
     meta,
     resources: scene.resources.map((r) => ({
       id: r.id, kind: r.kind, format: r.format,
-      size: { policy: r.size.policy },
+      size: /** @type {any} */ (r.size.policy === 'fixed'
+        ? { policy: 'fixed', width: /** @type {any} */ (r.size).width, height: /** @type {any} */ (r.size).height }
+        : { policy: r.size.policy }),
       lifetime: r.lifetime,
       usage: [...r.usage],
     })),
@@ -292,7 +306,9 @@ export function toRuntime(/** @type {Scene} */ scene) {
     meta: scene.meta,
     resources: scene.resources.map((r) => ({
       id: r.id, kind: r.kind, format: r.format,
-      size: { policy: r.size.policy },
+      size: /** @type {any} */ (r.size.policy === 'fixed'
+        ? { policy: 'fixed', width: /** @type {any} */ (r.size).width, height: /** @type {any} */ (r.size).height }
+        : { policy: r.size.policy }),
       lifetime: r.lifetime,
       usage: [...r.usage],
     })),
