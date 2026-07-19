@@ -197,13 +197,13 @@ function circularInterp(/** @type {number} */ prev, /** @type {number} */ target
  *   presentation: {resourceId:string}|null
  * }} RenderPlan
  * @typedef {WarpFeedbackPass|CompositePass|ClearPass} PassSpec
- * @typedef {{id?:string|null, kind:'warp-feedback', motion:any, borders:{inner:null|any, outer:null|any}, reads:string[], writes:string[]}} WarpFeedbackPass
- * @typedef {{id?:string|null, kind:'composite', comp:any, reads:string[], writes:string[]}} CompositePass
- * @typedef {{id?:string|null, kind:'clear-color', clear:{r:number, g:number, b:number, a:number}, reads:string[], writes:string[]}} ClearPass
+ * @typedef {{id:string, kind:'warp-feedback', motion:any, borders:{inner:null|any, outer:null|any}, reads:string[], writes:string[]}} WarpFeedbackPass
+ * @typedef {{id:string, kind:'composite', comp:any, reads:string[], writes:string[]}} CompositePass
+ * @typedef {{id:string, kind:'clear-color', clear:{r:number, g:number, b:number, a:number}, reads:string[], writes:string[]}} ClearPass
  * @typedef {{resourceId:string, passId?:string}} ResourceRef
  * @typedef {{plan:RenderPlan, outputs:Record<string, ResourceRef>}} ContributeResult
  */
-/** @typedef {{kind:'value'|'render', inputs:Record<string,string>, outputs:Record<string,string>, portConstraints?:Record<string, number|number[]>, initState?:(inputs:Record<string,any>)=>any, compute?:(ctx:{inputs:Record<string,any>, state:any, dt:number, frame:number, time:number, audio:{musicActive:boolean, rawBeat:number}, rng:Xorshift128})=>Record<string,any>, contribute?:(inputRefs:Record<string,ResourceRef>, ports:Record<string,any>, pool:Record<string,number>, eng:Engine, plan:RenderPlan)=>Record<string,ResourceRef>}} NativeOp */
+/** @typedef {{kind:'value'|'render', mutatesProducer?:boolean, inputs:Record<string,string>, outputs:Record<string,string>, portConstraints?:Record<string, number|number[]>, initState?:(inputs:Record<string,any>)=>any, compute?:(ctx:{inputs:Record<string,any>, state:any, dt:number, frame:number, time:number, audio:{musicActive:boolean, rawBeat:number}, rng:Xorshift128})=>Record<string,any>, contribute?:(inputRefs:Record<string,ResourceRef>, ports:Record<string,any>, pool:Record<string,number>, eng:Engine, plan:RenderPlan)=>Record<string,ResourceRef>}} NativeOp */
 
 /**
  * The single op-level port-value constraint hook (reviewer 2026-07-18).
@@ -800,20 +800,22 @@ export class Engine {
       }
       edgeDriven.add(e.in);
     }
-    // Fan-out into a producer-mutating consumer is refused (reviewer
-    // 2026-07-18 §1). A consumer op that declares `mutatesProducer:true`
-    // augments the pass identified by its incoming render ref in place;
-    // if two branches fan out from the same producer's render output and
-    // any branch is a producer-mutating consumer, both branches would
-    // reach the same pass and one branch's borders/etc. would silently
-    // overwrite the other's. The check is per producer-output port: if
-    // the port has more than one outgoing render edge AND any destination
-    // op declares mutatesProducer=true, refuse at construction rather
-    // than let the shared-mutable-pass failure ship. Fan-out into
-    // non-mutating consumers stays legal (the fan-out regression covers
-    // the passthrough case). Placed before the input-sourced check so
-    // the fan-out refusal fires when the graph is otherwise well-formed
-    // enough to hit type-checked edges but not the full sourcing sweep.
+    // Fan-out into a producer-mutating consumer is refused, transitively
+    // across render edges (reviewer 2026-07-18 §1 refinement). A consumer
+    // op that declares `mutatesProducer:true` augments the pass
+    // identified by its incoming render ref in place; a non-mutating
+    // passthrough preserves the producer's passId as it forwards the
+    // render ref, so a mutator reached anywhere downstream of a fan-out
+    // branch would mutate the shared producer pass. The check walks
+    // render-typed edges downstream from each fan-out branch's initial
+    // destination; if any node reached on any branch declares
+    // mutatesProducer=true, the fan-out is refused. Cycles are guarded
+    // by a visited-node set (ordinary cycle validation via
+    // topologicalOrder also remains in force below). Purely non-mutating
+    // render fan-out stays legal; value edges are never inspected here.
+    // Placed before the input-sourced check so the fan-out refusal fires
+    // when the graph is otherwise well-formed enough to hit type-checked
+    // edges but not the full sourcing sweep.
     /** @type {Map<string, {out:string,in:string}[]>} */
     const perProducerRenderEdges = new Map();
     for (const e of edges) {
@@ -829,16 +831,33 @@ export class Engine {
     }
     for (const [key, list] of perProducerRenderEdges) {
       if (list.length < 2) continue;
-      /** @type {string[]} */
-      const mutators = [];
+      /** @type {Set<string>} */
+      const mutatorsReached = new Set();
       for (const e of list) {
-        const [dstId] = splitRef(e.in);
-        const dstNode = nodes.find((n) => n.id === dstId);
-        if (!dstNode) continue;
-        const dstOp = /** @type {any} */ (opOf(dstNode.op));
-        if (dstOp.mutatesProducer === true) mutators.push(dstNode.op + ' (' + dstId + ')');
+        const [startDstId] = splitRef(e.in);
+        /** @type {Set<string>} */
+        const visited = new Set();
+        /** @type {string[]} */
+        const stack = [startDstId];
+        while (stack.length > 0) {
+          const nid = /** @type {string} */ (stack.pop());
+          if (visited.has(nid)) continue;
+          visited.add(nid);
+          const n = nodes.find((x) => x.id === nid);
+          if (!n) continue;
+          const nOp = /** @type {any} */ (opOf(n.op));
+          if (nOp.mutatesProducer === true) mutatorsReached.add(n.op + ' (' + nid + ')');
+          // Walk render-typed outgoing edges from this node.
+          for (const e2 of edges) {
+            const [srcId2, srcPort2] = splitRef(e2.out);
+            if (srcId2 !== nid) continue;
+            if (nOp.outputs[srcPort2] !== 'render') continue;
+            const [dstId2] = splitRef(e2.in);
+            stack.push(dstId2);
+          }
+        }
       }
-      if (mutators.length > 0) throw new Error(`Engine: render output "${key}" fans out to ${list.length} consumers including producer-mutating op(s) [${mutators.join(', ')}]; a mutating consumer requires exclusive access to its producer pass — refusing`);
+      if (mutatorsReached.size > 0) throw new Error(`Engine: render output "${key}" fans out to ${list.length} branches with producer-mutating op(s) reachable downstream [${[...mutatorsReached].join(', ')}]; a mutating consumer requires exclusive access to its producer pass — refusing`);
     }
     // Every declared input port must be sourced. Value-typed inputs (float,
     // vec2/3/4, ...) are sourced by either a constant on the port or an

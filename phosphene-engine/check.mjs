@@ -1701,12 +1701,9 @@ const substrateCompletionOk = (() => {
 const substrateRefinementOk = (() => {
   const md = readFileSync(new URL('./scenes/md-101-per_frame.phos', import.meta.url), 'utf8');
   const nc = readFileSync(new URL('./scenes/native-clear.phos', import.meta.url), 'utf8');
-  // (1) Fan-out from a producer into a mutating consumer refuses at
-  //     Engine construction. borders declares mutatesProducer:true, so
-  //     two borders nodes both consuming warp.out is exactly the shared-
-  //     mutable-pass shape the check refuses. The scene keeps everything
-  //     else identical to md-101; construction refuses at the fan-out
-  //     check before the outgoing-edge or input-sourced checks reach it.
+  // (1) Direct fan-out from a producer into two mutating consumers
+  //     refuses. borders declares mutatesProducer:true, so two borders
+  //     nodes both consuming warp.out is the shared-mutable-pass shape.
   const fanOutMutatorRefused = (() => {
     const doc = /** @type {any} */ (parsePhos(md));
     const borders2 = { id: 'borders2', primitive: 'shader', op: 'borders', ports: /** @type {any} */ ({
@@ -1719,8 +1716,91 @@ const substrateRefinementOk = (() => {
     try { new Engine(toRuntime(doc)); return false; }
     catch (e) {
       const msg = /** @type {Error} */ (e).message;
-      return /fans out to \d+ consumers including producer-mutating op\(s\)/.test(msg) && /borders/.test(msg);
+      return /producer-mutating op\(s\) reachable downstream/.test(msg) && /borders/.test(msg);
     }
+  })();
+  // (1b) Transitive fan-out through non-mutating passthroughs into two
+  //      borders refuses. Each branch goes warp.out -> passthrough ->
+  //      borders; the passthrough preserves the producer passId, so
+  //      both borders would still mutate the same warp-feedback pass.
+  const fanOutMutatorTransitiveRefused = (() => {
+    const doc = /** @type {any} */ (parsePhos(md));
+    const bordersLike = (/** @type {string} */ id) => ({ id, primitive: 'shader', op: 'borders', ports: /** @type {any} */ ({
+      ib_size: { type: 'float', value: 0.05 }, ib_r: { type: 'float', value: 0 }, ib_g: { type: 'float', value: 0.5 }, ib_b: { type: 'float', value: 1 }, ib_a: { type: 'float', value: 1 },
+      ob_size: { type: 'float', value: 0.05 }, ob_r: { type: 'float', value: 1 }, ob_g: { type: 'float', value: 0 }, ob_b: { type: 'float', value: 0 }, ob_a: { type: 'float', value: 1 },
+      in: { type: 'render' }, out: { type: 'render' },
+    }) });
+    const pass = (/** @type {string} */ id) => ({ id, primitive: 'graph', op: 'test-passthrough', ports: /** @type {any} */ ({ in: { type: 'render' }, out: { type: 'render' } }) });
+    // Replace the original borders in the md scene with two passthrough
+    // branches each feeding its own borders. The graph shape becomes:
+    //   warp.out -> pa.in
+    //   warp.out -> pb.in
+    //   pa.out   -> ba.in
+    //   pb.out   -> bb.in
+    //   ba.out and bb.out have no downstream consumer, but construction
+    //   refuses at the fan-out check before the outgoing-edge check
+    //   reaches them.
+    doc.nodes = doc.nodes.filter((/** @type {any} */ n) => n.id !== 'borders');
+    doc.edges = doc.edges.filter((/** @type {any} */ e) => e.out !== 'warp.out' && e.in !== 'borders.in' && e.out !== 'borders.out');
+    doc.nodes.push(pass('pa'), pass('pb'), bordersLike('ba'), bordersLike('bb'));
+    doc.edges.push(
+      { out: 'warp.out', in: 'pa.in' },
+      { out: 'warp.out', in: 'pb.in' },
+      { out: 'pa.out', in: 'ba.in' },
+      { out: 'pb.out', in: 'bb.in' },
+    );
+    try { new Engine(toRuntime(doc)); return false; }
+    catch (e) {
+      const msg = /** @type {Error} */ (e).message;
+      return /producer-mutating op\(s\) reachable downstream/.test(msg) && /borders \(ba\)/.test(msg) && /borders \(bb\)/.test(msg);
+    }
+  })();
+  // (1c) Mixed fan-out: one mutating branch plus one non-mutating branch
+  //      still refuses. Even the single mutator would mutate the shared
+  //      producer pass, and the non-mutating branch would then observe
+  //      the mutated result via the same passId.
+  const fanOutMutatorMixedRefused = (() => {
+    const doc = /** @type {any} */ (parsePhos(md));
+    // Existing edges: warp.out -> borders.in; borders.out -> comp.in.
+    // Add a second branch through a passthrough that terminates without
+    // any mutator downstream. That branch is legal on its own; the
+    // fan-out refuses because the OTHER branch (borders) mutates.
+    doc.nodes.push({ id: 'pnm', primitive: 'graph', op: 'test-passthrough', ports: /** @type {any} */ ({ in: { type: 'render' }, out: { type: 'render' } }) });
+    doc.edges.push({ out: 'warp.out', in: 'pnm.in' });
+    try { new Engine(toRuntime(doc)); return false; }
+    catch (e) {
+      const msg = /** @type {Error} */ (e).message;
+      return /producer-mutating op\(s\) reachable downstream/.test(msg) && /borders \(borders\)/.test(msg);
+    }
+  })();
+  // (1d) Purely non-mutating render fan-out remains accepted. Two
+  //      passthroughs branching from one source into a two-input
+  //      inspection sink construct and step without refusal — this is
+  //      the same shape renderFanOutOk already covers, restated here so
+  //      the refinement block is self-contained.
+  const fanOutNonMutatingAccepted = (() => {
+    /** @type {any} */
+    const scene = {
+      format: 'phos/1', meta: { name: 'fanout-legal' },
+      resources: [
+        { id: 'src-out', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] },
+      ],
+      nodes: [
+        { id: 'src', primitive: 'graph', op: 'clear-color', ports: { Color: { type: 'vec4', value: [0.1, 0.2, 0.3, 1] }, Target: { type: 'texture', value: { resourceId: 'src-out' } }, Render: { type: 'render' } } },
+        { id: 'pa', primitive: 'graph', op: 'test-passthrough', ports: { in: { type: 'render' }, out: { type: 'render' } } },
+        { id: 'pb', primitive: 'graph', op: 'test-passthrough', ports: { in: { type: 'render' }, out: { type: 'render' } } },
+        { id: 'sink', primitive: 'graph', op: 'test-inspect-sink', ports: { A: { type: 'render' }, B: { type: 'render' }, presented: { type: 'render' } } },
+      ],
+      edges: [
+        { out: 'src.Render', in: 'pa.in' },
+        { out: 'src.Render', in: 'pb.in' },
+        { out: 'pa.out', in: 'sink.A' },
+        { out: 'pb.out', in: 'sink.B' },
+      ],
+      expressions: [],
+    };
+    try { new Engine(toRuntime(scene)).step(1 / 60); return true; }
+    catch { return false; }
   })();
   // (2) Cross-field descriptor validation applies to every declared
   //     resource including unused ones. An unused descriptor with an
@@ -1837,7 +1917,9 @@ const substrateRefinementOk = (() => {
       return plan.presentation.resourceId === 'renamed-clear';
     } catch { return false; }
   })();
-  return fanOutMutatorRefused && invalidUnusedRefused && zeroUsageRefused
+  return fanOutMutatorRefused && fanOutMutatorTransitiveRefused && fanOutMutatorMixedRefused
+    && fanOutNonMutatingAccepted
+    && invalidUnusedRefused && zeroUsageRefused
     && invalidPresentationCombosRefused && multiWriterPingpongRefused
     && uniquePassIdsOk && existingRenamedClearOk;
 })();
