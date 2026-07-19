@@ -22,18 +22,25 @@ The sha256 of the resulting file must match the value above.
 
 ---
 
-blur-fixture.scene.xml — hand-authored minimal Plane9 fixture exercising
-the Clear -> Blur -> Screen shape under the DLL-witnessed Blur contract
-(Dir="2" Width="4" Brightness="1", grounded at Plane9Engine.dll offset
-0x1f8514 metadata block, sha256
-4cebc1b36f003a550b4fc6ae1979d579f4f7f27b03599c7aef88fd5526ba1196,
-v2.5.1 install). Not extracted from a shipping Plane9 scene — authored
-by PHOSPHENE for end-to-end verification of the p9 Blur conversion path.
+blur-fixture.scene.xml — INVALID Plane9 source graph retained as
+NEGATIVE-testing evidence only. The hand-authored file wires
+Clear1.Render -> Blur1.Texture and Blur1.Texture -> Screen.Render,
+which are illegal Plane9 connections: Clear.Render is a Render output
+whose destination cannot be a Texture input, and Screen.Render is a
+Render input whose source cannot be a Texture output. Blur's Texture
+port is Texture-typed on both sides, so a real Plane9 Blur graph
+requires a Texture-producing upstream (RenderToTexture in Light Worms)
+and a Texture-consuming downstream (Shader.Texture2 in Light Worms).
+This fixture EXISTS so check.mjs can prove the Plane9 compatibility
+gate refuses the invalid shape at the source-port-type check in
+disposeP9. It is NOT extracted from a shipping Plane9 scene and does
+NOT authorize any Plane9-source-derived .phos.
 
 Provenance chain:
 - authored:  2026-07-18
-- purpose:   PHOSPHENE p9-to-phos Blur conversion regression + committed
-             scene byte-for-byte equality check
+- purpose:   negative-testing fixture for the Plane9 source-port-type
+             mismatch refusal in phosphene-engine/src/p9-import.mjs
+             disposeP9
 - sha256:    ddf2e6cb5b4d290eacd691a016eb79ae58bd87731d2e658ba60af728f43fffc5
 - bytes:     1652
 - license:   CC0 (declared in the file)

@@ -60,14 +60,18 @@ struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> };
   return vec4(min(vec3(1.0), mixed * cu.gamma), 1.0);
 }`;
 
-// Plane9 blur shader (nodedata/blur.glsl in the v2.5.1 install). Four
-// fragment entry points map to the source file's four #if PASS branches:
+// Plane9 blur shader (nodedata/blur.glsl in the v2.5.1 install). WGSL
+// line-by-line semantic transcription of the four GLSL fragment
+// branches — GLSL and WGSL are different shader languages, so this is
+// not a byte-for-byte copy; the numeric kernel constants at :9-10 and
+// :13-14 are transcribed unchanged, and each sample/weight expression
+// is rewritten in WGSL with identical arithmetic. Four fragment entry
+// points map to the source file's four #if PASS branches:
 //   fs0 — horizontalPass4 (blur.glsl:49-61)
 //   fs1 — verticalPass4   (blur.glsl:63-75)
 //   fs2 — horizontalPass6 (blur.glsl:77-89)
 //   fs3 — verticalPass6   (blur.glsl:91-103)
-// The kernel constants are transcribed verbatim from blur.glsl:9-10 and
-// :13-14. `gSourceTextureSize` is UV-per-pixel (i.e. 1/textureWidth,
+// `gSourceTextureSize` is UV-per-pixel (i.e. 1/textureWidth,
 // 1/textureHeight) since the shader multiplies pixel offsets by it to
 // produce UV space steps; the executor supplies that value each frame
 // from the actual source texture dimensions. `gBrightness` is a scalar

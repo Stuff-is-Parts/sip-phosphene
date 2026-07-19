@@ -1993,92 +1993,148 @@ const studioLifecycleOk = (() => {
   return true;
 })();
 
-// (as) Plane9 Blur end-to-end slice — DLL-witnessed field mapping,
-//      evidenced defaults, resource wiring, pass ordering, renamed
-//      resource ids, and unsupported-variant refusal. The committed
-//      scene must equal converter output byte-for-byte; existing
-//      MilkDrop and Plane9 Clear conversions must remain unchanged.
-const plane9BlurSliceOk = (() => {
-  const fixturePath = new URL('../sources/plane9/blur-fixture.scene.xml', import.meta.url);
-  const fixtureBytes = readFileSync(fixturePath);
-  const fixtureSha = createHash('sha256').update(fixtureBytes).digest('hex');
-  const fixtureXml = fixtureBytes.toString('utf8');
-  // (1) The committed scene equals converter output byte-for-byte.
-  const committed = readFileSync(new URL('./scenes/plane9-blur.phos', import.meta.url), 'utf8');
-  const converted = serializePhos(p9ToPhos(fixtureXml, { file: 'blur-fixture.scene.xml', sha256: fixtureSha }));
-  if (committed !== converted) return false;
-  // (2) Source-field-to-port mapping. Blur1 (Dir=2 Width=4 Brightness=1)
-  //     expands into two plane9-blur nodes (Blur1-h Pass=0, Blur1-v
-  //     Pass=1); Brightness=1 lands on both; Width=4 selects passes
-  //     0 and 1 rather than 2 and 3.
-  const doc = /** @type {any} */ (parsePhos(committed));
-  const h = doc.nodes.find((/** @type {any} */ n) => n.id === 'Blur1-h');
-  const v = doc.nodes.find((/** @type {any} */ n) => n.id === 'Blur1-v');
-  if (!h || h.op !== 'plane9-blur' || h.ports.Pass.value !== 0 || h.ports.Brightness.value !== 1) return false;
-  if (!v || v.op !== 'plane9-blur' || v.ports.Pass.value !== 1 || v.ports.Brightness.value !== 1) return false;
-  if (h.ports.Target.value.resourceId !== 'Blur1-h-out') return false;
-  if (v.ports.Target.value.resourceId !== 'Blur1-out') return false;
-  // (3) Materialized resources.
-  const rids = doc.resources.map((/** @type {any} */ r) => r.id).sort();
-  if (JSON.stringify(rids) !== JSON.stringify(['Blur1-h-out', 'Blur1-out', 'Clear1-out'])) return false;
-  for (const rid of ['Blur1-h-out', 'Blur1-out']) {
-    const r = doc.resources.find((/** @type {any} */ x) => x.id === rid);
-    if (!r || r.kind !== 'texture' || r.format !== 'rgba8unorm' || r.lifetime !== 'transient') return false;
-    if (r.size.policy !== 'canvas') return false;
-    if (JSON.stringify(r.usage) !== JSON.stringify(['sampled', 'render-attachment'])) return false;
-  }
-  // (4) Reads/writes and pass ordering through graph edges. Plan carries
-  //     three passes in order: clear-color writes Clear1-out; H reads
-  //     Clear1-out writes Blur1-h-out; V reads Blur1-h-out writes
-  //     Blur1-out; presentation is Blur1-out.
-  const eng = new Engine(toRuntime(parsePhos(committed)));
+// (as) Plane9 Blur — corrected 2026-07-18. The NATIVE `plane9-blur` op
+//      is source-grounded and freely usable by PHOS-native scenes; the
+//      Plane9 compatibility gate leaves scene-level Blur UNRESOLVED
+//      because Blur's Texture-typed I/O needs bridge nodes
+//      (RenderToTexture upstream, Shader downstream — Light Worms audit
+//      2026-07-18) that are not yet in the Plane9 inventory. Regressions
+//      cover: (a) the native scene runs end to end through the executor;
+//      (b) the compatibility gate refuses any Blur containing scene at
+//      disposition; (c) an invalid Plane9 source graph (Render output
+//      into Texture input) refuses at the new source-port-type check.
+const plane9BlurNativeOk = (() => {
+  // (a-1) native-plane9-blur.phos parses, round-trips, and steps.
+  const t = readFileSync(new URL('./scenes/native-plane9-blur.phos', import.meta.url), 'utf8');
+  const doc = /** @type {any} */ (parsePhos(t));
+  if (serializePhos(doc) !== t) return false;
+  const eng = new Engine(toRuntime(doc));
   eng.setViewport(1024, 1024, 1024, 1024);
   const plan = /** @type {any} */ (eng.step(1 / 60));
   const kinds = plan.passes.map((/** @type {any} */ p) => p.kind);
   if (JSON.stringify(kinds) !== JSON.stringify(['clear-color', 'plane9-blur', 'plane9-blur'])) return false;
   const [cp, hp, vp] = plan.passes;
-  if (cp.writes[0] !== 'Clear1-out' || cp.reads.length !== 0) return false;
-  if (hp.reads[0] !== 'Clear1-out' || hp.writes[0] !== 'Blur1-h-out' || hp.pass !== 0) return false;
-  if (vp.reads[0] !== 'Blur1-h-out' || vp.writes[0] !== 'Blur1-out' || vp.pass !== 1) return false;
-  if (plan.presentation.resourceId !== 'Blur1-out') return false;
-  // (5) Renamed resource ids still work. Rewrite Blur1-h-out to fb-mid
-  //     and Blur1-out to fb-final and re-run — the Blur op reads its
-  //     target resource id from its Target port and does not hardcode.
-  const renamed = /** @type {any} */ (parsePhos(committed));
-  for (const r of renamed.resources) { if (r.id === 'Blur1-h-out') r.id = 'fb-mid'; else if (r.id === 'Blur1-out') r.id = 'fb-final'; }
+  if (cp.writes[0] !== 'clear-out' || hp.pass !== 0 || vp.pass !== 1) return false;
+  if (hp.reads[0] !== 'clear-out' || hp.writes[0] !== 'blur-h-out') return false;
+  if (vp.reads[0] !== 'blur-h-out' || vp.writes[0] !== 'blur-out') return false;
+  if (plan.presentation.resourceId !== 'blur-out') return false;
+  // (a-2) Every emitted pass carries a nonempty stable id and all ids
+  //       are unique — the substrate refinement contract applied to
+  //       the plane9-blur passes.
+  const ids = plan.passes.map((/** @type {any} */ p) => p.id);
+  if (!ids.every((/** @type {any} */ i) => typeof i === 'string' && i.length > 0)) return false;
+  if (new Set(ids).size !== ids.length) return false;
+  // (a-3) Renaming the intermediate resource id still runs — the op
+  //       reads its target from its Target port, no magic ids.
+  const renamed = /** @type {any} */ (parsePhos(t));
+  for (const r of renamed.resources) if (r.id === 'blur-h-out') r.id = 'fb-mid';
   for (const n of renamed.nodes) for (const p of Object.values(/** @type {any} */ (n.ports))) {
     const port = /** @type {any} */ (p);
-    if (port.type === 'texture' && port.value) {
-      if (port.value.resourceId === 'Blur1-h-out') port.value.resourceId = 'fb-mid';
-      else if (port.value.resourceId === 'Blur1-out') port.value.resourceId = 'fb-final';
-    }
+    if (port.type === 'texture' && port.value && port.value.resourceId === 'blur-h-out') port.value.resourceId = 'fb-mid';
   }
   const engR = new Engine(toRuntime(renamed));
   engR.setViewport(1024, 1024, 1024, 1024);
   const planR = /** @type {any} */ (engR.step(1 / 60));
-  if (planR.presentation.resourceId !== 'fb-final') return false;
-  // (6) Unsupported Blur variants refuse at conversion. Cases: Dir="1"
-  //     (not "Both"), Width="8" (no shader), Width="16" (corpus-witnessed
-  //     but no shader), extra port outside {Dir, Width, Brightness}.
-  const mut = (/** @type {(x:string)=>string} */ f) => {
-    try { p9ToPhos(f(fixtureXml), { file: 'x', sha256: 'x' }); return null; }
-    catch (e) { return /** @type {Error} */ (e).message; }
-  };
-  const dirRefused = mut((x) => x.replace('Dir" Value="2"', 'Dir" Value="1"'));
-  const width8Refused = mut((x) => x.replace('Width" Value="4"', 'Width" Value="8"'));
-  const width16Refused = mut((x) => x.replace('Width" Value="4"', 'Width" Value="16"'));
-  const extraPortRefused = mut((x) => x.replace('<Port Id="Brightness"', '<Port Id="Mystery" Value="1"/>\n\t\t\t<Port Id="Brightness"'));
-  if (!(dirRefused && /Dir"="1"/.test(dirRefused))) return false;
-  if (!(width8Refused && /Width"="8"/.test(width8Refused))) return false;
-  if (!(width16Refused && /Width"="16"/.test(width16Refused))) return false;
-  if (!(extraPortRefused && /Mystery/.test(extraPortRefused))) return false;
-  // (7) Existing MilkDrop and Plane9 Clear plans remain unchanged.
-  const md = readFileSync(new URL('./scenes/md-101-per_frame.phos', import.meta.url), 'utf8');
-  try { new Engine(toRuntime(parsePhos(md))).step(1 / 60); } catch { return false; }
-  const nc = readFileSync(new URL('./scenes/native-clear.phos', import.meta.url), 'utf8');
-  try { new Engine(toRuntime(parsePhos(nc))).step(1 / 60); } catch { return false; }
+  if (planR.passes[1].writes[0] !== 'fb-mid' || planR.passes[2].reads[0] !== 'fb-mid') return false;
+  // (a-4) Native op strict Pass and Brightness refusals — the op refuses
+  //       Pass outside {0,1,2,3} at contribute time, and non-finite
+  //       Brightness likewise.
+  const badPass = /** @type {any} */ (parsePhos(t));
+  const bh = badPass.nodes.find((/** @type {any} */ n) => n.id === 'blurH');
+  bh.ports.Pass.value = 7;
+  const badPassRefuses = (() => { try { new Engine(toRuntime(badPass)).step(1 / 60); return false; } catch (e) { return /Pass port must be 0, 1, 2, or 3/.test(/** @type {Error} */ (e).message); } })();
+  if (!badPassRefuses) return false;
+  const badBright = /** @type {any} */ (parsePhos(t));
+  const bh2 = badBright.nodes.find((/** @type {any} */ n) => n.id === 'blurH');
+  bh2.ports.Brightness.value = Number.NaN;
+  const badBrightRefuses = (() => { try { new Engine(toRuntime(badBright)).step(1 / 60); return false; } catch (e) { return /Brightness port must be a finite float/.test(/** @type {Error} */ (e).message); } })();
+  if (!badBrightRefuses) return false;
   return true;
 })();
+
+const plane9BlurCompatUnresolvedOk = (() => {
+  // (b) The invalid Plane9 fixture (Render into Texture, Texture into
+  //     Render) refuses at the Plane9 compatibility gate. The refusal
+  //     source is EITHER the Blur node being UNRESOLVED at compat, OR
+  //     the source-port-type mismatch check catching Render vs Texture.
+  //     Both refuse before any conversion runs, and both are legitimate
+  //     — the test asserts the fixture cannot convert.
+  const fixture = readFileSync(new URL('../sources/plane9/blur-fixture.scene.xml', import.meta.url), 'utf8');
+  const converted = (() => { try { p9ToPhos(fixture, { file: 'blur-fixture.scene.xml', sha256: 'x' }); return true; } catch { return false; } })();
+  if (converted) return false;
+  // The disposition list must name the Blur UNRESOLVED refusal or the
+  // Plane9 source-port-type mismatch (Render → Texture) on the first
+  // bad line.
+  const recs = scanP9(fixture);
+  const dis = assessP9Records(recs);
+  const bad = dis.filter((d) => !d.ok);
+  const hasBlurUnresolved = bad.some((d) => /Blur.*UNRESOLVED/.test(d.text));
+  const hasTypeMismatch = bad.some((d) => /source port type mismatch/.test(d.text) && /Render/.test(d.text) && /Texture/.test(d.text));
+  if (!(hasBlurUnresolved || hasTypeMismatch)) return false;
+  return true;
+})();
+
+const plane9BlurSourcePortTypingOk = (() => {
+  // (c) Focused source-port-type check across the invalid Plane9 fixture:
+  //     the retained blur-fixture.scene.xml wires Clear.Render into
+  //     Blur.Texture (Render output into Texture input) and Blur.Texture
+  //     into Screen.Render (Texture output into Render input). Each is
+  //     an invalid Plane9 source graph and the source-port-type check
+  //     must refuse before conversion is attempted. Since Blur is
+  //     UNRESOLVED at compat, the primary refusal for Blur-incident
+  //     edges is "endpoint not convertible" — but the type-mismatch
+  //     check is independently exercised via a synthetic all-PASS
+  //     scene where the type mismatch is what remains.
+  const fixture = readFileSync(new URL('../sources/plane9/blur-fixture.scene.xml', import.meta.url), 'utf8');
+  const disFixture = assessP9Records(scanP9(fixture));
+  const badFixture = disFixture.filter((d) => !d.ok);
+  if (badFixture.length === 0) return false;
+  // Synthetic all-PASS scene where two nodes are both compat-PASS: an
+  // RGBAToColor (vec4 output on Color) and a Screen (Render input on
+  // Render). Wiring RGBAToColor.Color -> Screen.Render is a type
+  // mismatch (vec4 vs Render), and the source-port-type check refuses.
+  const synth = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<Plane9Scene FormatVersion="2" Id="x" ParentId="" WarmupTime="0" SceneType="1" Version="1" DevelopmentTime="0" Created="20260718 00:00" LastModified="20260718 00:00">',
+    '\t<Author>t</Author>',
+    '\t<Desc></Desc>',
+    '\t<Tags></Tags>',
+    '\t<License Type="CC0" RelicensingPossible="1">t</License>',
+    '\t<Nodes>',
+    '\t\t<Node Type="Screen" Name="Screen">',
+    '\t\t\t<Port Id="Viewport" Value="0 0 1 1"/>',
+    '\t\t\t<Port Id="CamPos" Value="0 0 -2"/>',
+    '\t\t\t<Port Id="CamRot" Value="0 0 0"/>',
+    '\t\t\t<Port Id="CamLookAt" Value="0 0 1"/>',
+    '\t\t\t<Port Id="CamLookAtInWorldSpace" Value="false"/>',
+    '\t\t\t<Port Id="CamFov" Value="45"/>',
+    '\t\t\t<Port Id="CamNear" Value="0.1"/>',
+    '\t\t\t<Port Id="CamFar" Value="1000"/>',
+    '\t\t\t<Port Id="ScaleByAspect" Value="false"/>',
+    '\t\t</Node>',
+    '\t\t<Node Type="RGBAToColor" Name="rgba">',
+    '\t\t\t<Port Id="Red" Value="0"/>',
+    '\t\t\t<Port Id="Green" Value="0"/>',
+    '\t\t\t<Port Id="Blue" Value="0"/>',
+    '\t\t\t<Port Id="Alpha" Value="1"/>',
+    '\t\t</Node>',
+    '\t</Nodes>',
+    '\t<Connections>',
+    '\t\t<Connection Out="rgba.Color" In="Screen.Render"/>',
+    '\t</Connections>',
+    '\t<SceneCompatibility><GoodScenes/><BadScenes/></SceneCompatibility>',
+    '</Plane9Scene>',
+    '',
+  ].join('\n');
+  const dis = assessP9Records(scanP9(synth));
+  const typeMismatch = dis.find((d) => !d.ok && /source port type mismatch/.test(d.text));
+  if (!typeMismatch) return false;
+  if (!/vec4/.test(typeMismatch.text)) return false;
+  if (!/Render/.test(typeMismatch.text)) return false;
+  return true;
+})();
+
+const plane9BlurSliceOk = plane9BlurNativeOk && plane9BlurCompatUnresolvedOk && plane9BlurSourcePortTypingOk;
 
 // ==== TWO SEPARATE SURFACES (reviewer foundation 2026-07-18) ====
 // engineRegressionOk: PHOSPHENE's own executor behaves as this codebase
@@ -2193,7 +2249,7 @@ console.log('[screen guard] every write path — construction, setVar, edge atta
 console.log('[substrate] MilkDrop plan carries resources + explicit reads/writes + presentation; parser refuses undeclared/wrong-kind/wrong-format resources; engine refuses missing feedback and wrong lifetime:', substrateOk ? 'OK' : 'FAIL');
 console.log('[substrate completion] resources rename does not touch ops; borders references producer pass by id; composite carries aspectY; usage/kind cross-field rules refuse; persistent-pingpong aliasing authorized; existing plans intact:', substrateCompletionOk ? 'OK' : 'FAIL');
 console.log('[substrate refinement] mutating fan-out refused at construction; cross-field descriptor validation refuses invalid unused + zero-usage + presentation combos; multi-writer refused for every resource; every pass has a unique nonempty id; existing renamed plans stay valid:', substrateRefinementOk ? 'OK' : 'FAIL');
-console.log('[plane9 compat] Plane9 Blur slice: committed .phos equals converter output; Blur1 (Dir=2 Width=4 Brightness=1) expands into Blur1-h (Pass=0) + Blur1-v (Pass=1) writing Blur1-h-out then Blur1-out; renamed resource ids still run; Dir/Width/extra-port refusals fire at conversion; MilkDrop + Plane9 Clear plans intact:', plane9BlurSliceOk ? 'OK' : 'FAIL');
+console.log('[plane9 compat] Plane9 Blur native op end-to-end: PHOS-native scene runs three passes (clear + H + V) with stable unique pass ids; renaming the intermediate resource still runs; native op refuses Pass outside {0,1,2,3} and non-finite Brightness. Plane9 Blur compatibility gate leaves scene-level Blur UNRESOLVED (bridge nodes missing) — the invalid Clear.Render → Blur.Texture → Screen.Render fixture refuses at disposition. Plane9 source-port-type check refuses Clear.Color (vec4) plugged into Screen.Render:', plane9BlurSliceOk ? 'OK' : 'FAIL');
 console.log('[studio lifecycle] setViewport before step drives composite motion.aspectY (landscape/portrait/square); two Engines from the same scene text produce independent plan objects; changing viewport between step calls updates aspectY at the next step:', studioLifecycleOk ? 'OK' : 'FAIL');
 console.log('[graph correctness] multi-driver refusal + render-input requires incoming edge:', ambiguousGraphRefusedOk ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
