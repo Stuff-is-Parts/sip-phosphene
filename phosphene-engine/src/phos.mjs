@@ -461,11 +461,15 @@ export function milkToPhos(/** @type {{records:import('./milk-import.mjs').Sourc
       if (!(key in nodePorts[nodeId])) emitPort(nodePorts, nodeId, key, dflt);
     }
   }
-  // canonical render wiring: warp -> borders -> comp
+  // canonical render wiring: warp -> borders -> comp; explicit texture
+  // ports identify the persistent feedback and presentation resources
+  // rather than warp/composite referencing magic ids.
+  nodePorts.warp.Feedback = /** @type {any} */ ({ type: 'texture', value: { resourceId: 'md-feedback' } });
   nodePorts.warp.out = { type: 'render' };
   nodePorts.borders.in = { type: 'render' };
   nodePorts.borders.out = { type: 'render' };
   nodePorts.comp.in = { type: 'render' };
+  nodePorts.comp.Target = /** @type {any} */ ({ type: 'texture', value: { resourceId: 'canvas' } });
   /** @type {ExprProgram[]} */
   const expressions = [];
   if (perFrame.length > 0 || perFrameComments.length > 0) {

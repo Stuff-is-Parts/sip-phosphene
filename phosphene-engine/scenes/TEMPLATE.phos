@@ -12,8 +12,25 @@
     "// source": "Ported scenes carry meta.sourceEngine plus meta.source {engine,file,sha256} naming the exact source file they were transcribed from. Hand-authored scenes omit both."
   },
 
-  "// resources": "Textures, meshes, audio bindings. Not yet supported — the loader refuses a non-empty list, so leave it empty.",
-  "resources": [],
+  "// resources": "Graphical resources the scene declares. Each ResourceDescriptor names id, kind (texture|presentation), format (rgba8unorm|preferred-canvas), size.policy (canvas-16block|canvas), lifetime (persistent-pingpong|transient|per-frame), and usage flags (sampled|render-attachment|presentation). See design/PHOS-FORMAT.md.",
+  "resources": [
+    {
+      "id": "md-feedback",
+      "kind": "texture",
+      "format": "rgba8unorm",
+      "size": { "policy": "canvas-16block" },
+      "lifetime": "persistent-pingpong",
+      "usage": ["sampled", "render-attachment"]
+    },
+    {
+      "id": "canvas",
+      "kind": "presentation",
+      "format": "preferred-canvas",
+      "size": { "policy": "canvas" },
+      "lifetime": "per-frame",
+      "usage": ["render-attachment", "presentation"]
+    }
+  ],
 
   "// nodes": "A scene is a typed node graph: nodes with typed ports, wired by edges. Each node: unique id; primitive (graph|shader|expr|geom|compute); op (the specific operation); ports. Port types: float|vec2|vec3|vec4|color|texture|mesh|effect|render. A float port may carry a constant value — expressions can overwrite it every frame by name.",
   "nodes": [
@@ -37,6 +54,7 @@
         "fWarpAnimSpeed": { "type": "float", "value": 1 },
         "fWarpScale":     { "type": "float", "value": 1 },
         "fZoomExponent":  { "type": "float", "value": 1 },
+        "Feedback": { "type": "texture", "value": { "resourceId": "md-feedback" } },
         "out":    { "type": "render" }
       }
     },
@@ -70,7 +88,8 @@
         "fVideoEchoZoom":        { "type": "float", "value": 2 },
         "fVideoEchoAlpha":       { "type": "float", "value": 0 },
         "nVideoEchoOrientation": { "type": "float", "value": 0 },
-        "in": { "type": "render" }
+        "in": { "type": "render" },
+        "Target": { "type": "texture", "value": { "resourceId": "canvas" } }
       }
     }
   ],

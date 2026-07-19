@@ -95,6 +95,12 @@
           "type": "float",
           "value": 1
         },
+        "Feedback": {
+          "type": "texture",
+          "value": {
+            "resourceId": "md-feedback"
+          }
+        },
         "out": {
           "type": "render"
         }
@@ -176,6 +182,12 @@
         },
         "in": {
           "type": "render"
+        },
+        "Target": {
+          "type": "texture",
+          "value": {
+            "resourceId": "canvas"
+          }
         }
       }
     }

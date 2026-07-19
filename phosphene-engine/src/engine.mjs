@@ -197,10 +197,10 @@ function circularInterp(/** @type {number} */ prev, /** @type {number} */ target
  *   presentation: {resourceId:string}|null
  * }} RenderPlan
  * @typedef {WarpFeedbackPass|CompositePass|ClearPass} PassSpec
- * @typedef {{kind:'warp-feedback', motion:any, borders:{inner:null|any, outer:null|any}, reads:string[], writes:string[]}} WarpFeedbackPass
- * @typedef {{kind:'composite', comp:any, reads:string[], writes:string[]}} CompositePass
- * @typedef {{kind:'clear-color', clear:{r:number, g:number, b:number, a:number}, reads:string[], writes:string[]}} ClearPass
- * @typedef {{resourceId:string}} ResourceRef
+ * @typedef {{id?:string|null, kind:'warp-feedback', motion:any, borders:{inner:null|any, outer:null|any}, reads:string[], writes:string[]}} WarpFeedbackPass
+ * @typedef {{id?:string|null, kind:'composite', comp:any, reads:string[], writes:string[]}} CompositePass
+ * @typedef {{id?:string|null, kind:'clear-color', clear:{r:number, g:number, b:number, a:number}, reads:string[], writes:string[]}} ClearPass
+ * @typedef {{resourceId:string, passId?:string}} ResourceRef
  * @typedef {{plan:RenderPlan, outputs:Record<string, ResourceRef>}} ContributeResult
  */
 /** @typedef {{kind:'value'|'render', inputs:Record<string,string>, outputs:Record<string,string>, portConstraints?:Record<string, number|number[]>, initState?:(inputs:Record<string,any>)=>any, compute?:(ctx:{inputs:Record<string,any>, state:any, dt:number, frame:number, time:number, audio:{musicActive:boolean, rawBeat:number}, rng:Xorshift128})=>Record<string,any>, contribute?:(inputRefs:Record<string,ResourceRef>, ports:Record<string,any>, pool:Record<string,number>, eng:Engine, plan:RenderPlan)=>Record<string,ResourceRef>}} NativeOp */
@@ -233,17 +233,16 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       fDecay: 'float', zoom: 'float', rot: 'float', warp: 'float',
       cx: 'float', cy: 'float', dx: 'float', dy: 'float', sx: 'float', sy: 'float',
       fWarpAnimSpeed: 'float', fWarpScale: 'float', fZoomExponent: 'float',
+      Feedback: 'texture',
     },
     outputs: { out: 'render' },
     contribute(inputRefs, ports, pool, eng, plan) {
       if (Object.keys(inputRefs).length !== 0) throw new Error('warp-feedback is a plan source and takes no render inputs — refusing');
-      // MilkDrop convention: warp-feedback reads and writes the scene's
-      // persistent-pingpong feedback resource. The scene must declare a
-      // resource id 'md-feedback'.
-      const feedbackId = 'md-feedback';
-      const desc = plan.resources.find((r) => r.id === feedbackId);
-      if (!desc) throw new Error(`warp-feedback: scene must declare a resource with id "${feedbackId}" (persistent-pingpong texture) — refusing`);
-      if (desc.lifetime !== 'persistent-pingpong') throw new Error(`warp-feedback: resource "${feedbackId}" must have lifetime "persistent-pingpong", got "${desc.lifetime}" — refusing`);
+      const fb = /** @type {ResourceRef|undefined} */ (ports.Feedback);
+      if (!fb || typeof fb !== 'object' || !('resourceId' in fb)) throw new Error('warp-feedback: Feedback port must carry a texture resource reference — refusing');
+      const desc = plan.resources.find((r) => r.id === fb.resourceId);
+      if (!desc) throw new Error(`warp-feedback: Feedback references resource "${fb.resourceId}" which is not declared in the scene — refusing`);
+      if (desc.lifetime !== 'persistent-pingpong') throw new Error(`warp-feedback: Feedback resource "${fb.resourceId}" must have lifetime "persistent-pingpong", got "${desc.lifetime}" — refusing`);
       // per-frame warp oscillators — milkdropfs.cpp:1782-1787
       const warpTime = eng.time * ports.fWarpAnimSpeed;
       const motion = {
@@ -259,11 +258,16 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
         f2: 10.54 + 3.0 * Math.cos(warpTime * 1.233 + 3),
         f3: 11.49 + 4.0 * Math.cos(warpTime * 0.933 + 5),
       };
+      // Every pass has a stable id so downstream ops can reference it by
+      // name; borders augments the warp-feedback pass by id, not by
+      // position, so an unrelated inserted pass cannot redirect it.
+      const passId = eng.nextPassId();
       plan.passes.push({
+        id: passId,
         kind: 'warp-feedback', motion, borders: { inner: null, outer: null },
-        reads: [feedbackId], writes: [feedbackId],
+        reads: [fb.resourceId], writes: [fb.resourceId],
       });
-      return { out: { resourceId: feedbackId } };
+      return { out: /** @type {any} */ ({ resourceId: fb.resourceId, passId }) };
     },
   },
   'borders': {
@@ -275,15 +279,16 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
     },
     outputs: { out: 'render' },
     contribute(inputRefs, ports, _pool, _eng, plan) {
-      const inRef = inputRefs.in;
+      const inRef = /** @type {any} */ (inputRefs.in);
       if (!inRef) throw new Error('borders requires an incoming render reference on its "in" port — refusing');
-      const lastIn = plan.passes[plan.passes.length - 1];
-      if (lastIn === undefined || lastIn.kind !== 'warp-feedback') throw new Error(`borders extends an in-flight warp-feedback pass; the current plan's last pass is "${lastIn?.kind ?? '(none)'}" — refusing`);
-      const last = /** @type {WarpFeedbackPass} */ (lastIn);
-      // colors and alphas pass the 8-bit conversion (:3453-3457); the draw
-      // gate reads the RAW alpha (:3451) — aGate carries it separately
-      last.borders.inner = { size: ports.ib_size, r: d3dColor01(ports.ib_r), g: d3dColor01(ports.ib_g), b: d3dColor01(ports.ib_b), a: d3dColor01(ports.ib_a), aGate: ports.ib_a };
-      last.borders.outer = { size: ports.ob_size, r: d3dColor01(ports.ob_r), g: d3dColor01(ports.ob_g), b: d3dColor01(ports.ob_b), a: d3dColor01(ports.ob_a), aGate: ports.ob_a };
+      const producerPassId = inRef.passId;
+      if (!producerPassId) throw new Error('borders requires the incoming render reference to identify its producer pass id — refusing');
+      const producer = plan.passes.find((p) => /** @type {any} */ (p).id === producerPassId);
+      if (!producer) throw new Error(`borders: incoming render reference names producer pass id "${producerPassId}" not found in plan — refusing`);
+      if (producer.kind !== 'warp-feedback') throw new Error(`borders augments a warp-feedback pass; producer pass id "${producerPassId}" is "${producer.kind}" — refusing`);
+      const wf = /** @type {WarpFeedbackPass} */ (producer);
+      wf.borders.inner = { size: ports.ib_size, r: d3dColor01(ports.ib_r), g: d3dColor01(ports.ib_g), b: d3dColor01(ports.ib_b), a: d3dColor01(ports.ib_a), aGate: ports.ib_a };
+      wf.borders.outer = { size: ports.ob_size, r: d3dColor01(ports.ob_r), g: d3dColor01(ports.ob_g), b: d3dColor01(ports.ob_b), a: d3dColor01(ports.ob_a), aGate: ports.ob_a };
       return { out: inRef };
     },
   },
@@ -292,32 +297,39 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
     inputs: {
       fGammaAdj: 'float', fVideoEchoZoom: 'float', fVideoEchoAlpha: 'float', nVideoEchoOrientation: 'float',
       in: 'render',
+      Target: 'texture',
     },
     // `presented` is a well-known sink output; the Engine exempts it from
     // the outgoing-edge rule and captures the sink's presentation each step.
     outputs: { presented: 'render' },
     contribute(inputRefs, ports, pool, _eng, plan) {
-      const inRef = inputRefs.in;
+      const inRef = /** @type {any} */ (inputRefs.in);
       if (!inRef) throw new Error('composite requires an incoming render reference on its "in" port — refusing');
-      // MilkDrop convention: composite writes to the scene's presentation
-      // resource (id 'canvas'). The scene must declare it.
-      const targetId = 'canvas';
-      const desc = plan.resources.find((r) => r.id === targetId);
-      if (!desc) throw new Error(`composite: scene must declare a resource with id "${targetId}" (kind "presentation") — refusing`);
-      if (desc.kind !== 'presentation') throw new Error(`composite: resource "${targetId}" must have kind "presentation", got "${desc.kind}" — refusing`);
+      const target = /** @type {ResourceRef|undefined} */ (ports.Target);
+      if (!target || typeof target !== 'object' || !('resourceId' in target)) throw new Error('composite: Target port must carry a texture resource reference — refusing');
+      const desc = plan.resources.find((r) => r.id === target.resourceId);
+      if (!desc) throw new Error(`composite: Target references resource "${target.resourceId}" which is not declared in the scene — refusing`);
+      if (desc.kind !== 'presentation') throw new Error(`composite: Target resource "${target.resourceId}" must have kind "presentation", got "${desc.kind}" — refusing`);
+      // Read the producer warp-feedback pass's motion into the composite
+      // pass spec so the executor never re-reads a prior pass at draw time.
+      const producer = plan.passes.find((p) => /** @type {any} */ (p).id === inRef.passId);
+      if (!producer || producer.kind !== 'warp-feedback') throw new Error(`composite: incoming render reference must identify a warp-feedback producer pass; got "${producer?.kind ?? '(none)'}" — refusing`);
+      const wf = /** @type {WarpFeedbackPass} */ (producer);
       // gammaAdj + video echo — ShowToUser_NoShaders (milkdropfs.cpp:4147-4260).
-      plan.passes.push({
+      plan.passes.push(/** @type {any} */ ({
+        id: null,
         kind: 'composite',
         comp: {
           gamma: pool.gamma ?? ports.fGammaAdj,
           echoAlpha: ports.fVideoEchoAlpha,
           echoZoom: pool.echo_zoom ?? ports.fVideoEchoZoom,
           echoOrient: (ports.nVideoEchoOrientation) % 4,
+          aspectY: wf.motion.aspectY,
         },
-        reads: [inRef.resourceId], writes: [targetId],
-      });
-      plan.presentation = { resourceId: targetId };
-      return { presented: { resourceId: targetId } };
+        reads: [inRef.resourceId], writes: [target.resourceId],
+      }));
+      plan.presentation = { resourceId: target.resourceId };
+      return { presented: /** @type {any} */ ({ resourceId: target.resourceId }) };
     },
   },
   // ---- Native render ops (Plane9-source-neutral) --------------------
@@ -328,20 +340,22 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
     kind: 'render',
     inputs: { Color: 'vec4', Target: 'texture' },
     outputs: { Render: 'render' },
-    contribute(inputRefs, ports, _pool, _eng, plan) {
+    contribute(inputRefs, ports, _pool, eng, plan) {
       if (Object.keys(inputRefs).length !== 0) throw new Error('clear-color is a plan source and takes no render inputs — refusing');
       const target = /** @type {ResourceRef|undefined} */ (ports.Target);
       if (!target || typeof target !== 'object' || !('resourceId' in target)) throw new Error('clear-color: Target port must carry a texture resource reference — refusing');
       const desc = plan.resources.find((r) => r.id === target.resourceId);
       if (!desc) throw new Error(`clear-color: Target references resource "${target.resourceId}" which is not declared in the scene — refusing`);
-      if (!desc.usage.includes('render-attachment')) throw new Error(`clear-color: target resource "${target.resourceId}" must include usage "render-attachment", got [${desc.usage.join(', ')}] — refusing`);
+      if (desc.kind === 'presentation') throw new Error(`clear-color: Target resource "${target.resourceId}" has kind "presentation"; clearing the presentation resource directly is not supported by the executor — refusing`);
       const c = ports.Color;
-      plan.passes.push({
+      const passId = eng.nextPassId();
+      plan.passes.push(/** @type {any} */ ({
+        id: passId,
         kind: 'clear-color',
         clear: { r: c[0], g: c[1], b: c[2], a: c[3] },
         reads: [], writes: [target.resourceId],
-      });
-      return { Render: { resourceId: target.resourceId } };
+      }));
+      return { Render: /** @type {any} */ ({ resourceId: target.resourceId, passId }) };
     },
   },
   'screen': {
@@ -576,6 +590,81 @@ function topologicalOrder(/** @type {{id:string, op:string}[]} */ nodes,
   return order;
 }
 
+/**
+ * Central authoritative plan validation (reviewer 2026-07-18 substrate
+ * completion pass §3). Runs after every contribute has added its
+ * resources, passes, and presentation to the plan. Refuses:
+ *
+ *   1. no presentation set;
+ *   2. presentation resource id not declared in plan.resources;
+ *   3. any pass read/write naming an undeclared resource id;
+ *   4. read from a resource without `sampled` usage;
+ *   5. write to a resource without `render-attachment` usage;
+ *   6. write to a resource with kind `presentation` (executor blits to
+ *      canvas via the presentation resource; only composite is allowed
+ *      to write a presentation-kind resource, checked below);
+ *   7. same-pass read+write of the same resource unless the resource
+ *      lifetime is `persistent-pingpong` (ping-pong is the explicit
+ *      authorization for that pattern; other lifetimes forbid it);
+ *   8. ambiguous multiple writers of the same non-pingpong resource;
+ *   9. transient read-before-write (a read of a transient resource
+ *      appears in a pass earlier than any write to it);
+ *  10. presentation resource is transient without any writer in the frame;
+ *  11. presentation resource kind is not `texture` or `presentation`;
+ *  12. more than one composite pass writing the same presentation resource.
+ *
+ * The Plane9 witnessed Clear→Screen shape presents a transient texture
+ * whose lifetime is `transient` and kind `texture`; the MilkDrop shape
+ * presents a per-frame `presentation`-kind resource composite writes.
+ * @param {RenderPlan} plan
+ */
+function validatePlan(plan) {
+  if (!plan.presentation) throw new Error('Engine: plan has no presentation resource — the presentation sink did not set plan.presentation, refusing');
+  const presResourceId = plan.presentation.resourceId;
+  const presDesc = plan.resources.find((r) => r.id === presResourceId);
+  if (!presDesc) throw new Error(`Engine: plan.presentation names resource "${presResourceId}" not declared in scene.resources — refusing`);
+  if (presDesc.kind !== 'texture' && presDesc.kind !== 'presentation') throw new Error(`Engine: presentation resource "${presResourceId}" has unsupported kind "${presDesc.kind}" — refusing`);
+  const resourceById = /** @type {Record<string, ResourceDescriptor>} */ ({});
+  for (const r of plan.resources) resourceById[r.id] = r;
+  // Track write times per resource to enforce transient-read-before-write.
+  /** @type {Record<string, number>} */
+  const firstWriteIdx = {};
+  /** @type {Record<string, number>} */
+  const writerCount = {};
+  for (let i = 0; i < plan.passes.length; i++) {
+    const p = /** @type {any} */ (plan.passes[i]);
+    for (const rid of p.reads) {
+      const rd = resourceById[rid];
+      if (!rd) throw new Error(`Engine: pass "${p.kind}" reads undeclared resource "${rid}" — refusing`);
+      if (!rd.usage.includes('sampled')) throw new Error(`Engine: pass "${p.kind}" reads resource "${rid}" which does not declare "sampled" usage — refusing`);
+      if (rd.lifetime === 'transient' && firstWriteIdx[rid] === undefined) throw new Error(`Engine: pass "${p.kind}" (index ${i}) reads transient resource "${rid}" before any pass writes it — refusing`);
+    }
+    for (const rid of p.writes) {
+      const rd = resourceById[rid];
+      if (!rd) throw new Error(`Engine: pass "${p.kind}" writes undeclared resource "${rid}" — refusing`);
+      if (!rd.usage.includes('render-attachment')) throw new Error(`Engine: pass "${p.kind}" writes resource "${rid}" which does not declare "render-attachment" usage — refusing`);
+      if (rd.kind === 'presentation' && p.kind !== 'composite') throw new Error(`Engine: pass "${p.kind}" writes presentation resource "${rid}"; only composite may write a presentation-kind resource — refusing`);
+      if (firstWriteIdx[rid] === undefined) firstWriteIdx[rid] = i;
+      writerCount[rid] = (writerCount[rid] ?? 0) + 1;
+    }
+    // Same-pass read+write aliasing: authorized only for
+    // persistent-pingpong resources.
+    for (const rid of p.reads) {
+      if (p.writes.includes(rid)) {
+        const rd = resourceById[rid];
+        if (!rd || rd.lifetime !== 'persistent-pingpong') throw new Error(`Engine: pass "${p.kind}" reads and writes the same resource "${rid}" whose lifetime is "${rd?.lifetime}"; same-pass read+write aliasing is authorized only for persistent-pingpong resources — refusing`);
+      }
+    }
+  }
+  // Ambiguous multiple writers refuse for non-pingpong resources.
+  for (const [rid, count] of Object.entries(writerCount)) {
+    const rd = resourceById[rid];
+    if (rd && rd.lifetime !== 'persistent-pingpong' && count > 1) throw new Error(`Engine: resource "${rid}" has ${count} writers; only persistent-pingpong resources may be written by more than one pass — refusing`);
+  }
+  // Presented transient resource must have a writer in this frame.
+  if (presDesc.lifetime === 'transient' && firstWriteIdx[presResourceId] === undefined) throw new Error(`Engine: presentation resource "${presResourceId}" has lifetime "transient" but no pass writes it in this frame — refusing`);
+}
+
 export class Engine {
   constructor(/** @type {any} */ scene) {
     this.scene = scene;
@@ -795,6 +884,7 @@ export class Engine {
 
     // --- timing / viewport ---
     this.frame = 0;
+    this._passIdCounter = 0;
     this.viewportW = 1024; this.viewportH = 1024; this.texW = 1024; this.texH = 1024;
     this.timekeeper = new Timekeeper();
   }
@@ -829,6 +919,10 @@ export class Engine {
        /** @type {{bass?:number,mid?:number,treb?:number,bass_att?:number,mid_att?:number,treb_att?:number,musicActive?:boolean,rawBeat?:number}} */ audio = {}) {
     this.timekeeper.tick(dt);
     this.frame += 1;
+    // Reset the per-frame pass id counter so pass ids are deterministic
+    // across frames (pass-1, pass-2, ...) — makes plan comparison in
+    // regressions and reordering-invariance tests reliable.
+    this._passIdCounter = 0;
 
     // --- run per-frame EEL over the aliased flat pool ---
     this._readPortsIntoPool();
@@ -900,19 +994,14 @@ export class Engine {
             if (dstInputs[dstPort] !== undefined) {
               throw new Error(`Engine: node "${dstId}" render input "${dstPort}" already carries a resource ref from a prior edge — refusing multiple-driver render input at execution`);
             }
-            dstInputs[dstPort] = { resourceId: producedRef.resourceId };
+            const propagated = /** @type {ResourceRef} */ ({ resourceId: producedRef.resourceId });
+            if (/** @type {any} */ (producedRef).passId !== undefined) propagated.passId = /** @type {any} */ (producedRef).passId;
+            dstInputs[dstPort] = propagated;
           }
         }
       }
     }
-    // Post-execution plan validation per the substrate spec.
-    if (!plan.presentation) throw new Error('Engine: plan has no presentation resource — the presentation sink did not set plan.presentation, refusing');
-    const pres = plan.resources.find((r) => r.id === /** @type {{resourceId:string}} */ (plan.presentation).resourceId);
-    if (!pres) throw new Error(`Engine: plan.presentation names resource "${plan.presentation.resourceId}" not declared in scene.resources — refusing`);
-    for (const p of plan.passes) {
-      for (const rid of p.reads) if (!plan.resources.some((r) => r.id === rid)) throw new Error(`Engine: pass "${p.kind}" reads undeclared resource "${rid}" — refusing`);
-      for (const rid of p.writes) if (!plan.resources.some((r) => r.id === rid)) throw new Error(`Engine: pass "${p.kind}" writes undeclared resource "${rid}" — refusing`);
-    }
+    validatePlan(plan);
     return plan;
   }
 
@@ -986,6 +1075,10 @@ export class Engine {
   // aspect factors from the render-target size — plugin.cpp:2027-2028
   aspectX() { return (this.texH > this.texW) ? this.texW / this.texH : 1; }
   aspectY() { return (this.texW > this.texH) ? this.texH / this.texW : 1; }
+  /** Generate a stable per-frame pass id used by contribute functions to
+   * identify the producer pass of a render edge; borders references the
+   * warp-feedback pass by id rather than by position. */
+  nextPassId() { this._passIdCounter += 1; return 'pass-' + this._passIdCounter; }
   recompile(/** @type {string[]} */ perFrameSource) {
     this.perFrameSource = [...perFrameSource];
     this.perFrame = compileEEL(perFrameSource);
@@ -1029,8 +1122,11 @@ export function flatPortView(/** @type {any} */ runtime) {
   /** @type {Record<string,string>} */
   const owner = {};
   for (const n of runtime.nodes) {
-    for (const [pname, port] of Object.entries(/** @type {Record<string,{value?:any}>} */ (n.ports))) {
+    for (const [pname, port] of Object.entries(/** @type {Record<string,{type?:string, value?:any}>} */ (n.ports))) {
       if (!('value' in port)) continue;
+      // Texture ports carry ResourceRef values, not numbers; the flat
+      // EEL-style view is scalar/vector only.
+      if (port.type === 'texture') continue;
       if (owner[pname] !== undefined) {
         throw new Error(`flatPortView: port "${pname}" is claimed by both "${owner[pname]}" and "${n.id}" — this scene needs node-qualified access`);
       }

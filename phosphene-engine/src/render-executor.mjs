@@ -49,15 +49,13 @@ struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> };
  * @param {GPUTextureFormat} fmt
  */
 export function createRenderContext(device, canvas, ctx, fmt) {
-  const U_ATTACH_SAMPLE = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING;
   // Physical texture pool keyed by resource id. Persistent-pingpong
   // resources allocate two physical textures with a currentIdx pointer
   // that flips after each write. Transient/per-frame resources allocate
   // one texture (or none if the resource is 'presentation', which uses
   // the swapchain at present time).
-  /** @type {Map<string, {desc:import('./engine.mjs').ResourceDescriptor, textures:GPUTexture[], currentIdx:number, allocatedForW:number, allocatedForH:number}>} */
+  /** @type {Map<string, {desc:import('./engine.mjs').ResourceDescriptor, resolvedFormat:GPUTextureFormat, resolvedW:number, resolvedH:number, resolvedUsage:number, textures:GPUTexture[], currentIdx:number}>} */
   const resourcePool = new Map();
-  let currentPlanKey = '';
   const canvasSize = () => ({
     canvasW: Math.max(16, canvas.width | 0),
     canvasH: Math.max(16, canvas.height | 0),
@@ -75,23 +73,44 @@ export function createRenderContext(device, canvas, ctx, fmt) {
     if (desc.size.policy === 'canvas-16block') return { w: blockW, h: blockH };
     return { w: canvasW, h: canvasH };
   }
+  /** @param {import('./engine.mjs').ResourceDescriptor} desc — WebGPU usage flags derived from declared usage entries only. */
+  function resolveUsage(desc) {
+    let u = 0;
+    for (const use of desc.usage) {
+      if (use === 'sampled') u |= GPUTextureUsage.TEXTURE_BINDING;
+      else if (use === 'render-attachment') u |= GPUTextureUsage.RENDER_ATTACHMENT;
+      // 'presentation' is a plan-level marker — the executor blits into
+      // the swapchain and does not add any GPU usage flag for it.
+    }
+    return u;
+  }
   /**
    * Allocate or reuse physical textures backing a resource descriptor for
-   * this frame. Textures survive across frames when the canvas size and
-   * descriptor are unchanged; they reallocate on canvas resize.
+   * this frame. Reuses the current allocation only when every
+   * allocation-relevant field is unchanged: id, kind, resolved format,
+   * resolved width, resolved height, lifetime, resolved usage. If any
+   * change, destroy and recreate the physical textures and replace the
+   * stored descriptor snapshot.
    * @param {import('./engine.mjs').ResourceDescriptor} desc
    */
   function ensureResource(desc) {
-    if (desc.kind === 'presentation') return; // canvas texture is per-frame from ctx
+    if (desc.kind === 'presentation') return;
     const { w, h } = resolveSize(desc);
-    let entry = resourcePool.get(desc.id);
-    if (entry && entry.allocatedForW === w && entry.allocatedForH === h) return;
-    if (entry) for (const t of entry.textures) t.destroy();
     const format = resolveFormat(desc);
+    const usage = resolveUsage(desc);
+    const entry = resourcePool.get(desc.id);
+    if (entry
+        && entry.desc.kind === desc.kind
+        && entry.desc.lifetime === desc.lifetime
+        && entry.resolvedFormat === format
+        && entry.resolvedW === w
+        && entry.resolvedH === h
+        && entry.resolvedUsage === usage) return;
+    if (entry) for (const t of entry.textures) t.destroy();
     const count = desc.lifetime === 'persistent-pingpong' ? 2 : 1;
     const textures = [];
-    for (let i = 0; i < count; i++) textures.push(device.createTexture({ size: [w, h], format, usage: U_ATTACH_SAMPLE }));
-    resourcePool.set(desc.id, { desc, textures, currentIdx: 0, allocatedForW: w, allocatedForH: h });
+    for (let i = 0; i < count; i++) textures.push(device.createTexture({ size: [w, h], format, usage }));
+    resourcePool.set(desc.id, { desc, resolvedFormat: format, resolvedW: w, resolvedH: h, resolvedUsage: usage, textures, currentIdx: 0 });
   }
   /**
    * Return the physical texture backing a resource for the given role.
@@ -116,8 +135,17 @@ export function createRenderContext(device, canvas, ctx, fmt) {
     if (!entry) return;
     if (entry.desc.lifetime === 'persistent-pingpong') entry.currentIdx = 1 - entry.currentIdx;
   }
-  function resize() { currentPlanKey = ''; }
-  resize();
+  function resize() {
+    // Force reallocation on next executeFrame by destroying all textures
+    // whose stored resolved dimensions no longer match the current canvas.
+    for (const [rid, entry] of resourcePool) {
+      const { w, h } = resolveSize(entry.desc);
+      if (entry.resolvedW !== w || entry.resolvedH !== h) {
+        for (const t of entry.textures) t.destroy();
+        resourcePool.delete(rid);
+      }
+    }
+  }
 
   const mod = device.createShaderModule({ code: feedbackWGSL });
   const blitMod = device.createShaderModule({ code: compositeWGSL });
@@ -206,25 +234,21 @@ export function createRenderContext(device, canvas, ctx, fmt) {
   function executeFrame(plan) {
     if (!plan) throw new Error('render executor: no plan supplied — refusing');
     if (!plan.presentation) throw new Error('render executor: plan has no presentation resource — refusing');
-    // Allocate physical textures for every non-presentation resource.
-    const planKey = JSON.stringify(plan.resources) + '|' + canvas.width + 'x' + canvas.height;
-    if (planKey !== currentPlanKey) {
-      // Descriptor set changed (or canvas resized) — reallocate.
-      for (const [rid, entry] of resourcePool) {
-        if (!plan.resources.some((r) => r.id === rid)) {
-          for (const t of entry.textures) t.destroy();
-          resourcePool.delete(rid);
-        }
+    // Drop pooled resources the plan no longer declares.
+    for (const [rid, entry] of resourcePool) {
+      if (!plan.resources.some((r) => r.id === rid)) {
+        for (const t of entry.textures) t.destroy();
+        resourcePool.delete(rid);
       }
-      currentPlanKey = planKey;
     }
+    // Allocate or reuse physical textures for every non-presentation
+    // resource; ensureResource compares the full allocation-relevant
+    // descriptor and reallocates when any field changed.
     for (const r of plan.resources) if (r.kind !== 'presentation') ensureResource(r);
     const presDesc = plan.resources.find((r) => r.id === /** @type {{resourceId:string}} */ (plan.presentation).resourceId);
     if (!presDesc) throw new Error(`render executor: presentation resource "${plan.presentation.resourceId}" not declared in plan.resources — refusing`);
 
     const enc = device.createCommandEncoder();
-    /** @type {any} */
-    let lastMotion = null;
     for (const p of plan.passes) {
       if (p.kind === 'clear-color') {
         if (p.writes.length !== 1) throw new Error(`render executor: clear-color pass must write exactly one resource, wrote ${p.writes.length} — refusing`);
@@ -261,15 +285,18 @@ export function createRenderContext(device, canvas, ctx, fmt) {
         const rp = enc.beginRenderPass({ colorAttachments: [{ view: writeTex.createView(), loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } }] });
         rp.setPipeline(pipe); rp.setBindGroup(0, bg); rp.setVertexBuffer(0, posBuf); rp.setVertexBuffer(1, uvBuf); rp.setIndexBuffer(ibuf, 'uint16'); rp.drawIndexed(meshIdx.length); rp.end();
         writeSwap(writeId);
-        lastMotion = m;
       } else if (p.kind === 'composite') {
         if (p.reads.length !== 1 || p.writes.length !== 1) throw new Error('render executor: composite must read one and write one resource — refusing');
         const readId = /** @type {string} */ (p.reads[0]);
         const writeId = /** @type {string} */ (p.writes[0]);
         const writeDesc = plan.resources.find((r) => r.id === writeId);
         if (!writeDesc || writeDesc.kind !== 'presentation') throw new Error(`render executor: composite target "${writeId}" must be a presentation resource — refusing`);
-        if (!lastMotion) throw new Error('render executor: composite pass reached without a prior warp-feedback pass — refusing');
-        const aspect = canvas.width / (canvas.height * (1 / lastMotion.aspectY));
+        // aspectY comes from the composite pass spec (engine placed it
+        // there from the referenced warp-feedback producer at planning
+        // time); the executor never re-reads a prior pass at draw time.
+        const compAspectY = /** @type {any} */ (p.comp).aspectY;
+        if (typeof compAspectY !== 'number') throw new Error('render executor: composite pass spec is missing comp.aspectY — refusing');
+        const aspect = canvas.width / (canvas.height * (1 / compAspectY));
         const cx2 = (aspect > 1 ? 1 : 1 / aspect) * (1 + 1 / canvas.width), cy2 = (aspect > 1 ? aspect : 1) * (1 + 1 / canvas.height);
         const c = p.comp;
         device.queue.writeBuffer(cbuf, 0, new Float32Array([c.gamma, c.echoAlpha, c.echoZoom, c.echoOrient, cx2, cy2, 0, 0]));

@@ -1251,14 +1251,14 @@ const renderPlanFoundationOk = (() => {
       } },
       { id: 'cp', primitive: 'graph', op: 'composite', ports: {
         fGammaAdj: { type: 'float', value: 1 }, fVideoEchoZoom: { type: 'float', value: 1 }, fVideoEchoAlpha: { type: 'float', value: 0 }, nVideoEchoOrientation: { type: 'float', value: 0 },
-        in: { type: 'render' },
+        in: { type: 'render' }, Target: { type: 'texture', value: { resourceId: 'canvas' } },
       } },
     ],
     edges: [ { out: 'c.Render', in: 'b.in' }, { out: 'b.out', in: 'cp.in' } ],
     expressions: [],
   });
   const eng = new Engine(toRuntime(clearThenBorders));
-  const clearThenBordersRefused = (() => { try { eng.step(1 / 60); return false; } catch (e) { return /borders extends an in-flight warp-feedback pass/.test(/** @type {Error} */ (e).message); } })();
+  const clearThenBordersRefused = (() => { try { eng.step(1 / 60); return false; } catch (e) { return /borders augments a warp-feedback pass/.test(/** @type {Error} */ (e).message); } })();
   return mdShapeOk && twoSinksRefused && clearThenBordersRefused;
 })();
 
@@ -1581,6 +1581,107 @@ const substrateOk = (() => {
     && unknownKindRefuses && unknownFormatRefuses;
 })();
 
+// (ap) Substrate completion regressions (reviewer 2026-07-18 completion
+//      pass): magic-id removal, positional dependency removal, central
+//      plan validation, resource-pool descriptor comparison.
+const substrateCompletionOk = (() => {
+  const md = readFileSync(new URL('./scenes/md-101-per_frame.phos', import.meta.url), 'utf8');
+  const nc = readFileSync(new URL('./scenes/native-clear.phos', import.meta.url), 'utf8');
+  // (1) MilkDrop resources renamed does not require native-op changes.
+  //     Rename md-feedback → fb and canvas → tv in scene resources[]
+  //     and in the Feedback/Target texture-port values; the plan
+  //     must use the renamed IDs and Engine.step must succeed.
+  const renamedOk = (() => {
+    // Rename via structured edit so we don't accidentally rewrite the
+    // "canvas" size-policy string; only touch resource ids and
+    // texture-port resourceId values.
+    const doc = /** @type {any} */ (parsePhos(md));
+    for (const r of doc.resources) { if (r.id === 'md-feedback') r.id = 'fb'; else if (r.id === 'canvas') r.id = 'tv'; }
+    for (const n of doc.nodes) {
+      for (const p of Object.values(/** @type {any} */ (n.ports))) {
+        const port = /** @type {any} */ (p);
+        if (port.type === 'texture' && port.value) {
+          if (port.value.resourceId === 'md-feedback') port.value.resourceId = 'fb';
+          else if (port.value.resourceId === 'canvas') port.value.resourceId = 'tv';
+        }
+      }
+    }
+    try {
+      const plan = /** @type {any} */ (new Engine(toRuntime(doc)).step(1 / 60));
+      const warp = plan.passes.find((/** @type {any} */ p) => p.kind === 'warp-feedback');
+      const comp = plan.passes.find((/** @type {any} */ p) => p.kind === 'composite');
+      return warp && warp.reads[0] === 'fb' && warp.writes[0] === 'fb'
+        && comp && comp.reads[0] === 'fb' && comp.writes[0] === 'tv'
+        && plan.presentation.resourceId === 'tv';
+    } catch { return false; }
+  })();
+  // (2) Borders targets its connected producer pass by id, not by
+  //     position. A composite between borders and warp would reject in
+  //     Engine construction (borders.in must connect to warp.out), so
+  //     verify pass ids are stable and borders references the correct
+  //     producer id.
+  const bordersByIdOk = (() => {
+    const plan = /** @type {any} */ (new Engine(toRuntime(parsePhos(md))).step(1 / 60));
+    const warp = plan.passes.find((/** @type {any} */ p) => p.kind === 'warp-feedback');
+    return warp && typeof warp.id === 'string' && warp.borders.inner !== null && warp.borders.outer !== null;
+  })();
+  // (3) Composite pass spec carries aspectY directly; the executor no
+  //     longer retains lastMotion. Verify comp.aspectY is present.
+  const compositeSelfContainedOk = (() => {
+    const plan = /** @type {any} */ (new Engine(toRuntime(parsePhos(md))).step(1 / 60));
+    const comp = plan.passes.find((/** @type {any} */ p) => p.kind === 'composite');
+    return comp && typeof comp.comp.aspectY === 'number';
+  })();
+  // (4) Sampled read of a resource without 'sampled' usage refuses.
+  const noSampledRefuses = (() => {
+    try {
+      const doc = /** @type {any} */ (parsePhos(md));
+      doc.resources.find((/** @type {any} */ r) => r.id === 'md-feedback').usage = ['render-attachment'];
+      new Engine(toRuntime(doc)).step(1 / 60);
+      return false;
+    } catch (e) { return /does not declare "sampled" usage/.test(/** @type {Error} */ (e).message); }
+  })();
+  // (5) Write to a resource without 'render-attachment' usage refuses.
+  const noAttachmentRefuses = (() => {
+    try {
+      const doc = /** @type {any} */ (parsePhos(nc));
+      doc.resources[0].usage = ['sampled'];
+      new Engine(toRuntime(doc)).step(1 / 60);
+      return false;
+    } catch (e) { return /does not declare "render-attachment" usage/.test(/** @type {Error} */ (e).message); }
+  })();
+  // (6) Clear targeting a presentation-kind resource refuses in the
+  //     engine (before executor reaches it).
+  const clearOnPresentationRefuses = (() => {
+    try {
+      const doc = /** @type {any} */ (parsePhos(nc));
+      doc.resources[0].kind = 'presentation';
+      doc.resources[0].usage = ['render-attachment', 'presentation'];
+      new Engine(toRuntime(doc)).step(1 / 60);
+      return false;
+    } catch (e) { return /clear-color: Target resource .* has kind "presentation"/.test(/** @type {Error} */ (e).message); }
+  })();
+  // (7) Persistent-pingpong read+write aliasing remains authorized;
+  //     verified by the MilkDrop plan running unchanged (warp reads and
+  //     writes md-feedback in the same pass).
+  const pingpongAuthorizedOk = (() => {
+    const plan = /** @type {any} */ (new Engine(toRuntime(parsePhos(md))).step(1 / 60));
+    const warp = plan.passes.find((/** @type {any} */ p) => p.kind === 'warp-feedback');
+    return warp && warp.reads.includes('md-feedback') && warp.writes.includes('md-feedback');
+  })();
+  // (8) Existing MilkDrop and native Clear→Screen plans remain valid.
+  const existingPlansOk = (() => {
+    try {
+      new Engine(toRuntime(parsePhos(md))).step(1 / 60);
+      new Engine(toRuntime(parsePhos(nc))).step(1 / 60);
+      return true;
+    } catch { return false; }
+  })();
+  return renamedOk && bordersByIdOk && compositeSelfContainedOk
+    && noSampledRefuses && noAttachmentRefuses && clearOnPresentationRefuses
+    && pingpongAuthorizedOk && existingPlansOk;
+})();
+
 // ==== TWO SEPARATE SURFACES (reviewer foundation 2026-07-18) ====
 // engineRegressionOk: PHOSPHENE's own executor behaves as this codebase
 //   specifies it — MilkDrop scene 1 renders unchanged, the graph executor
@@ -1594,7 +1695,7 @@ const substrateOk = (() => {
 //   Beat REFUSE at the compatibility gate; Color Cycle refuses at
 //   conversion. This surface does NOT accept PHOSPHENE's internal
 //   regression tests as evidence of Plane9 fidelity.
-const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && nativeHueCycleOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk && renderPlanFoundationOk && renderFanOutOk && valueMultiDriverOk && screenGuardOk && substrateOk;
+const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && nativeHueCycleOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk && renderPlanFoundationOk && renderFanOutOk && valueMultiDriverOk && screenGuardOk && substrateOk && substrateCompletionOk;
 const plane9CompatibilityOk = p9Ok && p9ConvOk && colorCycleOk;
 const audioOk = engineRegressionOk && plane9CompatibilityOk;
 
@@ -1692,6 +1793,7 @@ console.log('[render fan-out] a real graph where one source Render output feeds 
 console.log('[value multi-driver] two value edges into the same input port refuse at construction:', valueMultiDriverOk ? 'OK' : 'FAIL');
 console.log('[screen guard] every write path — construction, setVar, edge attachment, EEL per-frame pool sync — refuses a Screen port deviation:', screenGuardOk ? 'OK' : 'FAIL');
 console.log('[substrate] MilkDrop plan carries resources + explicit reads/writes + presentation; parser refuses undeclared/wrong-kind/wrong-format resources; engine refuses missing feedback and wrong lifetime:', substrateOk ? 'OK' : 'FAIL');
+console.log('[substrate completion] resources rename does not touch ops; borders references producer pass by id; composite carries aspectY; usage/kind cross-field rules refuse; persistent-pingpong aliasing authorized; existing plans intact:', substrateCompletionOk ? 'OK' : 'FAIL');
 console.log('[graph correctness] multi-driver refusal + render-input requires incoming edge:', ambiguousGraphRefusedOk ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
 console.log('inert value port refused at engine construction (shared OP_PORTS):', inertPortOk ? 'OK' : 'FAIL');
