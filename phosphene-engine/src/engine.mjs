@@ -196,11 +196,12 @@ function circularInterp(/** @type {number} */ prev, /** @type {number} */ target
  *   passes: PassSpec[],
  *   presentation: {resourceId:string}|null
  * }} RenderPlan
- * @typedef {WarpFeedbackPass|CompositePass|ClearPass|Plane9BlurPass} PassSpec
+ * @typedef {WarpFeedbackPass|CompositePass|ClearPass|Plane9BlurPass|Plane9RttPass} PassSpec
  * @typedef {{id:string, kind:'warp-feedback', motion:any, borders:{inner:null|any, outer:null|any}, reads:string[], writes:string[]}} WarpFeedbackPass
  * @typedef {{id:string, kind:'composite', comp:any, reads:string[], writes:string[]}} CompositePass
  * @typedef {{id:string, kind:'clear-color', clear:{r:number, g:number, b:number, a:number}, reads:string[], writes:string[]}} ClearPass
  * @typedef {{id:string, kind:'plane9-blur', pass:number, brightness:number, reads:string[], writes:string[]}} Plane9BlurPass
+ * @typedef {{id:string, kind:'plane9-rendertotexture', reads:string[], writes:string[]}} Plane9RttPass
  * @typedef {{resourceId:string, passId?:string}} ResourceRef
  * @typedef {{plan:RenderPlan, outputs:Record<string, ResourceRef>}} ContributeResult
  */
@@ -370,10 +371,10 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
     // v2.5.1 install). Each `plane9-blur` op invocation contributes one
     // shader pass — Pass=0 is horizontal-4, Pass=1 vertical-4, Pass=2
     // horizontal-6, Pass=3 vertical-6, matching the source's four
-    // `#if PASS == N` branches. Src is the incoming rendered pass whose
-    // resource is the shader's texture sample source; Target names the
-    // destination texture resource the pass writes; Brightness maps to
-    // the shader's gBrightness uniform (blur.glsl:3 default 1.0); the
+    // `#if PASS == N` branches. Texture is the incoming Texture-typed
+    // resource the shader samples; Target names the destination texture
+    // resource the pass writes; Brightness maps to the shader's
+    // gBrightness uniform (blur.glsl:3 default 1.0); the
     // gSourceTextureSize uniform (blur.glsl:4) is computed by the
     // executor from the source texture's actual dimensions each frame
     // (1/textureWidth, 1/textureHeight) — Plane9 supplies this uniform
@@ -381,23 +382,31 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
     // Plane9 Blur node's Dir="2" ("Both") + Width={4,6} pair is expanded
     // by the p9 converter into two `plane9-blur` graph nodes (H then V)
     // with distinct Pass values, so each shader pass is a first-class
-    // pass in the plan.
+    // pass in the plan. Ports use Plane9's own Texture-typed IO — the
+    // Texture input mirrors Plane9's Blur.Texture inbound port and the
+    // Color output exposes the blurred texture for downstream texture-
+    // typed consumers (reviewer 2026-07-18 correction: previously used
+    // Src/Render render-typed ports which required synthetic Render-
+    // output rewriting in the converter; the honest form is Texture in,
+    // Color out, both texture-typed).
     kind: 'render',
     inputs: {
-      Src: 'render',
+      Texture: 'texture',
       Target: 'texture',
       Pass: 'float',
       Brightness: 'float',
     },
-    outputs: { Render: 'render' },
-    contribute(inputRefs, ports, _pool, eng, plan) {
-      const inRef = /** @type {any} */ (inputRefs.Src);
-      if (!inRef) throw new Error('plane9-blur requires an incoming render reference on its "Src" port — refusing');
+    outputs: { Color: 'texture' },
+    contribute(_inputRefs, ports, _pool, eng, plan) {
+      const inRef = /** @type {ResourceRef|undefined} */ (ports.Texture);
+      if (!inRef || typeof inRef !== 'object' || !('resourceId' in inRef)) throw new Error('plane9-blur: Texture port must carry a texture resource reference — refusing');
       const target = /** @type {ResourceRef|undefined} */ (ports.Target);
       if (!target || typeof target !== 'object' || !('resourceId' in target)) throw new Error('plane9-blur: Target port must carry a texture resource reference — refusing');
       const targetDesc = plan.resources.find((r) => r.id === target.resourceId);
       if (!targetDesc) throw new Error(`plane9-blur: Target references resource "${target.resourceId}" which is not declared in the scene — refusing`);
       if (targetDesc.kind !== 'texture') throw new Error(`plane9-blur: Target resource "${target.resourceId}" must have kind "texture", got "${targetDesc.kind}" — refusing`);
+      const srcDesc = plan.resources.find((r) => r.id === inRef.resourceId);
+      if (!srcDesc) throw new Error(`plane9-blur: Texture references resource "${inRef.resourceId}" which is not declared in the scene — refusing`);
       const passNumberRaw = /** @type {number} */ (ports.Pass);
       const passNumber = Math.round(passNumberRaw);
       if (passNumber !== 0 && passNumber !== 1 && passNumber !== 2 && passNumber !== 3) throw new Error(`plane9-blur: Pass port must be 0, 1, 2, or 3 (matching blur.glsl PASS branches), got ${passNumberRaw} — refusing`);
@@ -411,7 +420,77 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
         brightness,
         reads: [inRef.resourceId], writes: [target.resourceId],
       }));
-      return { Render: /** @type {any} */ ({ resourceId: target.resourceId, passId }) };
+      return { Color: /** @type {any} */ ({ resourceId: target.resourceId, passId }) };
+    },
+  },
+  'plane9-rendertotexture': {
+    // Plane9's RenderToTexture node — DLL description at Plane9Engine.dll
+    // offset 0x1f8ad4 (v2.5.1 install, sha256 4cebc1b3...ba1196) reads
+    // "Converts a render port to a texture port." Ports enumerated in
+    // the DLL metadata block (offsets 0x1f8b00 through 0x1f8cb8): Format
+    // through Format4 (output-texture format enums), Width and Height
+    // (size enum with "Custom size in pixels" at position 0, "100%..."
+    // through "3.125% of render size" following), WidthCustom and
+    // HeightCustom (pixel dimensions used when Width or Height is
+    // "Custom"), CreateMipMaps (bool). Corpus scan (252 scenes) shows
+    // 30 nodes with the exact witnessed RenderToTexture2 shape:
+    // Format=5 Format2/3/4=0 Width=0 (Custom) Height=0 (Custom)
+    // WidthCustom=256 HeightCustom=256 CreateMipMaps=false In1/2/3=
+    // "0 0 0" RandomSeed=1. Format=5 semantics (which specific pixel
+    // format Plane9 selects) remain UNRESOLVED without the DLL Format
+    // enum table; PHOSPHENE treats Format=5 as the substrate's
+    // rgba8unorm and refuses all other Format values. The Render input
+    // carries a ResourceRef into the source pass; the Target port
+    // names the destination texture resource; the Color output emits
+    // the target's ResourceRef for downstream Texture-typed consumers
+    // (Blur.Texture, etc.). The executor's pass is a blit from the
+    // source texture to the target texture using the same blit shader
+    // the presentation path uses. Substrate limitation named explicitly:
+    // the target resource uses size.policy="canvas" because the
+    // substrate does not yet support fixed-pixel-size resource
+    // descriptors, so the WidthCustom=256 HeightCustom=256 evidenced
+    // values are accepted as port values but the produced texture is
+    // canvas-sized. This is a known bounded divergence, not silent
+    // drift — a subsequent slice can add a "custom-px" size policy
+    // when a scene requires the pixel-precise behavior.
+    kind: 'render',
+    inputs: {
+      Format: 'float', Format2: 'float', Format3: 'float', Format4: 'float',
+      Width: 'float', Height: 'float',
+      WidthCustom: 'float', HeightCustom: 'float',
+      CreateMipMaps: 'float',
+      In1: 'vec3', In2: 'vec3', In3: 'vec3',
+      RandomSeed: 'float',
+      Render: 'render',
+      Target: 'texture',
+    },
+    outputs: { Color: 'texture' },
+    portConstraints: {
+      Format: 5, Format2: 0, Format3: 0, Format4: 0,
+      Width: 0, Height: 0,
+      CreateMipMaps: 0,
+      In1: [0, 0, 0], In2: [0, 0, 0], In3: [0, 0, 0],
+      RandomSeed: 1,
+    },
+    contribute(inputRefs, ports, _pool, eng, plan) {
+      const inRef = /** @type {any} */ (inputRefs.Render);
+      if (!inRef) throw new Error('plane9-rendertotexture requires an incoming render reference on its "Render" port — refusing');
+      const target = /** @type {ResourceRef|undefined} */ (ports.Target);
+      if (!target || typeof target !== 'object' || !('resourceId' in target)) throw new Error('plane9-rendertotexture: Target port must carry a texture resource reference — refusing');
+      const targetDesc = plan.resources.find((r) => r.id === target.resourceId);
+      if (!targetDesc) throw new Error(`plane9-rendertotexture: Target references resource "${target.resourceId}" which is not declared in the scene — refusing`);
+      if (targetDesc.kind !== 'texture') throw new Error(`plane9-rendertotexture: Target resource "${target.resourceId}" must have kind "texture", got "${targetDesc.kind}" — refusing`);
+      const wCust = /** @type {number} */ (ports.WidthCustom);
+      const hCust = /** @type {number} */ (ports.HeightCustom);
+      if (!Number.isFinite(wCust) || wCust <= 0) throw new Error(`plane9-rendertotexture: WidthCustom must be a positive number, got ${wCust} — refusing`);
+      if (!Number.isFinite(hCust) || hCust <= 0) throw new Error(`plane9-rendertotexture: HeightCustom must be a positive number, got ${hCust} — refusing`);
+      const passId = eng.nextPassId();
+      plan.passes.push(/** @type {any} */ ({
+        id: passId,
+        kind: 'plane9-rendertotexture',
+        reads: [inRef.resourceId], writes: [target.resourceId],
+      }));
+      return { Color: /** @type {any} */ ({ resourceId: target.resourceId, passId }) };
     },
   },
   'screen': {
@@ -1186,16 +1265,26 @@ export class Engine {
           const [, srcPort] = splitRef(edge.out);
           const [dstId, dstPort] = splitRef(edge.in);
           const srcType = op.outputs[srcPort];
-          if (srcType === 'render') {
+          if (srcType === 'render' || srcType === 'texture') {
             const producedRef = outputRefs[srcPort];
-            if (producedRef === undefined) throw new Error(`Engine: node "${node.id}" (${node.op}) declared render output "${srcPort}" but its contribute returned no resource ref for that port — refusing`);
+            if (producedRef === undefined) throw new Error(`Engine: node "${node.id}" (${node.op}) declared ${srcType} output "${srcPort}" but its contribute returned no resource ref for that port — refusing`);
             const dstInputs = /** @type {Record<string, ResourceRef>} */ (nodeIncomingRefs[dstId]);
             if (dstInputs[dstPort] !== undefined) {
-              throw new Error(`Engine: node "${dstId}" render input "${dstPort}" already carries a resource ref from a prior edge — refusing multiple-driver render input at execution`);
+              throw new Error(`Engine: node "${dstId}" ${srcType} input "${dstPort}" already carries a resource ref from a prior edge — refusing multiple-driver ${srcType} input at execution`);
             }
             const propagated = /** @type {ResourceRef} */ ({ resourceId: producedRef.resourceId });
             if (/** @type {any} */ (producedRef).passId !== undefined) propagated.passId = /** @type {any} */ (producedRef).passId;
             dstInputs[dstPort] = propagated;
+            // Texture-typed inputs are read by downstream ops from
+            // ports (matching the constant-driven convention used by
+            // e.g. Feedback and Target); mirror the edge-propagated
+            // ref into ports so both wiring styles resolve the same
+            // way at contribute() time. Render-typed inputs continue
+            // to flow through nodeIncomingRefs unchanged.
+            if (srcType === 'texture') {
+              const dstNs = /** @type {{ports:Record<string,any>}} */ (this.nodeState[dstId]);
+              dstNs.ports[dstPort] = propagated;
+            }
           }
         }
       }

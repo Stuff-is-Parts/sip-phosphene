@@ -4,7 +4,6 @@
     { "file": "md-101-per_frame.phos", "name": "md-101-per_frame" },
     { "file": "native-clear.phos", "name": "native-clear (pulsing clear-color)" },
     { "file": "native-hue-cycle.phos", "name": "native-hue-cycle (MinMax → HSLAToColor → clear)" },
-    { "file": "native-plane9-blur.phos", "name": "native-plane9-blur (PHOS-native executor test — not a Plane9 source scene)" },
     { "file": "TEMPLATE.phos", "name": "TEMPLATE (commented starter)" }
   ]
 }
