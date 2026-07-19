@@ -8,6 +8,7 @@
 import { compileEEL } from './expr-vm.mjs';
 import { Timekeeper } from './timekeeper.mjs';
 import { GRID_X, GRID_Y } from './warp-mesh.mjs';
+import { PLANE9_SHADERS } from './plane9-shaders.mjs';
 
 // MilkDrop's float->D3DCOLOR channel conversion — (int)(v*255) masked to 8
 // bits (D3DCOLOR_RGBA_01, milkdropfs.cpp:41). Truncation then wrap: 1.1 ->
@@ -177,10 +178,11 @@ function circularInterp(/** @type {number} */ prev, /** @type {number} */ target
  * plan; the player executes that plan generically per pass with no
  * `if (st.clear) else` dispatch.
  * @typedef {{ passes: PassSpec[] }} RenderPlan
- * @typedef {WarpFeedbackPass|CompositePass|ClearPass} PassSpec
+ * @typedef {WarpFeedbackPass|CompositePass|ClearPass|Plane9ShaderPass} PassSpec
  * @typedef {{kind:'warp-feedback', motion:any, borders:{inner:null|any, outer:null|any}}} WarpFeedbackPass
  * @typedef {{kind:'composite', comp:any}} CompositePass
  * @typedef {{kind:'clear-color', clear:{r:number, g:number, b:number, a:number}}} ClearPass
+ * @typedef {{kind:'plane9-shader', shader:string, pass:number, uniformSize:number, uniformBytes:number[]}} Plane9ShaderPass
  */
 /** @typedef {{kind:'value'|'render', inputs:Record<string,string>, outputs:Record<string,string>, portConstraints?:Record<string, number|number[]>, initState?:(inputs:Record<string,any>)=>any, compute?:(ctx:{inputs:Record<string,any>, state:any, dt:number, frame:number, time:number, audio:{musicActive:boolean, rawBeat:number}, rng:Xorshift128})=>Record<string,any>, contribute?:(inputPlans:Record<string,RenderPlan|null>, ports:Record<string,any>, pool:Record<string,number>, eng:Engine)=>Record<string,RenderPlan>}} NativeOp */
 
@@ -213,6 +215,80 @@ function assertPortValue(nodeId, opName, portName, value) {
   if (!matches) {
     throw new Error(`Engine: node "${nodeId}" (${opName}) port "${portName}"=${JSON.stringify(value)} is outside the witnessed value ${JSON.stringify(constraint)}; ${opName} has no implementation of variant values yet, so only the witnessed value is supported — refusing (sources/PLANE9-CONTRACT.md)`);
   }
+}
+
+/**
+ * Pack the Plane9 shader-node port values into the uniform buffer byte
+ * layout the WGSL struct expects. `fields` is the shader's uniformFields
+ * table from PLANE9_SHADERS; `ports` is the node's port-values dict.
+ * Returns a plain number[] (bytes) so the plan value remains
+ * structuredClone-safe and JSON-serializable.
+ * @param {{name: string, type: 'float' | 'vec2' | 'vec3' | 'vec4', offset: number}[]} fields
+ * @param {number} size
+ * @param {Record<string, any>} ports
+ * @returns {number[]}
+ */
+function packPlane9ShaderUniforms(fields, size, ports) {
+  const buf = new ArrayBuffer(size);
+  const f32 = new Float32Array(buf);
+  for (const field of fields) {
+    const v = ports[field.name];
+    const base = field.offset / 4;
+    if (field.type === 'float') {
+      if (typeof v !== 'number') throw new Error(`plane9-shader: uniform "${field.name}" must be a float value, got ${JSON.stringify(v)} — refusing`);
+      f32[base] = v;
+    } else {
+      const dim = field.type === 'vec2' ? 2 : field.type === 'vec3' ? 3 : 4;
+      if (!Array.isArray(v) || v.length !== dim) throw new Error(`plane9-shader: uniform "${field.name}" must be a ${field.type} array of ${dim} floats, got ${JSON.stringify(v)} — refusing`);
+      for (let i = 0; i < dim; i++) f32[base + i] = /** @type {number} */ (v[i]);
+    }
+  }
+  const bytes = new Uint8Array(buf);
+  return Array.from(bytes);
+}
+
+/**
+ * Build a NATIVE_OPS entry for each Plane9 shader in PLANE9_SHADERS.
+ * Each entry declares the shader's g-uniform ports, one render input
+ * (`Src`), a float `Pass` selector, and one render output (`Render`).
+ * `contribute` refuses passes outside 0..passes-1, refuses missing Src,
+ * and appends one plane9-shader pass to the incoming plan with the
+ * packed uniform bytes.
+ * @returns {Record<string, NativeOp>}
+ */
+function buildPlane9ShaderOps() {
+  /** @type {Record<string, NativeOp>} */
+  const ops = {};
+  for (const [shaderName, meta] of Object.entries(PLANE9_SHADERS)) {
+    /** @type {Record<string,string>} */
+    const inputs = { Src: 'render', Pass: 'float' };
+    for (const field of meta.uniformFields) inputs[field.name] = field.type;
+    const opName = 'plane9-' + shaderName;
+    ops[opName] = {
+      kind: 'render',
+      inputs,
+      outputs: { Render: 'render' },
+      contribute(inputPlans, ports) {
+        const inPlan = inputPlans.Src;
+        if (!inPlan) throw new Error(`${opName}: requires an incoming render plan on its "Src" port — refusing`);
+        const passIdx = Math.round(ports.Pass);
+        if (!Number.isFinite(passIdx) || passIdx < 0 || passIdx >= meta.passes) {
+          throw new Error(`${opName}: Pass=${ports.Pass} is out of range [0, ${meta.passes - 1}] — refusing`);
+        }
+        const uniformBytes = packPlane9ShaderUniforms(meta.uniformFields, meta.uniformSize, ports);
+        const cloned = /** @type {RenderPlan} */ (structuredClone(inPlan));
+        cloned.passes.push({
+          kind: 'plane9-shader',
+          shader: shaderName,
+          pass: passIdx,
+          uniformSize: meta.uniformSize,
+          uniformBytes,
+        });
+        return { Render: cloned };
+      },
+    };
+  }
+  return ops;
 }
 
 export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
@@ -349,6 +425,18 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       return { presented: inPlan };
     },
   },
+  // ---- Plane9 Shader nodes ------------------------------------------
+  // Each Plane9 nodedata/*.glsl file transcribes to WGSL at
+  // src/plane9-shaders.mjs and lands here as a render op named
+  // plane9-{shader}. Ports mirror the source's declared g-uniforms plus
+  // one render input (Src), a float Pass selector, and a render output.
+  // The op's contribute reads the incoming render plan, packs the port
+  // values into a uniform-buffer byte layout matching the WGSL struct,
+  // and appends a plane9-shader pass to the plan. The render executor
+  // (src/render-executor.mjs) compiles and dispatches the pass in the
+  // browser; the headless check verifies the plan structure and the
+  // packed uniform bytes without invoking WebGPU.
+  ...buildPlane9ShaderOps(),
   // ---- Native value ops (source-neutral) ----------------------------
   'HSLAToColor': {
     // Standard HSL-to-RGBA (Hue in degrees, S/L/A in [0,1]), verified against

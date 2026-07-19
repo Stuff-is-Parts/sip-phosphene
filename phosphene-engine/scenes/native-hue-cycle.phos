@@ -1,0 +1,172 @@
+{
+  "format": "phos/1",
+  "meta": {
+    "name": "native-hue-cycle",
+    "description": "Native hue-cycling color field: MinMax's Rand mode picks a new random target Hue in [0, 360] every 5 to 10 seconds and smoothstep-interpolates toward it; HSLAToColor converts that Hue plus fixed Saturation and Lightness into an RGBA color; clear-color fills the canvas with the resulting color each frame. Uses only accepted native ops (MinMax, HSLAToColor, clear-color, screen) with typed value edges wiring Value into Hue and Color into the clear pass. Structurally parallel to Plane9's Color Cycle scene but authored as a native .phos, so P9_COMPATIBILITY is not exercised."
+  },
+  "resources": [],
+  "nodes": [
+    {
+      "id": "hue",
+      "primitive": "graph",
+      "op": "MinMax",
+      "ports": {
+        "Min": {
+          "type": "float",
+          "value": 0
+        },
+        "Max": {
+          "type": "float",
+          "value": 360
+        },
+        "Mode": {
+          "type": "float",
+          "value": 1
+        },
+        "DelayMin": {
+          "type": "float",
+          "value": 0
+        },
+        "DelayMax": {
+          "type": "float",
+          "value": 0
+        },
+        "DelayMode": {
+          "type": "float",
+          "value": 1
+        },
+        "ITimeMin": {
+          "type": "float",
+          "value": 5
+        },
+        "ITimeMax": {
+          "type": "float",
+          "value": 10
+        },
+        "ITimeMode": {
+          "type": "float",
+          "value": 1
+        },
+        "Value": {
+          "type": "float"
+        }
+      }
+    },
+    {
+      "id": "hsl",
+      "primitive": "graph",
+      "op": "HSLAToColor",
+      "ports": {
+        "Hue": {
+          "type": "float"
+        },
+        "Saturation": {
+          "type": "float",
+          "value": 0.7
+        },
+        "Lightness": {
+          "type": "float",
+          "value": 0.5
+        },
+        "Alpha": {
+          "type": "float",
+          "value": 1
+        },
+        "Color": {
+          "type": "vec4"
+        }
+      }
+    },
+    {
+      "id": "clear",
+      "primitive": "graph",
+      "op": "clear-color",
+      "ports": {
+        "Color": {
+          "type": "vec4"
+        },
+        "Render": {
+          "type": "render"
+        }
+      }
+    },
+    {
+      "id": "screen",
+      "primitive": "graph",
+      "op": "screen",
+      "ports": {
+        "Viewport": {
+          "type": "vec4",
+          "value": [
+            0,
+            0,
+            1,
+            1
+          ]
+        },
+        "CamPos": {
+          "type": "vec3",
+          "value": [
+            0,
+            0,
+            -2
+          ]
+        },
+        "CamRot": {
+          "type": "vec3",
+          "value": [
+            0,
+            0,
+            0
+          ]
+        },
+        "CamLookAt": {
+          "type": "vec3",
+          "value": [
+            0,
+            0,
+            1
+          ]
+        },
+        "CamLookAtInWorldSpace": {
+          "type": "float",
+          "value": 0
+        },
+        "CamFov": {
+          "type": "float",
+          "value": 45
+        },
+        "CamNear": {
+          "type": "float",
+          "value": 0.1
+        },
+        "CamFar": {
+          "type": "float",
+          "value": 1000
+        },
+        "ScaleByAspect": {
+          "type": "float",
+          "value": 0
+        },
+        "Render": {
+          "type": "render"
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "out": "hue.Value",
+      "in": "hsl.Hue"
+    },
+    {
+      "out": "hsl.Color",
+      "in": "clear.Color"
+    },
+    {
+      "out": "clear.Render",
+      "in": "screen.Render"
+    }
+  ],
+  "expressions": []
+}

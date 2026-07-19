@@ -7,6 +7,7 @@
 // sampler modes, ping-pong texture management, bind groups) in one place.
 import { feedbackWGSL, compositeWGSL } from './render-wgsl.mjs';
 import { buildStripIndices, buildWarpUVs, meshPositions, VERT_COUNT } from './warp-mesh.mjs';
+import { PLANE9_SHADERS } from './plane9-shaders.mjs';
 
 /**
  * Build a per-canvas render context that owns the WebGPU device resources
@@ -25,6 +26,13 @@ export function createRenderContext(device, canvas, ctx, fmt) {
   const U = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING;
   /** @type {GPUTexture|undefined} */ let tA;
   /** @type {GPUTexture|undefined} */ let tB;
+  // sA and sB are per-frame ping-pong scratch textures for shader chains
+  // (Plane9 shader-node passes plus any clear-color that is not the last
+  // render pass in the plan). They are ephemeral: each frame starts with
+  // sA blank, chained passes write to sB and swap, and the final pass in
+  // the plan reads sA and writes the swapchain.
+  /** @type {GPUTexture|undefined} */ let sA;
+  /** @type {GPUTexture|undefined} */ let sB;
   let texW = 0, texH = 0;
   const rebuildTargets = () => {
     const w = Math.max(16, Math.ceil(canvas.width / 16) * 16), h = Math.max(16, Math.ceil(canvas.height / 16) * 16);
@@ -32,10 +40,54 @@ export function createRenderContext(device, canvas, ctx, fmt) {
     texW = w; texH = h;
     if (tA) tA.destroy();
     if (tB) tB.destroy();
+    if (sA) sA.destroy();
+    if (sB) sB.destroy();
     tA = device.createTexture({ size: [texW, texH], format: 'rgba8unorm', usage: U });
     tB = device.createTexture({ size: [texW, texH], format: 'rgba8unorm', usage: U });
+    sA = device.createTexture({ size: [texW, texH], format: 'rgba8unorm', usage: U });
+    sB = device.createTexture({ size: [texW, texH], format: 'rgba8unorm', usage: U });
   };
   rebuildTargets();
+  // Plane9 shader-node pipelines are compiled lazily and cached by
+  // (shader, pass) key. Each entry owns the compiled WGSL module and a
+  // render pipeline per pass index into that shader.
+  /** @type {Map<string, {module: GPUShaderModule, pipelines: Map<number, GPURenderPipeline>, ubuf: GPUBuffer, bgl: GPUBindGroupLayout}>} */
+  const plane9ShaderCache = new Map();
+  const plane9ShaderSampler = device.createSampler({
+    magFilter: 'linear', minFilter: 'linear',
+    addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge',
+  });
+  /** @param {string} shaderName */
+  function getPlane9ShaderCache(shaderName) {
+    let entry = plane9ShaderCache.get(shaderName);
+    if (entry) return entry;
+    const meta = PLANE9_SHADERS[shaderName];
+    if (!meta) throw new Error('render executor: unknown Plane9 shader "' + shaderName + '"');
+    const module = device.createShaderModule({ code: meta.wgsl });
+    const bgl = device.createBindGroupLayout({ entries: [
+      { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: {} },
+      { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: {} },
+      { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+    ] });
+    const ubuf = device.createBuffer({ size: meta.uniformSize, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    entry = { module, pipelines: new Map(), ubuf, bgl };
+    plane9ShaderCache.set(shaderName, entry);
+    return entry;
+  }
+  /** @param {string} shaderName @param {number} passIdx */
+  function getPlane9ShaderPipeline(shaderName, passIdx) {
+    const entry = getPlane9ShaderCache(shaderName);
+    let pipeline = entry.pipelines.get(passIdx);
+    if (pipeline) return { entry, pipeline };
+    pipeline = device.createRenderPipeline({
+      layout: device.createPipelineLayout({ bindGroupLayouts: [entry.bgl] }),
+      vertex: { module: entry.module, entryPoint: 'vs' },
+      fragment: { module: entry.module, entryPoint: 'fs' + passIdx, targets: [{ format: 'rgba8unorm' }] },
+      primitive: { topology: 'triangle-list' },
+    });
+    entry.pipelines.set(passIdx, pipeline);
+    return { entry, pipeline };
+  }
   const mod = device.createShaderModule({ code: feedbackWGSL });
   const blitMod = device.createShaderModule({ code: compositeWGSL });
   // warp-pass address mode follows the wrap variable per frame (texaddr,
@@ -86,10 +138,42 @@ export function createRenderContext(device, canvas, ctx, fmt) {
     let swapNeeded = false;
     /** @type {any} */
     let lastMotion = null;
-    for (const p of plan.passes) {
+    // Shader-chain head: the texture holding the most recent shader-chain
+    // output. clear-color initializes it when a downstream pass will
+    // consume the result; plane9-shader passes read it and produce the
+    // next head. Only the plan's LAST render pass writes the swapchain.
+    /** @type {GPUTexture|null} */
+    let chainHead = null;
+    for (let passIdx = 0; passIdx < plan.passes.length; passIdx++) {
+      const p = /** @type {import('./engine.mjs').PassSpec} */ (plan.passes[passIdx]);
+      const isLast = (passIdx === plan.passes.length - 1);
       if (p.kind === 'clear-color') {
-        const rp = enc.beginRenderPass({ colorAttachments: [{ view: ctx.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: { r: p.clear.r, g: p.clear.g, b: p.clear.b, a: p.clear.a } }] });
+        const target = isLast
+          ? ctx.getCurrentTexture().createView()
+          : /** @type {GPUTexture} */ (sA).createView();
+        const rp = enc.beginRenderPass({ colorAttachments: [{ view: target, loadOp: 'clear', storeOp: 'store', clearValue: { r: p.clear.r, g: p.clear.g, b: p.clear.b, a: p.clear.a } }] });
         rp.end();
+        if (!isLast) chainHead = /** @type {GPUTexture} */ (sA);
+      } else if (p.kind === 'plane9-shader') {
+        if (!chainHead) throw new Error(`render executor: plane9-shader pass at index ${passIdx} has no upstream texture — a shader-chain pass requires a prior clear-color or plane9-shader pass`);
+        const { entry, pipeline } = getPlane9ShaderPipeline(p.shader, p.pass);
+        device.queue.writeBuffer(entry.ubuf, 0, new Uint8Array(p.uniformBytes));
+        const readTex = chainHead;
+        const writeTex = /** @type {GPUTexture} */ (chainHead === sA ? sB : sA);
+        const target = isLast
+          ? ctx.getCurrentTexture().createView()
+          : writeTex.createView();
+        const bg = device.createBindGroup({
+          layout: entry.bgl,
+          entries: [
+            { binding: 0, resource: readTex.createView() },
+            { binding: 1, resource: plane9ShaderSampler },
+            { binding: 2, resource: { buffer: entry.ubuf } },
+          ],
+        });
+        const rp = enc.beginRenderPass({ colorAttachments: [{ view: target, loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } }] });
+        rp.setPipeline(pipeline); rp.setBindGroup(0, bg); rp.draw(3); rp.end();
+        if (!isLast) chainHead = writeTex;
       } else if (p.kind === 'warp-feedback') {
         const m = p.motion;
         // borders fold into the warp-feedback pass; a warp-feedback pass
