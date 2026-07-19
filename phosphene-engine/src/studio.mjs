@@ -227,18 +227,26 @@ const canvas = $cv('c');
 // initialization).
 /** @type {ReturnType<typeof createRenderContext>|null} */
 let renderCtx = null;
-// Authoritative canvas-backing sync (reviewer 2026-07-18 lifecycle-seam
-// fix). Reads getBoundingClientRect and the CURRENT devicePixelRatio each
-// call — never captures dpr once — computes the required integer backing
-// dimensions from client size × dpr, updates canvas.width and
-// canvas.height only when the values change, and calls renderCtx.resize()
-// only when the backing dimensions actually changed. This is the single
-// function every synchronization site calls; the naming makes it visible
-// that scene-swap, ResizeObserver, fullscreenchange, library close, and
-// per-frame all funnel through the same code path.
+// #stage is the definite sizing authority for the render surface
+// (reviewer 2026-07-18 stage-sizing fix). The prior version read
+// canvas.getBoundingClientRect(), which created an intrinsic-canvas
+// feedback loop: setting canvas.width / canvas.height changed the
+// canvas box's intrinsic dimensions, the container relaid out around
+// the larger canvas, the next frame read the larger box, and the
+// backing dimensions grew each cycle. The fix reads stage rect
+// (constrained by the split-panel and viewport) and lays the canvas
+// out absolutely inside #stage with width:100% height:100% so the
+// canvas's intrinsic size can never push the stage.
+const stageEl = $('stage');
+// Authoritative sync — reads stage rect and the CURRENT
+// devicePixelRatio each call, never captures dpr once, updates
+// canvas.width and canvas.height only when the values change, and
+// calls renderCtx.resize() only when the backing dimensions actually
+// changed. Every synchronization site funnels through this one function
+// via syncCanvas() below.
 function updateCanvasBacking(){
   if (!renderCtx) return false;
-  const rect = canvas.getBoundingClientRect();
+  const rect = stageEl.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
   const w = Math.max(1, Math.round(rect.width * dpr));
   const h = Math.max(1, Math.round(rect.height * dpr));
@@ -289,7 +297,7 @@ else {
   // relayouts fire the sync even when no window.resize event happens
   // (the wa-split-panel drag between the stage and the panel is the
   // exact scenario the resize listener alone misses).
-  new window.ResizeObserver(syncCanvas).observe($('stage'));
+  new window.ResizeObserver(syncCanvas).observe(stageEl);
 
   let last=performance.now(),fpsAcc=0,fpsN=0;
   /** @param {number} now */
@@ -307,9 +315,9 @@ else {
       $('fr').textContent=String(engine.frame);
       fpsAcc+=1/dt;fpsN++; if(fpsN>=15){$('fps').textContent=String(Math.round(fpsAcc/fpsN));fpsAcc=0;fpsN=0;}
       if (showDiag) {
-        const rect = canvas.getBoundingClientRect();
+        const rect = stageEl.getBoundingClientRect();
         const dpr = window.devicePixelRatio || 1;
-        diagEl.textContent = ' · client ' + Math.round(rect.width) + '×' + Math.round(rect.height)
+        diagEl.textContent = ' · stage ' + Math.round(rect.width) + '×' + Math.round(rect.height)
           + ' · canvas ' + canvas.width + '×' + canvas.height
           + ' · tex ' + localRenderCtx.texW + '×' + localRenderCtx.texH
           + ' · dpr ' + dpr.toFixed(2);

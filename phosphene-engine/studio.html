@@ -46,7 +46,14 @@
   /* scene strip: the content (scene name) outranks any label */
   #sceneTitle{font-size:var(--fs-title);font-weight:600;color:var(--fg)}
   #sceneRow{display:flex;align-items:center;gap:10px;margin-bottom:2px}
-  #stage{height:100%}
+  /* #stage is the definite sizing authority for the render surface
+     (reviewer 2026-07-18 stage-sizing fix). The canvas is placed
+     absolutely inside so its intrinsic width/height attributes cannot
+     feed back into the split-panel or stage layout — a resize that
+     doubled the canvas backing dimensions on every viewport cycle was
+     the intrinsic-canvas feedback loop the diagnostic caught. */
+  #stage{position:relative;width:100%;height:100%;min-width:0;min-height:0;overflow:hidden}
+  #stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
   /* custom (no WA utility covers pane overflow): the editor pane scrolls
      vertically only, and min-width:0 defeats the flex min-content trap that
      produced the horizontal scrollbar */
@@ -62,8 +69,8 @@
   .cm-s-default .cm-number{color:#c0aac6}
   .cm-s-default .cm-atom{color:#c0aac6}
   .cm-s-default .cm-comment{color:var(--dim)}
-  #stage{position:relative;background:#000}
-  canvas{width:100%;height:100%;display:block}
+  #stage{background:#000}
+  #scope{width:100%;height:100%;display:block}
   #hud{position:absolute;top:8px;left:8px;color:var(--dim);font-size:11px}
   #hud b{color:var(--good)}
   #panel{background:var(--panel);border-left:1px solid var(--edge)}
