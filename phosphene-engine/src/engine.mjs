@@ -272,6 +272,11 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
   },
   'borders': {
     kind: 'render',
+    // borders augments the producer warp-feedback pass in place; two
+    // fan-out branches would both mutate the same pass. The Engine
+    // refuses at construction when a producer's render output feeds two
+    // consumers where either consumer declares `mutatesProducer: true`.
+    mutatesProducer: true,
     inputs: {
       ib_size: 'float', ib_r: 'float', ib_g: 'float', ib_b: 'float', ib_a: 'float',
       ob_size: 'float', ob_r: 'float', ob_g: 'float', ob_b: 'float', ob_a: 'float',
@@ -316,8 +321,9 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
       if (!producer || producer.kind !== 'warp-feedback') throw new Error(`composite: incoming render reference must identify a warp-feedback producer pass; got "${producer?.kind ?? '(none)'}" — refusing`);
       const wf = /** @type {WarpFeedbackPass} */ (producer);
       // gammaAdj + video echo — ShowToUser_NoShaders (milkdropfs.cpp:4147-4260).
+      const passId = _eng.nextPassId();
       plan.passes.push(/** @type {any} */ ({
-        id: null,
+        id: passId,
         kind: 'composite',
         comp: {
           gamma: pool.gamma ?? ports.fGammaAdj,
@@ -656,13 +662,91 @@ function validatePlan(plan) {
       }
     }
   }
-  // Ambiguous multiple writers refuse for non-pingpong resources.
+  // Multiple writers refuse for every resource. Persistent-pingpong
+  // authorizes one pass to read AND write the same logical resource in
+  // one pass (the two physical textures alternate); it does NOT authorize
+  // two unrelated writer passes. The same-pass read+write aliasing rule
+  // above already covers ping-pong's authorized case; this check keeps
+  // multiple unrelated writers refused regardless of lifetime, so a later
+  // scene cannot silently ship with two writers competing for one
+  // resource per the reviewer 2026-07-18 refinement.
   for (const [rid, count] of Object.entries(writerCount)) {
-    const rd = resourceById[rid];
-    if (rd && rd.lifetime !== 'persistent-pingpong' && count > 1) throw new Error(`Engine: resource "${rid}" has ${count} writers; only persistent-pingpong resources may be written by more than one pass — refusing`);
+    if (count > 1) throw new Error(`Engine: resource "${rid}" has ${count} writer passes; multi-writer contracts are not supported — refusing`);
   }
   // Presented transient resource must have a writer in this frame.
   if (presDesc.lifetime === 'transient' && firstWriteIdx[presResourceId] === undefined) throw new Error(`Engine: presentation resource "${presResourceId}" has lifetime "transient" but no pass writes it in this frame — refusing`);
+  // Every emitted pass carries a unique, nonempty stable id so downstream
+  // ops and regressions can address passes by id without positional
+  // ambiguity. Duplicate or missing ids would let a producer silently
+  // ship two passes the graph cannot distinguish.
+  /** @type {Set<string>} */
+  const seenIds = new Set();
+  for (let i = 0; i < plan.passes.length; i++) {
+    const p = /** @type {any} */ (plan.passes[i]);
+    const pid = p.id;
+    if (typeof pid !== 'string' || pid.length === 0) throw new Error(`Engine: pass at index ${i} (kind "${p.kind}") has missing or empty id; every pass must carry a nonempty stable id — refusing`);
+    if (seenIds.has(pid)) throw new Error(`Engine: duplicate pass id "${pid}" at index ${i} (kind "${p.kind}"); every pass id must be unique in the plan — refusing`);
+    seenIds.add(pid);
+  }
+}
+
+/**
+ * Cross-field validation for every resource descriptor the scene declares,
+ * including resources no op references (reviewer 2026-07-18 §2). Rules:
+ *
+ *   1. presentation kind → format=preferred-canvas, size.policy=canvas,
+ *      lifetime=per-frame, usage={render-attachment, presentation}. No
+ *      other combination is currently supported.
+ *   2. texture kind → format=rgba8unorm, size.policy in {canvas,
+ *      canvas-16block}, lifetime in {persistent-pingpong, transient},
+ *      usage subset of {sampled, render-attachment} with at least one
+ *      realizable GPU usage flag. `presentation` usage is presentation-
+ *      kind-only; `preferred-canvas` format is presentation-kind-only.
+ *   3. persistent-pingpong lifetime → kind=texture with usage including
+ *      both `sampled` AND `render-attachment` (ping-pong needs both to
+ *      alternate reads and writes across its two physical textures).
+ *
+ * These rules run at Engine construction over scene.resources so an
+ * unused declared resource cannot ship an invalid descriptor into the
+ * executor's createTexture path, and so no descriptor Engine accepts
+ * causes createTexture() to receive zero GPU usage flags.
+ * @param {any[]} resources
+ */
+function validateResourceDescriptors(resources) {
+  for (const r of resources) {
+    const rid = r?.id;
+    const kind = r?.kind;
+    const format = r?.format;
+    const policy = r?.size?.policy;
+    const lifetime = r?.lifetime;
+    /** @type {string[]} */
+    const usage = Array.isArray(r?.usage) ? r.usage : [];
+    if (kind === 'presentation') {
+      if (format !== 'preferred-canvas') throw new Error(`Engine: resource "${rid}" kind "presentation" requires format "preferred-canvas", got "${format}" — refusing`);
+      if (policy !== 'canvas') throw new Error(`Engine: resource "${rid}" kind "presentation" requires size.policy "canvas", got "${policy}" — refusing`);
+      if (lifetime !== 'per-frame') throw new Error(`Engine: resource "${rid}" kind "presentation" requires lifetime "per-frame", got "${lifetime}" — refusing`);
+      if (!usage.includes('render-attachment') || !usage.includes('presentation')) throw new Error(`Engine: resource "${rid}" kind "presentation" must declare usage "render-attachment" and "presentation", got [${usage.join(', ')}] — refusing`);
+      for (const u of usage) if (u !== 'render-attachment' && u !== 'presentation') throw new Error(`Engine: resource "${rid}" kind "presentation" has unsupported usage entry "${u}"; only "render-attachment" and "presentation" are supported — refusing`);
+      continue;
+    }
+    if (kind === 'texture') {
+      if (format !== 'rgba8unorm') throw new Error(`Engine: resource "${rid}" kind "texture" requires format "rgba8unorm", got "${format}"; format "preferred-canvas" is presentation-kind-only — refusing`);
+      if (policy !== 'canvas' && policy !== 'canvas-16block') throw new Error(`Engine: resource "${rid}" kind "texture" requires size.policy in {canvas, canvas-16block}, got "${policy}" — refusing`);
+      if (lifetime !== 'persistent-pingpong' && lifetime !== 'transient') throw new Error(`Engine: resource "${rid}" kind "texture" requires lifetime in {persistent-pingpong, transient}, got "${lifetime}" — refusing`);
+      if (usage.includes('presentation')) throw new Error(`Engine: resource "${rid}" kind "texture" carries usage "presentation"; that usage entry is presentation-kind-only — refusing`);
+      // Every texture must declare at least one realizable GPU usage
+      // flag. Only sampled and render-attachment survive the executor's
+      // usage-flag resolution for a texture kind — an empty usage list
+      // or a list missing both entries produces a WebGPU createTexture
+      // call with zero usage flags, which the executor rejects at
+      // runtime. Refuse here at construction rather than defer.
+      if (!usage.includes('sampled') && !usage.includes('render-attachment')) throw new Error(`Engine: resource "${rid}" kind "texture" must declare at least one of {sampled, render-attachment} usage; got [${usage.join(', ')}] — the executor cannot allocate a texture with zero GPU usage flags — refusing`);
+      for (const u of usage) if (u !== 'sampled' && u !== 'render-attachment') throw new Error(`Engine: resource "${rid}" kind "texture" has unsupported usage entry "${u}"; only "sampled" and "render-attachment" are supported — refusing`);
+      if (lifetime === 'persistent-pingpong' && (!usage.includes('sampled') || !usage.includes('render-attachment'))) throw new Error(`Engine: resource "${rid}" lifetime "persistent-pingpong" requires usage "sampled" AND "render-attachment" (both physical textures alternate read/write), got [${usage.join(', ')}] — refusing`);
+      continue;
+    }
+    throw new Error(`Engine: resource "${rid}" has unsupported kind "${kind}"; supported kinds are texture and presentation — refusing`);
+  }
 }
 
 export class Engine {
@@ -672,6 +756,12 @@ export class Engine {
     const nodes = scene.nodes;
     /** @type {{out:string, in:string}[]} */
     const edges = scene.edges ?? [];
+    // --- validate every declared resource descriptor cross-field ---
+    // Every resource the scene declares must satisfy the substrate's
+    // cross-field rules before topology work begins, so an unused
+    // declared resource cannot ship an invalid descriptor into the
+    // executor (reviewer 2026-07-18 §2).
+    validateResourceDescriptors(scene.resources ?? []);
     // --- validate every op and every port reference ---
     for (const n of nodes) {
       const op = NATIVE_OPS[n.op];
@@ -709,6 +799,46 @@ export class Engine {
         throw new Error(`Engine: input port "${e.in}" already has an incoming edge; a second edge would silently overwrite it — refusing ambiguous graph`);
       }
       edgeDriven.add(e.in);
+    }
+    // Fan-out into a producer-mutating consumer is refused (reviewer
+    // 2026-07-18 §1). A consumer op that declares `mutatesProducer:true`
+    // augments the pass identified by its incoming render ref in place;
+    // if two branches fan out from the same producer's render output and
+    // any branch is a producer-mutating consumer, both branches would
+    // reach the same pass and one branch's borders/etc. would silently
+    // overwrite the other's. The check is per producer-output port: if
+    // the port has more than one outgoing render edge AND any destination
+    // op declares mutatesProducer=true, refuse at construction rather
+    // than let the shared-mutable-pass failure ship. Fan-out into
+    // non-mutating consumers stays legal (the fan-out regression covers
+    // the passthrough case). Placed before the input-sourced check so
+    // the fan-out refusal fires when the graph is otherwise well-formed
+    // enough to hit type-checked edges but not the full sourcing sweep.
+    /** @type {Map<string, {out:string,in:string}[]>} */
+    const perProducerRenderEdges = new Map();
+    for (const e of edges) {
+      const [srcId, srcPort] = splitRef(e.out);
+      const srcNode = nodes.find((n) => n.id === srcId);
+      if (!srcNode) continue;
+      const srcOp = opOf(srcNode.op);
+      if (srcOp.outputs[srcPort] !== 'render') continue;
+      const key = srcId + '.' + srcPort;
+      const arr = perProducerRenderEdges.get(key) ?? [];
+      arr.push(e);
+      perProducerRenderEdges.set(key, arr);
+    }
+    for (const [key, list] of perProducerRenderEdges) {
+      if (list.length < 2) continue;
+      /** @type {string[]} */
+      const mutators = [];
+      for (const e of list) {
+        const [dstId] = splitRef(e.in);
+        const dstNode = nodes.find((n) => n.id === dstId);
+        if (!dstNode) continue;
+        const dstOp = /** @type {any} */ (opOf(dstNode.op));
+        if (dstOp.mutatesProducer === true) mutators.push(dstNode.op + ' (' + dstId + ')');
+      }
+      if (mutators.length > 0) throw new Error(`Engine: render output "${key}" fans out to ${list.length} consumers including producer-mutating op(s) [${mutators.join(', ')}]; a mutating consumer requires exclusive access to its producer pass — refusing`);
     }
     // Every declared input port must be sourced. Value-typed inputs (float,
     // vec2/3/4, ...) are sourced by either a constant on the port or an

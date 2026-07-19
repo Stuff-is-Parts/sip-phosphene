@@ -1632,14 +1632,17 @@ const substrateCompletionOk = (() => {
     const comp = plan.passes.find((/** @type {any} */ p) => p.kind === 'composite');
     return comp && typeof comp.comp.aspectY === 'number';
   })();
-  // (4) Sampled read of a resource without 'sampled' usage refuses.
+  // (4) Persistent-pingpong lifetime without both sampled + render-attachment
+  //     refuses at descriptor validation (reviewer 2026-07-18 refinement §2):
+  //     ping-pong needs both to alternate reads and writes across its two
+  //     physical textures, so shipping either alone is an invalid descriptor.
   const noSampledRefuses = (() => {
     try {
       const doc = /** @type {any} */ (parsePhos(md));
       doc.resources.find((/** @type {any} */ r) => r.id === 'md-feedback').usage = ['render-attachment'];
       new Engine(toRuntime(doc)).step(1 / 60);
       return false;
-    } catch (e) { return /does not declare "sampled" usage/.test(/** @type {Error} */ (e).message); }
+    } catch (e) { return /"persistent-pingpong" requires usage "sampled" AND "render-attachment"/.test(/** @type {Error} */ (e).message); }
   })();
   // (5) Write to a resource without 'render-attachment' usage refuses.
   const noAttachmentRefuses = (() => {
@@ -1650,12 +1653,20 @@ const substrateCompletionOk = (() => {
       return false;
     } catch (e) { return /does not declare "render-attachment" usage/.test(/** @type {Error} */ (e).message); }
   })();
-  // (6) Clear targeting a presentation-kind resource refuses in the
-  //     engine (before executor reaches it).
+  // (6) Clear targeting a valid presentation-kind resource refuses at
+  //     contribute time. The descriptor is coerced to the full valid
+  //     presentation shape (format=preferred-canvas, size.policy=canvas,
+  //     lifetime=per-frame, usage=render-attachment+presentation) so it
+  //     passes cross-field descriptor validation, and the refusal fires
+  //     at clear-color's contribute — only composite may write a
+  //     presentation-kind resource.
   const clearOnPresentationRefuses = (() => {
     try {
       const doc = /** @type {any} */ (parsePhos(nc));
       doc.resources[0].kind = 'presentation';
+      doc.resources[0].format = 'preferred-canvas';
+      doc.resources[0].size = { policy: 'canvas' };
+      doc.resources[0].lifetime = 'per-frame';
       doc.resources[0].usage = ['render-attachment', 'presentation'];
       new Engine(toRuntime(doc)).step(1 / 60);
       return false;
@@ -1682,6 +1693,155 @@ const substrateCompletionOk = (() => {
     && pingpongAuthorizedOk && existingPlansOk;
 })();
 
+// (aq) Substrate refinement regressions (reviewer 2026-07-18 refinement
+//      pass): mutating fan-out refusal, cross-field descriptor validation
+//      including unused declared resources, zero-usage refusal, single-
+//      writer rule, pass-id uniqueness, and existing MilkDrop plus
+//      Clear→Screen plans remaining green.
+const substrateRefinementOk = (() => {
+  const md = readFileSync(new URL('./scenes/md-101-per_frame.phos', import.meta.url), 'utf8');
+  const nc = readFileSync(new URL('./scenes/native-clear.phos', import.meta.url), 'utf8');
+  // (1) Fan-out from a producer into a mutating consumer refuses at
+  //     Engine construction. borders declares mutatesProducer:true, so
+  //     two borders nodes both consuming warp.out is exactly the shared-
+  //     mutable-pass shape the check refuses. The scene keeps everything
+  //     else identical to md-101; construction refuses at the fan-out
+  //     check before the outgoing-edge or input-sourced checks reach it.
+  const fanOutMutatorRefused = (() => {
+    const doc = /** @type {any} */ (parsePhos(md));
+    const borders2 = { id: 'borders2', primitive: 'shader', op: 'borders', ports: /** @type {any} */ ({
+      ib_size: { type: 'float', value: 0.05 }, ib_r: { type: 'float', value: 0 }, ib_g: { type: 'float', value: 0.5 }, ib_b: { type: 'float', value: 1 }, ib_a: { type: 'float', value: 1 },
+      ob_size: { type: 'float', value: 0.05 }, ob_r: { type: 'float', value: 1 }, ob_g: { type: 'float', value: 0 }, ob_b: { type: 'float', value: 0 }, ob_a: { type: 'float', value: 1 },
+      in: { type: 'render' }, out: { type: 'render' },
+    }) };
+    doc.nodes.push(borders2);
+    doc.edges.push({ out: 'warp.out', in: 'borders2.in' });
+    try { new Engine(toRuntime(doc)); return false; }
+    catch (e) {
+      const msg = /** @type {Error} */ (e).message;
+      return /fans out to \d+ consumers including producer-mutating op\(s\)/.test(msg) && /borders/.test(msg);
+    }
+  })();
+  // (2) Cross-field descriptor validation applies to every declared
+  //     resource including unused ones. An unused descriptor with an
+  //     invalid combination refuses at Engine construction before any
+  //     op-level or plan-level check runs.
+  const invalidUnusedRefused = (() => {
+    // Add a completely unused unused-tex descriptor with an unsupported
+    // shape (texture kind + preferred-canvas format is presentation-only).
+    const doc = /** @type {any} */ (parsePhos(md));
+    doc.resources.push({ id: 'unused-tex', kind: 'texture', format: 'preferred-canvas', size: { policy: 'canvas' }, lifetime: 'transient', usage: ['sampled', 'render-attachment'] });
+    try { new Engine(toRuntime(doc)); return false; }
+    catch (e) { return /kind "texture" requires format "rgba8unorm".*preferred-canvas.*presentation-kind-only/.test(/** @type {Error} */ (e).message); }
+  })();
+  // (3) Zero-usage refusal — a texture descriptor with an empty usage
+  //     list would produce a WebGPU createTexture call with zero flags.
+  //     Descriptor validation refuses before any executor path runs.
+  const zeroUsageRefused = (() => {
+    const doc = /** @type {any} */ (parsePhos(md));
+    doc.resources.push({ id: 'no-usage-tex', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas' }, lifetime: 'transient', usage: [] });
+    try { new Engine(toRuntime(doc)); return false; }
+    catch (e) { return /must declare at least one of \{sampled, render-attachment\} usage/.test(/** @type {Error} */ (e).message); }
+  })();
+  // (4) Invalid presentation cross-field combinations. Four cases: wrong
+  //     format, wrong size.policy, wrong lifetime, missing presentation
+  //     usage. Each refuses at descriptor validation.
+  const invalidPresentationCombosRefused = (() => {
+    const mut = (/** @type {(r:any)=>void} */ f) => {
+      const doc = /** @type {any} */ (parsePhos(md));
+      const p = doc.resources.find((/** @type {any} */ r) => r.id === 'canvas');
+      f(p);
+      try { new Engine(toRuntime(doc)); return null; }
+      catch (e) { return /** @type {Error} */ (e).message; }
+    };
+    const wrongFormat = mut((p) => { p.format = 'rgba8unorm'; });
+    const wrongPolicy = mut((p) => { p.size.policy = 'canvas-16block'; });
+    const wrongLifetime = mut((p) => { p.lifetime = 'transient'; });
+    const missingPresentationUsage = mut((p) => { p.usage = ['render-attachment']; });
+    // Presentation usage on a texture-kind resource refuses.
+    const presUsageOnTexture = (() => {
+      const doc = /** @type {any} */ (parsePhos(md));
+      const t = doc.resources.find((/** @type {any} */ r) => r.id === 'md-feedback');
+      t.usage = ['sampled', 'render-attachment', 'presentation'];
+      try { new Engine(toRuntime(doc)); return null; }
+      catch (e) { return /** @type {Error} */ (e).message; }
+    })();
+    return wrongFormat !== null && /requires format "preferred-canvas"/.test(wrongFormat)
+      && wrongPolicy !== null && /requires size.policy "canvas"/.test(wrongPolicy)
+      && wrongLifetime !== null && /requires lifetime "per-frame"/.test(wrongLifetime)
+      && missingPresentationUsage !== null && /must declare usage "render-attachment" and "presentation"/.test(missingPresentationUsage)
+      && presUsageOnTexture !== null && /kind "texture" carries usage "presentation"/.test(presUsageOnTexture);
+  })();
+  // (5) Multiple writers to the same persistent-pingpong resource refuse.
+  //     Ping-pong authorizes one pass to read+write its logical resource
+  //     across two physical textures, but not two unrelated writers.
+  //     Two warp-feedback nodes both write md-feedback and their outputs
+  //     feed the test-inspect-sink, so the graph constructs cleanly and
+  //     the multi-writer check fires at plan validation.
+  const multiWriterPingpongRefused = (() => {
+    const scene = /** @type {any} */ ({
+      format: 'phos/1', meta: { name: 'multi-writer' },
+      resources: [
+        { id: 'md-feedback', kind: 'texture', format: 'rgba8unorm', size: { policy: 'canvas-16block' }, lifetime: 'persistent-pingpong', usage: ['sampled', 'render-attachment'] },
+      ],
+      nodes: [
+        { id: 'w1', primitive: 'graph', op: 'warp-feedback', ports: /** @type {any} */ ({
+          fDecay: { type: 'float', value: 0.98 }, zoom: { type: 'float', value: 0 }, rot: { type: 'float', value: 0 }, warp: { type: 'float', value: 0 },
+          cx: { type: 'float', value: 0.5 }, cy: { type: 'float', value: 0.5 }, dx: { type: 'float', value: 0 }, dy: { type: 'float', value: 0 },
+          sx: { type: 'float', value: 1 }, sy: { type: 'float', value: 1 },
+          fWarpAnimSpeed: { type: 'float', value: 1 }, fWarpScale: { type: 'float', value: 1 }, fZoomExponent: { type: 'float', value: 1 },
+          Feedback: { type: 'texture', value: { resourceId: 'md-feedback' } }, out: { type: 'render' },
+        }) },
+        { id: 'w2', primitive: 'graph', op: 'warp-feedback', ports: /** @type {any} */ ({
+          fDecay: { type: 'float', value: 0.98 }, zoom: { type: 'float', value: 0 }, rot: { type: 'float', value: 0 }, warp: { type: 'float', value: 0 },
+          cx: { type: 'float', value: 0.5 }, cy: { type: 'float', value: 0.5 }, dx: { type: 'float', value: 0 }, dy: { type: 'float', value: 0 },
+          sx: { type: 'float', value: 1 }, sy: { type: 'float', value: 1 },
+          fWarpAnimSpeed: { type: 'float', value: 1 }, fWarpScale: { type: 'float', value: 1 }, fZoomExponent: { type: 'float', value: 1 },
+          Feedback: { type: 'texture', value: { resourceId: 'md-feedback' } }, out: { type: 'render' },
+        }) },
+        { id: 'sink', primitive: 'graph', op: 'test-inspect-sink', ports: /** @type {any} */ ({ A: { type: 'render' }, B: { type: 'render' }, presented: { type: 'render' } }) },
+      ],
+      edges: [
+        { out: 'w1.out', in: 'sink.A' },
+        { out: 'w2.out', in: 'sink.B' },
+      ],
+      expressions: [],
+    });
+    try { new Engine(toRuntime(scene)).step(1 / 60); return false; }
+    catch (e) { const msg = /** @type {Error} */ (e).message; return /has 2 writer passes|multi-writer contracts are not supported/.test(msg) && /md-feedback/.test(msg); }
+  })();
+  // (6) Every emitted pass has a unique nonempty string id. Composite no
+  //     longer emits id:null; validatePlan refuses on duplicates or
+  //     missing ids. Verify by inspecting the MilkDrop plan (2 passes,
+  //     both with distinct string ids).
+  const uniquePassIdsOk = (() => {
+    const plan = /** @type {any} */ (new Engine(toRuntime(parsePhos(md))).step(1 / 60));
+    const ids = plan.passes.map((/** @type {any} */ p) => p.id);
+    return ids.length === 2 && ids.every((/** @type {any} */ i) => typeof i === 'string' && i.length > 0)
+      && new Set(ids).size === ids.length;
+  })();
+  // (7) Existing renamed MilkDrop and Clear→Screen plans remain valid.
+  //     The renamedOk sub-check in substrateCompletionOk already covers
+  //     MilkDrop resource-id rename; here we verify Clear→Screen too.
+  const existingRenamedClearOk = (() => {
+    const doc = /** @type {any} */ (parsePhos(nc));
+    doc.resources[0].id = 'renamed-clear';
+    for (const n of doc.nodes) {
+      for (const p of Object.values(/** @type {any} */ (n.ports))) {
+        const port = /** @type {any} */ (p);
+        if (port.type === 'texture' && port.value && port.value.resourceId === 'clear-out') port.value.resourceId = 'renamed-clear';
+      }
+    }
+    try {
+      const plan = /** @type {any} */ (new Engine(toRuntime(doc)).step(1 / 60));
+      return plan.presentation.resourceId === 'renamed-clear';
+    } catch { return false; }
+  })();
+  return fanOutMutatorRefused && invalidUnusedRefused && zeroUsageRefused
+    && invalidPresentationCombosRefused && multiWriterPingpongRefused
+    && uniquePassIdsOk && existingRenamedClearOk;
+})();
+
 // ==== TWO SEPARATE SURFACES (reviewer foundation 2026-07-18) ====
 // engineRegressionOk: PHOSPHENE's own executor behaves as this codebase
 //   specifies it — MilkDrop scene 1 renders unchanged, the graph executor
@@ -1695,7 +1855,7 @@ const substrateCompletionOk = (() => {
 //   Beat REFUSE at the compatibility gate; Color Cycle refuses at
 //   conversion. This surface does NOT accept PHOSPHENE's internal
 //   regression tests as evidence of Plane9 fidelity.
-const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && nativeHueCycleOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk && renderPlanFoundationOk && renderFanOutOk && valueMultiDriverOk && screenGuardOk && substrateOk && substrateCompletionOk;
+const engineRegressionOk = fftZeroOk && fftImpulseOk && loudnessOk && boundaryOk && ringOk && timekeeperOk && pagesSynced && contractOk && resetOk && clampAliasOk && varContractOk && aspectOk && meshOk && recordsOk && transformOk && inertPortOk && triageOk && cssImportsOk && registryOk && nativeClearOk && nativeHueCycleOk && rngOk && minmaxOk && beatOk && hslOk && delayItimeModeGuardOk && ambiguousGraphRefusedOk && renderPlanFoundationOk && renderFanOutOk && valueMultiDriverOk && screenGuardOk && substrateOk && substrateCompletionOk && substrateRefinementOk;
 const plane9CompatibilityOk = p9Ok && p9ConvOk && colorCycleOk;
 const audioOk = engineRegressionOk && plane9CompatibilityOk;
 
@@ -1794,6 +1954,7 @@ console.log('[value multi-driver] two value edges into the same input port refus
 console.log('[screen guard] every write path — construction, setVar, edge attachment, EEL per-frame pool sync — refuses a Screen port deviation:', screenGuardOk ? 'OK' : 'FAIL');
 console.log('[substrate] MilkDrop plan carries resources + explicit reads/writes + presentation; parser refuses undeclared/wrong-kind/wrong-format resources; engine refuses missing feedback and wrong lifetime:', substrateOk ? 'OK' : 'FAIL');
 console.log('[substrate completion] resources rename does not touch ops; borders references producer pass by id; composite carries aspectY; usage/kind cross-field rules refuse; persistent-pingpong aliasing authorized; existing plans intact:', substrateCompletionOk ? 'OK' : 'FAIL');
+console.log('[substrate refinement] mutating fan-out refused at construction; cross-field descriptor validation refuses invalid unused + zero-usage + presentation combos; multi-writer refused for every resource; every pass has a unique nonempty id; existing renamed plans stay valid:', substrateRefinementOk ? 'OK' : 'FAIL');
 console.log('[graph correctness] multi-driver refusal + render-input requires incoming edge:', ambiguousGraphRefusedOk ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');
 console.log('inert value port refused at engine construction (shared OP_PORTS):', inertPortOk ? 'OK' : 'FAIL');
