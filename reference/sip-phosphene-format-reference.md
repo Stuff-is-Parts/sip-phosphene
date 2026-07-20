@@ -1,10 +1,37 @@
-# .phos — the PHOSPHENE native scene format (v1)
+# PHOSPHENE Native Scene Format {#top}
 
-Structure derives from design/SCENE-ANATOMY.md (itself derived from the .p9c
-wiring model + PRIMITIVES.md); policies below are tagged [DERIVED] (forced by a
-named source or goal-doc requirement) or [DESIGN] (a choice — scrutinize).
-Implementation: phosphene-engine/src/phos.mjs. Commented, runnable example:
-phosphene-engine/scenes/TEMPLATE.phos.
+---
+
+### DOCUMENT ROLE
+
+Layer 4 reference opened for `.phos` schema, serialization, graph, resource,
+runtime-projection, or Studio write-back work. Responsibility: owns the exact
+native `phos/1` document contract and its projection into the current engine.
+It does not establish either source engine's compatibility status.
+
+---
+
+### 1. NATIVE FORMAT {#native-format}
+
+#### I. WHAT
+
+`.phos` is PHOSPHENE's strict, durable, source-neutral scene document: explicit
+metadata, graphical resources, typed nodes and ports, typed edges, and staged
+expression programs.
+
+![PHOSPHENE format model](phosphene-format.drawio.svg)
+
+Source: [`phosphene-format.drawio`](phosphene-format.drawio). This is the
+traceable zoom-in of the Native Model node in the repository architecture.
+
+#### II. HOW
+
+Structure derives from
+`reference/sip-phosphene-scene-anatomy-reference.md`; policies below are tagged
+[DERIVED] when forced by named source evidence or the compatibility guideline,
+and [DESIGN] when chosen by PHOSPHENE. The implementation authority is
+`phosphene-engine/src/phos.mjs`; the commented runnable example is
+`phosphene-engine/scenes/TEMPLATE.phos`.
 
 ## Carrier
 
@@ -15,7 +42,7 @@ phosphene-engine/scenes/TEMPLATE.phos.
   not survive a studio save. [DESIGN]
 - **Unknown keys refuse**: any non-`//` key the spec does not define is a parse
   error naming the key and path. A scene never half-loads. [DERIVED —
-  PHOSPHENE-GOAL.md refusal discipline; the external review flagged
+  compatibility-guideline refusal discipline; the external review flagged
   accept-unknown-silently as a defect in the expr VM]
 - **Versioning**: `format` must equal `"phos/1"` exactly. On format change,
   migrate the scene files and bump — no multi-version load paths. [DESIGN —
@@ -28,7 +55,7 @@ phosphene-engine/scenes/TEMPLATE.phos.
   "format": "phos/1",
   "meta": {
     "name": string,                     // required
-    "sourceEngine"?: "milkdrop"|"plane9"|"phosphene",
+    "sourceEngine"?: string,
     "source"?: { "engine", "file", "sha256" },   // provenance of a ported scene
     "author"?, "description"?, "tags"?, "license"?, "credit"?
   },
@@ -39,6 +66,14 @@ phosphene-engine/scenes/TEMPLATE.phos.
                      "comments"?: [string] } ]   // comment-only source lines, verbatim
 }
 ```
+
+At the current checkout, `name` and the three `meta.source` strings are
+validated, but the parser does not validate the value types or domain of other
+optional meta keys. The allowlist can carry Plane9 author, description, tags, and license
+after an explicit mapping, but cannot yet represent all Plane9 root fields
+(`Id`, `ParentId`, `WarmupTime`, `SceneType`, versions, and development
+timestamps). This is a concrete source-representation gap, not permission for
+`p9ToPhos()` to discard those fields.
 
 `comments` retains comment-only equation lines from a ported source file as
 data (not as strippable `//` annotations), so they survive parse→serialize
@@ -82,8 +117,10 @@ Rule: expected values identify provenance]
 {
   "id": string,                                   // unique per scene
   "kind": "texture" | "presentation",
-  "format": "rgba8unorm" | "preferred-canvas",
-  "size": { "policy": "canvas-16block" | "canvas" },
+  "format": "rgba8unorm" | "rgba16float" | "preferred-canvas",
+  "size": { "policy": "canvas-16block" | "canvas" }
+        | { "policy": "fixed", "width": positive-integer,
+                               "height": positive-integer },
   "lifetime": "persistent-pingpong" | "transient" | "per-frame",
   "usage": ["sampled" | "render-attachment" | "presentation", ...]
 }
@@ -97,9 +134,8 @@ carries a copy of the scene's resources, per-pass `reads` and `writes`
 arrays naming resource ids, and a `presentation` field naming exactly
 one resource the executor blits to the canvas.
 
-`timeline` remains a skeleton slot from SCENE-ANATOMY; a non-empty
-timeline refuses until a scene forces its implementation. [DERIVED —
-refusal over unimplemented acceptance]
+Any presence of `timeline` refuses until its semantics are implemented.
+[DERIVED — refusal over unimplemented acceptance]
 
 ## Node and Port
 
@@ -107,10 +143,12 @@ refusal over unimplemented acceptance]
 Node { "id": string (unique), "primitive": "graph"|"shader"|"expr"|"geom"|"compute",
        "op": string, "ports": { portId: Port } }
 Port { "type": "float"|"vec2"|"vec3"|"vec4"|"color"|"texture"|"mesh"|"effect"|"render",
-       "value"?: number | number[2] | number[3] | number[4] }
+       "value"?: number | number[2] | number[3] | number[4]
+               | { "resourceId": string } }
        // constant value permitted for float (number),
        // vec2/vec3/vec4 (array of matching length);
-       // essential to Plane9 Screen/Clear camera and color ports
+       // texture constants are resource references; other port types cannot
+       // carry constants in phos/1
 ```
 
 Port names are the exact source-format keys — `fDecay`, `ib_r` — zero renaming.
@@ -186,8 +224,8 @@ gate requires evidence-backed source semantics.
 
 ## Semantics: how source behavior enters a scene
 
-Per the conversion rule in CLAUDE.md and PHOSPHENE-GOAL.md's no-parallel-
-runtimes requirement: the native substrate exposes platform primitives (raw
+Per the conversion rule and the compatibility guideline's no-parallel-runtimes
+requirement, the native substrate exposes platform primitives (raw
 frame dt, raw audio samples via the pcm-tap worklet, WebGPU), and source-engine
 behaviors exist as explicit, source-cited components expressed in that
 substrate — milkdrop-time (pluginshell.cpp DoTime), milkdrop-loudness (the
@@ -239,9 +277,18 @@ native graph and verifies the produced render plans' structure and values;
 by both `src/player.mjs` and `src/studio.mjs` — turns those plans into
 WebGPU commands at run time. The automated checks do not execute those
 WebGPU commands against a real GPU. Visual quality and Studio layout remain
-human-viewed product judgments (repo `CLAUDE.md`). Source compatibility is a
+human-viewed product judgments. Source compatibility is a
 different standard: it requires external, inspectable semantic evidence
 against the source engine's own behavior — visible rendering, screenshot
 similarity, and successful execution are not evidence of source
 compatibility. Human viewing applies where no external reference exists, and
 even then it does not certify source compatibility.
+
+#### III. WHY
+
+One strict native document makes the transpiler result inspectable, editable,
+canonical, and portable while keeping source compatibility separate from
+native representational capability. Refusal on unknown or unimplemented data
+prevents a successful load from hiding lost source behavior.
+
+[Back to Top](#top)

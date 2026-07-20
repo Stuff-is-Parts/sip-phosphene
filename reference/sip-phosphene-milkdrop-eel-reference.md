@@ -1,4 +1,25 @@
-# EEL Function Semantics — derived from source (method of PRIMITIVES.md)
+# MilkDrop EEL Function Semantics {#top}
+
+---
+
+### DOCUMENT ROLE
+
+Layer 4 reference opened for MilkDrop expression parsing, built-ins, numerical
+semantics, or EEL review. Responsibility: owns the cited function and operator
+semantics used by PHOSPHENE's MilkDrop expression path; variable exposure and
+lifecycle remain in the variable reference.
+
+---
+
+### 1. EEL SEMANTICS {#eel-semantics}
+
+#### I. WHAT
+
+PHOSPHENE transcribes the accepted MilkDrop EEL function and operator surface
+from pinned implementations, including their comparison epsilons, guards, and
+deterministic random stream.
+
+#### II. HOW
 
 Source opened this audit (per SOURCE-LOCATIONS.md; no retained copies):
 - **[PM-EVAL]** projectm-eval @ da885dcdf33620ef26aa04cac9e215378b80252e
@@ -67,3 +88,11 @@ formulas/constants above (computed independently of eel.mjs — see the
 provenance comments in the check), including the discriminating cases that
 separate source semantics from the pre-audit behavior (equal at 1e-8, band at
 1e-6, pow(0,−2), log(−1), asin(2), mod at 2^32, div by 0).
+
+#### III. WHY
+
+Small numerical differences in an expression VM compound across frames; an
+explicit cited table prevents JavaScript defaults or secondary implementations
+from silently becoming MilkDrop semantics.
+
+[Back to Top](#top)

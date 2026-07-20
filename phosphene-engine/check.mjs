@@ -265,7 +265,7 @@ const phosOk = phosMatchesConverter && phosFixedPoint && runtimeEquiv && templat
   && converterRefusesUnmapped && importerRefused && commentsRetained && engineRefusesMissing && duplicatePortRefused
   && editRoundTrip && executorOk && oscOk && parserOk;
 
-// === EEL function semantics (sources/EEL-FUNCTIONS.md; expected values fixed
+// === EEL function semantics (reference/sip-phosphene-milkdrop-eel-reference.md; expected values fixed
 // from projectm-eval@da885dc TreeFunctions.c formulas, independent of eel.mjs) ===
 // [name, args, expected] — exact equality unless expected is 'nan-guard' style.
 const PI = Math.PI;
@@ -309,7 +309,7 @@ const eelFailures = eelCases.filter(([name, args, expected]) => {
   const fn = eelSubject[name];
   return !fn || fn(...args) !== expected;
 });
-// === Derived audio chain (sources/AUDIO-PATH.md; projectM@2f24414) ===
+// === Derived audio chain (reference/sip-phosphene-milkdrop-audio-reference.md; projectM@2f24414) ===
 // (k) FFT: zero input -> all-zero spectrum, exact.
 const fft = new MilkdropFFT(480, 512, true);
 const zeroSpec = fft.timeToFrequencyDomain(new Array(576).fill(0));
@@ -629,7 +629,7 @@ const triageOk = (() => {
 //     webawesome.css imported a missing native.css and the missing color
 //     palette, which broke every component's appearance silently. This case
 //     walks link-tag CSS files and their @import closure, asserting each
-//     file exists. Tripwire per CLAUDE.md: if this ever needs a second file
+//     file exists. Tripwire per the development guideline: if this ever needs a second file
 //     or a config surface, stop and admit a real tool instead.
 const cssImportsOk = (() => {
   const base = new URL('.', import.meta.url);
@@ -2149,9 +2149,9 @@ const lightWormsPath = new URL('../source-scenes/plane9/Abstract/Light Worms.p9c
 const lightWormsAvailable = existsSync(lightWormsPath);
 // Tri-state result. 'SKIP' when the gitignored corpus is absent from a
 // clean checkout. 'PASS' or 'FAIL' when the corpus is present. The
-// SKIP value is a string on purpose — it is never truthy in a boolean
-// sense and cannot participate in an && chain that would fold an
-// absent corpus into a passing compatibility claim.
+// SKIP is compared explicitly and is never used directly as a boolean.
+// The retained-source surface therefore cannot be mislabeled PASS when
+// the optional corpus is absent.
 /** @type {'PASS'|'FAIL'|'SKIP'} */
 const plane9RetainedSourceOk = (() => {
   if (!lightWormsAvailable) return 'SKIP';
@@ -2333,12 +2333,12 @@ console.log('studio save: edit round-trip + comment retention + unmapped refusal
 console.log('graph contract: edge-derived order + reversed/broken refused:', executorOk ? 'OK' : 'FAIL');
 console.log('warp oscillators vs milkdropfs.cpp:1782-1787 recompute (exact):', oscOk ? 'OK' : 'FAIL');
 console.log('EEL parser vs Compiler.y:55-75 grammar expectations (16 cases):', parserOk ? 'OK' : 'FAIL');
-console.log('\n=== EEL functions — sources/EEL-FUNCTIONS.md (projectm-eval@da885dc) ===');
+console.log('\n=== EEL functions — reference/sip-phosphene-milkdrop-eel-reference.md (projectm-eval@da885dc) ===');
 console.log(`function count (expect 36): ${eelFnCount} ${eelFnCount === 36 ? 'OK' : 'FAIL'}`);
 console.log(`functions covered by cases (expect 35 table + rand sequence): ${eelCoveredCount} ${eelCoveredCount === 35 ? 'OK' : 'FAIL'}`);
 console.log('rand() MT19937 fixed-seed sequence vs independent recompute:', randOk ? 'OK' : 'FAIL');
 console.log(`cases: ${eelCases.length - eelFailures.length}/${eelCases.length} exact ${eelFailures.length === 0 ? 'OK' : 'FAIL'}`);
-console.log('\n=== Derived audio chain — sources/AUDIO-PATH.md (projectM@2f24414) ===');
+console.log('\n=== Derived audio chain — reference/sip-phosphene-milkdrop-audio-reference.md (projectM@2f24414) ===');
 console.log('FFT zero input -> zero spectrum (exact):', fftZeroOk ? 'OK' : 'FAIL');
 console.log(`FFT impulse vs equalize-table expectation (max err ${fftImpMaxErr.toExponential(1)}):`, fftImpulseOk ? 'OK' : 'FAIL');
 console.log('Loudness rates + relatives vs formula recompute (exact):', loudnessOk ? 'OK' : 'FAIL');
@@ -2387,7 +2387,7 @@ console.log('[substrate refinement] mutating fan-out refused at construction; cr
 console.log('[plane9 import-gate] Plane9 Blur native op refuses Pass outside {0,1,2,3} and non-finite Brightness at contribute; invalid Clear.Render → Blur.Texture fixture refuses at source-port-type mismatch; synthetic RGBAToColor.Color → Screen.Render refuses at type mismatch:', plane9BlurSliceOk ? 'OK' : 'FAIL');
 console.log('[engine regression] fixed-pixel-size resource substrate (render-plan inspection, no WebGPU execution): parse round-trip; invalid fixed dimensions refuse; executor honors width/height regardless of canvas viewport; a clear-color pass targets a fixed 256x256 rgba16float resource and the plan carries the expected descriptor; existing canvas/canvas-16block scenes intact:', fixedSizeSubstrateOk ? 'OK' : 'FAIL');
 console.log('[plane9 import-gate] nested-payload ownership: a synthetic RenderToTexture node carrying <Port Id="Shader"><Value>PhosphenePayloadSentinel-A1B2C3</Value></Port> refuses at the port-open with node/port/line named, and the enclosed <Value> payload line is refused separately as inside an unhandled nested port (no silent omission):', nestedPayloadRefusalOk ? 'OK' : 'FAIL');
-console.log(`[plane9 retained-source] Light Worms.p9c: ${plane9RetainedSourceOk}${plane9RetainedSourceOk === 'PASS' ? ' — actual <Connection Out="Shader4.Effect" In="RenderToTexture2.Effect"/> asserted; RTT refuses at UNRESOLVED; ≥3 nested Shader payload refusals witnessed on RTT1/RTT2/RTT3' : plane9RetainedSourceOk === 'SKIP' ? ' — source-scenes/plane9/Abstract/Light Worms.p9c not present in this checkout; the corpus is gitignored per sources/plane9/PROVENANCE.txt; SKIP is not folded into any PASS' : ' — retained-source assertion failed against the present Light Worms.p9c; see stderr'}`);
+console.log(`[plane9 retained-source] Light Worms.p9c: ${plane9RetainedSourceOk}${plane9RetainedSourceOk === 'PASS' ? ' — actual <Connection Out="Shader4.Effect" In="RenderToTexture2.Effect"/> asserted; RTT refuses at UNRESOLVED; ≥3 nested Shader payload refusals witnessed on RTT1/RTT2/RTT3' : plane9RetainedSourceOk === 'SKIP' ? ' — source-scenes/plane9/Abstract/Light Worms.p9c not present in this checkout; the corpus is gitignored per sources/plane9/PROVENANCE.txt; retained-source remains SKIP rather than PASS' : ' — retained-source assertion failed against the present Light Worms.p9c; see stderr'}`);
 console.log('[studio lifecycle] setViewport before step drives composite motion.aspectY (landscape/portrait/square); two Engines from the same scene text produce independent plan objects; changing viewport between step calls updates aspectY at the next step:', studioLifecycleOk ? 'OK' : 'FAIL');
 console.log('[graph correctness] multi-driver refusal + render-input requires incoming edge:', ambiguousGraphRefusedOk ? 'OK' : 'FAIL');
 console.log('MilkDrop 8-bit color wrap + decay quantization in the runtime path:', transformOk ? 'OK' : 'FAIL');

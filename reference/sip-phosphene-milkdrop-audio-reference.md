@@ -1,4 +1,24 @@
-# Audio Path — derived from source (method of PRIMITIVES.md)
+# MilkDrop and Plane9 Audio Evidence {#top}
+
+---
+
+### DOCUMENT ROLE
+
+Layer 4 reference opened for audio capture, FFT, loudness, beat, waveform,
+spectrum, or scene audio-input work. Responsibility: preserves the cited source
+contracts for MilkDrop's audio variables and Plane9's scene-facing audio path;
+the source inventory owns cross-engine status.
+
+---
+
+### 1. AUDIO CONTRACTS {#audio-contracts}
+
+#### I. WHAT
+
+Audio is a raw host substrate translated into source-specific, explicit scene
+semantics: MilkDrop's PCM/FFT/Loudness variables and Plane9's audio nodes.
+
+#### II. HOW
 
 Sources opened this audit (per SOURCE-LOCATIONS.md; no retained copies):
 - **[MD-SRC]** projectM @ 2f244141320f6b97b09bf99964cc72a4efdfcfd3 (master,
@@ -89,7 +109,7 @@ nodes blocks on resolving them.
    re-derived: with correct relative values no scaling belongs between the
    analyzer and the pool.
 2. The FFT chain (480→512, envelope, equalize, adjacent-sample damping) is a
-   port target of its own — P4/P1 per PRIMITIVES.md row 15 — testable against
+   port target of its own — P4/P1 per the MilkDrop primitive contract — testable against
    reference values computed from the cited formulas on fixed input.
 3. Plane9's audio enters scenes as NODES (texture/scalar/wave via ports), which
    the .phos graph already models; MilkDrop's enters as pool variables. Both
@@ -97,3 +117,11 @@ nodes blocks on resolving them.
 4. Non-reactive scenes are the degenerate case (no audio variable read, no
    audio node) — audio is ambient engine input in both source engines, present
    for every scene.
+
+#### III. WHY
+
+Source-specific analysis behavior is observable scene input, not interchangeable
+browser plumbing; preserving its formulas and lifecycle prevents a plausible
+Web Audio approximation from silently changing converted scenes.
+
+[Back to Top](#top)

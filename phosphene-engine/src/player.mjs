@@ -24,7 +24,7 @@ const initialRt = toRuntime(parsePhos(sceneText));
 let engine = new Engine(initialRt);
 $('sceneName').textContent = String(initialRt.meta.name);
 
-// open a .phos scene from disk (MUST: portable load — VSLICE-MOSCOW)
+// open a .phos scene from disk (native graph portability requirement)
 /** @param {File} f */
 function loadSceneFile(f){
   f.text().then(text => {

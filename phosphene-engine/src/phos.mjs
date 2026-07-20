@@ -1,7 +1,8 @@
 // .phos native scene format: parse (validate + strip annotations), serialize
 // (canonical form), toRuntime (produce runtime IR the engine consumes), and
 // milkToPhos (record-consuming conversion: every source record handled or refused).
-// Spec: design/PHOS-FORMAT.md. Strict JSON; "//"-prefixed keys are authoring
+// Spec: reference/sip-phosphene-format-reference.md. Strict JSON;
+// "//"-prefixed keys are authoring
 // annotations, stripped on parse; any other unknown key is a parse error.
 //
 // Ports are node-local (owner-decision 2026-07-18): duplicate port names

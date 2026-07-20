@@ -81,7 +81,7 @@ const setDirty = v => {
   $('reset').style.display = v ? '' : 'none';
 };
 
-// ---- metadata (view + edit — VSLICE-MOSCOW metadata editing) ----
+// ---- metadata (view + edit — product capability reference) ----
 const metaEl = $('metaEdit');
 function renderMetaInputs(){
   metaEl.innerHTML = '';
@@ -101,7 +101,7 @@ function renderMetaInputs(){
 renderMetaInputs();
 renderSceneStrip();
 
-// ---- new scene from the commented template (VSLICE-MOSCOW template UI) ----
+// ---- new scene from the commented template (product capability reference) ----
 $('newScene').onclick = async () => {
   loadDoc(parsePhos(await (await fetch('./scenes/TEMPLATE.phos')).text()));
 };
@@ -205,7 +205,7 @@ $('reset').onclick = () => {
   eqEl.classList.remove('dirty');
   $('eqstatus').textContent = '';
 };
-// ---- save .phos (MUST: native save — VSLICE-MOSCOW) ----
+// ---- save .phos (native graph portability requirement) ----
 $('savePhos').onclick = async () => {
   const eqLines = eqEl.value.split('\n').map(s=>s.trim()).filter(Boolean);
   const out = serializePhos(updateScene(sceneDoc, currentPortValues(), eqLines));
@@ -702,7 +702,7 @@ function drawScope(){
   const a=audio.analysis, w=scopeEl.width, h=scopeEl.height;
   scopeCtx.clearRect(0,0,w,h);
   // meters: segmented LED/VFD form after hardware meters and Winamp's own
-  // segmented analyzer with peak row (design/UI-REFERENCE.md rule 7).
+  // segmented analyzer with peak row (reference/sip-phosphene-ui-reference.md rule 7).
   // Display scale 0..2.5 (relative loudness revolves around 1.0), peak cell
   // held with 4%/frame decay. Discrete cells with a visible unlit track —
   // no continuous bar, no core stripe.

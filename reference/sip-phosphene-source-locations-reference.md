@@ -1,9 +1,30 @@
-# Source-Location Registry — where authoritative data lives
+# PHOSPHENE Source-Location Registry {#top}
+
+---
+
+### DOCUMENT ROLE
+
+Layer 4 reference opened before source interpretation, transcription, or an
+insufficiency claim. Responsibility: owns the single locator map to primary
+artifacts and pinned revisions. Engine contracts cite the evidence recovered
+from those live artifacts; this registry deliberately does not restate their
+semantics or become source evidence itself.
+
+---
+
+### 1. PRIMARY-SOURCE ACCESS {#source-access}
+
+#### I. WHAT
+
+This registry names the available MilkDrop and Plane9 primary surfaces, their
+access paths, authority tiers, and pinned revisions or binary identities.
+
+#### II. HOW
 
 Policy: no wholesale corpus retention in this repo (retained-copy corruption
 is witnessed failure mode #6). Explicitly licensed, provenance-recorded
-fixtures ARE allowed and are how PHOSPHENE-GOAL.md's Completion Condition
-(clean-checkout build and tests) is satisfied for external check inputs.
+fixtures are allowed so clean-checkout checks can retain explicit external
+inputs.
 A retained fixture carries a `PROVENANCE.txt` sibling naming the source
 container, retention date, byte count, and sha256; the check that consumes
 it verifies that hash before use. The current retained fixture is
@@ -18,12 +39,12 @@ with the search named.
 
 ## MilkDrop
 
-| Source | Location | Access | Authority tier (PHOSPHENE-GOAL.md) |
+| Source | Location | Access | Authority tier |
 |---|---|---|---|
 | projectM (active reimplementation) | github.com/projectM-visualizer/projectm | raw.githubusercontent.com fetch at a pinned commit SHA | 2 |
 | MilkDrop 2 original source (vis_milk2: milkdropfs.cpp, pluginshell.cpp, fft.cpp, state.cpp) | Winamp/MilkDrop2 source release; mirrors on GitHub | locate mirror, pin SHA, fetch per file — not yet consulted this audit; consult when projectM and classic behavior may diverge | 1 |
 | projectm-eval (EEL expression language reimplementation) | github.com/projectM-visualizer/projectm-eval — projectm-eval/TreeFunctions.c holds the function implementations | raw fetch at pinned SHA | 2 |
-| ns-eel2 original (EEL as MilkDrop embedded it) | WDL repo (github.com/justinfrankel/WDL, WDL/eel2/) and the ns-eel2 copy inside the MilkDrop 2 source release | locate, pin, fetch — not yet consulted; tier-1 resolution path for EEL divergences (e.g., the invsqrt float-vs-double magic in sources/EEL-FUNCTIONS.md) | 1 |
+| ns-eel2 original (EEL as MilkDrop embedded it) | WDL repo (github.com/justinfrankel/WDL, WDL/eel2/) and the ns-eel2 copy inside the MilkDrop 2 source release | locate, pin, fetch — not yet consulted; tier-1 resolution path for EEL divergences (e.g., the invsqrt float-vs-double magic in the MilkDrop EEL reference) | 1 |
 | Butterchurn (JS reimplementation) | github.com/jberg/butterchurn | raw fetch at pinned SHA | 3 |
 | .milk preset corpus | `source-scenes/milkdrop/` (local, gitignored) | direct read | corpus |
 
@@ -44,3 +65,11 @@ Type=.. Name=..><Port Id=.. Value=../></Node>` + `<Connection Out="Node.Port"
 In="Node.Port"/>`), `scene.jpg`, `preview.jpg`. Text search across the corpus
 must unzip first — a plain grep over .p9c files matches nothing and proves
 nothing.
+
+#### III. WHY
+
+A locator rather than a copied evidence corpus keeps primary artifacts primary,
+pins revisitable revisions, and makes an insufficiency claim falsifiable across
+all known source surfaces.
+
+[Back to Top](#top)

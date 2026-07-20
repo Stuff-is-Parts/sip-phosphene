@@ -1,4 +1,25 @@
-# Plane9 RenderToTexture — Format enum evidence
+# Plane9 RenderToTexture Format Evidence {#top}
+
+---
+
+### DOCUMENT ROLE
+
+Layer 4 evidence reference opened only for Plane9 RenderToTexture format work.
+Responsibility: preserves reproducible binary evidence mapping the serialized
+Format enum to OpenGL formats. It establishes one field, not the complete node
+contract or compatibility.
+
+---
+
+### 1. FORMAT ENUM EVIDENCE {#format-evidence}
+
+#### I. WHAT
+
+For Plane9 v2.5.1, serialized RenderToTexture `Format=5` maps through
+`GL_RGBA16F` to WebGPU `rgba16float`; five other registered values are also
+identified below.
+
+#### II. HOW
 
 Binary evidence — treat as executable implementation evidence, not
 original source code — recovered from the Plane9 installation and
@@ -131,8 +152,8 @@ XML Format="5"
 
 WebGPU `rgba16float` is the direct semantic equivalent of GL_RGBA16F
 (four 16-bit half-float channels, linear color space, no sRGB
-conversion, no alpha compression). This is the format PHOSPHENE
-allocates when converting the witnessed RenderToTexture variant.
+conversion, no alpha compression). PHOSPHENE's native resource substrate can
+allocate this format, but the Plane9 converter does not authorize the node.
 
 ## Why the earlier string-cluster inference was invalid
 
@@ -160,9 +181,18 @@ authoritative implementation evidence.
 
 ## Current PHOSPHENE conversion support
 
-PHOSPHENE's `p9ToPhos` converter (`phosphene-engine/src/p9-import.mjs`
-P9_COMPATIBILITY.RenderToTexture) accepts only Format=5 today. The
-other five registered enum values (1, 4, 6, 8, 9) map to their
-corresponding OpenGL constants per the tables above, but PHOSPHENE
-does not yet allocate WebGPU textures for them — the additional
-mappings are documented here as future work, not enabled.
+At the current checkout, `P9_COMPATIBILITY.RenderToTexture.status` is
+`UNRESOLVED` and `nativeOp` is
+`null`; every Plane9 RenderToTexture node refuses conversion. The native
+resource schema and executor support `rgba16float` and fixed pixel dimensions,
+but those substrate capabilities do not authorize this source node. Its Effect
+input, nested Shader and Expression payloads, execution path, Color output,
+and render-target state/lifecycle remain unresolved.
+
+#### III. WHY
+
+The enum mapping is durable binary evidence worth retaining, but labeling its
+narrow scope prevents evidence for one pixel-format field from inflating into
+a complete RenderToTexture implementation claim.
+
+[Back to Top](#top)

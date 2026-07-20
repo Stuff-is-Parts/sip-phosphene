@@ -1,4 +1,25 @@
-# Target Primitive Requirements — derived from source + (pending) scene corpus
+# MilkDrop Primitive Contract {#top}
+
+---
+
+### DOCUMENT ROLE
+
+Layer 4 reference opened for MilkDrop pipeline topology or primitive-family
+work. Responsibility: maps every audited MilkDrop render operation to the
+accepted native primitive set and records the required target capability.
+Detailed audio, EEL, render-state, and variable semantics have separate mapped
+references.
+
+---
+
+### 1. MILKDROP PRIMITIVE MAPPING {#primitive-mapping}
+
+#### I. WHAT
+
+The audited MilkDrop viewer pipeline maps to GRAPH, SHADER, EXPRVM, and COMPUTE
+capabilities; it does not require Plane9's GEOM family.
+
+#### II. HOW
 
 Method: the engine SOURCE defines the primitive VOCABULARY (what operations exist).
 The SCENE CORPUS defines the GRAMMAR (which operations combine, in what arrangements).
@@ -52,3 +73,11 @@ Plane9's fluid solver (LinearSolver) is the open question — likely P1 COMPUTE,
 CONFIRMED from a Plane9 fluid scene, not assumed.
 
 Status column maintained per the forward-trace ledger request (2026-07-17): a row is 'done' only with a source-cited implementation and a check or human verdict; timekeeping (DoTime, pluginshell.cpp:1895+) is implemented though it predates this table's rows.
+
+#### III. WHY
+
+The mapping keeps source operations—not implementation convenience—as the unit
+of translation and makes a genuinely missing native capability visible before
+the source is flattened to fit the engine.
+
+[Back to Top](#top)

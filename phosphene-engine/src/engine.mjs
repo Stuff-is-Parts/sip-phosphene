@@ -158,7 +158,7 @@ function circularInterp(/** @type {number} */ prev, /** @type {number} */ target
 // authorizing particular neighbors; render completeness is checked as
 // "every declared render output has an outgoing edge" and "every declared
 // render input has an incoming edge". Dispatch is by .phos op name only —
-// nothing here reads source-engine metadata (PHOSPHENE-GOAL.md, "one
+// nothing here reads source-engine metadata (compatibility guideline: "one
 // native execution model, no parallel runtimes").
 /**
  * Render plans are the values render edges carry (reviewer foundation call
@@ -222,7 +222,7 @@ function assertPortValue(nodeId, opName, portName, value) {
     ? Array.isArray(value) && value.length === constraint.length && value.every((v, i) => v === constraint[i])
     : value === constraint;
   if (!matches) {
-    throw new Error(`Engine: node "${nodeId}" (${opName}) port "${portName}"=${JSON.stringify(value)} is outside the witnessed value ${JSON.stringify(constraint)}; ${opName} has no implementation of variant values yet, so only the witnessed value is supported — refusing (sources/PLANE9-CONTRACT.md)`);
+    throw new Error(`Engine: node "${nodeId}" (${opName}) port "${portName}"=${JSON.stringify(value)} is outside the witnessed value ${JSON.stringify(constraint)}; ${opName} has no implementation of variant values yet, so only the witnessed value is supported — refusing (reference/sip-phosphene-plane9-reference.md)`);
   }
 }
 
@@ -450,7 +450,7 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
   'HSLAToColor': {
     // Standard HSL-to-RGBA (Hue in degrees, S/L/A in [0,1]), verified against
     // Color Cycle's saved input/output vector to 1e-6. General Plane9 op
-    // semantics past that one vector remain unverified — sources/PLANE9-CONTRACT.md.
+    // semantics past that one vector remain unverified — reference/sip-phosphene-plane9-reference.md.
     kind: 'value',
     inputs: { Hue: 'float', Saturation: 'float', Lightness: 'float', Alpha: 'float' },
     outputs: { Color: 'vec4' },
@@ -554,7 +554,7 @@ export const NATIVE_OPS = /** @type {Record<string,NativeOp>} */ ({
     //   inactive audio: BeatStrength = NoMusic (direct pass-through)
     //   active audio:   BeatStrength = min(Min + rawBeat*Amp*(Max-Min), max(Min,Max))
     // The upstream detector that produces rawBeat is a separate subsystem
-    // (unresolved — sources/PLANE9-CONTRACT.md); this op treats rawBeat and
+    // (unresolved — reference/sip-phosphene-plane9-reference.md); this op treats rawBeat and
     // the active flag as native audio inputs supplied by the executor.
     kind: 'value',
     inputs: { NoMusic: 'float', Amplification: 'float', Min: 'float', Max: 'float' },
