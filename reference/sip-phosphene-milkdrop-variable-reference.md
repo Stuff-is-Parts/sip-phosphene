@@ -1,4 +1,24 @@
-# Variable Contract — per-frame EEL names vs engine reality
+# MilkDrop Per-Frame Variable Contract {#top}
+
+---
+
+### DOCUMENT ROLE
+
+Layer 4 reference opened for MilkDrop per-frame variables, aliases, host inputs,
+or equation lifecycle work. Responsibility: owns the perimeter trace from
+source-visible EEL names to scene ports and host-supplied values; EEL numerical
+semantics remain in the EEL reference.
+
+---
+
+### 1. VARIABLE PERIMETER {#variable-perimeter}
+
+#### I. WHAT
+
+Every name a converted MilkDrop expression can read or write is classified by
+its source owner, default, direction, and implemented or refused crossing.
+
+#### II. HOW
 
 Trigger: two review escapes shared one shape — an element transcribed from its
 local source lines while its perimeter went untraced. The sampler bug (clamped
@@ -34,7 +54,7 @@ records the boundaries the trace settled.
 |---|---|---|
 | time, fps | Timekeeper (DoTime damped) | pluginshell.cpp:1895+ (src/timekeeper.mjs) |
 | frame | frame counter | milkdropfs.cpp:490 region |
-| bass/mid/treb (+_att) | Loudness chain | sources/AUDIO-PATH.md |
+| bass/mid/treb (+_att) | Loudness chain | MilkDrop audio reference |
 | progress | time / 16 — (time − presetStart)/(next − start) with start 0 and fTimeBetweenPresets default 16.0 | milkdropfs.cpp:495; plugin.cpp:939. Preset rotation replaces the fixed duration when multi-scene sequencing lands. |
 | meshx, meshy | 48, 36 | grid defaults plugin.cpp:952-953 (GridY = GridX·3/4, :1199) |
 | pixelsx, pixelsy | live canvas pixels via Engine.setViewport(w, h, texW, texH), called by pages every frame; headless default 1024 | GetWidth/GetHeight, milkdropfs.cpp:543-544 |
@@ -72,3 +92,11 @@ the classification landing as check data (a VAR_CONTRACT row or an ordinary
 check case), not prose. The studio's live-value panel and equation editor are
 the standing falsifier: every regvar is readable there, so a wrong
 classification is user-visible.
+
+#### III. WHY
+
+Expression names are a dataflow boundary: a correct local equation still fails
+when its aliases, defaults, host inputs, or persistence differ from the source.
+The explicit perimeter prevents those crossings from remaining ambient.
+
+[Back to Top](#top)

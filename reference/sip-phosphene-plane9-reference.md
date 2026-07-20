@@ -1,4 +1,24 @@
-# Plane9 Scene-Visible Contract — corpus + install evidence
+# Plane9 Scene-Visible Contract {#top}
+
+---
+
+### DOCUMENT ROLE
+
+Layer 4 reference opened for Plane9 parsing, node semantics, compatibility, or
+scene-visible engine inputs. Responsibility: owns the currently evidenced
+Plane9 variant contracts and explicit unresolved boundaries. Binary RTT-format
+evidence and corpus primitive accounting have separate mapped references.
+
+---
+
+### 1. PLANE9 CONTRACT {#plane9-contract}
+
+#### I. WHAT
+
+Plane9 compatibility is authorized per complete evidenced source variant and
+remains separate from the native operation registry.
+
+#### II. HOW
 
 ## Plane9 source-compatibility gate (reviewer foundation 2026-07-18)
 
@@ -28,22 +48,30 @@ PHOSPHENE's provisional MinMax/Beat/HSL implementations as an accepted
 Plane9 conversion — those provisional implementations remain valid
 native-scene ops but do not certify Plane9 fidelity.
 
-**Consequence for tests**: `phosphene-engine/check.mjs` reports two
-surfaces separately. `engine regression: PASS` says PHOSPHENE behaves
-as this codebase specifies; `plane9 compat: PASS` says the compatibility
-gate refuses UNRESOLVED and authorizes the three PASS mappings above.
-Two distinct scopes matter here: the compatibility table currently
-authorizes the **Screen, Clear, and RGBAToColor** mappings; the retained
-end-to-end Plane9 conversion fixture that check.mjs exercises is the
-**Screen + Clear** shape. RGBAToColor is authorized as a mapping (its
-DLL description matches PHOSPHENE's op behavior) but no retained
-Plane9 fixture drives it end-to-end yet. The two surfaces do not
-certify each other.
+**Consequence for current checks**: `phosphene-engine/check.mjs` reports three
+separate surfaces: native engine regressions, the Plane9 import gate, and
+retained-source verification. The import-gate Screen + Clear shape is
+synthesized and proves only that the configured door accepts it; it is not
+labeled retained-source compatibility. The Light Worms surface reports
+`PASS`, `FAIL`, or `SKIP` independently and exercises refusal of unresolved RTT
+behavior when the authentic gitignored scene is present. No authentic retained
+positive fixture yet establishes the **Screen, Clear, or RGBAToColor** mapping
+through source → conversion → graph → executor → browser. The three surfaces
+do not certify one another.
+
+**Current scene-level metadata boundary**: `scanP9()` recognizes the root
+attribute string and the `Author`, `Desc`, `Tags`, and `License` lines, but
+`disposeP9()` labels them accepted structure/metadata and `p9ToPhos()` emits
+only a generated name plus source file/hash provenance. `FormatVersion`,
+`Version`, `Id`, `ParentId`, `WarmupTime`, `SceneType`, development timestamps,
+author, description, tags, and license are not validated or preserved. The
+three node-level PASS dispositions therefore do not constitute a complete
+Plane9 scene-compatibility claim.
 
 
 The vocabulary Plane9 scenes actually read from their engine, audited by the
-method of AUDIO-PATH.md so shared machinery derives from BOTH engines per the
-conversion rule in CLAUDE.md. Sources opened this audit:
+method of the audio reference so shared machinery derives from both engines.
+Sources opened this audit:
 - **[P9-CORPUS]** all 252 scene.xml bodies (expression `<Value>` code extracted
   corpus-wide; per-token scene counts below are from a full 252-scene scan)
 - **[P9-DOC]** plane9.txt + history.txt in C:\Program Files (x86)\Plane9
@@ -61,7 +89,7 @@ Registry updated with the expreval row.
 | Token | Scenes using it | Evidence of semantics |
 |---|---|---|
 | `time` | 175 | count includes GLSL shader uniforms — expression-level vs shader-level split not yet separated |
-| `band(channel, damping, bandnr, nomusic)` | 123 | RESOLVED 2026-07-18 from the official expression reference (plane9.com/wiki/expressionreference, v1.x era): channel (-1 = mono fold [P9-HIST:345,383]), damping, band number, no-music fallback. CONFLICT NOTE: this file previously read the 4th argument as damping from [P9-HIST:254,383]; the explicit reference signature outranks the changelog inference per PHOSPHENE-GOAL source-authority ordering. Exact band-count/edges still unresolved. |
+| `band(channel, damping, bandnr, nomusic)` | 123 | RESOLVED 2026-07-18 from the official expression reference (plane9.com/wiki/expressionreference, v1.x era): channel (-1 = mono fold [P9-HIST:345,383]), damping, band number, no-music fallback. CONFLICT NOTE: this file previously read the 4th argument as damping from [P9-HIST:254,383]; the explicit reference signature outranks the changelog inference under the compatibility guideline's source-authority order. Exact band-count/edges still unresolved. |
 | `deltatime` | 98 | per-frame elapsed time factor (`x*rate*deltatime` integrators corpus-wide); dll Expression-node docs add: "deltatime (not correct when connected to local port)" (witnessed in the Plane9Engine.dll string table at the Expression-node metadata block; extraction not retained). Relation to the 30Hz-locked analyzer [P9-HIST:68] still **UNRESOLVED** |
 | `beat(nomusic)` | 52 | Signature RESOLVED 2026-07-18 (official expression reference): returns current beat strength, with the argument as the no-music fallback — the expression-level twin of the Beat node's BeatStrength. The detection ALGORITHM stays **UNRESOLVED**. |
 | `rand(` | 54 | RESOLVED 2026-07-18 (official expression reference documents the family at Plane9 level): rand()/srand() in [0,1]/[-1,1] on an internal seed, seeded variants rand(&seed)/srand(&seed), plus random(min,max)/srandom(). Bit-exact generator identity still needs expreval source when Expression scenes enter scope. |
@@ -308,3 +336,12 @@ until observation provides the recipe.
 3. Plane9Engine.dll strings for the extension-function table.
 4. Targeted Studio observation (write a probe scene printing candidates) —
    last resort per the goal doc's observation tier.
+
+#### III. WHY
+
+Plane9's graph files expose structure while binaries, shipped shaders, official
+documentation, and observation expose behavior. Keeping variant contracts and
+unresolved facts explicit prevents native plausibility or one field's evidence
+from being promoted into automatic source conversion.
+
+[Back to Top](#top)

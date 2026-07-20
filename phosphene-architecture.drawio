@@ -1,0 +1,61 @@
+<mxfile host="sipdraw001">
+  <diagram id="phosphene-architecture" name="PHOSPHENE Architecture">
+    <mxGraphModel dx="1200" dy="620" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1200" pageHeight="620" background="#1a1a2e" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="PHOSPHENE · complete first-party functional architecture" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=28;fontColor=#ffffff;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1040" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="evidence" value="1 · SOURCE EVIDENCE&#xa;facts + coverage" style="swimlane;html=1;rounded=1;startSize=64;horizontal=1;whiteSpace=wrap;fillColor=#2a2a40;strokeColor=#444466;dashed=1;fontColor=#cccccc;fontSize=22;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="90" width="245" height="430" as="geometry" />
+        </mxCell>
+        <mxCell id="sources" value="Primary sources&#xa;MilkDrop code&#xa;Plane9 artifacts · §1A" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3d3d5c;strokeColor=#666688;fontColor=#dddddd;fontSize=20" vertex="1" parent="evidence">
+          <mxGeometry x="20" y="90" width="205" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="inventory" value="Coverage inventory&#xa;status + unresolved facts&#xa;evidence refs · §1B" style="shape=process;whiteSpace=wrap;html=1;fillColor=#ffb74d;strokeColor=#e65100;fontColor=#333333;fontSize=18" vertex="1" parent="evidence">
+          <mxGeometry x="20" y="245" width="205" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="conversion" value="2 · TRANSPILERS&#xa;consume or refuse" style="swimlane;html=1;rounded=1;startSize=64;horizontal=1;whiteSpace=wrap;fillColor=#2a2a40;strokeColor=#444466;dashed=1;fontColor=#cccccc;fontSize=22;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="325" y="90" width="245" height="430" as="geometry" />
+        </mxCell>
+        <mxCell id="milk" value="MilkDrop transpiler&#xa;scan → import&#xa;milkToPhos · §1C" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3d3d5c;strokeColor=#666688;fontColor=#dddddd;fontSize=20" vertex="1" parent="conversion">
+          <mxGeometry x="20" y="90" width="205" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="p9" value="Plane9 transpiler&#xa;extract → scan&#xa;p9ToPhos · §1C" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3d3d5c;strokeColor=#666688;fontColor=#dddddd;fontSize=20" vertex="1" parent="conversion">
+          <mxGeometry x="20" y="235" width="205" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="native" value="3 · NATIVE MODEL&#xa;document + executor" style="swimlane;html=1;rounded=1;startSize=64;horizontal=1;whiteSpace=wrap;fillColor=#2a2a40;strokeColor=#444466;dashed=1;fontColor=#cccccc;fontSize=22;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="610" y="90" width="245" height="430" as="geometry" />
+        </mxCell>
+        <mxCell id="phos" value=".phos/1 document&#xa;resources · graph · code&#xa;strict parse + save · §1D&#xa;Zoom: format diagram" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#3d3d5c;strokeColor=#666688;fontColor=#dddddd;fontSize=18" vertex="1" parent="native">
+          <mxGeometry x="20" y="80" width="205" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="engine" value="Engine&#xa;graph → render plan · §1E" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3d3d5c;strokeColor=#666688;fontColor=#dddddd;fontSize=20" vertex="1" parent="native">
+          <mxGeometry x="20" y="240" width="205" height="85" as="geometry" />
+        </mxCell>
+        <mxCell id="gpu" value="Shared WebGPU executor&#xa;realizes the plan · §1E" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0097a7;strokeColor=#006064;fontColor=#ffffff;fontSize=19" vertex="1" parent="native">
+          <mxGeometry x="20" y="345" width="205" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="product" value="4 · USER SURFACES&#xa;ordinary product path" style="swimlane;html=1;rounded=1;startSize=64;horizontal=1;whiteSpace=wrap;fillColor=#2a2a40;strokeColor=#444466;dashed=1;fontColor=#cccccc;fontSize=22;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="895" y="90" width="245" height="430" as="geometry" />
+        </mxCell>
+        <mxCell id="player" value="Player&#xa;load · audio · render&#xa;§1F" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3d3d5c;strokeColor=#666688;fontColor=#dddddd;fontSize=20" vertex="1" parent="product">
+          <mxGeometry x="20" y="105" width="205" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="studio" value="Studio&#xa;import · edit · save&#xa;render · §1F" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3d3d5c;strokeColor=#666688;fontColor=#dddddd;fontSize=20" vertex="1" parent="product">
+          <mxGeometry x="20" y="245" width="205" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-source-inventory" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;endSize=14;strokeWidth=3;strokeColor=#cccccc;exitX=0.5;exitY=1;entryX=0.5;entryY=0" edge="1" parent="evidence" source="sources" target="inventory"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-milk" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;endSize=20;strokeWidth=6;strokeColor=#ffd700;exitX=1;exitY=0.4;entryX=0;entryY=0.35" edge="1" parent="1" source="inventory" target="milk"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-p9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;endSize=20;strokeWidth=6;strokeColor=#ffd700;exitX=1;exitY=0.7;entryX=0;entryY=0.65" edge="1" parent="1" source="inventory" target="p9"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-milk-phos" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;endSize=20;strokeWidth=6;strokeColor=#ffd700;exitX=1;exitY=0.5;entryX=0;entryY=0.35" edge="1" parent="1" source="milk" target="phos"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-p9-phos" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;endSize=20;strokeWidth=6;strokeColor=#ffd700;exitX=1;exitY=0.5;entryX=0;entryY=0.7" edge="1" parent="1" source="p9" target="phos"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-phos-engine" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;endSize=14;strokeWidth=3;strokeColor=#cccccc;exitX=0.5;exitY=1;entryX=0.5;entryY=0" edge="1" parent="native" source="phos" target="engine"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-engine-gpu" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;endSize=14;strokeWidth=3;strokeColor=#cccccc;exitX=0.5;exitY=1;entryX=0.5;entryY=0" edge="1" parent="native" source="engine" target="gpu"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-gpu-player" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;endSize=20;strokeWidth=6;strokeColor=#ffd700;exitX=1;exitY=0.4;entryX=0;entryY=0.4" edge="1" parent="1" source="gpu" target="player"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="edge-gpu-studio" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;endSize=20;strokeWidth=6;strokeColor=#ffd700;exitX=1;exitY=0.7;entryX=0;entryY=0.6" edge="1" parent="1" source="gpu" target="studio"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

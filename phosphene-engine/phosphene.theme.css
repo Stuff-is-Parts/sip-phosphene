@@ -3,7 +3,7 @@
  * themes/default.css). Loaded after the default theme: that file's values sit
  * in @layer wa-theme, so these unlayered overrides win by cascade-layer rules.
  * Palette roles, glow budget, and type scale are specified in
- * design/UI-REFERENCE.md; this file is that spec's token expression. */
+ * reference/sip-phosphene-ui-reference.md; this file is that spec's token expression. */
 
 /* identity/display face — vendored, OFL license + provenance alongside
    (vendor/fonts/orbitron/). Display-only per UI-REFERENCE rule 4. */

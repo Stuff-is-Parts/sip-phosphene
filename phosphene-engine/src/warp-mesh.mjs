@@ -8,7 +8,7 @@
 // rotation step, so every vertex UV is NaN and the rasterizer interpolates NaN
 // across every triangle — the structure this module reproduces exactly.
 // Arithmetic runs in doubles where the C runs float32 — the numerical-path
-// difference PHOSPHENE-GOAL.md permits. Orientation: grid y is up
+// difference the compatibility guideline permits. Orientation: grid y is up
 // (plugin.cpp:2277); the draw-time y sign flip at milkdropfs.cpp:2097 maps to
 // D3D's screen-y-down convention, which WebGPU's y-up NDC already matches
 // without a flip.

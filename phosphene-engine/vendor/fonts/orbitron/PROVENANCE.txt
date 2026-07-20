@@ -5,6 +5,6 @@ https://fonts.gstatic.com/s/orbitron/v35/yMJRMIlzdpvBhQQL_Qq7dy0.woff2
 family=Orbitron:wght@500;700. Upstream project:
 https://github.com/theleagueof/orbitron
 Consumed by phosphene.theme.css @font-face as the identity/display face
-per design/UI-REFERENCE.md (wide geometric sans for the wordmark tier).
+per reference/sip-phosphene-ui-reference.md (wide geometric sans for the wordmark tier).
 To re-vendor: curl the css2 URL above with a browser UA, download the
 woff2 it names, refresh OFL.txt from google/fonts ofl/orbitron.

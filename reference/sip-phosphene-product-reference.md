@@ -1,4 +1,26 @@
-# Player & Studio Feature Audit — MilkDrop + Plane9
+# PHOSPHENE Product Capability Reference {#top}
+
+---
+
+### DOCUMENT ROLE
+
+Layer 4 reference opened for player, Studio, scene management, audio controls,
+or platform-surface work. Responsibility: inventories source-derived viewer and
+creation capabilities without cloning either source UI or claiming current
+implementation status. Candidate browser/native mechanisms live in the
+platform-coverage reference.
+
+---
+
+### 1. SOURCE-DERIVED PRODUCT SURFACE {#product-surface}
+
+#### I. WHAT
+
+The required product surface is the union of MilkDrop and Plane9 viewer,
+creation, scene-management, output, and platform capabilities, constrained by
+PHOSPHENE's editable native graph goal.
+
+#### II. HOW
 
 Evidence tiers, tagged per feature:
 - **[MD-SRC]** MilkDrop, extracted from source (pluginshell.cpp key handler, plugin.cpp).
@@ -88,35 +110,19 @@ editing overlaid on the running visual). Plane9 has a separate full Studio app.
 | Command-line record | — | [P9-DOC] set transition/min/max runtime from CLI in record mode |
 | Post-processing scenes | — | [P9-DOC] config how often a postproc scene is used |
 
-═══════════════════════════════════════════════════════════════════
-## PHOSPHENE FEATURE-SET IMPLICATIONS (derived, for your decisions)
-═══════════════════════════════════════════════════════════════════
+## USE OF THE INVENTORY
 
-**Union of real capabilities, grouped by build priority:**
+Select capability work from an authentic scene or ordinary product-path need
+and follow its typed dependencies. The graph architecture may make layered
+scenes, live editing, serialization, and transition components representable,
+but it does not make their source semantics, UI, or platform integration free
+or implemented. This reference supplies the denominator; it does not impose
+delivery tiers or a parallel roadmap.
 
-TIER 1 — table stakes (both engines, simple): next/prev/random, auto-advance
-(timer + silence), fullscreen/windowed, audio source select, beat/waveform,
-help overlay, scene-name/FPS display, save/load, export-to-share, live edit.
+#### III. WHY
 
-TIER 2 — the studio (Plane9-grade): node-graph editor (PHOSPHENE IS a graph —
-this is native, not bolted on), shader editor w/ diagnostics (naga gives real
-errors), expression editor, unlimited undo, color/texture pickers, templates,
-dirty indicator, metadata. This is where Plane9 vastly exceeded MilkDrop and
-where the modern web editor can match or beat it.
+The engine translation is complete only when users can exercise the preserved
+behavior through the ordinary viewer and creation surfaces. A source-derived
+capability inventory prevents both UI cloning and agent-invented product scope.
 
-TIER 3 — choreography & output: timeline, video recording (MediaRecorder →
-WebM, browser-native), transitions (35 in Plane9), hard-cut/soft-blend,
-layered scenes (bg+fg — maps to PHOSPHENE's graph directly), rating/playlist.
-
-TIER 4 — native/platform (Tauri later): screensaver, multi-monitor, desktop
-mode, always-on-top. VR is Plane9-unique and a deliberate scope question — the
-graph supports it but it's a large surface; flag for explicit decision.
-
-**Notable: features that are FREE in the PHOSPHENE architecture** because the
-graph IR already implies them — layered scenes (subgraphs), live edit (IR is
-the running document), export (serialize IR), node editor (edit IR directly),
-transitions (a node type). These cost little because the scene anatomy was
-derived to make them native.
-
-**Features requiring genuine new work:** VR, multi-monitor, video recording
-timeline, and the shader-editor intellisense-grade tooling.
+[Back to Top](#top)

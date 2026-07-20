@@ -1,6 +1,6 @@
 {
   "//": "PHOSPHENE scene template — a legal, runnable .phos file. Copy it, rename it, edit it.",
-  "// carrier": "Strict JSON. Keys beginning with // are authoring comments: the loader ignores and STRIPS them (they do not survive a studio save). Any other key the spec does not define is a load error — a scene never half-loads. Spec: design/PHOS-FORMAT.md.",
+  "// carrier": "Strict JSON. Keys beginning with // are authoring comments: the loader ignores and STRIPS them (they do not survive a studio save). Any other key the spec does not define is a load error — a scene never half-loads. Spec: reference/sip-phosphene-format-reference.md.",
 
   "format": "phos/1",
 
@@ -12,7 +12,7 @@
     "// source": "Ported scenes carry meta.sourceEngine plus meta.source {engine,file,sha256} naming the exact source file they were transcribed from. Hand-authored scenes omit both."
   },
 
-  "// resources": "Graphical resources the scene declares. Each ResourceDescriptor names id, kind (texture|presentation), format (rgba8unorm|preferred-canvas), size.policy (canvas-16block|canvas), lifetime (persistent-pingpong|transient|per-frame), and usage flags (sampled|render-attachment|presentation). See design/PHOS-FORMAT.md.",
+  "// resources": "Graphical resources the scene declares. Each ResourceDescriptor names id, kind (texture|presentation), format (rgba8unorm|rgba16float|preferred-canvas), size.policy (canvas-16block|canvas|fixed with positive integer width and height), lifetime (persistent-pingpong|transient|per-frame), and usage flags (sampled|render-attachment|presentation). See reference/sip-phosphene-format-reference.md.",
   "resources": [
     {
       "id": "md-feedback",

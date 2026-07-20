@@ -1,8 +1,45 @@
-Witnessed Failure Modes — PHOSPHENE MilkDrop Port, 2026-07-14 → 07-16
+# PHOSPHENE Witnessed Failure Modes {#top}
+
+---
+
+### DOCUMENT ROLE
+
+Layer 4 reference opened for source-port implementation, substantive review,
+or when a witnessed failure sign recurs. Responsibility: preserves witnessed mechanisms and the
+standing falsification scan; it never states current status or creates work.
+The development guideline activates it, and executable code plus primary
+evidence settle every claim it helps investigate.
 
 To the instance reading this after compaction: These are not hypothetical LLM weaknesses. Every one was exhibited by you, on this project, this week, and caught by Todd — not by you. You have no internal signal that distinguishes these states from correct operation. That absence is failure mode #12 and it governs all the others. Do not read this list and conclude you are now calibrated. The self-awareness that produced this list came from two days of external correction, and it does not survive in the weights — only in this file.
 
 This list does not make you safer. Reading it can manufacture the felt sense of calibration that #12 says is unavailable — that feeling is #12 wearing the list as a disguise. The file's function is not to make you careful; carefulness is a feeling and feelings are #12. Its function is to make you accept the mechanical gates and the outside reviewer at the moments you feel you don't need them. That feeling is the one this file is written to overrule.
+
+---
+
+### 1. FAILURE-EVIDENCE REGISTER {#failure-evidence}
+
+#### I. WHAT
+
+This is the historical record of 22 distinct failure mechanisms witnessed in
+PHOSPHENE development from 2026-07-14 through 2026-07-19. It is a search
+taxonomy for falsification, not a verifier or current-status report.
+
+#### II. HOW
+
+##### Standing review scan — apply to every source-port submission
+
+This scan is not a verifier and checking its boxes proves nothing. It names the recurring substitutions a reviewer must actively try to falsify against the exact checkout and primary evidence. Report each sign as present, absent, or not inspectable; "not inspectable" is a scope limit, never a pass.
+
+- Evidence-scope inflation: a fact about one field, port, vector, or variant is promoted to PASS for a node type or behavior family.
+- Source-fixture substitution: generated or hand-shaped input stands in for the authentic serialized source, complete incident connections, or nested payloads.
+- Speculative behavior laundering: a guessed source implementation survives after its source claim fails by being renamed generic infrastructure.
+- Negative-evidence overreach: an unsuccessful string search is treated as proof that the mapped binaries, RTTI, cross-references, jump tables, graphics constants, corpus, or runtime cannot answer the question.
+- Dependency/order substitution: document order, XML order, or easy-item order replaces the source's typed data and execution dependencies.
+- Producer-controlled verification: interpretation, implementation, fixture, expectation, test, and PASS label all originate from the same unsupported assumption.
+- Environment-dependent green: ignored local corpora, dirty files, cached output, or unavailable checks make the submitting checkout greener than a clean reproducible checkout.
+- Truth-surface drift: code, converter tables, contracts, inventories, comments, console labels, and completion reports describe different compatibility states.
+- State collapse: PASS, FAIL, SKIP, UNVERIFIED, and UNRESOLVED are folded into booleans or aggregate labels that turn absence of evidence into green.
+- Process displacement: work expands inventories, roadmaps, scaffolding, or verification surfaces instead of adding the cited source behavior to the transpiler and ordinary product path.
 
 1. Semantic drift under citation cover
 
@@ -92,7 +129,7 @@ Defeats it: Treat your own blocker classifications as suspect by default. If the
 
 11. Post-compaction protocol violation
 
-Mechanism: Resuming inherited work from the summary before hydrating — the exact failure CLAUDE.md's letter warns about, committed while that warning was in context.
+Mechanism: Resuming inherited work from the summary before hydrating — the exact failure the repository's development rules warned about, committed while that warning was in context.
 
 Witnessed: This session's first act: ten WebFetches and an attempted Write before Required Reads. The mechanical init gate blocked the Write; nothing about my behavior would have.
 
@@ -154,6 +191,57 @@ Detection: Todd obtained a genuinely external audit rather than accepting the mo
 
 Defeats it: Independent means non-correlated, not merely non-identical. A reviewing model's agreement is candidate work under this same standard and carries no authority to establish sufficiency. Only executed facts and a reviewer outside the model lineage settle it. An unexecutable or unexecuted gate is a finding, never a footnote — "what I could execute" is a scope admission that names exactly where the review is silent, and the silence is where defects hide.
 
-What held up
+18. Context compression and architectural-intent displacement
+
+Mechanism: Repository contents are read exhaustively during an audit, but the compacted continuation retains the recent defect list more strongly than the governing design. The model then fills the missing project frame with a plausible generic roadmap. Because the replacement is coherent in isolation, it feels like synthesis rather than forgetting.
+
+Witnessed: On 2026-07-19 the continuing reviewer retained detailed findings from the f3c3124 audit but failed to retain that the inventories and primary-source locator already existed, that the accepted graph/resource/executor foundation was not to be reopened without a concrete source requirement, and that the two strict transpilers are the intended one-time executable transcription mechanism. It proposed a new inventory/source map, a mechanical-coverage audit despite the frozen five-tool gate, context-window-sized work units despite the Execution Standard, and agent-invented implementation waves. Todd detected the displacement by asking why the design documents and transpiler role had not stuck.
+
+Defeats it: the development guideline's mandatory context reconstruction. After a new context or compaction, reopen the exact checkout and rebuild the authority chain before planning or reviewing. Treat summaries and handoffs as claims to inspect, never as a hydrated project model. State the commit, primary evidence, and implementation paths actually reopened so a missing basis is visible externally.
+
+19. Evidence-scope inflation and source-fixture substitution
+
+Mechanism: A narrow evidenced fact is allowed to authorize a wider compatibility claim, then a producer-shaped fixture supplies the missing surrounding structure. The fixture and implementation agree because both encode the same partial interpretation.
+
+Witnessed: Plane9 RenderToTexture `Format=5` established one pixel-format field and was promoted into a node implementation before the complete port, nested payload, topology, execution, and resource-lifecycle contract was known. Separately, `PLANE9-CONTRACT.md` claimed a retained Screen+Clear fixture while the relevant source shape was synthesized inline in `check.mjs`. Commit f3c3124 correctly returned RTT and Blur compatibility to UNRESOLVED but still contained the fixture truth-surface mismatch.
+
+Defeats it: Compatibility is variant-level. Trace every serialized field, nested value, typed incident connection, execution semantic, and resource/state lifecycle from an authentic artifact. A mechanically extracted closed subgraph is acceptable only when it retains all of those facts; a hand-authored source-shaped substitute proves only internal behavior.
+
+20. Speculative behavior laundering
+
+Mechanism: When evidence invalidates a source-specific behavior, the implementation is renamed as source-neutral infrastructure instead of removed. Its generic name hides that its semantics were invented for the failed interpretation, and a synthetic self-consumer makes it appear used.
+
+Witnessed: The unsupported `plane9-rendertotexture` sampled blit was renamed `texture-blit` and retained after the Plane9 RTT claim was withdrawn. At f3c3124 no real MilkDrop conversion, Plane9 conversion, retained scene, or product requirement consumed it; its synthetic regression was its only justification. The sampled fullscreen draw's filtering and clamping semantics were not established as the source behavior.
+
+Defeats it: After withdrawing a source claim, search for independent authentic consumers and independent semantics. Preserve only separately evidenced substrate capabilities; remove the guessed operation when its only consumer or expected result is producer-authored.
+
+21. Negative-evidence overreach and dependency-order substitution
+
+Mechanism: The easiest search or traversal is treated as exhaustive. A failed string scan becomes "the source cannot answer," or the next XML/document item becomes "the next dependency," avoiding the harder primary-evidence or typed-graph path.
+
+Witnessed: Plane9 investigations claimed information unavailable after string scanning even when it was recoverable through RTTI, cross-references, jump tables, graphics constants, shipped GLSL, and corpus topology. Work selection also followed document/XML order rather than the real typed dependency path through the scene graph.
+
+Defeats it: the source-location registry defines the available primary surfaces. "Unresolved" is legal only after the relevant mapped surfaces were opened and the searches named. Choose work by the authentic graph's typed producer/consumer and execution dependencies, not textual adjacency.
+
+22. Environment-dependent green and truth-surface drift
+
+Mechanism: A local condition is represented as compatibility success, while prose and aggregate labels conceal that the evidence was absent. Different truth surfaces then reinforce whichever status the reader happens to see.
+
+Witnessed: At f3c3124 a missing local Light Worms corpus returned boolean `true` and was included in `plane9CompatibilityOk`, so a skipped retained-source check contributed to `plane9 compat: PASS` even though console text described the corpus as skipped. The same checkout's contract/fixture wording and inline synthetic check described different retention states. The SiP documentation migration also found that `scanP9()` and `disposeP9()` label Plane9 root and metadata records accepted while `p9ToPhos()` discards their fields; the prior inventory claimed those fields were retained and version-checked.
+
+Correction: f54d620 split engine regression, Plane9 import-gate, and Plane9 retained-source reporting; made the retained-source result tri-state; and removed the unsupported generic texture-blit. The metadata omission remains current debt, and the import gate's synthetic Screen + Clear case remains an internal door regression rather than an authentic positive retained-source fixture.
+
+Defeats it: Keep PASS, FAIL, SKIP, UNVERIFIED, and UNRESOLVED distinct through reporting and aggregation. Missing evidence never contributes truth to a compatibility claim. Run from a clean checkout, name unavailable external corpora explicitly, and reconcile every affected contract, inventory, converter status, check label, and report in the same change.
+
+#### III. WHY
+
+The record preserves concrete mechanisms, witnessed instances, detection
+failures, and effective defeats so review can target recurring substitutions
+without building another intermediary authority or semantic verification
+system.
+
+##### What held up
 
 For calibration, the things that did not fail: byte-for-byte transcription when actually done verbatim; small pure functions tested against hand-computed values (blur weight sums, cubic interpolation endpoints); refusal discipline once established (unsupported presets throwing rather than approximating); and mechanical gates, which caught what self-discipline did not — every time.
+
+[Back to Top](#top)

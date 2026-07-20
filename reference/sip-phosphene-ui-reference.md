@@ -1,11 +1,32 @@
-# PHOSPHENE UI Reference — the design authority for the chrome
+# PHOSPHENE UI Reference {#top}
+
+---
+
+### DOCUMENT ROLE
+
+Layer 4 reference opened for player or Studio chrome, typography, color,
+metering, layout, or interaction work. Responsibility: owns the accepted visual
+and interaction rules and their cited design references; rendered scene fidelity
+and product capability scope remain outside this document.
+
+---
+
+### 1. CHROME AND INTERACTION {#ui-rules}
+
+#### I. WHAT
+
+PHOSPHENE uses restrained synthwave instrument chrome around the visualization:
+one dominant cyan identity/action family, magenta live-state accents, dense
+technical typography, and readable near-black control surfaces.
+
+#### II. HOW
 
 The renderer ports behavior from cited source; the chrome ports style from
 cited references. Visual decisions in the player and studio derive from the
 rules below, each traced to an external reference — never from a producing
 agent's untraced idea of what the style looks like. The user's screenshot
-review is the frame diff for design, exactly as it is for rendered scenes
-(CLAUDE.md: behavior is judged by the human).
+review is the frame diff for design, while source-rendering compatibility keeps
+its separate technical evidence standard.
 
 Local oracles: Winamp (classic skin + MilkDrop) and Plane9 are installed on
 the owner's PC. Their chrome is reference material of the same standing as
@@ -136,3 +157,10 @@ clean rows, never an orphaned button.
   meters (6px cells, 2px gaps, peak cell white) with live value digits
   beneath, log-frequency spectrum in the cyan family, raw waveform in
   neutral white.
+
+#### III. WHY
+
+Explicit visual rules prevent untraced agent taste from becoming the interface
+authority while preserving user judgment for the final rendered product.
+
+[Back to Top](#top)

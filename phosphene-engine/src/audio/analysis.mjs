@@ -1,6 +1,6 @@
 // Audio analysis DERIVED from projectM @ 2f244141320f6b97b09bf99964cc72a4efdfcfd3
 // (src/libprojectM/Audio/: MilkdropFFT.cpp, Loudness.cpp, PCM.cpp) per the
-// audit at sources/AUDIO-PATH.md. Samples arrive continuously from the
+// audit at reference/sip-phosphene-milkdrop-audio-reference.md. Samples arrive continuously from the
 // pcm-tap.js AudioWorklet into the 576-sample rings below (AddToBuffer,
 // PCM.cpp:12-37); the per-frame update copies the ring and runs the chain
 // (UpdateFrameAudioData, PCM.cpp:52-74) — the same write/read model as the

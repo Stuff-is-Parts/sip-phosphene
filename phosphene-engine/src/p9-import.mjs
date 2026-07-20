@@ -2,13 +2,15 @@
 // record discipline as milk-import.mjs, and a record-consuming converter
 // (p9ToPhos) that shares ONE per-node-type disposition registry with the
 // triage view, exactly as milkToPhos shares VALUE_HANDLERS with
-// assessRecords. Convertible today: the witnessed geometry-free clear shape
-// (Clear.Render -> Screen.Render with a saved constant Color), which lands
-// on the shared executor's native clear-color op (NATIVE_OPS,
-// src/engine.mjs). Every other node type refuses with the exact missing
+// assessRecords. The witnessed geometry-free clear node/edge shape
+// (Clear.Render -> Screen.Render with a saved constant Color) lands on the
+// shared executor's native clear-color op (NATIVE_OPS, src/engine.mjs), but
+// root and metadata fields are not yet retained, so this is not a complete
+// Plane9 scene transcription. Every other node type refuses with the exact missing
 // fact and the observation that would resolve it, per
-// sources/PLANE9-CONTRACT.md. No Plane9 evaluator, no source-selected
-// runtime — PHOSPHENE-GOAL.md's "one native execution model".
+// reference/sip-phosphene-plane9-reference.md. No Plane9 evaluator, no
+// source-selected runtime — the compatibility guideline requires one native
+// execution model.
 import { unzipSync } from '../vendor/fflate/fflate.mjs';
 import { NATIVE_OPS } from './engine.mjs';
 
@@ -110,7 +112,7 @@ const P9_COMPATIBILITY = /** @type {Record<string,{status:'PASS'|'UNRESOLVED', n
   RenderToTexture: {
     // Plane9 RenderToTexture node — Format=5 pixel-format mapping IS
     // grounded (Format=5 → GL_RGBA16F → WebGPU rgba16float per
-    // sources/plane9/RENDERTOTEXTURE-FORMAT-EVIDENCE.md), but Format
+    // reference/sip-phosphene-plane9-rtt-format-reference.md), but Format
     // is one field on a node whose full contract is not yet
     // established. Every real Light Worms RenderToTexture node also
     // carries a nested `<Port Id="Shader"><Value>...GLSL...</Value>
@@ -129,7 +131,7 @@ const P9_COMPATIBILITY = /** @type {Record<string,{status:'PASS'|'UNRESOLVED', n
     // evidence (RTTI class routine walk, runtime capture, or the
     // upstream Shader/Effect subsystem itself).
     status: 'UNRESOLVED', nativeOp: null,
-    reason: 'Format=5 pixel format is grounded (see sources/plane9/RENDERTOTEXTURE-FORMAT-EVIDENCE.md), but that is one field of many. The complete RenderToTexture contract is UNRESOLVED: full port inventory including Effect (evidenced by Light Worms Shader4.Effect -> RenderToTexture2.Effect); Render-driven versus Effect-driven behavior distinction; nested <Port Id="Shader"><Value>GLSL</Value></Port> payload semantics (present on every Light Worms RTT node); nested <Port Id="Expression"><Value></Value></Port> payload semantics; exact render-target execution path; how the Color texture output is actually produced; load/store/clear and depth-buffer state behavior. No native op is registered for Plane9 RenderToTexture. The prior interpretation as a texture-blit was retracted because a blit is not evidenced as the correct execution semantics, and no other consumer justified retaining a generic blit primitive. Observation that would settle it: walk the CRenderToTextureNode render path in Plane9Engine.dll from its RTTI-identified constructor at 0x100CDA70 into the render loop, or take a runtime graphics capture of RenderToTexture2 executing in Light Worms.',
+    reason: 'Format=5 pixel format is grounded (see reference/sip-phosphene-plane9-rtt-format-reference.md), but that is one field of many. The complete RenderToTexture contract is UNRESOLVED: full port inventory including Effect (evidenced by Light Worms Shader4.Effect -> RenderToTexture2.Effect); Render-driven versus Effect-driven behavior distinction; nested <Port Id="Shader"><Value>GLSL</Value></Port> payload semantics (present on every Light Worms RTT node); nested <Port Id="Expression"><Value></Value></Port> payload semantics; exact render-target execution path; how the Color texture output is actually produced; load/store/clear and depth-buffer state behavior. No native op is registered for Plane9 RenderToTexture. The prior interpretation as a texture-blit was retracted because a blit is not evidenced as the correct execution semantics, and no other consumer justified retaining a generic blit primitive. Observation that would settle it: walk the CRenderToTextureNode render path in Plane9Engine.dll from its RTTI-identified constructor at 0x100CDA70 into the render loop, or take a runtime graphics capture of RenderToTexture2 executing in Light Worms.',
   },
   HSLAToColor: {
     status: 'UNRESOLVED', nativeOp: 'HSLAToColor',
@@ -251,7 +253,7 @@ function parseP9Value(/** @type {string} */ s, /** @type {string} */ nativeType)
 // fixture. Screen's function as the render sink is witnessed corpus-wide;
 // what its camera ports do to a geometry-free clear is NOT resolved, so any
 // deviation from these witnessed values refuses rather than assuming
-// camera inertness (sources/PLANE9-CONTRACT.md §Screen).
+// camera inertness (reference/sip-phosphene-plane9-reference.md §Screen).
 const SCREEN_WITNESSED = /** @type {Record<string,string>} */ ({
   Viewport: '0 0 1 1', CamPos: '0 0 -2', CamRot: '0 0 0', CamLookAt: '0 0 1',
   CamLookAtInWorldSpace: 'false', CamFov: '45', CamNear: '0.1', CamFar: '1000',
@@ -400,10 +402,11 @@ export function assessP9Records(records) {
 /**
  * Strict conversion door: scene.xml -> native .phos Scene. Refuses at the
  * first record whose disposition is not ok (naming the source line). The
- * result carries every source node as an ordinary native node with the
+ * result carries every accepted source node as an ordinary native node with the
  * source's own port values, and every source connection as a typed .phos
  * edge — Plane9 structure (Screen, Clear, HSLAToColor, MinMax*, Beat)
- * remains visible, editable and reloadable. The shared executor runs the
+ * remains visible, editable and reloadable. Root and metadata fields are not
+ * yet projected into .phos. The shared executor runs the
  * result end to end through the ordinary `.phos → Engine → WebGPU` path.
  * @param {string} xml
  * @param {{file:string, sha256:string}} source

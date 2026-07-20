@@ -1,10 +1,30 @@
-# GPU Render-State Conformance — audit vs MilkDrop source
+# MilkDrop GPU Render-State Contract {#top}
+
+---
+
+### DOCUMENT ROLE
+
+Layer 4 reference opened for a MilkDrop render pass, shader, sampler, blend,
+depth, raster, or load/store change. Responsibility: owns the source-to-WebGPU
+state mapping around transcribed passes; shader algorithms and graph topology
+remain in their implementation and primitive reference.
+
+---
+
+### 1. RENDER-STATE PERIMETER {#render-state}
+
+#### I. WHAT
+
+Every source render-state call surrounding an implemented MilkDrop pass must be
+mapped to explicit WebGPU state or a named refusal.
+
+#### II. HOW
 
 Trigger: the sampler address-mode bug (ours clamped where the source wraps)
 escaped every prior audit. Root cause: the GPU state lived in page-inline
 plumbing written in the pre-discipline demo era, and every audit since
 targeted engine modules — the render-state layer was never swept against the
-source's SetRenderState/SetSamplerState blocks, even though PHOSPHENE-GOAL.md
+source's SetRenderState/SetSamplerState blocks, even though the compatibility guideline
 names "blend, depth, raster, and other render state" in the exactness
 standard. Structural prevention: composite/warp GPU code is centralized in
 src/render-wgsl.mjs (pages carry only packing), and the standing practice is
@@ -69,7 +89,15 @@ pages, engine, and shaders:
 This ledger is one dimension (GPU state) of a two-dimensional standing
 practice. The dataflow dimension — every per-frame variable name classified
 against the source's register list and asserted by check data — lives at
-sources/VAR-CONTRACT.md with its living table in phosphene-engine/check.mjs.
+the MilkDrop variable reference, with its living table in `phosphene-engine/check.mjs`.
 The shared rule: a window that ships a transcribed element also ships the
 perimeter trace of that element's identifiers and render state, with every
 crossing implemented or refused.
+
+#### III. WHY
+
+Correct shader math with incorrect sampler, blend, depth, raster, or target
+state is still a different renderer; perimeter accounting keeps those ambient
+inputs from escaping the transcription.
+
+[Back to Top](#top)

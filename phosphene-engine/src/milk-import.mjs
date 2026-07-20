@@ -5,7 +5,7 @@
 // (src/phos.mjs milkToPhos) must consume every record explicitly. The vars and
 // expressions views are DERIVED from the records for downstream consumers;
 // the records are the authoritative converter input.
-// REFUSAL DISCIPLINE (PHOSPHENE-GOAL.md): unsupported source content refuses
+// REFUSAL DISCIPLINE (compatibility guideline): unsupported source content refuses
 // naming the source line — nothing is silently dropped. scanMilk is the ONE
 // classification pass: it records refusals as records and continues, so the
 // studio's triage view can show every unconvertible line at once; importMilk

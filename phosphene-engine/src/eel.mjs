@@ -2,8 +2,9 @@
 // PHOSPHENE's EEL function implementations, derived from projectm-eval
 // (github.com/projectM-visualizer/projectm-eval @ da885dcdf33620ef26aa04cac9e215378b80252e,
 // projectm-eval/TreeFunctions.c) — the per-function derivation table with
-// citations is sources/EEL-FUNCTIONS.md; source locations per
-// sources/SOURCE-LOCATIONS.md. Checks: per-function cases in check.mjs.
+// citations is reference/sip-phosphene-milkdrop-eel-reference.md; source
+// locations per reference/sip-phosphene-source-locations-reference.md.
+// Checks: per-function cases in check.mjs.
 //
 // Two epsilon constants, both from TreeFunctions.c:116-125 (double build):
 const CLOSE = 1e-5;        // COMPARE_CLOSEFACTOR — used by sigmoid, band, bor
